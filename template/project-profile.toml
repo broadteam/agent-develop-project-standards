@@ -11,7 +11,7 @@ risk = "unknown"
 architecture = "unknown"
 
 [stack]
-detected = [{{DETECTED_STACKS}}]
+detected = ["generic"]
 primary = "{{LANGUAGE}}"
 framework = "{{FRAMEWORK}}"
 package_manager = "{{PACKAGE_MANAGER}}"
