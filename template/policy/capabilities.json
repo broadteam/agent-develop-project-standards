@@ -22,6 +22,9 @@
       ],
       "validation": [
         "on 时必须保留任务索引与卡片目录结构"
+      ],
+      "artifacts": [
+        ".spec/tasks/"
       ]
     },
     "roadmap": {
@@ -42,6 +45,9 @@
       ],
       "validation": [
         "on 时必须保留里程碑索引与详情目录"
+      ],
+      "artifacts": [
+        ".spec/roadmap/"
       ]
     },
     "adr": {
@@ -57,6 +63,9 @@
       ],
       "validation": [
         "on 时必须保留 ADR 模板目录"
+      ],
+      "artifacts": [
+        ".spec/adr/"
       ]
     },
     "module_boundaries": {
