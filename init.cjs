@@ -150,7 +150,8 @@ walk(TEMPLATE);
 
 // Add only the detected language profiles. They are on-demand references, not always-loaded rules.
 const presetMap = [...new Set(STACKS.map((stack) => stack === 'electron' || stack === 'node-web' ? 'node' : stack))];
-for (const stack of presetMap) {\n  if (capabilityResolution.capabilities.stack_rules?.status === 'disabled') break;
+for (const stack of presetMap) {
+  if (capabilityResolution.capabilities.stack_rules?.status === 'disabled') break;
   const from = path.join(__dirname, 'presets', 'stacks', `${stack}.md`);
   if (!fs.existsSync(from)) continue;
   const rel = `.spec/stacks/${stack}.md`;
