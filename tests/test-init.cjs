@@ -23,6 +23,10 @@ try {
   assert.match(ignore, /vendor\//, '.gitignore should merge missing entries even if .tmp/ already exists');
   assert.match(ignore, /agent-project-standards \(managed\)/);
   const gov = fs.readFileSync(path.join(project, 'gov.toml'), 'utf8');
+  const profile = fs.readFileSync(path.join(project, 'project-profile.toml'), 'utf8');
+  assert.match(profile, /status = "needs_review"/);
+  assert.match(profile, /detected = \["php", "node"\]/);
+  assert.match(profile, /multi_agent = "off"/);
   assert.match(gov, /language = "php"/);
   assert.match(gov, /package_manager = "composer\+npm"/);
   assert.ok(fs.existsSync(path.join(project, 'scripts/generate-board.cjs')));
