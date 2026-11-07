@@ -136,6 +136,10 @@ project-standards/
 
 规则分为 core、capability、stack、project、advisory；core 不可关闭，其余能力按项目需要启用。项目画像只记录选择，不复制规则正文；Agent 仍通过 AGENTS.md 和 ROUTER.md 按任务加载规范。详见 [PROJECT-ADAPTATION-v2.0.md](PROJECT-ADAPTATION-v2.0.md)。
 
+## 能力注册表与画像校验
+
+能力元数据集中维护在 `template/policy/capabilities.json`，项目初始化后位于 `policy/capabilities.json`。项目画像只选择能力，不重复定义能力语义。Node/Python 双校验器会检查画像字段、枚举、schema 版本和能力依赖；`needs_review` 仅告警，不阻断初始化。详见 [PROJECT-ADAPTATION-v2.0.md](PROJECT-ADAPTATION-v2.0.md)。
+
 ## 任务与归档规则
 
 - 当前任务的唯一状态源是 `.spec/tasks/index.md`。
