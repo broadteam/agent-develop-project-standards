@@ -30,7 +30,7 @@ try {
   assert.match(gov, /language = "php"/);
   assert.match(gov, /package_manager = "composer\+npm"/);
   assert.ok(fs.existsSync(path.join(project, 'scripts/generate-board.cjs')));
-  const governance = spawnSync(process.execPath, [path.join(project, 'scripts/check-governance.cjs')], { encoding: 'utf8' });
+  const profileValidator = require(path.join(root, 'template/scripts/profile-validator.cjs'));\n  const profileResult = profileValidator.validateProfile(project);\n  assert.deepEqual(profileResult.errors, []);\n  assert.ok(profileResult.warnings.some((warning) => warning.includes('needs_review')));\n  const profilePath = path.join(project, 'project-profile.toml');\n  const validProfile = fs.readFileSync(profilePath, 'utf8');\n  fs.writeFileSync(profilePath, validProfile.replace('task_tracking = \\"auto\\"', 'task_tracking = \\"invalid\\"'));\n  assert.ok(profileValidator.validateProfile(project).errors.some((error) => error.includes('非法能力配置')));\n  fs.writeFileSync(profilePath, validProfile.replace('roadmap = \\"auto\\"', 'roadmap = \\"on\\"').replace('task_tracking = \\"auto\\"', 'task_tracking = \\"off\\"'));\n  assert.ok(profileValidator.validateProfile(project).errors.some((error) => error.includes('能力依赖冲突')));\n  fs.writeFileSync(profilePath, validProfile);\n  const governance = spawnSync(process.execPath, [path.join(project, 'scripts/check-governance.cjs')], { encoding: 'utf8' });
   assert.equal(governance.status, 0, governance.stdout + governance.stderr);
   let python = spawnSync('python3', [path.join(project, 'scripts/check_governance.py')], { encoding: 'utf8' });
   if (python.error) python = spawnSync('python', [path.join(project, 'scripts/check_governance.py')], { encoding: 'utf8' });
