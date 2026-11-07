@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.0.0-rc.4 - 2026-11-08
+
+### Added
+- Add a read-only Task Context Resolver that evaluates `auto` capability triggers against an explicit task descriptor.
+- Output fixed context, task-required references, optional history, capability decisions, configured verification commands and follow-up warnings.
+- Keep the resolver optional for lightweight tasks; it does not create task cards, mutate profiles, run commands or grant permissions.
+- Add fixture tests for local changes, high-impact database work, explicit capability overrides, unknown risk and safe task identifiers.
+
 ## 2.0.0-rc.3 - 2026-11-08
 
 ### Added
