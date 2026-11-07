@@ -122,3 +122,28 @@ def validate_profile(root: Path) -> tuple[list[str], list[str]]:
             if not isinstance(profile["verification"].get(key), str):
                 errors.append(f"verification.{key} 必须是字符串")
     return errors, warnings
+
+def resolve_capabilities(profile: dict, registry: dict) -> dict:
+    configured = profile.get("capabilities", {})
+    resolved: dict[str, dict[str, str]] = {}
+    errors: list[str] = []
+    excluded_paths: list[str] = []
+    for name, definition in registry.get("capabilities", {}).items():
+        value = configured.get(name, definition.get("default"))
+        if value not in definition.get("values", []):
+            errors.append(f"非法能力配置：capabilities.{name} = {value}")
+            continue
+        kind = definition.get("kind")
+        status = "enabled" if kind == "profile" or value == "on" else "disabled" if value == "off" else "deferred"
+        resolved[name] = {"configured": value, "status": status}
+        if status == "disabled":
+            excluded_paths.extend(definition.get("artifacts", []))
+    for name, definition in registry.get("capabilities", {}).items():
+        item = resolved.get(name)
+        dependency = definition.get("requires")
+        if not item or item["status"] == "disabled" or not dependency or item["configured"] != dependency.get("when"):
+            continue
+        target = resolved.get(dependency.get("capability"))
+        if not target or target["configured"] == dependency.get("not"):
+            errors.append(f"能力依赖冲突：{name}={item['configured']} 要求 {dependency.get('capability')} 不得为 {dependency.get('not')}")
+    return {"capabilities": resolved, "excluded_paths": list(dict.fromkeys(excluded_paths)), "errors": errors}
