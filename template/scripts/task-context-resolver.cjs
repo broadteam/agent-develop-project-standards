@@ -99,6 +99,7 @@ function resolveTaskContext(input, options = {}) {
 
   const signals = new Set();
   if (task.cross_session) signals.add('cross_session');
+  if (task.task_id) signals.add('task_id_present');
   if (task.uncertainty === 'high') signals.add('uncertainty_high');
   if (task.risk === 'high' || task.risk === 'critical') signals.add('risk_high');
   if (task.impact === 'cross_module') signals.add('impact_cross_module');
@@ -114,7 +115,7 @@ function resolveTaskContext(input, options = {}) {
   if (task.kind === 'module_change') signals.add('kind_module_change');
   if (task.kind === 'incident') signals.add('kind_incident');
   if (task.kind === 'release') signals.add('kind_release');
-  if (task.kind === 'planning' && task.milestone_id) signals.add('milestone_planning');
+  if (task.milestone_id) signals.add('milestone_planning');
   if (task.multiple_agents) signals.add('multiple_agents');
 
   let stacks = task.stacks;
@@ -193,7 +194,7 @@ function resolveTaskContext(input, options = {}) {
   }
 
   const constitutionNeeded = ['high', 'critical'].includes(task.risk)
-    || HIGH_IMPACTS.has(task.impact)
+    || ['data', 'security', 'production', 'public_contract', 'system'].includes(task.impact)
     || task.release_target === 'production'
     || task.kind === 'security_change';
   if (constitutionNeeded) {
