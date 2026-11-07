@@ -5,7 +5,9 @@ import hashlib
 import os
 import re
 import sys
+import json
 from pathlib import Path
+from profile_validator import parse_profile, resolve_capabilities
 
 ROOT = Path(__file__).resolve().parent.parent
 GOV = ROOT / "gov.toml"
@@ -62,6 +64,15 @@ gov = read_gov(GOV)
 errors: list[str] = []
 notes: list[str] = []
 layout = gov.get("layout", {})
+profile_data = parse_profile((ROOT / "project-profile.toml").read_text(encoding="utf-8"))
+registry_data = json.loads((ROOT / "policy/capabilities.json").read_text(encoding="utf-8"))
+capability_resolution = resolve_capabilities(profile_data, registry_data)
+errors.extend(capability_resolution["errors"])
+def capability_enabled(name: str) -> bool:
+    return capability_resolution["capabilities"].get(name, {}).get("status") != "disabled"
+def capability_excluded(rel: str) -> bool:
+    normalized = rel.replace(os.sep, "/")
+    return any(normalized == item.rstrip("/") or normalized.startswith(item if item.endswith("/") else item + "/") for item in capability_resolution["excluded_paths"])
 project_name = gov.get("project", {}).get("name") or ROOT.name
 entries = sorted(os.scandir(ROOT), key=lambda entry: entry.name)
 
@@ -117,8 +128,8 @@ budget_checks = [
     ("AGENTS.md", budget.get("agents_bytes"), "唯一入口"),
     (".memory/MEMORY.md", budget.get("memory_bytes"), "跨会话状态页"),
     (".memory/PITFALLS.md", budget.get("pitfalls_bytes"), "判据与实证"),
-    (layout.get("tasks_index", ".spec/tasks/index.md"), budget.get("index_bytes"), "任务索引（超了先归档已完成波次）"),
-    (layout.get("roadmap_index", ".spec/roadmap/INDEX.md"), budget.get("roadmap_bytes"), "里程碑索引（超了先归档已完成里程碑）"),
+    *((layout.get("tasks_index", ".spec/tasks/index.md"), budget.get("index_bytes"), "任务索引（超了先归档已完成波次）"),) if capability_enabled("task_tracking") else (),
+    *((layout.get("roadmap_index", ".spec/roadmap/INDEX.md"), budget.get("roadmap_bytes"), "里程碑索引（超了先归档已完成里程碑）"),) if capability_enabled("roadmap") else (),
 ]
 for rel, limit, label in budget_checks:
     size = size_of(rel)
@@ -145,12 +156,14 @@ def scan_detail(dir_rel: str, filename: str, label: str, require_log: bool = Fal
         if require_log and size_of(f"{dir_rel}/{entry.name}/log.md") is None:
             errors.append(f"任务卡 {entry.name} 缺少 log.md（应在 {dir_rel}/{entry.name}/ 下）")
 
-scan_detail(layout.get("tasks_dir", ".spec/tasks"), "card.md", "任务卡", True)
-scan_detail(layout.get("roadmap_dir", ".spec/roadmap"), "milestone.md", "里程碑")
+if capability_enabled("task_tracking"):
+    scan_detail(layout.get("tasks_dir", ".spec/tasks"), "card.md", "任务卡", True)
+if capability_enabled("roadmap"):
+    scan_detail(layout.get("roadmap_dir", ".spec/roadmap"), "milestone.md", "里程碑")
 
 # 4. Required files
 for rel in gov.get("required", {}).get("files", []):
-    if not (ROOT / rel).exists():
+    if not capability_excluded(rel) and not (ROOT / rel).exists():
         errors.append(f"缺少必需文件：{rel}")
 
 # 5. Active index ↔ directory consistency; archive folders are intentionally excluded.
@@ -195,13 +208,15 @@ def consistency(index_rel: str, dir_rel: str, label: str, heading: str, allowed_
         if name not in seen:
             errors.append(f"{label}：{dir_rel}/{name}/ 存在，但 {index_rel} 里没有登记（补一行，或移入 archive/）")
 
-consistency(layout.get("tasks_index", ".spec/tasks/index.md"), layout.get("tasks_dir", ".spec/tasks"), "任务卡", "当前波次", ["planned", "ready", "in_progress", "review", "done", "blocked", "dropped"], 2, layout.get("tasks_ignore", ["archive", "assets"]))
-consistency(layout.get("roadmap_index", ".spec/roadmap/INDEX.md"), layout.get("roadmap_dir", ".spec/roadmap"), "里程碑", "里程碑", ["未开始", "进行中", "已完成", "已放弃"], 3, layout.get("roadmap_ignore", ["archive", "assets"]))
+if capability_enabled("task_tracking"):
+    consistency(layout.get("tasks_index", ".spec/tasks/index.md"), layout.get("tasks_dir", ".spec/tasks"), "任务卡", "当前波次", ["planned", "ready", "in_progress", "review", "done", "blocked", "dropped"], 2, layout.get("tasks_ignore", ["archive", "assets"]))
+if capability_enabled("roadmap"):
+    consistency(layout.get("roadmap_index", ".spec/roadmap/INDEX.md"), layout.get("roadmap_dir", ".spec/roadmap"), "里程碑", "里程碑", ["未开始", "进行中", "已完成", "已放弃"], 3, layout.get("roadmap_ignore", ["archive", "assets"]))
 
 # 6. Generated board freshness
 index_path = ROOT / layout.get("tasks_index", ".spec/tasks/index.md")
 board_path = ROOT / ".spec/tasks/BOARD.md"
-if index_path.exists() and board_path.exists():
+if capability_enabled("task_tracking") and index_path.exists() and board_path.exists():
     digest = hashlib.sha256(index_path.read_bytes()).hexdigest()
     board_text = board_path.read_text(encoding="utf-8")
     generated = re.search(r"<!-- GENERATED-SHA256: ([a-f0-9]+) -->\r?\n([\s\S]*?)<!-- GENERATED:END -->", board_text)
