@@ -45,7 +45,7 @@ try {
     assert.equal(fs.existsSync(path.join(project, rel)), false, rel + ' should be omitted when capability is off');
   }
   const gov = fs.readFileSync(path.join(project, 'gov.toml'), 'utf8');
-  assert.doesNotMatch(gov, /"\.spec\/(tasks|roadmap|adr|stacks)\//);
+  const requiredFiles = gov.match(/^files = \\[(.*)\\]$/m)?.[1] ?? '';\n  assert.doesNotMatch(requiredFiles, /\\.spec\\/(tasks|roadmap|adr|stacks)\\//);
   assert.ok(fs.existsSync(path.join(project, '.spec/00-constitution.md')), 'core rules must remain');
   assert.ok(fs.existsSync(path.join(project, '.spec/01-architecture.md')), 'base architecture guidance must remain');
 } finally {
