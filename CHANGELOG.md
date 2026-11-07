@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.0.0-rc.2 - 2026-11-07
+
+### Added
+- Add project-profile.toml as a review-first project profile and capability selection file.
+- Define the cross-cutting mother-template adaptation model: core/capability/stack/project/advisory rules, lean/balanced/rigorous recommendations, and task-driven context loading.
+- Extend initialization and regression contracts to cover generated project profiles.
+
+### Notes
+- Profile generation only records detectable candidates; maintainers must confirm project scale, risk, architecture and enabled capabilities.
+
+
 ## 2.0.0-rc.1 - 2026-11-07
 
 ### Added
