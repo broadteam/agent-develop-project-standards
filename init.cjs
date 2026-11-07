@@ -173,7 +173,7 @@ if (report.created.includes('gov.toml') || report.forced.includes('gov.toml')) {
     govText = govText.replace(/^allowed_dirs = \[\]/m, dirsToml).replace(/^allowed_files = \[\]/m, filesToml);
     const requiredLine = govText.match(/^files = \[(.*)\]$/m);
     if (requiredLine) {
-      const required = [...requiredLine[1].matchAll(/"([^"]+)"/g)].map((match) => match[1]);
+      const required = [...requiredLine[1].matchAll(/"([^"]+)"/g)].map((match) => match[1]).filter((rel) => !capabilityResolution.isExcluded(rel));
       for (const stack of presetMap) {
         const rel = `.spec/stacks/${stack}.md`;
         if (fs.existsSync(path.join(TARGET, rel)) && !required.includes(rel)) required.push(rel);
