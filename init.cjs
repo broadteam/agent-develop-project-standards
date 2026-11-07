@@ -77,7 +77,7 @@ const cmdLines = Object.keys(scripts).filter(k => ['dev', 'start', 'build', 'tes
 const COMMANDS = cmdLines.length ? cmdLines.join('\n') : profile.cmds.join('\n');
 
 const TEMPLATE_DIRS = ['.memory', '.spec', '.tmp', '.githooks', 'scripts'];
-const TEMPLATE_FILES = ['AGENTS.md', 'ROUTER.md', 'CLAUDE.md', 'GEMINI.md', 'gov.toml', '.gitattributes', '.gitignore'];
+const TEMPLATE_FILES = ['AGENTS.md', 'ROUTER.md', 'CLAUDE.md', 'GEMINI.md', 'gov.toml', 'project-profile.toml', '.gitattributes', '.gitignore'];
 const ALWAYS_SKIP = new Set(['.git', 'node_modules']);
 const entries = fs.readdirSync(TARGET, { withFileTypes: true });
 const existingDirs = entries.filter(e => e.isDirectory() && !ALWAYS_SKIP.has(e.name)).map(e => e.name);
@@ -91,7 +91,7 @@ const replacements = {
   PROJECT_NAME, PROJECT_DESC, SRC_DIR, BUILD_OUTPUT, TODAY: today,
   LANGUAGE: STACK, FRAMEWORK: php ? (has('artisan') ? 'laravel' : has('think') || has('thinkphp') ? 'thinkphp' : has('hyperf') ? 'hyperf' : 'php-framework-unspecified') : java ? 'spring-or-java-unspecified' : node ? 'node-framework-unspecified' : STACK,
   PACKAGE_MANAGER: packageManager,
-  ALLOWED_DIRS: allowedDirs.join('  '), ALLOWED_FILES: allowedFiles.join(' '), COMMANDS,
+  ALLOWED_DIRS: allowedDirs.join('  '), ALLOWED_FILES: allowedFiles.join(' '), COMMANDS,\n  DETECTED_STACKS: (STACKS.length ? STACKS : ['generic']).map((s) => JSON.stringify(s)).join(', '),
   DEV_COMMANDS: scripts.dev ? `${jsPackageManager || 'npm'} run dev` : '# 按项目实际填写',
   BUILD_COMMANDS: scripts.build ? `${jsPackageManager || 'npm'} run build` : '# 按项目实际填写',
   MILESTONE: '（待填）', CURRENT_STATE: '（待填：一句话说清现在到哪一步）',
