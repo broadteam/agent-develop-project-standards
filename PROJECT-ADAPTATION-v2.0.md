@@ -87,7 +87,17 @@
 - 新能力默认关闭或 auto，除非它属于 core。
 - 关闭能力不删除历史数据；重新启用时应能恢复原有任务、ADR 或记录。
 
-## 9. 能力注册表与校验器\n\n机器可读的能力定义唯一维护在 `policy/capabilities.json`，包含能力 ID、配置类型、允许值、默认值、依赖、关联规则和验证要求。`project-profile.toml` 只做项目选择，不重复定义能力语义。\n\n- `scripts/profile-validator.cjs` 与 `scripts/profile_validator.py` 使用标准库实现，保持相同诊断语义，不引入运行时第三方依赖。\n- 校验器检查 TOML 子集语法、重复 section/key、未知 section/key、必需字段、枚举值、schema 版本和能力依赖。\n- `needs_review` 是警告，不阻断初始化；`confirmed` 时项目类型、规模、风险、架构不得仍为 `unknown`。\n- `auto` 表示运行时按任务上下文判断，不在画像静态校验阶段被擅自解析成 `on` 或 `off`。\n- core 能力由注册表声明为 always enabled，项目画像不存在关闭 core 的入口。\n\n## 10. Capability Resolver
+## 9. 能力注册表与校验器
+
+机器可读的能力定义唯一维护在 `policy/capabilities.json`，包含能力 ID、配置类型、允许值、默认值、依赖、关联规则和验证要求。`project-profile.toml` 只做项目选择，不重复定义能力语义。
+
+- `scripts/profile-validator.cjs` 与 `scripts/profile_validator.py` 使用标准库实现，保持相同诊断语义，不引入运行时第三方依赖。
+- 校验器检查 TOML 子集语法、重复 section/key、未知 section/key、必需字段、枚举值、schema 版本和能力依赖。
+- `needs_review` 是警告，不阻断初始化；`confirmed` 时项目类型、规模、风险、架构不得仍为 `unknown`。
+- `auto` 表示运行时按任务上下文判断，不在画像静态校验阶段被擅自解析成 `on` 或 `off`。
+- core 能力由注册表声明为 always enabled，项目画像不存在关闭 core 的入口。
+
+## 10. Capability Resolver
 
 `scripts/capability-resolver.cjs` 是初始化阶段唯一的能力解析入口。它读取项目画像与能力注册表，使用注册表默认值补齐未显式配置的能力，并输出每项能力的 `enabled`、`disabled` 或 `deferred` 状态及可裁剪产物路径。
 
