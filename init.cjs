@@ -119,6 +119,7 @@ function walk(dir, rel = '') {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const from = path.join(dir, entry.name);
     const relPath = path.posix.join(rel.split(path.sep).join('/'), entry.name);
+    if (capabilityResolution.isExcluded(relPath)) continue;
     if (entry.isDirectory()) { walk(from, relPath); continue; }
     if (entry.name === '.gitignore.append') continue;
     const to = path.join(TARGET, relPath);
