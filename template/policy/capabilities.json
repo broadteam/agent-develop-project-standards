@@ -25,7 +25,20 @@
       ],
       "artifacts": [
         ".spec/tasks/"
-      ]
+      ],
+      "task_context": {
+        "when_any": [
+          "cross_session",
+          "uncertainty_high",
+          "risk_high",
+          "impact_cross_module",
+          "impact_public_contract",
+          "impact_data",
+          "impact_security",
+          "impact_production",
+          "kind_incident"
+        ]
+      }
     },
     "roadmap": {
       "kind": "toggle",
@@ -48,7 +61,12 @@
       ],
       "artifacts": [
         ".spec/roadmap/"
-      ]
+      ],
+      "task_context": {
+        "when_any": [
+          "milestone_planning"
+        ]
+      }
     },
     "adr": {
       "kind": "toggle",
@@ -66,7 +84,19 @@
       ],
       "artifacts": [
         ".spec/adr/"
-      ]
+      ],
+      "task_context": {
+        "when_any": [
+          "kind_architecture_change",
+          "kind_database_change",
+          "kind_security_change",
+          "kind_dependency_change",
+          "impact_public_contract",
+          "impact_data",
+          "impact_security",
+          "impact_system"
+        ]
+      }
     },
     "module_boundaries": {
       "kind": "toggle",
@@ -81,7 +111,15 @@
       ],
       "validation": [
         "on 时需由项目维护者定义可验证的模块边界"
-      ]
+      ],
+      "task_context": {
+        "when_any": [
+          "impact_cross_module",
+          "impact_system",
+          "kind_module_change",
+          "kind_architecture_change"
+        ]
+      }
     },
     "multi_agent": {
       "kind": "toggle",
@@ -95,7 +133,12 @@
       ],
       "validation": [
         "on 时必须定义共享状态与并发修改协调方式"
-      ]
+      ],
+      "task_context": {
+        "when_any": [
+          "multiple_agents"
+        ]
+      }
     },
     "memory_mode": {
       "kind": "profile",
@@ -127,7 +170,12 @@
       ],
       "artifacts": [
         ".spec/stacks/"
-      ]
+      ],
+      "task_context": {
+        "when_any": [
+          "stack_involved"
+        ]
+      }
     },
     "quality_gates": {
       "kind": "profile",
@@ -142,7 +190,16 @@
       ],
       "validation": [
         "strict 时必须配置 lint、test、build 中适用的验证命令"
-      ]
+      ],
+      "task_context": {
+        "when_any": [
+          "risk_high",
+          "kind_release",
+          "impact_data",
+          "impact_security",
+          "impact_production"
+        ]
+      }
     },
     "release_governance": {
       "kind": "profile",
@@ -157,7 +214,13 @@
       ],
       "validation": [
         "strict 时质量门禁不得为 baseline"
-      ]
+      ],
+      "task_context": {
+        "when_any": [
+          "kind_release",
+          "impact_production"
+        ]
+      }
     }
   }
 }
