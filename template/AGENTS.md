@@ -2,21 +2,25 @@
 
 > {{PROJECT_DESC}}
 >
-> **本文件是唯一入口。** 其他 agent 的入口文件（CLAUDE.md / GEMINI.md / .cursorrules）只做指针，不写第二套规范。
+> **本文件是唯一入口。** 其他 agent 的入口文件（CLAUDE.md / GEMINI.md）只做指针；Cursor 原生读取 AGENTS.md，不再生成已弃用的 `.cursorrules`，不写第二套规范。
 
 ---
 
 ## 0. 不可协商四条
 
-1. **项目内自足**。只读写本项目目录；**禁止**在项目外任何路径创建、修改、删除文件（系统 temp、桌面、下载、其他磁盘一律禁止）。
+1. **项目内自足**。只读写本项目目录；**禁止**主动在项目外创建、修改或删除项目文件、业务数据与开发产物。工具运行所需的标准缓存（如 Maven/Gradle/npm/Python 缓存）和系统临时数据允许由工具自动维护，但不得擅自修改用户环境。
    唯一例外：产品运行时写自己的用户数据目录——那是产品数据，不是开发产物。
 2. **根目录白名单**。根目录只允许 `gov.toml [dirs]` 列出的目录/文件；临时产物只能进 `.tmp/<任务ID>/`，构建产物只能进 `{{BUILD_OUTPUT}}/`。
    **禁止** `out2` `test1` `tmp` `新建文件夹` 这类序号/随手目录。
 3. **单一入口 + 单一记忆**。规则看本文件，状态看 `.memory/MEMORY.md`。
-   **禁止**任何 agent 建自己的 memory/ 或 rules/ 目录。
+   **禁止**任何 agent 将私有 memory 或 rules 文件作为项目状态、任务进度、架构决策的权威来源。
 4. **一次改动一次提交**。提交信息写清"动了什么 + 为什么"。
 
 ---
+
+## 0.2 操作权限
+
+操作权限按 `.spec/00-constitution.md`「Agent 操作权限」执行。任务卡授权的是代码修改范围，不自动授权不可逆、外部可见或影响用户数据的操作；工具具备某项能力，不代表 Agent 已获授权。
 
 ## 0.3 冲突裁决顺序
 
@@ -85,7 +89,8 @@
 |---|---|
 | `.spec/00-constitution.md` | 红线（不可协商的技术约束） |
 | `.spec/01-architecture.md` | 架构、目录职责、数据位置 |
-| `.spec/02-conventions.md` | 命名、语言规范、提交信息、文案纪律 |
+| `.spec/02-conventions.md` | 跨语言命名、提交信息、文案纪律 |
+| `.spec/stacks/<stack>.md` | 当前项目技术栈专属约定（按任务按需读取） |
 | `.spec/03-delivery.md` | 构建、打包、产物路径、发布检查 |
 | `.spec/roadmap/INDEX.md` | 里程碑**索引**（≤4KB，只读这个） |
 | `.spec/roadmap/<ID>/milestone.md` | 单个里程碑详情（只在做它时读） |
@@ -93,7 +98,7 @@
 | `.spec/tasks/index.md` | 任务卡**索引 + 唯一状态源**（≤8KB） |
 | `.spec/tasks/<ID>/card.md` | 单张卡：背景/范围/验收（≤4KB） |
 | `.spec/tasks/<ID>/log.md` | 单张卡执行流水（只追加，追溯用） |
-| `.spec/tasks/archive/` | 已完成波次归档（**默认不读**） |
+| `.spec/tasks/archive/W<n>/` | 已完成波次的完整任务卡归档（**默认不读**） |
 | `.spec/adr/` | 架构决策记录（推翻既有设计时必写） |
 | `.memory/MEMORY.md` | 跨会话记忆（随 git 走） |
 | `.memory/PITFALLS.md` | 已踩过的坑（只增不改结论） |
@@ -144,7 +149,7 @@ Agent 最容易干的事：在根目录建 `TODO.md`、`PLAN.md`、`ROADMAP.md`�
 1. **先索引，后详情**。禁止"把整个目录 cat 一遍再挑"——那是 L1 变 L3。
 2. **禁止读归档**。归档是给追溯用的，不是给开工用的。
 3. **一次只读一张卡**。做 T7 就不要读 T1 的 `log.md`。
-4. **索引超预算就归档**。`index.md` 超 8KB ⇒ 把已完成波次移到 `archive/`，索引里留一行。
+4. **索引超预算就归档**。`index.md` 超 8KB ⇒ 把已完成波次的完整任务目录移到 `archive/W<n>/`，在索引与归档索引中留指针。
 5. **别重复读同一个文件**。读过就记住，需要引用时写路径，不要为了"确认一下"再读一遍。
 6. **结论进文档，过程进 `.tmp/`**。探针输出、大段日志不要写进 `log.md`，只写结论与数字。
 
@@ -198,15 +203,13 @@ git config core.hooksPath .githooks
 
 **pre-commit 钩子**会跑治理检查，不通过直接拦下。确属误判时改 `gov.toml [dirs]`，不要用 `--no-verify` 绕。
 
-**钩子只装通用检查，项目自己的要自己加。**
+**通用 Hook 与项目检查分离**：项目专属检查写入 `.githooks/pre-commit.local`，不要直接修改通用 `pre-commit`。
 模板不知道你项目的类型检查 / lint / 测试命令，所以 `pre-commit` 默认只跑治理检查。
-铺完之后请在钩子末尾追加本项目的那一道：
+铺完之后复制 `.githooks/pre-commit.local.example` 为 `.githooks/pre-commit.local`，启用本项目检查：
 
 ```sh
-# ---- 本项目追加 ----
-echo "[pre-commit] 类型检查..."
-npm run typecheck || exit 1     # 换成你项目的实际命令
+cp .githooks/pre-commit.local.example .githooks/pre-commit.local
+# 编辑 pre-commit.local，取消注释并替换成项目真实命令
 ```
 
-**不追加的后果是静默降级**：钩子照样打印"通过"，但类型错误照样能提交。
-这比没有钩子更危险——你会以为有保护。
+**模板不会声称项目测试已通过**：未配置的项目检查不会被假装执行。每个项目应在钩子或 CI 中明确配置构建、lint、类型检查和测试命令。

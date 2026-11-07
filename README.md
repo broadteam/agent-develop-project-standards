@@ -1,225 +1,186 @@
 # 通用项目规范模板
 
-一套可以直接铺到任何项目里的 AI 协作规范。**目标：换项目不用重新教 agent 规矩。**
+一套可复用、跨项目、跨 Agent 的 AI 协作与工程治理规范。目标是让不同项目共享稳定的治理底座，同时保留项目自身的技术栈与业务约束。
 
-核心思路只有四条：
+## 核心原则
 
-1. **唯一入口** —— 规则只在 `AGENTS.md`，`CLAUDE.md` / `GEMINI.md` / `.cursorrules` 只做指针
-2. **唯一记忆** —— 状态只在 `.memory/`，任何 agent 不建自己的 memory
-3. **机器可测** —— 能用脚本查的规则不写成长篇文字，写成闸门
-4. **目录纪律** —— 根目录白名单 + 临时产物只进 `.tmp/` + 产物只进固定目录
+1. **唯一规则入口**：`AGENTS.md` 是项目规则主入口；`CLAUDE.md`、`GEMINI.md` 仅做客户端适配指针。Cursor 原生支持 `AGENTS.md`，不再生成已弃用的 `.cursorrules`。
+2. **唯一项目状态源**：`.memory/` 保存跨会话项目事实；客户端私有记忆可以存在，但不得成为项目状态、任务进度或架构决策的权威来源。
+3. **机器可测**：能由脚本、测试或 CI 验证的约束，不只写成自然语言。
+4. **目录纪律**：根目录白名单、临时产物固定位置、构建产物固定位置。
+5. **安全失败**：治理检查无法运行时必须失败关闭，不得静默跳过。
 
 ---
 
-## 用法（3 步）
+## 环境要求
+
+- Node.js 18+（初始化、Node 治理检查、看板生成与测试）。
+- Python 3.10+（需要使用 Python 版治理检查时）。
+- Git（启用提交钩子时）。
+
+## 快速开始
 
 ```bash
-# 1. 复制到项目旁（或直接放在 D:/develop 下）
-#    本目录就是模板本体，不用复制
-
-# 2. 铺进目标项目
-node D:/develop/project-standards/init.cjs D:/develop/你的项目
-
-# 3. 启用提交闸门（每个克隆都要做一次）
-cd D:/develop/你的项目
+node init.cjs /path/to/your-project --dry-run
+node init.cjs /path/to/your-project
+cd /path/to/your-project
 git config core.hooksPath .githooks
+node scripts/generate-board.cjs
+node scripts/check-governance.cjs
 ```
 
-`init.cjs` 会自动做这些事：
-
-| 动作 | 说明 |
-|---|---|
-| 复制规范文件 | 已存在的文件**跳过**，不覆盖你写好的内容（`--force` 才覆盖） |
-| 填占位符 | 项目名从 `package.json` 或目录名推断，日期填当天 |
-| 扫描根目录 | 自动生成 `gov.toml` 的 `[dirs]` 白名单，**保证一上来就能通过检查** |
-| 追加 .gitignore | 补上 `.tmp/`、产物目录、工具数据目录 |
-| 加可执行位 | `pre-commit` 钩子 |
-
-先看会做什么不改任何东西：
+初始化脚本默认采用兼容模式：保留已有文件，并把现有根目录纳入初始白名单，但会明确提示人工审查。严格模式不会自动放行未知的既有根目录：
 
 ```bash
-node D:/develop/project-standards/init.cjs D:/develop/你的项目 --dry-run
+node init.cjs /path/to/your-project --strict-scan
+```
+
+### 初始化参数
+
+| 参数 | 行为 |
+|---|---|
+| `--dry-run` | 预览变更，不写文件 |
+| `--force` | 覆盖已存在的模板文件；已有 `pre-commit` 仍受保护 |
+| `--replace-hook` | 与 `--force` 同时使用时，允许替换已有 `pre-commit` |
+| `--strict-scan` | 不把未知的既有根目录自动加入白名单 |
+
+`init.cjs` 不会自动覆盖项目已有的提交钩子。若确实需要替换，必须显式执行：
+
+```bash
+node init.cjs /path/to/project --force --replace-hook
 ```
 
 ---
 
 ## 目录结构
 
-```
+```text
 project-standards/
-├─ README.md          ← 你在这里
-├─ init.cjs           ← 铺设脚本
-└─ template/          ← 被复制的内容
-   ├─ AGENTS.md              唯一入口（含 §2.5 计划规范、§2.6 分级读取）
-   ├─ ROUTER.md              按「要做什么」查权威文件
-   ├─ CLAUDE.md / GEMINI.md / .cursorrules   一行指针
-   ├─ gov.toml               预算 / 白名单 / 禁用命名 / 布局
-   ├─ .gitattributes         shell 脚本锁 LF
-   ├─ .gitignore.append      追加进项目的 .gitignore
-   ├─ .githooks/pre-commit   提交闸门（自动选 node / python）
-   ├─ scripts/
-   │  ├─ check-governance.cjs   治理检查（Node 版）
-   │  └─ check_governance.py    治理检查（Python 版，行为一致）
-   ├─ .spec/
-   │  ├─ 00-constitution.md  红线
-   │  ├─ 01-architecture.md  分层 / 契约 / 数据位置
-   │  ├─ 02-conventions.md   命名 / 语言规范 / 文案纪律 / 提交
-   │  ├─ 03-delivery.md      构建 / 产物 / 发布检查单
-   │  ├─ REGISTRY.md         标识符唯一登记处
-   │  ├─ roadmap/
-   │  │  ├─ INDEX.md         里程碑索引（≤4KB，只读这个）
-   │  │  └─ M1/milestone.md  单个里程碑详情
-   │  ├─ tasks/
-   │  │  ├─ index.md         任务索引 + 唯一状态源（≤8KB）
-   │  │  ├─ BOARD.md         看板视图（人看）
-   │  │  ├─ archive/         已完成波次归档（默认不读）
-   │  │  └─ T1/
-   │  │     ├─ card.md       这张卡：背景 / 范围 / 验收
-   │  │     └─ log.md        执行流水：试了什么、错在哪、最终方案
-   │  └─ adr/README.md       ADR 模板
-   ├─ .memory/
-   │  ├─ MEMORY.md           跨会话记忆（§0 断点）
-   │  ├─ PITFALLS.md         通用实证
-   │  └─ log/                每日收口日志
-   └─ .tmp/                  临时产物唯一去处
+├── README.md
+├── CHANGELOG.md
+├── MIGRATION-v1.1.md
+├── init.cjs
+├── presets/stacks/          # 按检测到的技术栈选择性铺设
+│   ├── php.md
+│   ├── java.md
+│   ├── node.md
+│   ├── python.md
+│   ├── go.md
+│   ├── rust.md
+│   └── dotnet.md
+├── tests/
+│   ├── test-init.cjs
+│   └── test-parity.cjs
+├── .github/workflows/standards-ci.yml
+└── template/
+    ├── AGENTS.md
+    ├── ROUTER.md
+    ├── CLAUDE.md
+    ├── GEMINI.md
+    ├── gov.toml
+    ├── .gitattributes
+    ├── .gitignore.append
+    ├── .githooks/
+    │   ├── pre-commit
+    │   └── pre-commit.local.example
+    ├── scripts/
+    │   ├── check-governance.cjs
+    │   ├── check_governance.py
+    │   └── generate-board.cjs
+    ├── .spec/
+    │   ├── 00-constitution.md
+    │   ├── 01-architecture.md
+    │   ├── 02-conventions.md
+    │   ├── 03-delivery.md
+    │   ├── stacks/README.md + 当前项目技术栈文件
+    │   ├── REGISTRY.md
+    │   ├── adr/
+    │   ├── roadmap/
+    │   │   ├── INDEX.md
+    │   │   └── archive/INDEX.md
+    │   └── tasks/
+    │       ├── index.md
+    │       ├── BOARD.md
+    │       ├── archive/INDEX.md
+    │       └── T1/card.md + log.md
+    ├── .memory/
+    └── .tmp/
 ```
 
----
+## 技术栈探测
 
-## 铺完之后要手动做的四件事
+初始化脚本会探测常见技术栈，并生成默认源码目录、构建目录、忽略项与命令提示。探测结果只是初始建议，必须由项目维护者确认。
 
-`init` 只能填机械信息，这四件必须人做：
-
-1. **`AGENTS.md` §0** —— 四条不可协商的措辞。通用版已经能用，但加上项目特有的会更准。
-2. **`.spec/00-constitution.md`** —— 后半段「项目特有」三条是示例，改成你项目的实际红线，或者删掉。
-3. **`.memory/MEMORY.md` §0** —— 断点。这是换 agent 时唯一必读的状态。
-4. **给 `pre-commit` 追加本项目的检查** —— 模板只装通用治理检查，不知道你的类型检查 / lint / 测试命令：
-
-```sh
-# 追加到 .githooks/pre-commit 末尾（"通过"之前）
-echo "[pre-commit] 类型检查..."
-npm run typecheck || exit 1
-```
-
-**不追加 = 静默降级**：钩子照样打印"通过"，但类型错误照样能提交。这比没有钩子更危险——你会以为有保护。
-
----
-
-## 支持哪些技术栈
-
-规范结构本身与语言无关；`init.cjs` 会探测技术栈，决定默认的源码目录、产物目录、命令和忽略项。
-
-| 探测依据 | 判定 | 源码目录 | 产物目录 |
+| 探测依据 | 识别结果 | 默认源码目录 | 默认产物目录 |
 |---|---|---|---|
-| `package.json` + `electron` | Electron 桌面 | `src` | `out` |
-| `package.json` + `vite`/`next`/`nuxt` | 前端 Web | `src` | `dist` |
-| `package.json` | Node 库/服务 | `src` | `dist` |
-| `pyproject.toml` / `requirements.txt` | Python | `src` | `dist` |
+| `composer.json` / `artisan` / `think` / `hyperf` | PHP | `app` 或 `src` | `build` |
 | `pom.xml` / `build.gradle(.kts)` | Java / Kotlin | `src/main/java` | `target` |
-| `go.mod` | Go | `cmd` | `bin` |
+| `pyproject.toml` / `requirements.txt` | Python | `src` / `app` | `dist` |
+| `go.mod` | Go | `cmd` / `internal` | `bin` |
 | `Cargo.toml` | Rust | `src` | `target` |
 | `*.csproj` / `*.sln` | .NET | `src` | `bin` |
-| 都没有 | 通用 | `src` | `build` |
+| `package.json` + Electron | Electron | `src` | `out` |
+| `package.json` + Vite / Next / Nuxt | Node Web | `src` / `app` | `dist` |
+| `package.json` | Node | `src` / `lib` | `dist` |
+| 未识别 | Generic | `src` / `app` | `build` |
 
-探测错了不影响规范，改 `gov.toml [project]` 即可。
+检测到多技术栈时，脚本会提示人工确认，并将检测到的语言规范分别复制到 `.spec/stacks/`。`gov.toml [project]` 仍只记录一个主技术栈与默认构建配置，必须由维护者确认多栈项目的实际命令。
 
-**治理检查有两个版本**：`check-governance.cjs`（Node）和 `check_governance.py`（Python），行为一致。
-`pre-commit` 会按环境自动选——Python/Java/Go 项目即使没装 Node 也能跑闸门。
+## 任务与归档规则
 
----
+- 当前任务的唯一状态源是 `.spec/tasks/index.md`。
+- 每张活跃任务卡必须有 `.spec/tasks/<ID>/card.md` 和 `log.md`。
+- `.spec/tasks/BOARD.md` 是派生视图，由 `node scripts/generate-board.cjs` 生成；治理检查会通过索引 SHA-256 标记检查其是否过期。
+- 一个波次完成后，将该波次任务目录整体移动到 `.spec/tasks/archive/W<n>/`，并更新归档索引；归档目录默认不参与活跃任务一致性扫描。
+- 里程碑同理：活跃索引与活跃目录对应，归档内容放入 `archive/`。
 
-## 计划与待办放哪（重要）
+## 治理检查器
 
-Agent 最爱干的事：在根目录建 `TODO.md`、`PLAN.md`、`ROADMAP.md`、`NEXT_STEPS.md`、`progress.md`，
-然后下次没人知道哪个是最新的。**这套规范把它们全部禁掉了**（治理检查会拦）。
-
-计划分三层，各有唯一的家：
-
-| 时间尺度 | 放哪 | 例子 |
-|---|---|---|
-| 一次任务内的多步执行 | 不落盘；要落就 `.tmp/<任务ID>/plan.md`，做完即删 | "先改 A，再跑 B，最后验证 C" |
-| 几天的具体动作 | `.spec/tasks/<ID>/`（`card.md` + `log.md`），索引在 `tasks/index.md` | "给迁移加撤销入口" |
-| 几周~几个月 | `.spec/roadmap/<ID>/milestone.md`，索引在 `roadmap/INDEX.md` | "v2 收尾" |
-
-**判定口诀**：这件事明天还在吗？不在 ⇒ `.tmp/`；在但几天能做完 ⇒ 卡；要拆成好几张卡 ⇒ 里程碑。
-
-**根目录禁止出现**：`TODO.md` `PLAN.md` `ROADMAP.md` `NEXT.md` `NEXT_STEPS.md` `PROGRESS.md` `NOTES.md` `BACKLOG.md` `TASKS.md` `CHECKLIST.md`（含大小写变体与 `TODO-v2.md` 这类后缀）。
-
-为什么这么严：同一件事在三处各写一份，一定会互相打架；而"哪个是最新的"这个问题，靠人记是记不住的。
-
-### 为什么按目录拆，而不是写一个大文件
-
-中大型项目里，**一个大文件 = 每次都要读全文**。200 张卡写进一个 `roadmap.md`，
-每次开工都吞 50KB 上下文，真正该看的代码反而被挤掉。
-
-所以采用**索引 + 详情**两级：
-
-| 文件 | 大小上限 | 什么时候读 |
-|---|---|---|
-| `tasks/index.md` | 8KB | 需要知道"现在有什么"时，读一次 |
-| `tasks/<ID>/card.md` | 4KB | 只读你正在做的那一张 |
-| `roadmap/INDEX.md` | 4KB | 需要知道"这个阶段干什么"时 |
-| `roadmap/<ID>/milestone.md` | 4KB | 只读当前里程碑 |
-| `archive/` | 不限 | **默认不读** |
-
-索引超预算就归档已完成波次——**棘轮，只准降不准升**。治理检查会拦。
-
-### 一张卡一个目录，追溯靠 log.md
-
-```
-.spec/tasks/T7/
-  card.md   ← 静态：背景、范围、验收（写一次）
-  log.md    ← 动态：试了什么、错在哪、最终方案（只追加）
-```
-
-下次有人问"当时为什么这么改"，答案在 `log.md`，不用翻 git log 猜。
-**结论进 `log.md`，过程进 `.tmp/`**——探针输出、大段日志不要进仓库，只留结论和数字。
-
----
-
-## 日常怎么用
-
-| 场景 | 做什么 |
-|---|---|
-| 开工 | 读 `AGENTS.md` → `.spec/00-constitution.md` → `.memory/MEMORY.md` §0 |
-| 加需求 | 先在 `.board/board.toml` 建卡（写清 `scope` 和 `accept`），再动手 |
-| 改架构 | 先改 `.spec/01-architecture.md`，再改代码；推翻旧设计要写 ADR |
-| 收工 | 追加 `.memory/log/<日期>.md`，更新 `.memory/MEMORY.md` §0 |
-| 踩坑 | 追加 `.memory/PITFALLS.md`（现象 → 根因 → 对策） |
-| 提交 | 钩子自动跑治理检查，不通过会被拦 |
-
----
-
-## 治理检查查什么
+提供 Node 与 Python 两个零第三方依赖实现：
 
 ```bash
 node scripts/check-governance.cjs
+python3 scripts/check_governance.py
 ```
 
-| 检查 | 违规示例 | 提示 |
-|---|---|---|
-| 根目录白名单 | 建了 `test123/` | 加到 `gov.toml [dirs]` 或挪进 `.tmp/` |
-| 禁用命名 | `out2/` `tmp1/` `备份.bak` | 产物统一放一处 |
-| 计划文件散落 | 根目录出现 `TODO.md` / `PLAN.md` | 写进 `.board/` 或 `.spec/04-roadmap.md` |
-| 文档预算 | `AGENTS.md` > 12KB | 先压缩或归档 |
-| 必需文件 | 删了 `.spec/REGISTRY.md` | 补回来 |
+两者必须对相同仓库输出相同的违规项与退出码。当前 `gov.toml` 使用受限 TOML 子集：单行 section、字符串、整数、单行字符串数组；不要使用多行数组或复杂 TOML 特性。后续如需完整 TOML 语法，应引入明确依赖并同步两端实现。
 
-零依赖，直接 `node` 跑，能进 CI，也能挂 pre-commit。
+检查覆盖：
 
----
+- 根目录白名单与禁用命名；
+- 关键文档字节预算；
+- 必需文件；
+- 活跃任务 / 里程碑索引与目录双向一致；
+- 任务状态合法、ID 不重复、任务卡 `log.md` 存在；
+- BOARD 派生视图未过期。
 
-## 它不做什么
+## Git Hook 与项目专属验证
 
-- **不生成业务代码**，只铺规矩。
-- **不强制你遵守**——它只让"违反"这件事**可见**。真正的约束来自你愿不愿意跑检查。
-- **不绑定技术栈**：默认值按 Node/前端项目推断（`src/`、`dist/`、`npm run`），别的栈改 `gov.toml [project]` 和 `.spec/03-delivery.md` 即可。
+`pre-commit` 先执行通用治理检查，再自动执行可选的 `.githooks/pre-commit.local`。把 `.githooks/pre-commit.local.example` 复制为 `.githooks/pre-commit.local`，按项目实际情况填写 lint、类型检查与测试命令。这样升级通用 Hook 时不会覆盖项目专属检查。找不到 Node/Python 或检查器文件时会失败关闭；未配置的检查不得宣称通过。
 
----
+## 规范设计边界
+
+- `.memory/` 是项目事实的权威来源，不要求客户端关闭其个人级记忆。
+- 工具自动维护的标准缓存（例如 Maven、Gradle、npm、Python 缓存）不等同于 Agent 在项目外创建项目文件。
+- 任务卡授权的是任务范围内的代码修改，不自动授权生产部署、Git Push、破坏性删除、数据库生产迁移或用户环境变更。
+- 模块依赖边界必须尽可能由架构测试、静态分析或构建规则执行；仅写在 Markdown 中不算机器保证。
 
 ## 一个原则
 
-> 规则防的是**已发生过的具体错误**，不是想象中的风险。
-> 写一条规则前先问：它防的是什么？答不上来 = 多余，删掉。
+> 规则防的是已发生过的具体错误，不是想象中的风险。
+> 能由工具验证的约束就交给工具；规则本身也必须接受自动化测试。
 
-规则膨胀的根因是"只追加不压缩"。所以这里设了字节预算：**加了必须减**。
-如果一条规则阻止你解决真实问题，写 ADR 挑战它，由人裁定——规则改起来和代码一样容易，才是健康的治理。
+## 版本与迁移
+
+当前模板版本见 `CHANGELOG.md`。将已有项目升级到 1.1.0 前，先阅读 `MIGRATION-v1.1.md`；不要对已经定制的项目直接执行 `--force`。
+
+## 规范仓库自身的回归测试
+
+在本仓库根目录运行：
+
+```bash
+node tests/test-init.cjs
+node tests/test-parity.cjs
+```
+
+`test-init` 验证 PHP 项目探测、`.gitignore` 幂等合并以及已有 Hook 保护；`test-parity` 使用同一测试夹具验证 Node/Python 检查器的退出码和输出一致，并覆盖符号链接、非法状态、缺失日志、重复 ID、任务波次归档与 BOARD 过期检测。GitHub Actions 会在 Push 和 Pull Request 时执行这些检查。

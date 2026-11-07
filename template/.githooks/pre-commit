@@ -1,42 +1,25 @@
 #!/bin/sh
-# 提交前闸门：治理检查。
+# 通用提交闸门。缺少运行环境或检查器时必须失败关闭，不得静默放行。
 # 启用：git config core.hooksPath .githooks
-# 紧急绕过用 --no-verify，但要在提交信息里写明原因。
-#
-# 检查器有两个版本（.cjs / .py），这里按环境自动选：
-# 前端项目通常有 Node，Python/Java/Go 项目不一定有。
+set -eu
 
 if command -v node >/dev/null 2>&1 && [ -f scripts/check-governance.cjs ]; then
-  CHECK="node scripts/check-governance.cjs"
-elif command -v python >/dev/null 2>&1 && [ -f scripts/check_governance.py ]; then
-  CHECK="python scripts/check_governance.py"
+  echo "[pre-commit] 治理检查（Node）..."
+  node scripts/check-governance.cjs
 elif command -v python3 >/dev/null 2>&1 && [ -f scripts/check_governance.py ]; then
-  CHECK="python3 scripts/check_governance.py"
+  echo "[pre-commit] 治理检查（Python 3）..."
+  python3 scripts/check_governance.py
+elif command -v python >/dev/null 2>&1 && [ -f scripts/check_governance.py ]; then
+  echo "[pre-commit] 治理检查（Python）..."
+  python scripts/check_governance.py
 else
-  echo "[pre-commit] 找不到 node 或 python，跳过治理检查。"
-  echo "            建议装一个，否则目录纪律没人守。"
-  exit 0
+  echo "[pre-commit] ERROR: 找不到可用的治理检查运行环境或检查器。" >&2
+  echo "请安装 Node.js 或 Python 3，并确认 scripts/check-governance.cjs / check_governance.py 存在。" >&2
+  exit 1
 fi
 
-echo "[pre-commit] 治理检查（$CHECK）..."
-$CHECK || {
-  echo ""
-  echo "[pre-commit] 治理检查未通过，提交被拦下。"
-  echo "  按上面提示改；确属误判就改 gov.toml [dirs]。"
-  exit 1
-}
-
-echo "[pre-commit] 治理检查通过。"
-
-# ============================================================
-# 在下面追加本项目自己的检查（类型检查 / lint / 测试）。
-# 模板不知道你的技术栈，所以默认只有治理检查。
-# 不追加 = 静默降级：钩子会"通过"，但错误照样能提交。
-#
-# 示例：
-#   echo "[pre-commit] 类型检查..."
-#   npm run typecheck || exit 1
-#   npm run lint || exit 1
-# ============================================================
-
-echo "[pre-commit] 通过。"
+# 项目专属检查独立放在 pre-commit.local，避免升级通用 Hook 时覆盖项目逻辑。
+if [ -f .githooks/pre-commit.local ]; then
+  echo "[pre-commit] 项目专属检查..."
+  sh .githooks/pre-commit.local
+fi

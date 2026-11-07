@@ -1,37 +1,23 @@
 #!/usr/bin/env node
-/**
- * 把通用规范模板铺进一个项目。
- *
- * 用法：
- *   node init.cjs                     # 铺到当前目录
- *   node init.cjs D:/path/to/project  # 铺到指定目录
- *   node init.cjs . --force           # 覆盖已存在的文件（危险，会盖掉你的 AGENTS.md）
- *   node init.cjs . --dry-run         # 只看会做什么，不写盘
- *
- * 做的事：
- *   1. 复制 template/ 下的规范文件（已存在则跳过，除非 --force）
- *   2. 读 package.json / 目录名，填 {{PROJECT_NAME}} 等占位符
- *   3. 扫描目标根目录，自动生成 gov.toml 的 [dirs] 白名单（保证一上来就通过检查）
- *   4. 把 .tmp/ 等条目追加进 .gitignore
- *   5. 给 pre-commit 加可执行位
- */
+/** Install the project-standard template without destroying project-owned files. */
 'use strict';
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 
 const TEMPLATE = path.join(__dirname, 'template');
-
-// ---------------------------------------------------------------- 参数
 const argv = process.argv.slice(2);
 const flags = new Set(argv.filter((a) => a.startsWith('--')));
 const positional = argv.filter((a) => !a.startsWith('--'));
 const TARGET = path.resolve(positional[0] ?? process.cwd());
 const FORCE = flags.has('--force');
 const DRY = flags.has('--dry-run');
+const REPLACE_HOOK = flags.has('--replace-hook');
+const STRICT_SCAN = flags.has('--strict-scan');
 
-if (!fs.existsSync(TARGET)) {
-  console.error(`目标目录不存在：${TARGET}`);
+if (!fs.existsSync(TARGET) || !fs.statSync(TARGET).isDirectory()) {
+  console.error(`目标目录不存在或不是目录：${TARGET}`);
   process.exit(1);
 }
 if (!fs.existsSync(TEMPLATE)) {
@@ -39,320 +25,195 @@ if (!fs.existsSync(TEMPLATE)) {
   process.exit(1);
 }
 
-// ---------------------------------------------------------------- 项目信息探测
 const has = (f) => fs.existsSync(path.join(TARGET, f));
-const pkgPath = path.join(TARGET, 'package.json');
-const pkg = has('package.json') ? JSON.parse(fs.readFileSync(pkgPath, 'utf8')) : {};
+const readJson = (f) => {
+  try { return JSON.parse(fs.readFileSync(path.join(TARGET, f), 'utf8')); }
+  catch (e) { console.error(`无法解析 ${f}: ${e.message}`); process.exit(1); }
+};
+const pkg = has('package.json') ? readJson('package.json') : {};
+const composer = has('composer.json') ? readJson('composer.json') : {};
 const deps = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) };
+const php = has('composer.json') || has('artisan') || has('think') || has('thinkphp') || has('hyperf');
+const java = has('pom.xml') || has('build.gradle') || has('build.gradle.kts');
+const python = has('pyproject.toml') || has('requirements.txt') || has('setup.py');
+const node = has('package.json');
+const dotnet = fs.readdirSync(TARGET).some((f) => f.endsWith('.csproj') || f.endsWith('.sln'));
+const STACKS = [php && 'php', java && 'java', python && 'python', has('go.mod') && 'go', has('Cargo.toml') && 'rust', node && 'node', dotnet && 'dotnet'].filter(Boolean);
 
-/**
- * 技术栈探测。只影响默认值（源码目录、产物目录、命令、忽略项），
- * 猜错也不影响规范本身——改 gov.toml [project] 即可。
- */
-const STACK = (() => {
-  if (has('go.mod')) return 'go';
-  if (has('Cargo.toml')) return 'rust';
-  if (has('pom.xml') || has('build.gradle') || has('build.gradle.kts')) return 'java';
-  if (has('pyproject.toml') || has('requirements.txt') || has('setup.py')) return 'python';
-  if (
-    fs.readdirSync(TARGET).some((f) => f.endsWith('.csproj') || f.endsWith('.sln'))
-  )
-    return 'dotnet';
-  if (has('package.json')) {
-    if (deps.electron || has('electron-builder.yml')) return 'electron';
-    if (deps.vite || deps.next || deps.nuxt || deps['@vitejs/plugin-react']) return 'node-web';
-    return 'node';
-  }
-  return 'generic';
-})();
+let STACK = 'generic';
+if (has('go.mod')) STACK = 'go';
+else if (has('Cargo.toml')) STACK = 'rust';
+else if (java) STACK = 'java';
+else if (python) STACK = 'python';
+else if (php) STACK = 'php';
+else if (node) STACK = deps.electron || has('electron-builder.yml') ? 'electron' : (deps.vite || deps.next || deps.nuxt ? 'node-web' : 'node');
+else if (dotnet) STACK = 'dotnet';
 
 const PROFILES = {
-  electron: {
-    label: 'Electron 桌面应用',
-    src: ['src', 'app', 'main'],
-    out: 'out',
-    ignore: ['out/', 'dist/', 'dist-electron/', 'release/'],
-    cmds: ['npm run dev        # 开发', 'npm run build      # 构建', 'npm run dist       # 打包'],
-  },
-  'node-web': {
-    label: 'Node 前端 / Web',
-    src: ['src', 'app', 'pages'],
-    out: 'dist',
-    ignore: ['dist/', 'out/', 'release/', 'coverage/'],
-    cmds: ['npm run dev        # 开发', 'npm run build      # 构建'],
-  },
-  node: {
-    label: 'Node 库 / 服务',
-    src: ['src', 'lib'],
-    out: 'dist',
-    ignore: ['dist/', 'coverage/'],
-    cmds: ['npm run build      # 构建', 'npm test           # 测试'],
-  },
-  python: {
-    label: 'Python',
-    src: ['src', 'app', 'lib'],
-    out: 'dist',
-    ignore: ['__pycache__/', '*.py[cod]', '.venv/', 'venv/', 'dist/', 'build/', '.pytest_cache/', '.mypy_cache/'],
-    cmds: ['python -m pytest   # 测试', 'python -m build    # 打包（若有）'],
-  },
-  java: {
-    label: 'Java / Kotlin',
-    src: ['src/main/java', 'src'],
-    out: 'target',
-    ignore: ['target/', 'build/', '.gradle/', '*.class'],
-    cmds: ['./mvnw test        # 或 gradlew test', './mvnw package     # 或 gradlew build'],
-  },
-  go: {
-    label: 'Go',
-    src: ['cmd', 'internal', 'pkg'],
-    out: 'bin',
-    ignore: ['bin/', 'dist/', '*.exe'],
-    cmds: ['go build ./...     # 构建', 'go test ./...      # 测试'],
-  },
-  rust: {
-    label: 'Rust',
-    src: ['src'],
-    out: 'target',
-    ignore: ['target/'],
-    cmds: ['cargo build        # 构建', 'cargo test         # 测试'],
-  },
-  dotnet: {
-    label: '.NET',
-    src: ['src'],
-    out: 'bin',
-    ignore: ['bin/', 'obj/'],
-    cmds: ['dotnet build       # 构建', 'dotnet test        # 测试'],
-  },
-  generic: {
-    label: '通用（未识别技术栈）',
-    src: ['src', 'app', 'lib', 'source'],
-    out: 'build',
-    ignore: ['build/', 'dist/', 'out/'],
-    cmds: ['# 按项目实际填写'],
-  },
+  electron: { label: 'Electron 桌面应用', src: ['src', 'app', 'main'], out: 'out', ignore: ['out/', 'dist/', 'dist-electron/', 'release/'], cmds: ['npm run dev', 'npm run build', 'npm run dist'] },
+  'node-web': { label: 'Node 前端 / Web', src: ['src', 'app', 'pages'], out: 'dist', ignore: ['dist/', 'out/', 'coverage/'], cmds: ['npm run dev', 'npm run build'] },
+  node: { label: 'Node 库 / 服务', src: ['src', 'lib'], out: 'dist', ignore: ['dist/', 'coverage/'], cmds: ['npm run build', 'npm test'] },
+  php: { label: 'PHP', src: ['app', 'src'], out: 'build', ignore: ['vendor/', 'build/', 'dist/', '.phpunit.cache/'], cmds: ['composer install', 'composer test  # 若已配置'] },
+  python: { label: 'Python', src: ['src', 'app', 'lib'], out: 'dist', ignore: ['__pycache__/', '*.py[cod]', '.venv/', 'venv/', 'dist/', 'build/', '.pytest_cache/', '.mypy_cache/'], cmds: ['python -m pytest', 'python -m build  # 若已配置'] },
+  java: { label: 'Java / Kotlin', src: ['src/main/java', 'src'], out: 'target', ignore: ['target/', 'build/', '.gradle/', '*.class'], cmds: ['./mvnw test  # 或 gradlew test', './mvnw package  # 或 gradlew build'] },
+  go: { label: 'Go', src: ['cmd', 'internal', 'pkg'], out: 'bin', ignore: ['bin/', 'dist/', '*.exe'], cmds: ['go build ./...', 'go test ./...'] },
+  rust: { label: 'Rust', src: ['src'], out: 'target', ignore: ['target/'], cmds: ['cargo build', 'cargo test'] },
+  dotnet: { label: '.NET', src: ['src'], out: 'bin', ignore: ['bin/', 'obj/'], cmds: ['dotnet build', 'dotnet test'] },
+  generic: { label: '通用（未识别技术栈）', src: ['src', 'app', 'lib'], out: 'build', ignore: ['build/', 'dist/', 'out/'], cmds: ['# 按项目实际填写'] },
 };
-
 const profile = PROFILES[STACK];
-
-const rawName = pkg.name || path.basename(TARGET);
-const PROJECT_NAME = rawName
-  .replace(/^@[^/]+\//, '')
-  .split(/[-_.]/)
-  .filter(Boolean)
-  .map((w) => w[0].toUpperCase() + w.slice(1))
-  .join(' ');
-
-const PROJECT_DESC = pkg.description || '（一句话说清这个项目解决什么问题）';
-
-const SRC_DIR = profile.src.find((d) => has(d)) ?? profile.src[0] ?? '.';
+const rawName = pkg.name || composer.name || path.basename(TARGET);
+const PROJECT_NAME = String(rawName).replace(/^@[^/]+\//, '').split(/[-_.]/).filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join(' ');
+const PROJECT_DESC = pkg.description || composer.description || '（一句话说清这个项目解决什么问题）';
+const SRC_DIR = profile.src.find(has) ?? profile.src[0];
 const BUILD_OUTPUT = profile.out;
-
+const jsPackageManager = has('pnpm-lock.yaml') ? 'pnpm' : has('yarn.lock') ? 'yarn' : has('bun.lockb') || has('bun.lock') ? 'bun' : node ? 'npm' : null;
+const pythonPackageManager = has('uv.lock') ? 'uv' : has('poetry.lock') ? 'poetry' : python ? 'pip' : null;
+const javaPackageManager = has('mvnw') || has('pom.xml') ? 'maven' : has('gradlew') || has('build.gradle') || has('build.gradle.kts') ? 'gradle' : null;
+const packageManagers = [has('composer.json') && 'composer', javaPackageManager, pythonPackageManager, jsPackageManager].filter(Boolean);
+const packageManager = packageManagers.join('+') || 'unknown';
 const scripts = pkg.scripts ?? {};
-const cmdLines = [];
-for (const [k, v] of Object.entries(scripts)) {
-  if (['dev', 'start', 'build', 'test', 'lint', 'typecheck'].includes(k)) {
-    cmdLines.push(`npm run ${k}`.padEnd(18) + `# ${String(v).slice(0, 56)}`);
-  }
-}
+const cmdLines = Object.keys(scripts).filter(k => ['dev', 'start', 'build', 'test', 'lint', 'typecheck'].includes(k)).map(k => `${jsPackageManager || 'npm'} run ${k}`);
 const COMMANDS = cmdLines.length ? cmdLines.join('\n') : profile.cmds.join('\n');
 
-// ---------------------------------------------------------------- 根目录扫描
-const SKIP_SCAN = new Set([
-  'node_modules',
-  '.git',
-  '.tmp',
-  'out',
-  'dist',
-  'dist-electron',
-  'build',
-  'release',
-  'target',
-  'bin',
-  'obj',
-  '.next',
-  '.nuxt',
-  'coverage',
-]);
-
-const scanDirs = [];
-const scanFiles = [];
-for (const entry of fs.readdirSync(TARGET, { withFileTypes: true })) {
-  const n = entry.name;
-  if (entry.isDirectory()) {
-    scanDirs.push(n);
-  } else if (entry.isFile() || entry.isSymbolicLink()) {
-    scanFiles.push(n);
-  }
-}
-
-// 白名单 = 目标里实际存在的 + 模板会带进来的 + 常见目录
-// 注意：目录和文件必须分开列，否则 .cursorrules 这类 dotfile 会被当成目录塞进 allowed_dirs。
 const TEMPLATE_DIRS = ['.memory', '.spec', '.tmp', '.githooks', 'scripts'];
-const TEMPLATE_FILES = [
-  'AGENTS.md',
-  'ROUTER.md',
-  'CLAUDE.md',
-  'GEMINI.md',
-  '.cursorrules',
-  'gov.toml',
-  '.gitattributes',
-  '.gitignore',
-];
-const USUAL_DIRS = ['.github', '.vscode', '.idea', 'docs', 'deliverables', 'tests', 'test', 'public', 'assets'];
-// 产物目录即使当前不存在也要放行，否则第一次构建就会被自己的闸门拦住
-const BUILD_DIRS = ['out', 'dist', 'dist-electron', 'build', 'release', 'coverage'];
+const TEMPLATE_FILES = ['AGENTS.md', 'ROUTER.md', 'CLAUDE.md', 'GEMINI.md', 'gov.toml', '.gitattributes', '.gitignore'];
+const ALWAYS_SKIP = new Set(['.git', 'node_modules']);
+const entries = fs.readdirSync(TARGET, { withFileTypes: true });
+const existingDirs = entries.filter(e => e.isDirectory() && !ALWAYS_SKIP.has(e.name)).map(e => e.name);
+const existingFiles = entries.filter(e => e.isFile() || e.isSymbolicLink()).map(e => e.name);
+const BUILD_DIRS = [BUILD_OUTPUT];
+const allowedDirs = [...new Set([...(STRICT_SCAN ? [] : existingDirs), ...TEMPLATE_DIRS, ...BUILD_DIRS])].sort();
+const allowedFiles = [...new Set([...existingFiles, ...TEMPLATE_FILES])].sort();
 
-const allowedDirs = [
-  ...new Set([...scanDirs, ...TEMPLATE_DIRS, ...USUAL_DIRS, ...BUILD_DIRS]),
-]
-  .filter((n) => !['.git', 'node_modules'].includes(n))
-  .sort();
-
-const allowedFiles = [...new Set([...scanFiles, ...TEMPLATE_FILES])].sort();
-
-// ---------------------------------------------------------------- 占位符
 const today = new Date().toISOString().slice(0, 10);
-
-const REPLACEMENTS = {
-  PROJECT_NAME,
-  PROJECT_DESC,
-  SRC_DIR,
-  BUILD_OUTPUT,
-  TODAY: today,
-  ALLOWED_DIRS: allowedDirs.join('  '),
-  ALLOWED_FILES: allowedFiles.join(' '),
-  COMMANDS,
-  DEV_COMMANDS: scripts.dev ? 'npm run dev' : '# 按项目实际填写',
-  BUILD_COMMANDS: scripts.build ? 'npm run build' : '# 按项目实际填写',
-  MILESTONE: '（待填）',
-  CURRENT_STATE: '（待填：一句话说清现在到哪一步）',
-  IN_PROGRESS: '（待填）',
-  BLOCKED: '（待填）',
-  NEXT: '（待填）',
+const replacements = {
+  PROJECT_NAME, PROJECT_DESC, SRC_DIR, BUILD_OUTPUT, TODAY: today,
+  LANGUAGE: STACK, FRAMEWORK: php ? (has('artisan') ? 'laravel' : has('think') || has('thinkphp') ? 'thinkphp' : has('hyperf') ? 'hyperf' : 'php-framework-unspecified') : java ? 'spring-or-java-unspecified' : node ? 'node-framework-unspecified' : STACK,
+  PACKAGE_MANAGER: packageManager,
+  ALLOWED_DIRS: allowedDirs.join('  '), ALLOWED_FILES: allowedFiles.join(' '), COMMANDS,
+  DEV_COMMANDS: scripts.dev ? `${jsPackageManager || 'npm'} run dev` : '# 按项目实际填写',
+  BUILD_COMMANDS: scripts.build ? `${jsPackageManager || 'npm'} run build` : '# 按项目实际填写',
+  MILESTONE: '（待填）', CURRENT_STATE: '（待填：一句话说清现在到哪一步）',
+  IN_PROGRESS: '（待填）', BLOCKED: '（待填）', NEXT: '（待填）',
   PROJECT_PITCH: '（待填：这个项目是给谁解决什么问题的）',
-  ARCH_LAYERS: '（待填：画出分层，例如 main → service → repository）',
-  CORE_INTERFACES: '（待填：列出改了就要同步改文档的接口）',
-  DATA_TABLE: '（待填）',
-  MECH_TABLE: '（待填）',
+  ARCH_LAYERS: '（待填：画出分层）', CORE_INTERFACES: '（待填：列出关键接口）',
+  DATA_TABLE: '（待填）', MECH_TABLE: '（待填）',
 };
-
-function fill(text) {
-  let out = text;
-  for (const [k, v] of Object.entries(REPLACEMENTS)) {
-    out = out.split(`{{${k}}}`).join(v);
-  }
-  // 兜底：模板里没定义的占位符，替换成显眼的待填标记，而不是留下 {{X}}
-  out = out.replace(/\{\{([A-Z_]+)\}\}/g, (_, k) => `（待填：${k}）`);
-  return out;
+function fill(s) {
+  let out = s;
+  for (const [k, v] of Object.entries(replacements)) out = out.split(`{{${k}}}`).join(v);
+  return out.replace(/\{\{([A-Z_]+)\}\}/g, (_, k) => `（待填：${k}）`);
 }
 
-// ---------------------------------------------------------------- 复制
-const report = { created: [], skipped: [], forced: [] };
-
+const report = { created: [], skipped: [], forced: [], protected: [], warnings: [] };
 function walk(dir, rel = '') {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const from = path.join(dir, entry.name);
-    const relPath = path.join(rel, entry.name);
-
-    if (entry.isDirectory()) {
-      walk(from, relPath);
-      continue;
-    }
-
-    // .gitignore.append 单独处理，不直接落盘
+    const relPath = path.posix.join(rel.split(path.sep).join('/'), entry.name);
+    if (entry.isDirectory()) { walk(from, relPath); continue; }
     if (entry.name === '.gitignore.append') continue;
-
     const to = path.join(TARGET, relPath);
     const exists = fs.existsSync(to);
-
-    if (exists && !FORCE) {
-      report.skipped.push(relPath);
-      continue;
+    // A project-owned hook is protected even under --force unless explicitly opted in.
+    if (relPath === '.githooks/pre-commit' && exists && !REPLACE_HOOK) {
+      report.protected.push(relPath); continue;
     }
-
+    if (exists && !FORCE) { report.skipped.push(relPath); continue; }
     if (!DRY) {
       fs.mkdirSync(path.dirname(to), { recursive: true });
-      const raw = fs.readFileSync(from, 'utf8');
-      fs.writeFileSync(to, fill(raw), 'utf8');
+      let content = fill(fs.readFileSync(from, 'utf8'));
+      if (relPath === 'gov.toml') {
+        const tomlValues = { name: PROJECT_NAME, desc: PROJECT_DESC, language: STACK, framework: replacements.FRAMEWORK, package_manager: packageManager, src_dir: SRC_DIR, build_output: BUILD_OUTPUT };
+        for (const [key, value] of Object.entries(tomlValues)) {
+          content = content.replace(new RegExp(`^${key} = \".*\"$`, 'm'), `${key} = ${JSON.stringify(String(value))}`);
+        }
+      }
+      fs.writeFileSync(to, content, 'utf8');
     }
     (exists ? report.forced : report.created).push(relPath);
   }
 }
-
 walk(TEMPLATE);
 
-// ---------------------------------------------------------------- gov.toml 白名单
-// 若 gov.toml 是本次新建的，把扫描结果写进去；已存在则不动（避免覆盖用户自定义）
+// Add only the detected language profiles. They are on-demand references, not always-loaded rules.
+const presetMap = [...new Set(STACKS.map((stack) => stack === 'electron' || stack === 'node-web' ? 'node' : stack))];
+for (const stack of presetMap) {
+  const from = path.join(__dirname, 'presets', 'stacks', `${stack}.md`);
+  if (!fs.existsSync(from)) continue;
+  const rel = `.spec/stacks/${stack}.md`;
+  const to = path.join(TARGET, rel);
+  const exists = fs.existsSync(to);
+  if (exists && !FORCE) { report.skipped.push(rel); continue; }
+  if (!DRY) { fs.mkdirSync(path.dirname(to), { recursive: true }); fs.writeFileSync(to, fs.readFileSync(from, 'utf8'), 'utf8'); }
+  (exists ? report.forced : report.created).push(rel);
+}
+
+// Populate the initial root allowlist only when this run created/replaced gov.toml.
 const govPath = path.join(TARGET, 'gov.toml');
 if (report.created.includes('gov.toml') || report.forced.includes('gov.toml')) {
+  const quote = (value) => JSON.stringify(value);
+  const dirsToml = `allowed_dirs = [${allowedDirs.map(quote).join(', ')}]`;
+  const filesToml = `allowed_files = [${allowedFiles.map(quote).join(', ')}]`;
   if (!DRY) {
-    let gov = fs.readFileSync(govPath, 'utf8');
-    gov = gov.replace(/allowed_dirs = \[\]/, `allowed_dirs = [${allowedDirs.map((d) => `"${d}"`).join(', ')}]`);
-    gov = gov.replace(/allowed_files = \[\]/, `allowed_files = [${allowedFiles.map((f) => `"${f}"`).join(', ')}]`);
-    fs.writeFileSync(govPath, gov, 'utf8');
+    let govText = fs.readFileSync(govPath, 'utf8');
+    govText = govText.replace(/^allowed_dirs = \[\]/m, dirsToml).replace(/^allowed_files = \[\]/m, filesToml);
+    const requiredLine = govText.match(/^files = \[(.*)\]$/m);
+    if (requiredLine) {
+      const required = [...requiredLine[1].matchAll(/"([^"]+)"/g)].map((match) => match[1]);
+      for (const stack of presetMap) {
+        const rel = `.spec/stacks/${stack}.md`;
+        if (fs.existsSync(path.join(TARGET, rel)) && !required.includes(rel)) required.push(rel);
+      }
+      govText = govText.replace(requiredLine[0], `files = [${required.map(quote).join(', ')}]`);
+    }
+    fs.writeFileSync(govPath, govText, 'utf8');
   }
 }
 
-// ---------------------------------------------------------------- .gitignore
+// Merge .gitignore entries independently and idempotently; do not use one sentinel as a proxy for all rules.
 const ignoreSrc = path.join(TEMPLATE, '.gitignore.append');
 const ignoreDst = path.join(TARGET, '.gitignore');
+const START = '# >>> agent-project-standards (managed)';
+const END = '# <<< agent-project-standards (managed)';
 if (fs.existsSync(ignoreSrc)) {
-  const appendRaw = fs
-    .readFileSync(ignoreSrc, 'utf8')
-    .split('{{IGNORE_ENTRIES}}')
-    .join(profile.ignore.join('\n'));
-
+  const desired = fs.readFileSync(ignoreSrc, 'utf8').replace('{{IGNORE_ENTRIES}}', profile.ignore.join('\n')).trim();
   const current = fs.existsSync(ignoreDst) ? fs.readFileSync(ignoreDst, 'utf8') : '';
-  if (!current.includes('.tmp/')) {
-    if (!DRY) fs.writeFileSync(ignoreDst, `${current.replace(/\s*$/, '')}\n${appendRaw}`, 'utf8');
-    report.created.push('.gitignore（追加条目）');
-  } else {
-    report.skipped.push('.gitignore（已有 .tmp/，未改动）');
-  }
+  const block = `${START}\n${desired}\n${END}`;
+  const re = new RegExp(`${START.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[\\s\\S]*?${END.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'm');
+  const next = re.test(current) ? current.replace(re, block) : `${current.trimEnd()}${current.trim() ? '\n\n' : ''}${block}\n`;
+  if (next !== current) {
+    if (!DRY) fs.writeFileSync(ignoreDst, next, 'utf8');
+    report.created.push('.gitignore（合并托管区块）');
+  } else report.skipped.push('.gitignore（托管区块已是最新）');
 }
 
-// ---------------------------------------------------------------- 钩子可执行位
+// Set executable bit only on a hook created/replaced by this run.
 const hook = path.join(TARGET, '.githooks', 'pre-commit');
-if (!DRY && fs.existsSync(hook)) {
-  try {
-    fs.chmodSync(hook, 0o755);
-  } catch {
-    /* Windows 上可能不支持，忽略 */
-  }
+if (!DRY && fs.existsSync(hook) && (report.created.includes('.githooks/pre-commit') || report.forced.includes('.githooks/pre-commit'))) {
+  try { fs.chmodSync(hook, 0o755); } catch { report.warnings.push('无法设置 pre-commit 可执行位，请在 Unix 环境执行 chmod +x .githooks/pre-commit'); }
 }
+if (!DRY && fs.existsSync(path.join(TARGET, 'scripts/generate-board.cjs')) && fs.existsSync(path.join(TARGET, '.spec/tasks/index.md'))) {
+  const generated = spawnSync(process.execPath, [path.join(TARGET, 'scripts/generate-board.cjs')], { cwd: TARGET, encoding: 'utf8' });
+  if (generated.status !== 0) { console.error(generated.stdout || '', generated.stderr || ''); process.exit(1); }
+}
+if (existingDirs.length) {
+  report.warnings.push(STRICT_SCAN
+    ? `严格扫描：${existingDirs.length} 个既有根目录不会自动纳入白名单；请人工确认后逐项登记。`
+    : `发现 ${existingDirs.length} 个既有根目录，兼容模式下已纳入白名单；请人工审查 gov.toml [dirs]。`);
+}
+if (STACKS.length > 1) report.warnings.push(`检测到多技术栈：${STACKS.join(', ')}。当前默认配置按 ${STACK} 生成，请人工确认 gov.toml [project]。`);
 
-// ---------------------------------------------------------------- 输出
 console.log(`\n铺设规范 → ${TARGET}\n`);
-console.log(`  技术栈    ${STACK}（${profile.label}）`);
+console.log(`  主技术栈  ${STACK}（${profile.label}）`);
+console.log(`  检测栈    ${STACKS.join(', ') || 'generic'}`);
+console.log(`  包管理器  ${packageManager}`);
 console.log(`  项目名    ${PROJECT_NAME}`);
 console.log(`  源码目录  ${SRC_DIR}`);
 console.log(`  产物目录  ${BUILD_OUTPUT}`);
-console.log('');
-
-if (report.created.length) {
-  console.log(`  新建 ${report.created.length} 个文件：`);
-  for (const f of report.created) console.log(`    + ${f}`);
+for (const [label, list] of [['新建', report.created], ['覆盖', report.forced], ['跳过', report.skipped], ['保护', report.protected]]) {
+  if (list.length) console.log(`\n  ${label} ${list.length} 项：\n${list.map(x => `    ${x}`).join('\n')}`);
 }
-if (report.forced.length) {
-  console.log(`\n  覆盖 ${report.forced.length} 个文件：`);
-  for (const f of report.forced) console.log(`    ~ ${f}`);
-}
-if (report.skipped.length) {
-  console.log(`\n  跳过 ${report.skipped.length} 个已存在的文件（用 --force 覆盖）：`);
-  for (const f of report.skipped.slice(0, 8)) console.log(`    = ${f}`);
-  if (report.skipped.length > 8) console.log(`    … 还有 ${report.skipped.length - 8} 个`);
-}
-
-if (DRY) {
-  console.log('\n  （--dry-run，未写入任何文件）\n');
-  process.exit(0);
-}
-
-console.log(`
-下一步：
-  1. 打开 AGENTS.md，改 §0 四条里跟本项目相关的措辞
-  2. 打开 .spec/00-constitution.md，把「项目特有」几条改成实际约束
-  3. 填 .memory/MEMORY.md 的 §0 断点
-  4. 跑一次检查：node scripts/check-governance.cjs
-  5. 启用提交闸门：git config core.hooksPath .githooks
-`);
+for (const warning of report.warnings) console.warn(`\n  ⚠ ${warning}`);
+if (DRY) console.log('\n  （--dry-run，未写入任何文件）');
+else console.log('\n下一步：检查 gov.toml 白名单、填写 MEMORY.md 断点、确认项目构建/测试命令，然后运行治理检查。');

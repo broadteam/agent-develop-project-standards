@@ -1,254 +1,67 @@
 #!/usr/bin/env node
-/**
- * 治理检查 —— 把 AGENTS.md 里「能机器测的规则」变成闸门。
- *
- * 检查五件事：
- *   1. 根目录白名单（gov.toml [dirs]）
- *   2. 根目录禁用命名（gov.toml [forbid]）：out2 / test1 / TODO.md / *.bak ...
- *   3. 文档与索引预算（gov.toml [budget]）——同时是 token 预算
- *   4. 必需文件存在（gov.toml [required]）
- *   5. 索引 ↔ 卡片目录双向一致（gov.toml [layout]）
- *
- * 用法：node scripts/check-governance.cjs
- * 退出码：0 通过，1 违规（可直接进 CI / pre-commit）
- */
+/** Governance gate. Keep output and semantics in parity with check_governance.py. */
 'use strict';
-
 const fs = require('node:fs');
 const path = require('node:path');
-
+const crypto = require('node:crypto');
 const ROOT = path.resolve(__dirname, '..');
 const GOV = path.join(ROOT, 'gov.toml');
+if (!fs.existsSync(GOV)) { console.error('\n找不到 gov.toml，治理检查无法运行。\n'); process.exit(1); }
 
-if (!fs.existsSync(GOV)) {
-  console.error('\n找不到 gov.toml，治理检查无法运行。\n');
-  process.exit(1);
-}
-
-/** 极简 TOML 读取：只支持 `key = "str"` / `key = 数字` / `key = ["a","b"]`。 */
+// Supported TOML subset: single-line sections, strings, integers and single-line string arrays.
 function readGov(file) {
-  const raw = fs.readFileSync(file, 'utf8');
-  const out = {};
-  let section = '';
-
-  /** 去掉引号外的行尾注释，否则 `12288  # 说明` 会被当成字符串。 */
-  const stripComment = (s) => {
-    let inStr = false;
-    for (let i = 0; i < s.length; i += 1) {
-      const c = s[i];
-      if (c === '"') inStr = !inStr;
-      else if (c === '#' && !inStr) return s.slice(0, i);
-    }
-    return s;
-  };
-
+  const raw = fs.readFileSync(file, 'utf8'); const out = {}; let section = '';
+  const stripComment = (s) => { let q = false, esc = false; for (let i=0;i<s.length;i++) { const c=s[i]; if (c==='"' && !esc) q=!q; if (c==='#' && !q) return s.slice(0,i); esc = c==='\\' && !esc; if (c!=='\\') esc=false; } return s; };
   for (const line of raw.split(/\r?\n/)) {
-    const t = line.trim();
-    if (!t || t.startsWith('#')) continue;
-
-    const sec = t.match(/^\[(\w+)\]$/);
-    if (sec) {
-      section = sec[1];
-      out[section] = out[section] ?? {};
-      continue;
-    }
-
-    const kv = t.match(/^(\w+)\s*=\s*(.+)$/);
-    if (!kv || !section) continue;
-
-    const [, key, rawVal] = kv;
-    const val = stripComment(rawVal).trim();
-    if (!val) continue;
-
+    const t=line.trim(); if (!t || t.startsWith('#')) continue;
+    const sec=t.match(/^\[([\w.-]+)\]$/); if (sec) { section=sec[1]; out[section] ??= {}; continue; }
+    const kv=t.match(/^([\w.-]+)\s*=\s*(.+)$/); if (!kv || !section) { console.error(`gov.toml 语法不受支持：${t}`); process.exit(1); }
+    const val=stripComment(kv[2]).trim();
     if (val.startsWith('[')) {
-      out[section][key] = [...val.matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((m) =>
-        m[1].replace(/\\\\/g, '\\'),
-      );
-    } else if (/^\d+$/.test(val)) {
-      out[section][key] = Number(val);
-    } else {
-      out[section][key] = val.replace(/^"|"$/g, '');
-    }
+      if (!val.endsWith(']')) { console.error(`gov.toml 数组必须写在单行：${kv[1]}`); process.exit(1); }
+      const items=[...val.slice(1,-1).matchAll(/"((?:[^"\\]|\\.)*)"/g)].map(m=>m[1].replace(/\\([\\"])/g,'$1'));
+      out[section][kv[1]]=items;
+    } else if (/^\d+$/.test(val)) out[section][kv[1]]=Number(val);
+    else if (/^".*"$/.test(val)) out[section][kv[1]]=val.slice(1,-1);
+    else { console.error(`gov.toml 值不受支持：${kv[1]} = ${val}`); process.exit(1); }
   }
   return out;
 }
+const gov=readGov(GOV), errors=[], notes=[];
+const projectName=gov.project?.name ?? path.basename(ROOT);
+const sorted=(xs)=>xs.sort((a,b)=>a.localeCompare(b));
+const rootEntries=fs.readdirSync(ROOT,{withFileTypes:true});
+const isDir=(e)=>e.isDirectory(); // Symlinks are consistently treated as file-like entries.
+const size=(rel)=>{const p=path.join(ROOT,rel); try { return fs.statSync(p).size; } catch { return null; }};
+const toRegex=(list)=> (list??[]).map(p=>{try{const i=p.startsWith('(?i)');return new RegExp(i?p.slice(4):p,i?'i':'');}catch{errors.push(`gov.toml 里的正则写错了：${p}`);return null;}}).filter(Boolean);
 
-const gov = readGov(GOV);
-const errors = [];
-const notes = [];
+// 1. Root allowlist
+const allowedDirs=new Set(gov.dirs?.allowed_dirs??[]), allowedFiles=new Set(gov.dirs?.allowed_files??[]), ALWAYS_OK=new Set(['.git','node_modules']);
+if (!allowedDirs.size && !allowedFiles.size) notes.push('gov.toml [dirs] 为空 —— 白名单未启用（建议运行 init 生成）');
+else for (const e of rootEntries) { const n=e.name; if(ALWAYS_OK.has(n))continue; if(isDir(e)){if(!allowedDirs.has(n))errors.push(`根目录出现未登记目录：${n}/  → 加到 gov.toml [dirs].allowed_dirs，或挪进 .tmp/ / 产物目录`);} else if(!allowedFiles.has(n)) errors.push(`根目录出现未登记文件：${n}  → 加到 gov.toml [dirs].allowed_files，或挪进 .tmp/`); }
 
-const projectName = gov.project?.name ?? path.basename(ROOT);
+// 2. Forbidden root names
+const dirRes=toRegex(gov.forbid?.dir_patterns), fileRes=toRegex(gov.forbid?.file_patterns);
+for(const e of rootEntries){const list=isDir(e)?dirRes:fileRes;if(list.some(r=>r.test(e.name)))errors.push(`命中禁用命名：${e.name}  → 构建产物统一放固定目录，临时产物统一 .tmp/<任务ID>/，计划写进 .spec/`);}
 
-/**
- * 编译 gov.toml 里的正则。支持前缀 `(?i)` 表示忽略大小写
- * （JS 的 RegExp 不支持内联标志，这里手动剥掉并转成 flag）。
- */
-const toRegex = (list) =>
-  (list ?? [])
-    .map((p) => {
-      try {
-        const insensitive = p.startsWith('(?i)');
-        return new RegExp(insensitive ? p.slice(4) : p, insensitive ? 'i' : '');
-      } catch {
-        errors.push(`gov.toml 里的正则写错了：${p}`);
-        return null;
-      }
-    })
-    .filter(Boolean);
+// 3. Budgets
+const budget=gov.budget??{}, layout=gov.layout??{};
+const budgetChecks=[['AGENTS.md',budget.agents_bytes,'唯一入口'],['.memory/MEMORY.md',budget.memory_bytes,'跨会话状态页'],['.memory/PITFALLS.md',budget.pitfalls_bytes,'判据与实证'],[layout.tasks_index??'.spec/tasks/index.md',budget.index_bytes,'任务索引（超了先归档已完成波次）'],[layout.roadmap_index??'.spec/roadmap/INDEX.md',budget.roadmap_bytes,'里程碑索引（超了先归档已完成里程碑）']];
+for(const [rel,limit,label] of budgetChecks){const n=size(rel);if(n===null)continue;if(limit&&n>limit)errors.push(`超预算：${rel} ${n}B > ${limit}B（${label}）`);else if(limit)notes.push(`${rel}  ${n}/${limit}B  (${Math.round(n/limit*100)}%)`);}
+function scanDetail(dirRel,filename,label,requireLog=false){const dir=path.join(ROOT,dirRel);if(!fs.existsSync(dir))return;for(const e of fs.readdirSync(dir,{withFileTypes:true})){if(!isDir(e)||['archive','assets'].includes(e.name))continue;const rel=path.posix.join(dirRel,e.name,filename);const n=size(rel);if(n===null)errors.push(`${label} ${e.name} 缺少 ${filename}（应在 ${dirRel}/${e.name}/ 下）`);else if(budget.card_bytes&&n>budget.card_bytes)errors.push(`超预算：${rel} ${n}B > ${budget.card_bytes}B（${label}详情）→ 过程挪去 log.md 或 .tmp/，只留结论`);if(requireLog&&size(path.posix.join(dirRel,e.name,'log.md'))===null)errors.push(`任务卡 ${e.name} 缺少 log.md（应在 ${dirRel}/${e.name}/ 下）`);}}
+scanDetail(layout.tasks_dir??'.spec/tasks','card.md','任务卡',true);scanDetail(layout.roadmap_dir??'.spec/roadmap','milestone.md','里程碑');
 
-const size = (rel) => {
-  const p = path.join(ROOT, rel);
-  return fs.existsSync(p) ? fs.statSync(p).size : null;
-};
+// 4. Required files
+for(const rel of gov.required?.files??[])if(!fs.existsSync(path.join(ROOT,rel)))errors.push(`缺少必需文件：${rel}`);
 
-// ---------------------------------------------------------------- 1. 根目录白名单
-const allowedDirs = new Set(gov.dirs?.allowed_dirs ?? []);
-const allowedFiles = new Set(gov.dirs?.allowed_files ?? []);
-// 这两个永远放行：一个是版本库元数据，一个是依赖，登记进白名单只会制造噪音
-const ALWAYS_OK = new Set(['.git', 'node_modules']);
+// 5. Active index ↔ directory consistency. Archived directories are deliberately outside the active index.
+function tableRows(rel, heading, statusColumn){const p=path.join(ROOT,rel);if(!fs.existsSync(p))return null;const lines=fs.readFileSync(p,'utf8').split(/\r?\n/);let active=false, rows=[];for(const line of lines){if(line.startsWith('## ')){if(active)break;if(line.replace(/^##\s*/, '').startsWith(heading))active=true;continue;}if(!active)continue;const cells=line.split('|').slice(1,-1).map(v=>v.trim());if(cells.length>statusColumn&&/^[A-Z]{1,3}\d[\w.-]*$/.test(cells[0]))rows.push({id:cells[0],title:cells[1]??'',status:cells[statusColumn]??''});}return rows;}
+function consistency(indexRel,dirRel,label,heading,statusAllowed=null,statusColumn=2,ignoreList=layout.tasks_ignore??['archive','assets']){const rows=tableRows(indexRel,heading,statusColumn);if(rows===null)return;const seen=new Set();for(const r of rows){if(seen.has(r.id))errors.push(`${label}：${indexRel} 中 ID ${r.id} 重复`);seen.add(r.id);if(statusAllowed&&!statusAllowed.includes(r.status))errors.push(`${label}：${r.id} 状态非法：${r.status}`);}const dir=path.join(ROOT,dirRel);const dirs=fs.existsSync(dir)?fs.readdirSync(dir,{withFileTypes:true}).filter(e=>isDir(e)&&!ignoreList.includes(e.name)).map(e=>e.name):[];for(const r of rows)if(!dirs.includes(r.id))errors.push(`${label}：索引里有 ${r.id}，但 ${dirRel}/${r.id}/ 不存在（建目录 + 详情文件）`);for(const d of dirs)if(!seen.has(d))errors.push(`${label}：${dirRel}/${d}/ 存在，但 ${indexRel} 里没有登记（补一行，或移入 archive/）`);}
+consistency(layout.tasks_index??'.spec/tasks/index.md',layout.tasks_dir??'.spec/tasks','任务卡','当前波次',['planned','ready','in_progress','review','done','blocked','dropped'],2,layout.tasks_ignore??['archive','assets']);
+consistency(layout.roadmap_index??'.spec/roadmap/INDEX.md',layout.roadmap_dir??'.spec/roadmap','里程碑','里程碑',['未开始','进行中','已完成','已放弃'],3,layout.roadmap_ignore??['archive','assets']);
 
-if (allowedDirs.size === 0 && allowedFiles.size === 0) {
-  notes.push('gov.toml [dirs] 为空 —— 白名单未启用（建议运行 init 生成）');
-} else {
-  for (const entry of fs.readdirSync(ROOT, { withFileTypes: true })) {
-    const name = entry.name;
-    if (ALWAYS_OK.has(name)) continue;
-    if (entry.isDirectory()) {
-      if (!allowedDirs.has(name)) {
-        errors.push(
-          `根目录出现未登记目录：${name}/  → 加到 gov.toml [dirs].allowed_dirs，或挪进 .tmp/ / 产物目录`,
-        );
-      }
-    } else if (!allowedFiles.has(name)) {
-      errors.push(`根目录出现未登记文件：${name}  → 加到 gov.toml [dirs].allowed_files，或挪进 .tmp/`);
-    }
-  }
-}
+// 6. Generated board freshness
+const taskIndex=path.join(ROOT,layout.tasks_index??'.spec/tasks/index.md'), board=path.join(ROOT,'.spec/tasks/BOARD.md');
+if(fs.existsSync(taskIndex)&&fs.existsSync(board)){const hash=crypto.createHash('sha256').update(fs.readFileSync(taskIndex)).digest('hex');const b=fs.readFileSync(board,'utf8');const sourceOk=b.includes(`<!-- SOURCE-SHA256: ${hash} -->`);const generated=b.match(/<!-- GENERATED-SHA256: ([a-f0-9]+) -->\r?\n([\s\S]*?)<!-- GENERATED:END -->/);const bodyOk=generated&&crypto.createHash('sha256').update(generated[2]).digest('hex')===generated[1];if(!sourceOk||!bodyOk)errors.push('.spec/tasks/BOARD.md 已过期或被手工修改，请运行 node scripts/generate-board.cjs');}
 
-// ---------------------------------------------------------------- 2. 禁用命名
-const dirPatterns = toRegex(gov.forbid?.dir_patterns);
-const filePatterns = toRegex(gov.forbid?.file_patterns);
-
-for (const entry of fs.readdirSync(ROOT, { withFileTypes: true })) {
-  const patterns = entry.isDirectory() ? dirPatterns : filePatterns;
-  for (const re of patterns) {
-    if (re.test(entry.name)) {
-      errors.push(
-        `命中禁用命名：${entry.name}  → 构建产物统一放固定目录，临时产物统一 .tmp/<任务ID>/，计划写进 .spec/`,
-      );
-      break;
-    }
-  }
-}
-
-// ---------------------------------------------------------------- 3. 预算（含 token）
-const budget = gov.budget ?? {};
-const budgetChecks = [
-  ['AGENTS.md', budget.agents_bytes, '唯一入口'],
-  ['.memory/MEMORY.md', budget.memory_bytes, '跨会话状态页'],
-  ['.memory/PITFALLS.md', budget.pitfalls_bytes, '判据与实证'],
-  [gov.layout?.tasks_index ?? '.spec/tasks/index.md', budget.index_bytes, '任务索引（超了先归档已完成波次）'],
-  [gov.layout?.roadmap_index ?? '.spec/roadmap/INDEX.md', budget.roadmap_bytes, '里程碑索引（超了先归档已完成里程碑）'],
-];
-
-for (const [rel, limit, label] of budgetChecks) {
-  const s = size(rel);
-  if (s === null) continue; // 存在性由第 4 步检查
-  if (limit && s > limit) {
-    errors.push(`超预算：${rel} ${s}B > ${limit}B（${label}）`);
-  } else if (limit) {
-    notes.push(`${rel}  ${s}/${limit}B  (${Math.round((s / limit) * 100)}%)`);
-  }
-}
-
-// 每张卡 / 每个里程碑的详情文件大小
-const scanDetail = (dirRel, file, label) => {
-  const dir = path.join(ROOT, dirRel);
-  if (!fs.existsSync(dir)) return;
-  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (!e.isDirectory() || e.name === 'archive' || e.name === 'assets') continue;
-    const rel = path.join(dirRel, e.name, file);
-    const s = size(rel);
-    if (s === null) {
-      errors.push(`${label} ${e.name} 缺少 ${file}（应在 ${dirRel}/${e.name}/ 下）`);
-    } else if (budget.card_bytes && s > budget.card_bytes) {
-      errors.push(
-        `超预算：${rel} ${s}B > ${budget.card_bytes}B（${label}详情）→ 过程挪去 log.md 或 .tmp/，只留结论`,
-      );
-    }
-  }
-};
-scanDetail(gov.layout?.tasks_dir ?? '.spec/tasks', 'card.md', '任务卡');
-scanDetail(gov.layout?.roadmap_dir ?? '.spec/roadmap', 'milestone.md', '里程碑');
-
-// ---------------------------------------------------------------- 4. 必需文件
-for (const rel of gov.required?.files ?? []) {
-  if (!fs.existsSync(path.join(ROOT, rel))) errors.push(`缺少必需文件：${rel}`);
-}
-
-// ---------------------------------------------------------------- 5. 索引 ↔ 目录一致性
-/** 从 markdown 表格里抓出「ID 在首列」的行。ID 形如 T1 / M2 / W3。 */
-function idsFromIndex(rel) {
-  const p = path.join(ROOT, rel);
-  if (!fs.existsSync(p)) return null;
-  const ids = new Set();
-  for (const line of fs.readFileSync(p, 'utf8').split(/\r?\n/)) {
-    const m = line.match(/^\|\s*([A-Z]{1,3}\d[\w.-]*)\s*\|/);
-    if (m) ids.add(m[1]);
-  }
-  return ids;
-}
-
-function dirsIn(rel, ignore = []) {
-  const dir = path.join(ROOT, rel);
-  if (!fs.existsSync(dir)) return [];
-  return fs
-    .readdirSync(dir, { withFileTypes: true })
-    .filter((e) => e.isDirectory() && !ignore.includes(e.name))
-    .map((e) => e.name);
-}
-
-const ignoreDirs = gov.layout?.tasks_ignore ?? ['archive', 'assets'];
-
-const consistency = (indexRel, dirRel, label) => {
-  const ids = idsFromIndex(indexRel);
-  if (!ids) return;
-  const dirs = dirsIn(dirRel, ignoreDirs);
-
-  for (const id of ids) {
-    if (!dirs.includes(id)) {
-      errors.push(`${label}：索引里有 ${id}，但 ${dirRel}/${id}/ 不存在（建目录 + 详情文件）`);
-    }
-  }
-  for (const d of dirs) {
-    if (!ids.has(d)) {
-      errors.push(`${label}：${dirRel}/${d}/ 存在，但 ${indexRel} 里没有登记（补一行，或删掉目录）`);
-    }
-  }
-};
-
-consistency(
-  gov.layout?.tasks_index ?? '.spec/tasks/index.md',
-  gov.layout?.tasks_dir ?? '.spec/tasks',
-  '任务卡',
-);
-consistency(
-  gov.layout?.roadmap_index ?? '.spec/roadmap/INDEX.md',
-  gov.layout?.roadmap_dir ?? '.spec/roadmap',
-  '里程碑',
-);
-
-// ---------------------------------------------------------------- 输出
-console.log(`\n治理检查  ${projectName}\n`);
-
-for (const n of notes) console.log(`  · ${n}`);
-
-if (errors.length === 0) {
-  console.log('\n  ✅ 全部通过\n');
-  process.exit(0);
-}
-
-console.log(`\n  ❌ ${errors.length} 项违规：\n`);
-for (const e of errors) console.log(`  - ${e}`);
-console.log('');
-process.exit(1);
+console.log(`\n治理检查  ${projectName}\n`);for(const n of notes)console.log(`  · ${n}`);if(!errors.length){console.log('\n  ✅ 全部通过\n');process.exit(0);}console.log(`\n  ❌ ${errors.length} 项违规：\n`);for(const e of errors)console.log(`  - ${e}`);console.log('');process.exit(1);
