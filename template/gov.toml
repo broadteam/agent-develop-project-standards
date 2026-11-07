@@ -44,7 +44,7 @@ file_patterns = ["\\.bak$", "\\.orig$", "^untitled", "^\\.DS_Store$", "(?i)^(tod
 
 [required]
 # 缺了这些文件说明规范体系被破坏，直接判违规。
-files = ["AGENTS.md", "gov.toml", ".memory/MEMORY.md", ".memory/PITFALLS.md", ".spec/REGISTRY.md", ".spec/00-constitution.md", ".spec/tasks/index.md", ".spec/tasks/BOARD.md", ".spec/tasks/archive/INDEX.md", ".spec/roadmap/INDEX.md", ".spec/roadmap/archive/INDEX.md", ".spec/stacks/README.md", "scripts/generate-board.cjs"]
+files = ["AGENTS.md", "gov.toml", "project-profile.toml", ".memory/MEMORY.md", ".memory/PITFALLS.md", ".spec/REGISTRY.md", ".spec/00-constitution.md", ".spec/tasks/index.md", ".spec/tasks/BOARD.md", ".spec/tasks/archive/INDEX.md", ".spec/roadmap/INDEX.md", ".spec/roadmap/archive/INDEX.md", ".spec/stacks/README.md", "scripts/generate-board.cjs"]
 
 [layout]
 # 计划的唯一位置。检查器用它做「索引 ↔ 卡片目录」双向一致性校验。
