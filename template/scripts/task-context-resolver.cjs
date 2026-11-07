@@ -292,7 +292,7 @@ function main(argv) {
     if (argv[i] === '--input' && argv[i + 1]) inputPath = argv[++i];
     else if (argv[i] === '--format' && ['text', 'json'].includes(argv[i + 1])) format = argv[++i];
     else if (argv[i] === '--help') {
-      console.log('用法：node scripts/resolve-task-context.cjs [--input .tmp/task-context.json] [--format text|json]');
+      console.log('用法：node scripts/task-context-resolver.cjs [--input .tmp/task-context.json] [--format text|json]');
       console.log('任务描述示例：{"kind":"database_change","risk":"high","impact":"data","cross_session":true,"uncertainty":"medium","stacks":["java"],"task_id":"T12"}');
       return 0;
     } else throw new Error('未知参数或参数缺失：' + argv[i]);
