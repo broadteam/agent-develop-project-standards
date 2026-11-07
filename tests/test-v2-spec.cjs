@@ -1,0 +1,20 @@
+#!/usr/bin/env node
+'use strict';
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const root = path.resolve(__dirname, '..');
+const spec = fs.readFileSync(path.join(root, 'SPEC-v2.0.md'), 'utf8');
+const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
+const changelog = fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8');
+const migration = fs.readFileSync(path.join(root, 'MIGRATION-v2.0.md'), 'utf8');
+const pillars = ['规范体系与目录架构','Agent 多客户端兼容','记忆与上下文管理','任务、看板与路线图管理','工程治理与初始化机制','自动化验证与质量门禁','长期演进与版本管理'];
+for (const pillar of pillars) assert.ok(spec.includes(pillar), `missing pillar: ${pillar}`);
+assert.match(spec, /2\.0 发布门槛/);
+assert.match(spec, /明确不做/);
+assert.match(spec, /不以真实 SaaS 项目作为 2\.0 验收前提/);
+assert.match(readme, /SPEC-v2\.0\.md/);
+assert.match(readme, /MIGRATION-v2\.0\.md/);
+assert.match(changelog, /2\.0\.0-rc\.1/);
+assert.match(migration, /--dry-run/);
+console.log('test-v2-spec: all cases passed');
