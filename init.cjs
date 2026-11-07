@@ -124,6 +124,10 @@ function walk(dir, rel = '') {
     if (!DRY) {
       fs.mkdirSync(path.dirname(to), { recursive: true });
       let content = fill(fs.readFileSync(from, 'utf8'));
+      if (relPath === 'project-profile.toml') {
+        const detected = (STACKS.length ? STACKS : ['generic']).map((stack) => JSON.stringify(stack)).join(', ');
+        content = content.replace(/^detected = \["generic"\]$/m, `detected = [${detected}]`);
+      }
       if (relPath === 'gov.toml') {
         const tomlValues = { name: PROJECT_NAME, desc: PROJECT_DESC, language: STACK, framework: replacements.FRAMEWORK, package_manager: packageManager, src_dir: SRC_DIR, build_output: BUILD_OUTPUT };
         for (const [key, value] of Object.entries(tomlValues)) {
