@@ -25,6 +25,7 @@ assert.match(spec, /横向机制：母模板与项目适配/);
 assert.match(adaptation, /core/);
 assert.match(adaptation, /needs_review/);
 assert.match(adaptation, /Task Context Resolver/);
+assert.doesNotMatch(adaptation, /\\n/, 'adaptation document must not contain escaped newline literals');
 assert.match(taskResolver, /resolveTaskContext/);
 assert.match(taskResolver, /never edits project files/i);
 assert.ok(profile.includes('status = "needs_review"'));
