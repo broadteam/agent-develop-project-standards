@@ -5,7 +5,7 @@
 ### Added
 - Add a registry-driven Capability Resolver for initialization-time capability states and optional artifact pruning.
 - Preserve `auto` as `deferred`; only explicit `off` prunes optional template artifacts, while `on` remains enabled.
-- Add fixture tests for dependency conflicts, lean-profile pruning, and preservation of core rules.
+- Add fixture tests for dependency conflicts, lean-profile pruning, preservation of core rules, and Node/Python governance-gate parity when optional capabilities are disabled.
 
 ### Notes
 - Existing project-owned files are never deleted when a capability is switched off. Task-context resolution for `auto` remains a session-level responsibility.
