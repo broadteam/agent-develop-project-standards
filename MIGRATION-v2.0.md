@@ -13,9 +13,9 @@
 ## 建议步骤
 
 1. 记录当前规范版本、Git commit、项目根目录清单和自定义文件清单。
-2. 备份 `AGENTS.md`、`gov.toml`、`.spec/`、`.memory/`、`.githooks/` 与 CI 配置。
+2. 备份 `AGENTS.md`、`gov.toml`、`project-profile.toml`（若已有）、`.spec/`、`.memory/`、`.githooks/` 与 CI 配置。
 3. 在项目副本或临时 fixture 中执行 2.0 初始化器 `--dry-run`，审查创建、跳过、覆盖、保护清单。
-4. 比较 2.0 的规则入口、客户端指针、记忆模型、任务索引和治理配置；逐项合并项目定制。
+4. 比较 2.0 的规则入口、客户端指针、记忆模型、任务索引和治理配置；逐项合并项目定制。首次引入 `project-profile.toml` 时，初始化器只填写可探测的技术栈候选，项目类型、规模、风险、架构与能力开关必须由维护者确认后将 status 改为 `confirmed`。
 5. 检查 Hook 路径与执行权限；保留原有项目专属检查。
 6. 运行 Node/Python 治理检查、初始化回归、检查器 parity、项目 lint/类型检查/测试和构建。
 7. 更新规范版本标识、迁移记录与交接断点。
