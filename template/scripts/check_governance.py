@@ -128,9 +128,11 @@ budget_checks = [
     ("AGENTS.md", budget.get("agents_bytes"), "唯一入口"),
     (".memory/MEMORY.md", budget.get("memory_bytes"), "跨会话状态页"),
     (".memory/PITFALLS.md", budget.get("pitfalls_bytes"), "判据与实证"),
-    *((layout.get("tasks_index", ".spec/tasks/index.md"), budget.get("index_bytes"), "任务索引（超了先归档已完成波次）"),) if capability_enabled("task_tracking") else (),
-    *((layout.get("roadmap_index", ".spec/roadmap/INDEX.md"), budget.get("roadmap_bytes"), "里程碑索引（超了先归档已完成里程碑）"),) if capability_enabled("roadmap") else (),
 ]
+if capability_enabled("task_tracking"):
+    budget_checks.append((layout.get("tasks_index", ".spec/tasks/index.md"), budget.get("index_bytes"), "任务索引（超了先归档已完成波次）"))
+if capability_enabled("roadmap"):
+    budget_checks.append((layout.get("roadmap_index", ".spec/roadmap/INDEX.md"), budget.get("roadmap_bytes"), "里程碑索引（超了先归档已完成里程碑）"))
 for rel, limit, label in budget_checks:
     size = size_of(rel)
     if size is None:
