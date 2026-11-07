@@ -15,7 +15,7 @@ function resolveCapabilities(profile, registry) {
       errors.push('非法能力配置：capabilities.' + id + ' = ' + value);
       continue;
     }
-    const status = value === 'off' ? 'disabled' : value === 'on' ? 'enabled' : 'deferred';
+    const status = definition.kind === 'profile' ? 'enabled' : value === 'off' ? 'disabled' : value === 'on' ? 'enabled' : 'deferred';
     resolved[id] = { configured: value, status };
     if (status === 'disabled') {
       for (const artifact of definition.artifacts ?? []) excludedPaths.push(artifact);
