@@ -1,0 +1,35 @@
+# project-profile.toml — 项目画像与规范能力选择
+
+[profile]
+schema_version = 1
+status = "needs_review"
+name = "{{PROJECT_NAME}}"
+description = "{{PROJECT_DESC}}"
+type = "unknown"
+scale = "unknown"
+risk = "unknown"
+architecture = "unknown"
+
+[stack]
+detected = [{{DETECTED_STACKS}}]
+primary = "{{LANGUAGE}}"
+framework = "{{FRAMEWORK}}"
+package_manager = "{{PACKAGE_MANAGER}}"
+
+[capabilities]
+task_tracking = "auto"
+roadmap = "auto"
+adr = "auto"
+module_boundaries = "auto"
+multi_agent = "off"
+memory_mode = "light"
+stack_rules = "auto"
+quality_gates = "baseline"
+release_governance = "light"
+
+[verification]
+lint = ""
+typecheck = ""
+test = ""
+build = ""
+ci = ""
