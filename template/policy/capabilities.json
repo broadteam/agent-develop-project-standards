@@ -124,6 +124,9 @@
       ],
       "validation": [
         "on 时至少有一个已确认的非 generic 技术栈"
+      ],
+      "artifacts": [
+        ".spec/stacks/"
       ]
     },
     "quality_gates": {
