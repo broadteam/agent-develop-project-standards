@@ -106,7 +106,7 @@ function resolveTaskContext(input, options = {}) {
   if (task.impact === 'public_contract') signals.add('impact_public_contract');
   if (task.impact === 'data') signals.add('impact_data');
   if (task.impact === 'security') signals.add('impact_security');
-  if (task.impact === 'production') signals.add('impact_production');
+  if (task.impact === 'production' || task.release_target === 'production') signals.add('impact_production');
   if (task.impact === 'system') signals.add('impact_system');
   if (task.kind === 'architecture_change') signals.add('kind_architecture_change');
   if (task.kind === 'database_change') signals.add('kind_database_change');
@@ -239,7 +239,7 @@ function resolveTaskContext(input, options = {}) {
     task,
     riskAssessment: {
       supplied: task.risk,
-      highImpact: HIGH_IMPACTS.has(task.impact) || task.impact === 'public_contract' || task.impact === 'system',
+      highImpact: HIGH_IMPACTS.has(task.impact) || task.impact === 'public_contract' || task.impact === 'system' || task.release_target === 'production',
       constitutionRequired: constitutionNeeded
     },
     alwaysRead,
