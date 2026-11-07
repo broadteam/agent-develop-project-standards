@@ -17,6 +17,9 @@ const profile = { capabilities: {
 const resolved = resolveCapabilities(profile, registry);
 assert.deepEqual(resolved.errors, []);
 assert.equal(resolved.capabilities.task_tracking.status, 'disabled');
+assert.equal(resolved.capabilities.quality_gates.status, 'enabled');
+assert.equal(resolved.capabilities.adr.status, 'deferred');
+assert.ok(registry.core.rules.every((rule) => !Object.values(registry.capabilities).some((capability) => (capability.artifacts ?? []).some((artifact) => rule === artifact || rule.startsWith(artifact)))));
 assert.equal(resolved.capabilities.adr.status, 'deferred');
 assert.equal(resolved.capabilities.module_boundaries.status, 'deferred');
 assert.equal(resolved.isExcluded('.spec/tasks/index.md'), true);
@@ -25,6 +28,11 @@ assert.equal(resolved.isExcluded('.spec/adr/README.md'), false);
 assert.equal(resolved.isExcluded('.spec/01-architecture.md'), false);
 assert.equal(resolved.isExcluded('.spec/stacks/java.md'), true);
 assert.equal(resolved.isExcluded('.spec/02-conventions.md'), false);
+
+const defaults = resolveCapabilities({}, registry);
+assert.equal(defaults.capabilities.task_tracking.configured, 'auto');
+assert.equal(defaults.capabilities.task_tracking.status, 'deferred');
+assert.equal(defaults.isExcluded('.spec/tasks/index.md'), false, 'auto must not prune artifacts');
 
 const invalid = resolveCapabilities({ capabilities: { roadmap: 'on', task_tracking: 'off' } }, registry);
 assert.ok(invalid.errors.some((error) => error.includes('能力依赖冲突')));
