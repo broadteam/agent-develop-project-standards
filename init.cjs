@@ -101,6 +101,13 @@ const replacements = {
   ARCH_LAYERS: '（待填：画出分层）', CORE_INTERFACES: '（待填：列出关键接口）',
   DATA_TABLE: '（待填）', MECH_TABLE: '（待填）',
 };
+const capabilityResolution = require(path.join(TEMPLATE, 'scripts/capability-resolver.cjs'))
+  .loadCapabilityResolution(TARGET, TEMPLATE);
+if (capabilityResolution.errors.length) {
+  console.error('能力配置无法解析：\\n' + capabilityResolution.errors.map((e) => '  - ' + e).join('\\n'));
+  process.exit(1);
+}
+
 function fill(s) {
   let out = s;
   for (const [k, v] of Object.entries(replacements)) out = out.split(`{{${k}}}`).join(v);
@@ -143,7 +150,7 @@ walk(TEMPLATE);
 
 // Add only the detected language profiles. They are on-demand references, not always-loaded rules.
 const presetMap = [...new Set(STACKS.map((stack) => stack === 'electron' || stack === 'node-web' ? 'node' : stack))];
-for (const stack of presetMap) {
+for (const stack of presetMap) {\n  if (capabilityResolution.capabilities.stack_rules?.status === 'disabled') break;
   const from = path.join(__dirname, 'presets', 'stacks', `${stack}.md`);
   if (!fs.existsSync(from)) continue;
   const rel = `.spec/stacks/${stack}.md`;
@@ -212,7 +219,7 @@ if (STACKS.length > 1) report.warnings.push(`检测到多技术栈：${STACKS.jo
 console.log(`\n铺设规范 → ${TARGET}\n`);
 console.log(`  主技术栈  ${STACK}（${profile.label}）`);
 console.log(`  检测栈    ${STACKS.join(', ') || 'generic'}`);
-console.log(`  包管理器  ${packageManager}`);
+console.log(`  包管理器  ${packageManager}`);\nconsole.log('  能力解析  ' + Object.entries(capabilityResolution.capabilities).map(([id, item]) => id + '=' + item.status).join(', '));
 console.log(`  项目名    ${PROJECT_NAME}`);
 console.log(`  源码目录  ${SRC_DIR}`);
 console.log(`  产物目录  ${BUILD_OUTPUT}`);
