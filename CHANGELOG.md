@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.0.0-rc.1 - 2026-11-07
+
+### Added
+- Define the seven-pillar 2.0 architecture, scope boundaries and objective release gates in `SPEC-v2.0.md`.
+- Add a 1.2.x-to-2.0 migration guide requiring dry-run, customization review and fixture-based validation.
+
+### Notes
+- This is a design-baseline release candidate, not the final 2.0.0 template release. The seven pillars remain subject to implementation and automated verification.
+
+
 ## 1.2.0 - 2026-11-07
 
 ### Changed
