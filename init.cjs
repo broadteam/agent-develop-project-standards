@@ -76,7 +76,7 @@ const scripts = pkg.scripts ?? {};
 const cmdLines = Object.keys(scripts).filter(k => ['dev', 'start', 'build', 'test', 'lint', 'typecheck'].includes(k)).map(k => `${jsPackageManager || 'npm'} run ${k}`);
 const COMMANDS = cmdLines.length ? cmdLines.join('\n') : profile.cmds.join('\n');
 
-const TEMPLATE_DIRS = ['.memory', '.spec', '.tmp', '.githooks', 'scripts'];
+const TEMPLATE_DIRS = ['.memory', '.spec', '.tmp', '.githooks', 'scripts', 'policy'];
 const TEMPLATE_FILES = ['AGENTS.md', 'ROUTER.md', 'CLAUDE.md', 'GEMINI.md', 'gov.toml', 'project-profile.toml', '.gitattributes', '.gitignore'];
 const ALWAYS_SKIP = new Set(['.git', 'node_modules']);
 const entries = fs.readdirSync(TARGET, { withFileTypes: true });
