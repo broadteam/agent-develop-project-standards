@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.2.0 - 2026-11-07
+
+### Changed
+- Replace the mandatory five-step session ritual with a lightweight baseline and task-based context loading.
+- Make task cards optional for localized, low-risk work with clear acceptance criteria; retain tracked workflows for cross-module, multi-session, uncertain or high-impact changes.
+- Load constitution, pitfalls, ADRs, roadmap and Git history only when relevant to the task or risk.
+- Clarify that context budgets are maintenance signals, not reasons to omit necessary correctness or safety information.
+
+### Added
+- Add regression coverage for the low-friction session protocol.
+- Add migration guidance for existing projects adopting the 1.2.0 workflow.
+
 ## 1.1.0 - 2026-11-07
 
 ### Fixed
