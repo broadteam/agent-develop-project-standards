@@ -63,6 +63,7 @@ project-standards/
 ├── CHANGELOG.md
 ├── MIGRATION-v1.1.md
 ├── init.cjs
+├── PROJECT-ADAPTATION-v2.0.md
 ├── presets/stacks/          # 按检测到的技术栈选择性铺设
 │   ├── php.md
 │   ├── java.md
