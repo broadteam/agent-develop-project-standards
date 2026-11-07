@@ -26,7 +26,7 @@ assert.match(adaptation, /core/);
 assert.match(adaptation, /needs_review/);
 assert.match(adaptation, /Task Context Resolver/);
 assert.match(taskResolver, /resolveTaskContext/);
-assert.match(taskResolver, /does not mutate/i);
+assert.match(taskResolver, /never edits project files/i);
 assert.ok(profile.includes('status = "needs_review"'));
 assert.ok(profile.includes('multi_agent = "off"'));
 assert.equal(capabilities.schema_version, 1);
