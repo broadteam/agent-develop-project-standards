@@ -5,6 +5,7 @@
 | 你要做的事 | 权威在哪 | 入口 |
 |---|---|---|
 | 开工前搞清楚什么不能做 | 红线清单 | `.spec/00-constitution.md` |
+| 判断项目类型、风险、能力开关和验证命令 | 项目画像（只读相关字段） | `project-profile.toml` |
 | 改架构 / 加模块 | 进程或分层模型、接口契约 | `.spec/01-architecture.md` |
 | 查某个 ID / 名称 / 字段叫什么 | 标识符唯一登记处 | `.spec/REGISTRY.md` |
 | 决定跨语言命名、提交信息、文案怎么写 | 通用约定 | `.spec/02-conventions.md` |
