@@ -1,0 +1,60 @@
+# gov.toml — 治理配置
+#
+# 这个文件是「机器可测规则」的唯一数据源：`node scripts/check-governance.cjs` 直接读它。
+# 改动这里 = 改规则本身，需要和 AGENTS.md §4 同步，并说明防的是什么具体错误。
+#
+# 棘轮原则：预算只准降不准升。要升 => 先在 .spec/adr/ 写一条裁定，再改这里。
+
+[project]
+name = "{{PROJECT_NAME}}"
+desc = "{{PROJECT_DESC}}"
+src_dir = "{{SRC_DIR}}"
+build_output = "{{BUILD_OUTPUT}}"
+
+[budget]
+# 文档膨胀的根因是「只追加不压缩」。超预算时的还债顺序：
+#   1. 版本历史 -> git log（不在文件头追加变更行）
+#   2. 过期内容 -> 归档（不是删除，是不再每次必读）
+#   3. 机器可测的 -> 删文字，改成脚本检查
+#   4. 重复内容 -> 只留指针，不复制
+#
+# 这套预算同时是 token 预算：L0 每次会话必读，必须小。
+agents_bytes = 12288        # AGENTS.md 唯一入口
+memory_bytes = 6144         # .memory/MEMORY.md 状态页
+index_bytes = 8192          # .spec/tasks/index.md 任务索引（唯一状态源）
+roadmap_bytes = 4096        # .spec/roadmap/INDEX.md 里程碑索引
+card_bytes = 4096           # 单张 card.md / milestone.md
+pitfalls_bytes = 16384      # .memory/PITFALLS.md 只增不改，超了按主题拆分
+
+[dirs]
+# 根目录白名单。init 会按实际根目录自动填；新增根级目录/文件必须手动加进来。
+allowed_dirs = []
+allowed_files = []
+
+[forbid]
+# 这些名字出现在根目录直接判违规——都是「图省事新建一个」的产物。
+# 防的是：out2/out8 各存一版产物、test1/test2 各放一份探针、临时目录散落。
+dir_patterns = ["^out\\d+$", "^release\\d+$", "^dist\\d+$", "^build\\d+$", "^test\\d*$", "^tmp\\d*$", "^temp\\d*$", "^new\\d*$", "^新建"]
+# 计划/待办类文件禁止散落在根目录——它们有唯一的家（.spec/tasks 与 .spec/roadmap）。
+# 见 AGENTS.md §2.5。前缀 (?i) 表示忽略大小写，检查脚本会转成对应标志。
+file_patterns = ["\\.bak$", "\\.orig$", "^untitled", "^\\.DS_Store$", "(?i)^(todo|plan|roadmap|next|next_steps|progress|notes|backlog|tasks|checklist|draft)([-_].*)?\\.md$"]
+
+[required]
+# 缺了这些文件说明规范体系被破坏，直接判违规。
+files = ["AGENTS.md", "gov.toml", ".memory/MEMORY.md", ".memory/PITFALLS.md", ".spec/REGISTRY.md", ".spec/00-constitution.md", ".spec/tasks/index.md", ".spec/roadmap/INDEX.md"]
+
+[layout]
+# 计划的唯一位置。检查器用它做「索引 ↔ 卡片目录」双向一致性校验。
+tasks_index = ".spec/tasks/index.md"
+tasks_dir = ".spec/tasks"
+tasks_archive = ".spec/tasks/archive"
+roadmap_index = ".spec/roadmap/INDEX.md"
+roadmap_dir = ".spec/roadmap"
+roadmap_archive = ".spec/roadmap/archive"
+# 这些子目录不是卡片，校验时跳过
+tasks_ignore = ["archive", "assets"]
+
+[paths]
+# 产物与数据的固定位置，代码里禁止硬编码别的路径
+temp = ".tmp"            # 临时产物唯一去处
+memory = ".memory"       # 跨会话记忆唯一去处

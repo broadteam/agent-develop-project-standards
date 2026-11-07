@@ -1,0 +1,5 @@
+* text=auto
+
+# shell 脚本必须 LF，否则 shebang 变 "#!/bin/sh\r" 报 required file not found
+*.sh text eol=lf
+.githooks/* text eol=lf
