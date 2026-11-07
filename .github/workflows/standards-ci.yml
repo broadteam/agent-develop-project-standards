@@ -21,9 +21,9 @@ jobs:
       - name: Syntax checks
         run: |
           node --check init.cjs
-          node --check template/scripts/check-governance.cjs
+          node --check template/scripts/check-governance.cjs\n          node --check template/scripts/profile-validator.cjs
           node --check template/scripts/generate-board.cjs
-          python -m py_compile template/scripts/check_governance.py
+          python -m py_compile template/scripts/check_governance.py template/scripts/profile_validator.py
       - name: Regression tests
         run: |
           node tests/test-init.cjs
