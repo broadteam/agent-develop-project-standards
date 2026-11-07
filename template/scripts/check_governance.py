@@ -209,7 +209,12 @@ if index_path.exists() and board_path.exists():
     if f"<!-- SOURCE-SHA256: {digest} -->" not in board_text or not body_ok:
         errors.append(".spec/tasks/BOARD.md 已过期或被手工修改，请运行 node scripts/generate-board.cjs")
 
-from profile_validator import validate_profile\nprofile_errors, profile_warnings = validate_profile(ROOT)\nerrors.extend(profile_errors)\nnotes.extend(profile_warnings)\n\nprint(f"\\n治理检查  {project_name}\\n")
+from profile_validator import validate_profile
+profile_errors, profile_warnings = validate_profile(ROOT)
+errors.extend(profile_errors)
+notes.extend(profile_warnings)
+
+print(f"\n治理检查  {project_name}\n")
 for note in notes:
     print(f"  · {note}")
 if not errors:
