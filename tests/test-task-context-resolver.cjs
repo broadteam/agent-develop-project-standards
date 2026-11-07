@@ -87,6 +87,14 @@ try {
   assert.ok(overridden.warnings.some((x) => x.includes('task_tracking')));
   assert.ok(overridden.warnings.some((x) => x.includes('adr')));
 
+  const productionRelease = resolveTaskContext({
+    kind: 'code_change', risk: 'medium', impact: 'local', release_target: 'production'
+  }, { root, profile, registry });
+  assert.ok(productionRelease.requiredRead.some((x) => x.path === '.spec/00-constitution.md'));
+  assert.ok(productionRelease.requiredRead.some((x) => x.path === '.spec/03-delivery.md'));
+  assert.equal(productionRelease.capabilityDecisions.release_governance.decision, 'auto_selected_for_task');
+  assert.equal(productionRelease.riskAssessment.highImpact, true);
+
   const unknownRisk = resolveTaskContext({ kind: 'code_change', impact: 'local' }, { root, profile, registry });
   assert.ok(unknownRisk.optionalRead.some((x) => x.path === '.spec/00-constitution.md'));
   assert.ok(unknownRisk.warnings.some((x) => x.includes('risk=unknown')));
