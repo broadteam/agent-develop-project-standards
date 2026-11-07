@@ -42,6 +42,35 @@ node init.cjs /path/to/your-project --strict-scan
 
 初始化与治理检查会读取 `project-profile.toml` 与 `policy/capabilities.json`，通过 Capability Resolver 计算能力状态：`on` 为启用、`off` 为关闭并裁剪注册表声明的可选模板产物及对应可选门禁、`auto` 保持 `deferred`，交由具体任务上下文判断。关闭能力不会删除项目中已经存在的文件；core 门禁始终执行。详见 [PROJECT-ADAPTATION-v2.0.md](PROJECT-ADAPTATION-v2.0.md)。
 
+### 任务上下文解析（按需）
+
+对跨模块、跨会话、高风险或不确定任务，可以使用任务上下文解析器生成本次工作的规范读取清单。轻量局部任务不要求运行。
+
+先在项目的 `.tmp/task-context.json` 写入本次任务事实，例如：
+
+```json
+{
+  "kind": "database_change",
+  "risk": "high",
+  "impact": "data",
+  "cross_session": true,
+  "uncertainty": "medium",
+  "stacks": ["java"],
+  "task_id": "T12",
+  "milestone_id": "M1"
+}
+```
+
+运行：
+
+```bash
+node scripts/task-context-resolver.cjs --input .tmp/task-context.json
+# 需要机器读取时
+node scripts/task-context-resolver.cjs --input .tmp/task-context.json --format json
+```
+
+解析器根据任务描述和项目能力画像，列出固定基线、必读规范、按需规范、能力判定和已配置验证命令。它只提供上下文建议，不创建任务卡、不修改项目画像、不执行命令，也不授予任何操作权限。输入是任务事实声明，Agent 不得为了得到更少的读取清单而低估风险或影响范围。
+
 ### 初始化参数
 
 | 参数 | 行为 |
@@ -202,7 +231,11 @@ python3 scripts/check_governance.py
 
 ```bash
 node tests/test-init.cjs
+node tests/test-capability-resolver.cjs
+node tests/test-task-context-resolver.cjs
 node tests/test-parity.cjs
+node tests/test-policy.cjs
+node tests/test-v2-spec.cjs
 ```
 
 `test-init` 验证 PHP 项目探测、`.gitignore` 幂等合并以及已有 Hook 保护；`test-parity` 使用同一测试夹具验证 Node/Python 检查器的退出码和输出一致，并覆盖符号链接、非法状态、缺失日志、重复 ID、任务波次归档与 BOARD 过期检测。GitHub Actions 会在 Push 和 Pull Request 时执行这些检查。
