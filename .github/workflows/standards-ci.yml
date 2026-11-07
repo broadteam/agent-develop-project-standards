@@ -28,3 +28,4 @@ jobs:
         run: |
           node tests/test-init.cjs
           node tests/test-parity.cjs
+          node tests/test-policy.cjs
