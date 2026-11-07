@@ -36,7 +36,8 @@
           "impact_data",
           "impact_security",
           "impact_production",
-          "kind_incident"
+          "kind_incident",
+          "task_id_present"
         ]
       }
     },
