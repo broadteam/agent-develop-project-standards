@@ -104,7 +104,7 @@ const replacements = {
 const capabilityResolution = require(path.join(TEMPLATE, 'scripts/capability-resolver.cjs'))
   .loadCapabilityResolution(TARGET, TEMPLATE);
 if (capabilityResolution.errors.length) {
-  console.error('能力配置无法解析：\\n' + capabilityResolution.errors.map((e) => '  - ' + e).join('\\n'));
+  console.error('能力配置无法解析：\n' + capabilityResolution.errors.map((e) => '  - ' + e).join('\n'));
   process.exit(1);
 }
 
@@ -220,7 +220,8 @@ if (STACKS.length > 1) report.warnings.push(`检测到多技术栈：${STACKS.jo
 console.log(`\n铺设规范 → ${TARGET}\n`);
 console.log(`  主技术栈  ${STACK}（${profile.label}）`);
 console.log(`  检测栈    ${STACKS.join(', ') || 'generic'}`);
-console.log(`  包管理器  ${packageManager}`);\nconsole.log('  能力解析  ' + Object.entries(capabilityResolution.capabilities).map(([id, item]) => id + '=' + item.status).join(', '));
+console.log(`  包管理器  ${packageManager}`);
+console.log('  能力解析  ' + Object.entries(capabilityResolution.capabilities).map(([id, item]) => id + '=' + item.status).join(', '));
 console.log(`  项目名    ${PROJECT_NAME}`);
 console.log(`  源码目录  ${SRC_DIR}`);
 console.log(`  产物目录  ${BUILD_OUTPUT}`);
