@@ -129,6 +129,12 @@ project-standards/
 
 检测到多技术栈时，脚本会提示人工确认，并将检测到的语言规范分别复制到 `.spec/stacks/`。`gov.toml [project]` 仍只记录一个主技术栈与默认构建配置，必须由维护者确认多栈项目的实际命令。
 
+## 母模板与项目画像（2.0）
+
+2.0 是完整能力母模板，不要求每个项目启用全部治理能力。初始化器会生成 project-profile.toml：技术栈只作为待确认的探测候选，项目类型、规模、风险、架构和能力开关由维护者确认。画像初始状态为 needs_review。
+
+规则分为 core、capability、stack、project、advisory；core 不可关闭，其余能力按项目需要启用。项目画像只记录选择，不复制规则正文；Agent 仍通过 AGENTS.md 和 ROUTER.md 按任务加载规范。详见 [PROJECT-ADAPTATION-v2.0.md](PROJECT-ADAPTATION-v2.0.md)。
+
 ## 任务与归档规则
 
 - 当前任务的唯一状态源是 `.spec/tasks/index.md`。
