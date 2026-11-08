@@ -35,3 +35,4 @@ jobs:
           node tests/test-parity.cjs
           node tests/test-policy.cjs
           node tests/test-v2-spec.cjs
+          node tests/test-client-adapters.cjs
