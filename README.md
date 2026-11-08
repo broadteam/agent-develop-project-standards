@@ -38,6 +38,21 @@ node scripts/check-governance.cjs
 node init.cjs /path/to/your-project --strict-scan
 ```
 
+### Agent 客户端适配
+
+模板只维护一份 `AGENTS.md` 规则正文，其他入口通过原生导入机制接入：
+
+| 客户端 | 入口 | 注意事项 |
+|---|---|---|
+| Codex | `AGENTS.md` | 支持从仓库根目录到当前目录的层级规则。 |
+| Claude Code | `CLAUDE.md` → `@AGENTS.md` | 支持 Markdown 导入与层级记忆文件。 |
+| Gemini CLI | `GEMINI.md` → `@./AGENTS.md` | 支持 `@file` 导入和层级上下文文件。 |
+| Cursor | 根目录 `AGENTS.md` | 当前仅根级、无路径作用域；需要细粒度规则时再评估 `.cursor/rules/*.mdc`。不生成已弃用的 `.cursorrules`。 |
+
+客户端兼容性不是“规则文件存在就算通过”。仓库通过 `tests/test-client-adapters.cjs` 检查指针目标、导入语法和弃用入口；客户端原生加载能力以官方文档为准。客户端配置不得复制或分叉项目规则正文。
+
+官方文档：[Codex AGENTS.md](https://developers.openai.com/cookbook/examples/gpt-5/codex_prompting_guide) · [Claude Code memory](https://docs.anthropic.com/en/docs/claude-code/memory) · [Gemini CLI GEMINI.md](https://geminicli.com/docs/cli/gemini-md/) · [Cursor Rules](https://docs.cursor.com/context/rules-for-ai)
+
 ### 项目能力画像
 
 初始化与治理检查会读取 `project-profile.toml` 与 `policy/capabilities.json`，通过 Capability Resolver 计算能力状态：`on` 为启用、`off` 为关闭并裁剪注册表声明的可选模板产物及对应可选门禁、`auto` 保持 `deferred`，交由具体任务上下文判断。关闭能力不会删除项目中已经存在的文件；core 门禁始终执行。详见 [PROJECT-ADAPTATION-v2.0.md](PROJECT-ADAPTATION-v2.0.md)。
@@ -236,6 +251,7 @@ node tests/test-task-context-resolver.cjs
 node tests/test-parity.cjs
 node tests/test-policy.cjs
 node tests/test-v2-spec.cjs
+node tests/test-client-adapters.cjs
 ```
 
 `test-init` 验证 PHP 项目探测、`.gitignore` 幂等合并以及已有 Hook 保护；`test-parity` 使用同一测试夹具验证 Node/Python 检查器的退出码和输出一致，并覆盖符号链接、非法状态、缺失日志、重复 ID、任务波次归档与 BOARD 过期检测。GitHub Actions 会在 Push 和 Pull Request 时执行这些检查。
