@@ -280,7 +280,8 @@ node tools/adopt-template-baseline.cjs --root /path/to/your-project --confirm-re
 
 ```bash
 node tools/plan-template-upgrade.cjs --root /path/to/your-project
-node tools/plan-template-upgrade.cjs --root /path/to/your-project --json
+# 将机器可读计划保存到项目临时目录；有待审差异时退出码 1 是预期结果
+node tools/plan-template-upgrade.cjs --root /path/to/your-project --json > /path/to/your-project/.tmp/upgrade-plan.json
 ```
 
 需要比较另一个规范仓库目录时，增加 `--standards-root /path/to/project-standards`。预览输出包含稳定的 `plan_id`、来源/目标版本、逐文件建议动作、哈希证据、阻断项以及人工审批字段。它覆盖通用模板文件，以及项目安装清单中实际登记的技术栈预设；未选择的语言预设不会被当成每个项目都必须安装的文件。
@@ -299,6 +300,27 @@ node tools/validate-template-upgrade-review.cjs \
 ```
 
 审查记录使用 `review_schema: 1`、对应 `plan_id` 和 `decisions[]`；每条决策包含 `reviewer`、`reviewed_at`、`path`、`decision`、`reason`。三方合并另外必须提供 `baseline_ref` 与 `merge_result_ref`。校验器会拒绝计划 ID 不匹配、重复路径、缺少决策、错误决策和未解除的阻断项。校验通过只代表人工审查记录完整，不代表变更已经应用，也不是签名或授权凭证。
+
+最小审查记录示例（路径和决策必须逐项来自实际计划，不能照抄示例值）：
+
+```json
+{
+  "review_schema": 1,
+  "plan_id": "<从 upgrade-plan.json 复制>",
+  "decisions": [
+    {
+      "reviewer": "maintainer",
+      "reviewed_at": "2026-11-08T16:00:00Z",
+      "path": ".spec/02-conventions.md",
+      "decision": "manual_merge",
+      "reason": "已比较项目定制与上游变化，完成手工合并。",
+      "baseline_ref": "git:<升级前提交>",
+      "merge_result_ref": "git:<审查后的合并提交>"
+    }
+  ]
+}
+```
+
 
 升级前仍应在独立分支/备份副本中操作，并在变更后运行治理检查、项目测试和构建。
 
@@ -323,6 +345,9 @@ node tests/test-policy.cjs
 node tests/test-v2-spec.cjs
 node tests/test-client-adapters.cjs
 node tests/test-migration-v2.cjs
+node tests/test-template-drift.cjs
+node tests/test-template-upgrade-plan.cjs
+node tests/test-template-upgrade-review.cjs
 node tests/test-doc-links.cjs
 ```
 
