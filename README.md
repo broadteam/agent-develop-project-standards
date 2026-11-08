@@ -119,6 +119,9 @@ project-standards/
 ├── init.cjs
 ├── PROJECT-ADAPTATION-v2.0.md
 ├── presets/stacks/          # 按检测到的技术栈选择性铺设
+├── tools/
+│   ├── check-template-drift.cjs
+│   └── adopt-template-baseline.cjs
 │   ├── php.md
 │   ├── java.md
 │   ├── node.md
@@ -132,6 +135,7 @@ project-standards/
 ├── .github/workflows/standards-ci.yml
 └── template/
     ├── AGENTS.md
+    ├── policy/standards-version.json
     ├── ROUTER.md
     ├── CLAUDE.md
     ├── GEMINI.md
@@ -237,6 +241,32 @@ python3 scripts/check_governance.py
 
 > 规则防的是已发生过的具体错误，不是想象中的风险。
 > 能由工具验证的约束就交给工具；规则本身也必须接受自动化测试。
+
+## 已安装版本与模板漂移审查
+
+新版本初始化会生成：
+
+- `policy/standards-version.json`：母模板当前版本与运行时要求。
+- `.agent-standards.json`：安装元数据，记录逐文件的模板源哈希、安装后文件哈希、文件来源版本、`.gitignore` 托管区块哈希，以及被保留的项目文件。
+
+**不要把 `--force` 当作版本升级命令。** 从新的规范仓库 checkout 执行只读差异检查：
+
+```bash
+node tools/check-template-drift.cjs --root /path/to/your-project
+# 机器可读
+node tools/check-template-drift.cjs --root /path/to/your-project --json
+```
+
+报告区分上游更新、项目本地修改、双向冲突、缺失文件、新增模板文件和未建立基线的旧项目。它不写文件、不自动合并、不执行初始化。退出码：`0` 无待处理差异；`1` 存在差异或基线不完整；`2` 缺少基线或输入/元数据无效。
+
+旧项目没有 `.agent-standards.json` 时，工具会明确报告历史基线未知，不猜测哪些文件是原始规范、哪些是项目定制。先备份并人工比较；确认当前保留内容后，才可预览并显式采纳：
+
+```bash
+node tools/adopt-template-baseline.cjs --root /path/to/your-project --dry-run
+node tools/adopt-template-baseline.cjs --root /path/to/your-project --confirm-reviewed
+```
+
+基线采纳只更新 `.agent-standards.json`，不修改规则文件。它表示维护者已审查并接受当前项目内容；已接受的定制会被保留，未来上游修改同一文件时会报告为冲突，要求人工合并。不要在未审查差异时执行 `--confirm-reviewed`。
 
 ## 版本与迁移
 
