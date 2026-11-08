@@ -8,13 +8,25 @@ const { spawnSync } = require('node:child_process');
 
 const TEMPLATE = path.join(__dirname, 'template');
 const argv = process.argv.slice(2);
+const VALID_FLAGS = new Set(['--force', '--dry-run', '--replace-hook', '--strict-scan']);
 const flags = new Set(argv.filter((a) => a.startsWith('--')));
 const positional = argv.filter((a) => !a.startsWith('--'));
-const TARGET = path.resolve(positional[0] ?? process.cwd());
+const unknownFlags = [...flags].filter((flag) => !VALID_FLAGS.has(flag));
+if (unknownFlags.length || positional.length > 1) {
+  console.error('参数错误。用法：node init.cjs [目标目录] [--dry-run] [--force] [--replace-hook] [--strict-scan]');
+  if (unknownFlags.length) console.error('未知参数：' + unknownFlags.join(', '));
+  if (positional.length > 1) console.error('目标目录只能指定一个。');
+  process.exit(2);
+}
 const FORCE = flags.has('--force');
 const DRY = flags.has('--dry-run');
 const REPLACE_HOOK = flags.has('--replace-hook');
 const STRICT_SCAN = flags.has('--strict-scan');
+if (REPLACE_HOOK && !FORCE) {
+  console.error('--replace-hook 必须与 --force 一起使用，避免产生不明确的覆盖意图。');
+  process.exit(2);
+}
+const TARGET = path.resolve(positional[0] ?? process.cwd());
 
 if (!fs.existsSync(TARGET) || !fs.statSync(TARGET).isDirectory()) {
   console.error(`目标目录不存在或不是目录：${TARGET}`);
@@ -105,6 +117,61 @@ const capabilityResolution = require(path.join(TEMPLATE, 'scripts/capability-res
   .loadCapabilityResolution(TARGET, TEMPLATE);
 if (capabilityResolution.errors.length) {
   console.error('能力配置无法解析：\n' + capabilityResolution.errors.map((e) => '  - ' + e).join('\n'));
+  process.exit(1);
+}
+
+// Refuse to follow project-owned symlinks while installing managed files.
+// A symlinked project root itself is allowed; links below that root are not.
+function assertSafeTargetFile(relPath) {
+  const parts = relPath.split(/[\\/]+/).filter(Boolean);
+  if (!parts.length || path.isAbsolute(relPath) || parts.some((part) => part === '.' || part === '..')) {
+    throw new Error('非法目标相对路径：' + relPath);
+  }
+  let cursor = TARGET;
+  for (let i = 0; i < parts.length; i++) {
+    cursor = path.join(cursor, parts[i]);
+    let stat;
+    try { stat = fs.lstatSync(cursor); }
+    catch (error) {
+      if (error.code === 'ENOENT') break;
+      throw error;
+    }
+    if (stat.isSymbolicLink()) {
+      throw new Error('拒绝写入包含符号链接的目标路径：' + relPath + '（' + path.relative(TARGET, cursor) + '）');
+    }
+    if (i < parts.length - 1 && !stat.isDirectory()) {
+      throw new Error('目标路径的父级不是目录：' + path.relative(TARGET, cursor));
+    }
+    if (i === parts.length - 1 && stat.isDirectory()) {
+      throw new Error('目标文件位置已存在同名目录：' + relPath);
+    }
+  }
+}
+function collectTemplateFiles(dir, rel = '') {
+  const result = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const relPath = path.posix.join(rel.split(path.sep).join('/'), entry.name);
+    if (capabilityResolution.isExcluded(relPath)) continue;
+    if (entry.isDirectory()) result.push(...collectTemplateFiles(path.join(dir, entry.name), relPath));
+    else if (entry.name !== '.gitignore.append') result.push(relPath);
+  }
+  return result;
+}
+const preflightPaths = collectTemplateFiles(TEMPLATE);
+for (const stack of [...new Set(STACKS.map((value) => value === 'electron' || value === 'node-web' ? 'node' : value))]) {
+  if (capabilityResolution.capabilities.stack_rules?.status === 'disabled') break;
+  const presetPath = path.join(__dirname, 'presets', 'stacks', stack + '.md');
+  if (fs.existsSync(presetPath)) preflightPaths.push('.spec/stacks/' + stack + '.md');
+}
+preflightPaths.push('.gitignore');
+if (capabilityResolution.capabilities.task_tracking?.status !== 'disabled'
+  && (has('.spec/tasks/index.md') || preflightPaths.includes('.spec/tasks/index.md'))) {
+  preflightPaths.push('.spec/tasks/BOARD.md');
+}
+try {
+  for (const relPath of new Set(preflightPaths)) assertSafeTargetFile(relPath);
+} catch (error) {
+  console.error('[init] 安全预检失败，未写入任何模板文件：' + error.message);
   process.exit(1);
 }
 
@@ -207,8 +274,12 @@ const hook = path.join(TARGET, '.githooks', 'pre-commit');
 if (!DRY && fs.existsSync(hook) && (report.created.includes('.githooks/pre-commit') || report.forced.includes('.githooks/pre-commit'))) {
   try { fs.chmodSync(hook, 0o755); } catch { report.warnings.push('无法设置 pre-commit 可执行位，请在 Unix 环境执行 chmod +x .githooks/pre-commit'); }
 }
-if (!DRY && fs.existsSync(path.join(TARGET, 'scripts/generate-board.cjs')) && fs.existsSync(path.join(TARGET, '.spec/tasks/index.md'))) {
-  const generated = spawnSync(process.execPath, [path.join(TARGET, 'scripts/generate-board.cjs')], { cwd: TARGET, encoding: 'utf8' });
+if (!DRY && capabilityResolution.capabilities.task_tracking?.status !== 'disabled'
+  && fs.existsSync(path.join(TARGET, '.spec/tasks/index.md'))) {
+  // Execute the generator shipped with this initializer, never a project-owned
+  // script that may have been skipped or preserved during installation.
+  const trustedGenerator = path.join(TEMPLATE, 'scripts/generate-board.cjs');
+  const generated = spawnSync(process.execPath, [trustedGenerator, '--root', TARGET], { cwd: TARGET, encoding: 'utf8' });
   if (generated.status !== 0) { console.error(generated.stdout || '', generated.stderr || ''); process.exit(1); }
 }
 if (existingDirs.length) {
