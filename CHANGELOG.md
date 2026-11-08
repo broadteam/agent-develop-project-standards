@@ -10,12 +10,13 @@
 - Require review metadata for every proposed change; no file is written, replaced, removed or merged by the planner.
 
 ### Tests
+- Add `tests/test-template-upgrade-recovery.cjs` to rehearse one approved manual replacement, deterministic governance failure, full external backup restore, exact tree comparison and post-restore governance/drift/plan-ID verification on disposable fixtures only.
 - Add `tests/test-template-upgrade-plan.cjs` for stable plan identity, read-only behavior, per-file action classification, stack preset discovery, incomplete-baseline blockers and JSON CLI output.
 - Run the upgrade-plan tests and syntax check in the Ubuntu/Windows CI matrix.
 
 ### Boundaries
 - The manifest stores hashes, not baseline file contents. Conflicts therefore require recovering the common base from the pre-upgrade Git tree, a backup or the matching old template checkout; record `baseline_ref` and `merge_result_ref` before claiming a three-way merge.
-- This release adds preview and decision guidance only. An upgrade applier and automated rollback tool do not exist; approved changes still require a separately reviewed manual migration process.
+- This release adds preview, review validation and a disposable-fixture recovery rehearsal only. An upgrade applier and automated rollback tool do not exist; approved changes still require a separately reviewed manual migration process.
 
 ## 2.0.0-rc.12 - 2026-11-08
 
