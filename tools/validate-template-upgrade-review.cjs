@@ -18,7 +18,8 @@ const ALLOWED_DECISIONS = new Set([
   'approve_add',
   'review_legacy_file',
   'classify_existing_file',
-  'manual_review'
+  'manual_review',
+  'defer'
 ]);
 
 function isObject(value) {
@@ -82,14 +83,14 @@ function validateReview(plan, review) {
     if (!nonEmpty(decision.reviewer)) errors.push(filePath + '：缺少 reviewer');
     if (!validTimestamp(decision.reviewed_at)) errors.push(filePath + '：reviewed_at 必须是 ISO 8601 时间');
     if (!nonEmpty(decision.reason)) errors.push(filePath + '：缺少决策 reason');
-    if (decision.decision !== 'approve_removal' && !/^[a-f0-9]{64}$/.test(decision.result_sha256 || '')) {
+    if (decision.decision !== 'approve_removal' && decision.decision !== 'defer' && !/^[a-f0-9]{64}$/.test(decision.result_sha256 || '')) {
       errors.push(filePath + '：必须提供实际结果文件/托管区块的 result_sha256（64 位小写 SHA-256）');
     }
     if (!nonEmpty(action.approval) || !ALLOWED_DECISIONS.has(action.approval)) {
       errors.push(filePath + '：计划包含未知的审批动作，不能被确认');
     }
     if (!nonEmpty(decision.decision)) errors.push(filePath + '：缺少 decision');
-    else if (!ALLOWED_DECISIONS.has(decision.decision) || decision.decision !== action.approval) {
+    else if (!ALLOWED_DECISIONS.has(decision.decision) || (decision.decision !== 'defer' && decision.decision !== action.approval)) {
       errors.push(filePath + '：decision 必须是已知动作并与计划要求一致（' + action.approval + '）');
     }
     if (action.operation === 'manual_merge') {
