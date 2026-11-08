@@ -194,6 +194,102 @@ function fill(s) {
 }
 
 const report = { created: [], skipped: [], forced: [], protected: [], warnings: [] };
+const transaction = { files: [], directories: [], committed: false };
+let transactionSequence = 0;
+
+function snapshotManagedFile(file) {
+  let stat;
+  try { stat = fs.lstatSync(file); }
+  catch (error) {
+    if (error.code === 'ENOENT') return { existed: false };
+    throw error;
+  }
+  if (stat.isSymbolicLink() || !stat.isFile()) throw new Error('拒绝修改非普通文件：' + path.relative(TARGET, file));
+  return { existed: true, content: fs.readFileSync(file), mode: stat.mode & 0o777 };
+}
+function ensureDirectoryTransactional(dir) {
+  const missing = [];
+  let cursor = dir;
+  while (!fs.existsSync(cursor)) {
+    missing.push(cursor);
+    const parent = path.dirname(cursor);
+    if (parent === cursor) throw new Error('无法创建目标目录：' + dir);
+    cursor = parent;
+  }
+  const parentStat = fs.lstatSync(cursor);
+  if (parentStat.isSymbolicLink() || !parentStat.isDirectory()) throw new Error('目标父目录不安全：' + cursor);
+  for (const item of missing.reverse()) {
+    fs.mkdirSync(item);
+    transaction.directories.push(item);
+  }
+}
+function writeTransactional(file, content, encoding = 'utf8') {
+  ensureDirectoryTransactional(path.dirname(file));
+  const before = snapshotManagedFile(file);
+  const sequence = ++transactionSequence;
+  const temp = path.join(path.dirname(file), '.' + path.basename(file) + '.agent-standards-tmp-' + process.pid + '-' + sequence);
+  const backup = before.existed
+    ? path.join(path.dirname(file), '.' + path.basename(file) + '.agent-standards-backup-' + process.pid + '-' + sequence)
+    : null;
+  try {
+    fs.writeFileSync(temp, content, encoding);
+    if (before.existed) fs.renameSync(file, backup);
+    try { fs.renameSync(temp, file); }
+    catch (error) {
+      if (backup && fs.existsSync(backup)) fs.renameSync(backup, file);
+      throw error;
+    }
+    transaction.files.push({ file, before, backup });
+  } catch (error) {
+    try { if (fs.existsSync(temp)) fs.unlinkSync(temp); } catch {}
+    throw error;
+  }
+}
+function recordExternalWrite(file) {
+  transaction.files.push({ file, before: snapshotManagedFile(file), backup: null, external: true });
+}
+function chmodTransactional(file, mode) {
+  const before = fs.statSync(file).mode & 0o777;
+  fs.chmodSync(file, mode);
+  transaction.files.push({ file, before: { existed: true, mode: before, metadataOnly: true }, backup: null });
+}
+function rollbackTransaction() {
+  const failures = [];
+  for (const entry of [...transaction.files].reverse()) {
+    try {
+      if (entry.backup && fs.existsSync(entry.backup)) {
+        if (fs.existsSync(entry.file)) fs.unlinkSync(entry.file);
+        fs.renameSync(entry.backup, entry.file);
+      } else if (entry.before.metadataOnly) {
+        fs.chmodSync(entry.file, entry.before.mode);
+      } else if (entry.before.existed) {
+        const restore = entry.file + '.agent-standards-rollback-' + process.pid + '-' + (++transactionSequence);
+        fs.writeFileSync(restore, entry.before.content);
+        if (entry.before.mode !== undefined) fs.chmodSync(restore, entry.before.mode);
+        if (fs.existsSync(entry.file)) fs.unlinkSync(entry.file);
+        fs.renameSync(restore, entry.file);
+      } else if (fs.existsSync(entry.file)) {
+        fs.unlinkSync(entry.file);
+      }
+    } catch (error) {
+      failures.push(path.relative(TARGET, entry.file) + ': ' + error.message);
+    }
+  }
+  for (const dir of [...transaction.directories].reverse()) {
+    try { fs.rmdirSync(dir); }
+    catch (error) { if (error.code !== 'ENOTEMPTY' && error.code !== 'ENOENT') failures.push(path.relative(TARGET, dir) + ': ' + error.message); }
+  }
+  return failures;
+}
+function commitTransaction() {
+  for (const entry of transaction.files) {
+    if (entry.backup && fs.existsSync(entry.backup)) {
+      try { fs.unlinkSync(entry.backup); }
+      catch (error) { report.warnings.push('安装已完成，但无法清理备份文件：' + path.relative(TARGET, entry.backup) + '（' + error.message + '）'); }
+    }
+  }
+  transaction.committed = true;
+}
 function walk(dir, rel = '') {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const from = path.join(dir, entry.name);
@@ -209,7 +305,7 @@ function walk(dir, rel = '') {
     }
     if (exists && !FORCE) { report.skipped.push(relPath); continue; }
     if (!DRY) {
-      fs.mkdirSync(path.dirname(to), { recursive: true });
+      ensureDirectoryTransactional(path.dirname(to));
       let content = fill(fs.readFileSync(from, 'utf8'));
       if (relPath === 'project-profile.toml') {
         const detected = (STACKS.length ? STACKS : ['generic']).map((stack) => JSON.stringify(stack)).join(', ');
@@ -221,11 +317,12 @@ function walk(dir, rel = '') {
           content = content.replace(new RegExp(`^${key} = \".*\"$`, 'm'), `${key} = ${JSON.stringify(String(value))}`);
         }
       }
-      fs.writeFileSync(to, content, 'utf8');
+      writeTransactional(to, content, 'utf8');
     }
     (exists ? report.forced : report.created).push(relPath);
   }
 }
+try {
 walk(TEMPLATE);
 
 // Add only the detected language profiles. They are on-demand references, not always-loaded rules.
@@ -238,7 +335,7 @@ for (const stack of presetMap) {
   const to = path.join(TARGET, rel);
   const exists = fs.existsSync(to);
   if (exists && !FORCE) { report.skipped.push(rel); continue; }
-  if (!DRY) { fs.mkdirSync(path.dirname(to), { recursive: true }); fs.writeFileSync(to, fs.readFileSync(from, 'utf8'), 'utf8'); }
+  if (!DRY) { ensureDirectoryTransactional(path.dirname(to)); writeTransactional(to, fs.readFileSync(from, 'utf8'), 'utf8'); }
   (exists ? report.forced : report.created).push(rel);
 }
 
@@ -260,7 +357,7 @@ if (report.created.includes('gov.toml') || report.forced.includes('gov.toml')) {
       }
       govText = govText.replace(requiredLine[0], `files = [${required.map(quote).join(', ')}]`);
     }
-    fs.writeFileSync(govPath, govText, 'utf8');
+    writeTransactional(govPath, govText, 'utf8');
   }
 }
 
@@ -276,7 +373,7 @@ if (fs.existsSync(ignoreSrc)) {
   const re = new RegExp(`${START.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[\\s\\S]*?${END.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'm');
   const next = re.test(current) ? current.replace(re, block) : `${current.trimEnd()}${current.trim() ? '\n\n' : ''}${block}\n`;
   if (next !== current) {
-    if (!DRY) fs.writeFileSync(ignoreDst, next, 'utf8');
+    if (!DRY) writeTransactional(ignoreDst, next, 'utf8');
     report.created.push('.gitignore（合并托管区块）');
   } else report.skipped.push('.gitignore（托管区块已是最新）');
 }
@@ -284,15 +381,16 @@ if (fs.existsSync(ignoreSrc)) {
 // Set executable bit only on a hook created/replaced by this run.
 const hook = path.join(TARGET, '.githooks', 'pre-commit');
 if (!DRY && fs.existsSync(hook) && (report.created.includes('.githooks/pre-commit') || report.forced.includes('.githooks/pre-commit'))) {
-  try { fs.chmodSync(hook, 0o755); } catch { report.warnings.push('无法设置 pre-commit 可执行位，请在 Unix 环境执行 chmod +x .githooks/pre-commit'); }
+  try { chmodTransactional(hook, 0o755); } catch (error) { report.warnings.push('无法设置 pre-commit 可执行位，请在 Unix 环境执行 chmod +x .githooks/pre-commit（' + error.message + '）'); }
 }
 if (!DRY && capabilityResolution.capabilities.task_tracking?.status !== 'disabled'
   && fs.existsSync(path.join(TARGET, '.spec/tasks/index.md'))) {
   // Execute the generator shipped with this initializer, never a project-owned
   // script that may have been skipped or preserved during installation.
   const trustedGenerator = path.join(TEMPLATE, 'scripts/generate-board.cjs');
+  recordExternalWrite(path.join(TARGET, '.spec/tasks/BOARD.md'));
   const generated = spawnSync(process.execPath, [trustedGenerator, '--root', TARGET], { cwd: TARGET, encoding: 'utf8' });
-  if (generated.status !== 0) { console.error(generated.stdout || '', generated.stderr || ''); process.exit(1); }
+  if (generated.status !== 0) throw new Error((generated.stderr || generated.stdout || 'BOARD 生成失败').trim());
 }
 if (existingDirs.length) {
   report.warnings.push(STRICT_SCAN
@@ -300,6 +398,13 @@ if (existingDirs.length) {
     : `发现 ${existingDirs.length} 个既有根目录，兼容模式下已纳入白名单；请人工审查 gov.toml [dirs]。`);
 }
 if (STACKS.length > 1) report.warnings.push(`检测到多技术栈：${STACKS.join(', ')}。当前默认配置按 ${STACK} 生成，请人工确认 gov.toml [project]。`);
+} catch (error) {
+  const rollbackFailures = DRY ? [] : rollbackTransaction();
+  console.error('[init] 初始化失败' + (DRY ? '' : '，已尝试回滚本次写入') + '：' + error.message);
+  for (const failure of rollbackFailures) console.error('[init] 回滚失败：' + failure);
+  process.exit(1);
+}
+if (!DRY) commitTransaction();
 
 console.log(`\n铺设规范 → ${TARGET}\n`);
 console.log(`  主技术栈  ${STACK}（${profile.label}）`);
