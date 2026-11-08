@@ -42,6 +42,9 @@ try {
 
   const cleanBefore = JSON.stringify(snapshotTree(project));
   const cleanPlan = buildUpgradePlan({ projectRoot: project, standardsRoot: root });
+  assert.equal(cleanPlan.plan_schema, 2);
+  assert.match(cleanPlan.source_inventory_sha256, /^[a-f0-9]{64}$/);
+  assert.ok(cleanPlan.source_inventory_entries > 0);
   assert.equal(cleanPlan.mode, 'read_only_preview');
   assert.equal(cleanPlan.can_apply_automatically, false);
   assert.equal(cleanPlan.human_review_required, false);
@@ -110,6 +113,8 @@ try {
 
   const beforePlan = JSON.stringify(snapshotTree(project));
   const plan = buildUpgradePlan({ projectRoot: project, standardsRoot: newerStandards });
+  assert.equal(plan.plan_schema, 2);
+  assert.match(plan.source_inventory_sha256, /^[a-f0-9]{64}$/);
   assert.equal(plan.source_version, '2.0.0-rc.14');
   assert.equal(plan.target_version, '2.0.0-rc.15');
   assert.equal(plan.version_label_changed, true);
