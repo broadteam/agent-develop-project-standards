@@ -130,12 +130,14 @@ project-standards/
 ├── tools/
 │   ├── check-template-drift.cjs
 │   ├── adopt-template-baseline.cjs
-│   └── plan-template-upgrade.cjs
+│   ├── plan-template-upgrade.cjs
+│   └── validate-template-upgrade-review.cjs
 ├── tests/
 │   ├── test-init.cjs
 │   ├── test-parity.cjs
 │   ├── test-template-drift.cjs
-│   └── test-template-upgrade-plan.cjs
+│   ├── test-template-upgrade-plan.cjs
+│   └── test-template-upgrade-review.cjs
 ├── .github/workflows/standards-ci.yml
 └── template/
     ├── AGENTS.md
@@ -287,7 +289,18 @@ node tools/plan-template-upgrade.cjs --root /path/to/your-project --json
 
 `plan-template-upgrade.cjs` 目前只生成预览，不读取审批文件、不应用计划，也不回滚项目内容。维护者必须为每个待审条目记录 `reviewer`、`reviewed_at`、`path`、`decision` 和 `reason`；阻断项先修复并重新生成计划。**当前版本没有自动升级应用器，不能把计划报告当作升级已经完成。**
 
-退出码：`0` 没有待处理的人工差异；`1` 有差异、基线不完整或存在阻断；`2` 参数、路径或元数据无效。升级前仍应在独立分支/备份副本中操作，并在变更后运行治理检查、项目测试和构建。
+退出码：`0` 没有待处理的人工差异；`1` 有差异、基线不完整或存在阻断；`2` 参数、路径或元数据无效。人工决策记录完成后，可先用只读校验器检查审批是否齐全：
+
+```bash
+node tools/validate-template-upgrade-review.cjs \
+  --plan .tmp/upgrade-plan.json \
+  --review .tmp/upgrade-review.json \
+  --json
+```
+
+审查记录使用 `review_schema: 1`、对应 `plan_id` 和 `decisions[]`；每条决策包含 `reviewer`、`reviewed_at`、`path`、`decision`、`reason`。三方合并另外必须提供 `baseline_ref` 与 `merge_result_ref`。校验器会拒绝计划 ID 不匹配、重复路径、缺少决策、错误决策和未解除的阻断项。校验通过只代表人工审查记录完整，不代表变更已经应用，也不是签名或授权凭证。
+
+升级前仍应在独立分支/备份副本中操作，并在变更后运行治理检查、项目测试和构建。
 
 ## 版本与迁移
 
@@ -313,4 +326,4 @@ node tests/test-migration-v2.cjs
 node tests/test-doc-links.cjs
 ```
 
-`test-init` 验证 PHP 项目探测、`.gitignore` 幂等合并以及已有 Hook 保护；`test-parity` 使用同一测试夹具验证 Node/Python 检查器的退出码和输出一致，并覆盖符号链接、非法状态、缺失日志、重复 ID、任务波次归档与 BOARD 过期检测；`test-migration-v2` 在临时项目中演练空项目 preview 和已有多栈项目的安全迁移；`test-template-drift` 验证安装基线与只读漂移检测；`test-template-upgrade-plan` 验证升级建议、人工确认契约和预览零写入；`test-doc-links` 验证所有仓库内 Markdown 相对链接。GitHub Actions 在 Ubuntu 与 Windows 的 Push 和 Pull Request 中执行这些检查。
+`test-init` 验证 PHP 项目探测、`.gitignore` 幂等合并以及已有 Hook 保护；`test-parity` 使用同一测试夹具验证 Node/Python 检查器的退出码和输出一致，并覆盖符号链接、非法状态、缺失日志、重复 ID、任务波次归档与 BOARD 过期检测；`test-migration-v2` 在临时项目中演练空项目 preview 和已有多栈项目的安全迁移；`test-template-drift` 验证安装基线与只读漂移检测；`test-template-upgrade-plan` 验证升级建议、人工确认契约和预览零写入；`test-template-upgrade-review` 验证审批记录与 plan ID 绑定、完整性、冲突基线来源和拒绝不完整决策；`test-doc-links` 验证所有仓库内 Markdown 相对链接。GitHub Actions 在 Ubuntu 与 Windows 的 Push 和 Pull Request 中执行这些检查。
