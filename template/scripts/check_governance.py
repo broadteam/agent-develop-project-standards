@@ -247,10 +247,10 @@ def markdown_table(rel: str, section_heading: str | None = None) -> list[dict[st
         rows.append(dict(zip(headers, cells)))
     return rows
 
-def archive_path_exists(rel: str, expected_file: str | None = None) -> bool:
+def archive_path_exists(rel: str, base_rel: str, expected_file: str | None = None) -> bool:
     if not rel or Path(rel).is_absolute():
         return False
-    absolute = (ROOT / rel).resolve()
+    absolute = (ROOT / base_rel / rel).resolve()
     try:
         absolute.relative_to(ROOT.resolve())
     except ValueError:
@@ -280,10 +280,10 @@ def validate_task_archives() -> None:
         catalog_path = archived.get("目录", "").removesuffix("/")
         if not catalog_path or active_path != catalog_path:
             errors.append(f"任务归档：波次 {wave_id} 的目录指针不一致")
-        if not archive_path_exists(catalog_path):
+        if not archive_path_exists(catalog_path, layout.get('tasks_dir', '.spec/tasks')):
             errors.append(f"任务归档：波次 {wave_id} 的归档目录不存在或路径非法")
             continue
-        directory = ROOT / catalog_path
+        directory = ROOT / layout.get('tasks_dir', '.spec/tasks') / catalog_path
         task_dirs = sorted(entry.name for entry in os.scandir(directory) if is_dir(entry))
         try:
             declared = int(archived.get("任务数", ""))
@@ -321,7 +321,7 @@ def validate_roadmap_archives() -> None:
             continue
         if row.get("里程碑") != archived.get("里程碑"):
             errors.append(f"里程碑归档：ID {milestone_id} 的名称不一致")
-        if not archive_path_exists(archived.get("目录", ""), "milestone.md"):
+        if not archive_path_exists(archived.get("目录", ""), layout.get('roadmap_dir', '.spec/roadmap'), "milestone.md"):
             errors.append(f"里程碑归档：ID {milestone_id} 的目录或 milestone.md 不存在")
     for milestone_id in catalog_by_id:
         if milestone_id not in active_by_id:
