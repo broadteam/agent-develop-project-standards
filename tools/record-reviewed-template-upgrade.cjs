@@ -425,6 +425,7 @@ function buildRecord({ projectRoot, standardsRoot, plan, review }) {
     to_version: plan.target_version,
     recorded_at: new Date().toISOString(),
     review_sha256: sha256(Buffer.from(JSON.stringify(review), 'utf8')),
+    source_inventory_sha256: plan.source_inventory_sha256,
     updated_paths: updatedPaths.sort(),
     removed_paths: removedPaths.sort(),
     preserved_upstream_removed_paths: preservedPaths.sort(),
