@@ -434,27 +434,21 @@ if (fs.existsSync(ignoreSrc)) {
   const desired = fs.readFileSync(ignoreSrc, 'utf8').replace('{{IGNORE_ENTRIES}}', profile.ignore.join('\n')).trim();
   const current = fs.existsSync(ignoreDst) ? fs.readFileSync(ignoreDst, 'utf8') : '';
   const block = `${START}\n${desired}\n${END}`;
-  const re = new RegExp(`${START.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[\\s\\S]*?${END.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'm');
+  const re = new RegExp(`${START.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}[\\s\\S]*?${END.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}`, 'm');
   const next = re.test(current) ? current.replace(re, block) : `${current.trimEnd()}${current.trim() ? '\n\n' : ''}${block}\n`;
   if (next !== current) {
     if (!DRY) writeTransactional(ignoreDst, next, 'utf8');
     report.created.push('.gitignore（合并托管区块）');
   } else report.skipped.push('.gitignore（托管区块已是最新）');
   if (!DRY) {
-    const match = next.match(new RegExp(`${START.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\  if (next !== current) {
-    if (!DRY) writeTransactional(ignoreDst, next, 'utf8');
-    report.created.push('.gitignore（合并托管区块）');
-  } else report.skipped.push('.gitignore（托管区块已是最新）');
-')}[\\s\\S]*?${END.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\  if (next !== current) {
-    if (!DRY) writeTransactional(ignoreDst, next, 'utf8');
-    report.created.push('.gitignore（合并托管区块）');
-  } else report.skipped.push('.gitignore（托管区块已是最新）');
-')}`));
-    if (match) {
+    const startAt = next.indexOf(START);
+    const endAt = next.indexOf(END, startAt + START.length);
+    if (startAt >= 0 && endAt >= startAt) {
+      const managedRegion = next.slice(startAt, endAt + END.length);
       managedBlocks['.gitignore'] = {
         source: 'template/.gitignore.append',
         template_sha256: sha256(fs.readFileSync(ignoreSrc)),
-        installed_sha256: sha256(match[0]),
+        installed_sha256: sha256(managedRegion),
         template_version: TEMPLATE_VERSION,
       };
     }
@@ -474,6 +468,8 @@ if (!DRY && capabilityResolution.capabilities.task_tracking?.status !== 'disable
   recordExternalWrite(path.join(TARGET, '.spec/tasks/BOARD.md'));
   const generated = spawnSync(process.execPath, [trustedGenerator, '--root', TARGET], { cwd: TARGET, encoding: 'utf8' });
   if (generated.status !== 0) throw new Error((generated.stderr || generated.stdout || 'BOARD 生成失败').trim());
+  delete managedFiles['.spec/tasks/BOARD.md'];
+  preservedPaths.delete('.spec/tasks/BOARD.md');
   derivedPaths.add('.spec/tasks/BOARD.md');
 }
 if (existingDirs.length) {
