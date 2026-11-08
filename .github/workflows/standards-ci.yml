@@ -38,6 +38,8 @@ jobs:
           node --check template/scripts/generate-board.cjs
           python -m py_compile template/scripts/check_governance.py template/scripts/profile_validator.py
       - name: Regression tests
+        env:
+          PYTHONUTF8: '1'
         run: |
           node tests/test-init.cjs
           node tests/test-capability-resolver.cjs
