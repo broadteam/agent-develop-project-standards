@@ -12,6 +12,8 @@ const { spawnSync } = require('node:child_process');
 const { buildUpgradePlan } = require('../tools/plan-template-upgrade.cjs');
 const { validateReview } = require('../tools/validate-template-upgrade-review.cjs');
 const { analyzeDrift } = require('../tools/check-template-drift.cjs');
+const crypto = require('node:crypto');
+const sha256File = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 
 const root = path.resolve(__dirname, '..');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-template-upgrade-recovery-'));
@@ -123,6 +125,11 @@ try {
       reviewed_at: '2026-11-08T15:30:00.000Z',
       path: action.path,
       decision: action.approval,
+      result_sha256: action.operation === 'approve_removal'
+        ? undefined
+        : action.operation === 'replace_candidate' || action.operation === 'add_candidate' || action.operation === 'restore_candidate'
+          ? sha256File(path.join(newerStandards, action.source))
+          : fs.existsSync(path.join(project, action.path)) ? sha256File(path.join(project, action.path)) : undefined,
       reason: action.path === approvedPath
         ? '该通用登记说明仅有上游更新，已检查目标文件差异，批准在临时项目中演练。'
         : '该计划项已检查并按计划要求记录决策；本次恢复演练只实际执行登记说明文件的替换。',
