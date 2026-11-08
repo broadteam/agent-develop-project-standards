@@ -73,6 +73,8 @@ node tools/record-reviewed-template-upgrade.cjs \
 升级可以分批完成。待审路径可在 review 中明确使用 `decision: "defer"`，附上 reviewer、reviewed_at 和 reason，不需要 result_sha256。登记器会验证延期路径仍保持计划生成时的文件存在状态、内容哈希和权限，并保留其原逐文件基线；任何内容或权限变化都会导致登记失败并要求重新生成计划。只要存在 defer 路径，整体 `installed_with_version` 保持来源版本，`last_upgrade.status` 记为 `partial`。维护者之后重新生成计划并处理剩余路径，全部完成时才将整体版本推进到目标版本。不得把 defer 当成忽略风险或绕过审批的方式。
 
 
+单次迁移建议使用仓库根目录的 [UPGRADE-RECORD-TEMPLATE.md](UPGRADE-RECORD-TEMPLATE.md) 记录 plan/review、备份引用、逐路径结果、延期批次、基线登记与失败恢复证据。
+
 ## 不兼容变化登记
 
 2.0 迁移若改变以下任一内容，必须在正式发布说明中列出旧格式、新格式、自动化程度和回滚方式：
