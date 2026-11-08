@@ -234,7 +234,7 @@
 | 方向 | 状态 | 证据 |
 |---|---|---|
 | 1. 规范体系与目录架构 | planned | 待审查模板与文档引用 |
-| 2. Agent 多客户端兼容 | planned | 待适配器测试 |
+| 2. Agent 多客户端兼容 | in_progress | `tests/test-client-adapters.cjs`；官方加载语义核对；CI run 42451672424 通过 |
 | 3. 记忆与上下文管理 | in_progress | v1.2 会话分级协议 |
 | 4. 任务、看板与路线图管理 | planned | 待状态模型与生成器审查 |
 | 5. 工程治理与初始化机制 | planned | 待初始化安全/幂等测试 |
