@@ -103,6 +103,8 @@ try {
   fs.appendFileSync(path.join(newerStandards, 'template', approvedPath), '\n## Approved fixture update\n');
 
   const planBefore = buildUpgradePlan({ projectRoot: project, standardsRoot: newerStandards });
+  assert.equal(planBefore.plan_schema, 2);
+  assert.match(planBefore.source_inventory_sha256, /^[a-f0-9]{64}$/);
   assert.equal(planBefore.source_version, installedVersion);
   assert.equal(planBefore.target_version, '2.0.0-recovery-fixture');
   const approvedAction = findAction(planBefore, approvedPath);
@@ -125,12 +127,12 @@ try {
       reviewed_at: '2026-11-08T15:30:00.000Z',
       path: action.path,
       decision: action.approval,
-      result_sha256: action.operation === 'approve_removal'
+      result_sha256: action.approval === 'approve_removal'
         ? undefined
         : action.operation === 'replace_candidate' || action.operation === 'add_candidate' || action.operation === 'restore_candidate'
           ? sha256File(path.join(newerStandards, action.source))
           : fs.existsSync(path.join(project, action.path)) ? sha256File(path.join(project, action.path)) : undefined,
-      result_mode: action.operation === 'approve_removal'
+      result_mode: action.approval === 'approve_removal'
         ? undefined
         : action.operation === 'replace_candidate' || action.operation === 'add_candidate' || action.operation === 'restore_candidate'
           ? fs.statSync(path.join(newerStandards, action.source)).mode & 0o777
