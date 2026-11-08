@@ -134,7 +134,7 @@ try {
   fs.mkdirSync(path.join(customGeneratorProject, 'scripts'), { recursive: true });
   fs.copyFileSync(path.join(root, 'template/.spec/tasks/index.md'), path.join(customGeneratorProject, '.spec/tasks/index.md'));
   const executionMarker = path.join(customGeneratorProject, 'CUSTOM_GENERATOR_WAS_EXECUTED');
-  const customGeneratorSource = "require('node:fs').writeFileSync(" + JSON.stringify(executionMarker) + ", 'executed');\\n";
+  const customGeneratorSource = "require('node:fs').writeFileSync(" + JSON.stringify(executionMarker) + ", 'executed');\n";
   fs.writeFileSync(path.join(customGeneratorProject, 'scripts/generate-board.cjs'), customGeneratorSource);
   const customGeneratorRun = spawnSync(process.execPath, [path.join(root, 'init.cjs'), customGeneratorProject], { encoding: 'utf8' });
   assert.equal(customGeneratorRun.status, 0, customGeneratorRun.stdout + customGeneratorRun.stderr);
