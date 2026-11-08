@@ -111,8 +111,6 @@ function buildBaseline({ projectRoot, standardsRoot }) {
       const targetRel = '.spec/stacks/' + name;
       if (managedFiles[targetRel]) continue;
       const sourceRel = 'presets/stacks/' + name;
-      const source = path.join(sourceRoot, sourceRel);
-      const target = safePath(root, targetRel);
       const targetInfo = hashRegularFile(target);
       if (!targetInfo) continue;
       const sourceInfo = hashRegularFileWithin(sourceRoot, sourceRel, '模板源');
