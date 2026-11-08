@@ -13,7 +13,7 @@
 ## 当前 Git 状态
 
 - 工作分支：`feat/standards-v2.0-seven-pillars`，跟踪 `origin/feat/standards-v2.0-seven-pillars`。
-- 当前 HEAD：`18f16abb0bc847bf02c252a8e9f9d8e93c3ba2a3`；该 HEAD 的 Push [42512897301](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42512897301) 与 PR [42512903054](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42512903054) 均通过，Ubuntu / Windows jobs 全绿。当前 PR #2 实时指针为准。
+- 当前 HEAD：`ccca8b5a4beb14294f913d259fb0cd1f493cc75f`；该 HEAD 的 Push [42513099806](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42513099806) 与 PR [42513103211](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42513103211) 均通过，Ubuntu / Windows jobs 全绿。当前 PR #2 实时指针为准。
 - 相关 PR：#2（Draft；不要合并）。
 
 ## 本轮成功升级基线登记加固（2026-11-09）
@@ -22,6 +22,7 @@
 - 新增 `tools/template-source-inventory.cjs`：对 `template/` 与 `presets/stacks/` 做确定性完整快照，记录路径/类型/内容 SHA-256/权限或符号链接目标；计划绑定 `source_inventory_sha256`，登记前重新计算。计划生成后任何模板源新增、删除、内容或权限变化都会使旧计划失效。
 - `plan-template-upgrade.cjs` 升级到 `plan_schema: 2`；`validate-template-upgrade-review.cjs` 升级到 `review_schema: 2`。旧 schema 1 的 plan/review 不再可供当前登记器使用，必须重新生成计划和审查记录。
 - 普通文件审批结果绑定 `result_sha256` 与 `result_mode`；登记器同时验证项目实际内容/权限。源快照摘要写入 `manifest.last_upgrade.source_inventory_sha256`，为后续审计保留目标模板来源证据。
+- 当前审批/计划契约为 `plan_schema: 2` / `review_schema: 2`；旧 schema 1 文件不被兼容接受，必须重新生成 plan/review。README 与 MIGRATION 已明确说明，避免维护者手改旧 JSON 字段。
 - `.gitignore` 特殊处理：模板源 `.gitignore.append` 含 `{{IGNORE_ENTRIES}}`，项目内是按 project profile 渲染后的托管区块，不能直接比较源文件原始 SHA 与渲染区块 SHA。登记器验证固定模板前缀/后缀、占位符唯一且已被替换，审批结果只哈希标记包围的区块，不记录整个 `.gitignore` 文件权限；区块外项目自有忽略规则保留。
 - `tests/test-template-upgrade-record.cjs` 增加计划后模板源新增文件拒绝、审批权限结果被篡改拒绝、`.gitignore` 管理区块升级以及区块外项目规则保留的回归；Windows CI 的 Regression tests step 设置 `PYTHONUTF8=1`，避免系统 cp1252 环境下 Python 中文输出造成 `UnicodeEncodeError`。
 - 期间 CI 曾发现并修复真实问题：升级记录 fixture 的 `.gitignore` 换行假设不兼容 Windows、一个修复中括号缺失、Windows Python 控制台编码问题。不要沿用这些失败 SHA 的结果；当前最终 HEAD 的 push/PR 全部通过。
