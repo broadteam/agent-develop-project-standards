@@ -71,8 +71,6 @@ function walkTemplateFiles(templateRoot, rel = '') {
   return files;
 }
 function classifyFile(targetRoot, standardsRoot, targetPath, entry, currentVersion) {
-  const sourcePath = resolveInside(standardsRoot, entry.source, '模板源路径');
-  const projectPath = resolveInside(targetRoot, targetPath, '项目目标路径');
   const baselineTemplate = entry.template_sha256;
   const baselineInstalled = entry.installed_sha256;
   if (!/^[a-f0-9]{64}$/.test(baselineTemplate || '') || !/^[a-f0-9]{64}$/.test(baselineInstalled || '')) {
@@ -117,8 +115,6 @@ function extractManagedBlock(file) {
   return { exists: true, unsafe: false, malformed: false, hash: sha256(text.slice(start, end + BLOCK_END.length)) };
 }
 function classifyManagedBlock(targetRoot, standardsRoot, targetPath, entry, currentVersion) {
-  const sourcePath = resolveInside(standardsRoot, entry.source, '托管区块源路径');
-  const projectPath = resolveInside(targetRoot, targetPath, '托管区块目标路径');
   if (!/^[a-f0-9]{64}$/.test(entry.template_sha256 || '') || !/^[a-f0-9]{64}$/.test(entry.installed_sha256 || '')) {
     throw new Error('托管区块基线哈希无效：' + targetPath);
   }
