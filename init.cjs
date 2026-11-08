@@ -248,6 +248,7 @@ function trackManagedFile(targetPath, sourcePath, renderedContent) {
   preservedPaths.delete(targetPath);
 }
 function trackPreservedPath(targetPath) {
+  if (targetPath === '.githooks/pre-commit') return; // project-owned hook is intentionally outside template ownership
   if (!managedFiles[targetPath]) preservedPaths.add(targetPath);
 }
 const transaction = { files: [], directories: [], committed: false };
@@ -424,6 +425,7 @@ if (report.created.includes('gov.toml') || report.forced.includes('gov.toml')) {
       govText = govText.replace(requiredLine[0], `files = [${required.map(quote).join(', ')}]`);
     }
     writeTransactional(govPath, govText, 'utf8');
+    if (managedFiles['gov.toml']) managedFiles['gov.toml'].installed_sha256 = sha256(govText);
   }
 }
 
@@ -491,9 +493,7 @@ if (!DRY) {
   const manifest = {
     format_version: 1,
     installed_with_version: TEMPLATE_VERSION,
-    baseline_state: previousManifest
-      ? (previousManifest.baseline_state ?? 'partial_unknown')
-      : (preserved.length ? 'partial_unknown' : 'complete'),
+    baseline_state: preserved.length ? 'partial_unknown' : 'complete',
     managed_files: Object.fromEntries(Object.entries(managedFiles).sort(([a], [b]) => a.localeCompare(b))),
     managed_blocks: managedBlocks,
     preserved_paths: preserved,
