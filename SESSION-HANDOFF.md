@@ -95,13 +95,23 @@
 - 最新文档 HEAD `35fbfac7d23c3a5fb0bd199fe560ff088c8f7791` 的 Push [42493962678](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42493962678) 与 PR [42493967270](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42493967270) 也全部成功；README、迁移指南、SPEC 与 CHANGELOG 已同步恢复演练内容及“审批校验不应用变更”的边界。
 - PR #2 保持 Draft / Open；未合并、未修改 `main`、未进行真实项目试点。
 
+## 本轮成功升级基线登记与分批延期
+
+- 新增 tools/record-reviewed-template-upgrade.cjs：在人工应用获批文件并完成项目验证后，只更新 .agent-standards.json；不会复制/删除/合并模板文件。校验计划 plan_id、review 完整性、来源/目标版本、旧 manifest 基线哈希、当前模板源哈希与实际结果 SHA-256。
+- 支持替换、新增、恢复、三方合并、本地定制接受、上游删除（确认删除或明确保留）和已登记同名文件归属确认；人工合并需记录 baseline_ref / merge_result_ref / result_sha256。
+- 登记写入使用同目录临时文件、fsync 和原子 rename；所有校验发生在 manifest 写入前，失败时旧 manifest 保持原样。仍不提供自动升级应用器或自动回滚器。
+- 进一步支持显式 decision=defer：延期条目必须保持计划生成时的文件存在状态、内容 SHA-256 和权限，不推进该路径基线；只要有 defer，整体 installed_with_version 保持 source_version，last_upgrade.status=partial。重新生成计划后继续完成剩余条目，全部处理后才推进整体版本。
+- tests/test-template-upgrade-record.cjs 已覆盖：完整升级登记、替换/新增/本地定制/人工合并/上游删除、dry-run 零写入、结果哈希篡改拒绝、旧计划重放拒绝；另外覆盖延期一个新增文件和一个已有上游更新文件，确认两者原状态/旧逐文件基线保留，再重新计划并完成，最终 drift 清零。
+- 代码 HEAD 6d4dca724b01b99134f6ade26dc439c1d7b40843 的 Push https://github.com/broadteam/agent-develop-project-standards/actions/runs/42497163179 与 PR https://github.com/broadteam/agent-develop-project-standards/actions/runs/42497167640 均通过；Ubuntu / Windows 的 test-template-upgrade-record: all cases passed，drift/plan/review/recovery 测试也均通过。
+- README、MIGRATION-v2.0、SPEC、CHANGELOG 已加入基线登记与 defer 语义；最新文档 HEAD 当前为 aeaefb0f58c515115f9fd2601f8a64fb02bf105b，Push 42497311896 / PR 42497316047 正在执行，结束后更新为最终结果。
+- PR #2 保持 Draft / Open，未合并、未修改 main；未进行真实 SaaS 项目试点。
+
 ## 下一步（按既定优先级）
 
-1. 完成对本轮迁移恢复演练文档与测试边界的最终检查；不开发自动应用器。
-2. 复核版本元数据是否应该作为项目内普通受管文件继续升级，还是改为仅在 `.agent-standards.json` 中记录；当前行为已测试并显式纳入审批，不要悄悄排除。
-3. 验证新基线登记器在 Ubuntu/Windows CI 的最终 HEAD 通过，并复核失败时 manifest 零写入。
-4. 补充一份最小人工迁移记录样例，示范如何归档 plan JSON、review JSON、备份引用、失败日志、结果哈希和基线登记结果。
-5. 然后再回到七大方向中未完成项，不开展真实 SaaS 项目试点。
+1. 等本轮最新文档 HEAD 的 Ubuntu / Windows CI 结束；若通过，刷新 PR 和交接文件的最终 SHA / 运行链接。
+2. 补一份最小人工迁移记录样例（plan JSON、review JSON、备份引用、失败日志、结果哈希、defer/后续 plan、最终基线登记输出），让维护者知道每一步应归档什么证据。
+3. 复核版本生命周期中的边界：模板版本文件属于项目受管元数据；defer 期间整体版本不能前移；升级计划过期或项目快照变化时必须重新计划。
+4. 回到七大方向未完成项做验收与文档收敛；不开展真实 SaaS 项目试点，不实现自动升级应用器/自动回滚器，除非后续验收证明确有必要。
 ## 恢复工作的方法
 
 新会话先读取本文件、`SPEC-v2.0.md`、当前 `git status --short --branch` 和相关测试；不要把旧聊天摘要当作仓库事实。遇到客户端行为变更时，先核对该客户端的官方文档，再修改兼容性说明和契约测试。
