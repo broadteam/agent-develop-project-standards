@@ -119,6 +119,11 @@ try {
 
   assert.equal(byPath(plan, conflictPath).operation, 'manual_merge');
   assert.equal(byPath(plan, conflictPath).approval, 'manual_merge');
+  assert.match(byPath(plan, conflictPath).reason, /没有保存基线正文/);
+  assert.equal(plan.baseline_recovery.manifest_stores_baseline_content, false);
+  assert.equal(plan.baseline_recovery.conflicts_require_external_base, true);
+  assert.ok(plan.approval_contract.additional_required_fields.manual_merge.includes('baseline_ref'));
+  assert.ok(plan.approval_contract.additional_required_fields.manual_merge.includes('merge_result_ref'));
   assert.equal(byPath(plan, updatePath).operation, 'replace_candidate');
   assert.equal(byPath(plan, updatePath).approval, 'approve_upstream');
   assert.equal(byPath(plan, localPath).recommendation, 'preserve_local_change');
