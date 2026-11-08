@@ -1,3 +1,12 @@
+## 2.0.0-rc.9 - 2026-11-08
+
+### Changed
+- Clarify the memory lifecycle: update the compact checkpoint at tracked-task close or cross-session handoff, while lightweight tasks do not require memory writes.
+- Keep execution history in the task log and point historical closeout notes to the existing `.memory/log/` directory.
+
+### Tests
+- Extend the 2.0 specification contract test to verify memory update triggers, non-duplication of task logs, and that memory pointers resolve to existing template paths.
+
 ## 2.0.0-rc.8 - 2026-11-08
 
 ### Added
