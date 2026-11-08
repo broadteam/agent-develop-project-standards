@@ -11,6 +11,7 @@
 - Run the upgrade-plan tests and syntax check in the Ubuntu/Windows CI matrix.
 
 ### Boundaries
+- The manifest stores hashes, not baseline file contents. Conflicts therefore require recovering the common base from the pre-upgrade Git tree, a backup or the matching old template checkout; record `baseline_ref` and `merge_result_ref` before claiming a three-way merge.
 - This release adds preview and decision guidance only. An upgrade applier and automated rollback tool do not exist; approved changes still require a separately reviewed manual migration process.
 
 ## 2.0.0-rc.12 - 2026-11-08
