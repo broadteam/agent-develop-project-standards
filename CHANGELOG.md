@@ -1,3 +1,17 @@
+## 2.0.0-rc.12 - 2026-11-08
+
+### Added
+- Record a machine-readable template release in `policy/standards-version.json`.
+- Generate `.agent-standards.json` with per-file source/installed hashes, source version, preserved paths, derived paths and capability-pruned paths.
+- Add a read-only `tools/check-template-drift.cjs` report for upstream-only updates, local-only customizations, two-sided conflicts, missing files, new upstream files and legacy unknown baselines.
+- Add an explicit `tools/adopt-template-baseline.cjs` flow. It requires `--confirm-reviewed`, changes metadata only, and marks accepted customizations so future upstream edits to those files become conflicts.
+- Add temporary-project tests for clean installs, local/upstream/both-side changes, new upstream files, read-only behavior, legacy unknown baselines and explicit baseline adoption.
+
+### Safety
+- `--force` remains a file-copy override, not a version upgrade mechanism.
+- Legacy projects without a marker are never assumed to match the current template.
+- Baseline inspection and adoption do not write or merge project rules; only the explicit adoption command updates `.agent-standards.json`.
+
 ## 2.0.0-rc.11 - 2026-11-08
 
 ### Fixed
