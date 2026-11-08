@@ -148,10 +148,7 @@ try {
   const ignoreSource = path.join(newer, 'template/.gitignore.append');
   const ignoreTemplate = fs.readFileSync(ignoreSource, 'utf8');
   assert.ok(ignoreTemplate.includes('{{IGNORE_ENTRIES}}'));
-  fs.writeFileSync(ignoreSource, ignoreTemplate.replace(
-    '{{IGNORE_ENTRIES}}\n',
-    '{{IGNORE_ENTRIES}}\n# Reviewed managed-block footer\n'
-  ));
+  fs.writeFileSync(ignoreSource, ignoreTemplate.replace('{{IGNORE_ENTRIES}}', '{{IGNORE_ENTRIES}}\n# Reviewed managed-block footer');
   const projectIgnore = path.join(project, '.gitignore');
   fs.appendFileSync(projectIgnore, '\n# Project-owned ignore rules\nlocal-secrets/\n');
 
@@ -256,7 +253,7 @@ try {
   assert.ok(Object.values(manifest.managed_files).every(entry => entry.template_version === version.version));
   assert.ok(Object.values(manifest.managed_blocks).every(entry => entry.template_version === version.version));
   assert.equal(manifest.managed_blocks['.gitignore'].template_version, version.version);
-  assert.ok(fs.readFileSync(projectIgnore, 'utf8').includes('# Project-owned ignore rules\\nlocal-secrets/'));
+  assert.ok(fs.readFileSync(projectIgnore, 'utf8').includes('# Project-owned ignore rules\nlocal-secrets/'));
 
   const drift = analyzeDrift({ projectRoot: project, standardsRoot: newer });
   assert.equal(drift.ok, true, JSON.stringify(drift, null, 2));
