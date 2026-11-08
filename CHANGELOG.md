@@ -1,3 +1,13 @@
+## 2.0.0-rc.10 - 2026-11-08
+
+### Added
+- Validate task-wave and roadmap-milestone archive catalogs against their active indexes.
+- Check archive directory pointers, task counts, and required archived detail files; reject unindexed or missing archive entries.
+
+### Tests
+- Extend Node/Python parity fixtures with valid task and milestone archives, mismatched task counts, missing task logs, and missing milestone details.
+- Keep archive validation diagnostics and exit behavior identical across Node and Python.
+
 ## 2.0.0-rc.9 - 2026-11-08
 
 ### Changed
