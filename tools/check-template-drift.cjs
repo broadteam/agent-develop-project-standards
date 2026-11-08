@@ -57,15 +57,38 @@ function regularFileHashWithin(root, rel, label) {
   }
   return { exists: false, hash: null };
 }
-function walkTemplateFiles(templateRoot, rel = '') {
+function readDirectoryWithin(root, rel, label) {
+  const absolute = resolveInside(root, rel, label);
+  const relative = path.relative(root, absolute);
+  const parts = relative.split(path.sep).filter(Boolean);
+  let cursor = root;
+  for (const part of parts) {
+    cursor = path.join(cursor, part);
+    let stat;
+    try { stat = fs.lstatSync(cursor); }
+    catch (error) {
+      if (error.code === 'ENOENT') return null;
+      throw error;
+    }
+    if (stat.isSymbolicLink() || !stat.isDirectory()) {
+      throw new Error(label + ' 包含符号链接或非目录路径：' + rel);
+    }
+  }
+  return fs.readdirSync(absolute, { withFileTypes: true });
+}
+function walkTemplateFiles(standardsRoot, rel = 'template') {
   const files = [];
-  for (const entry of fs.readdirSync(path.join(templateRoot, rel), { withFileTypes: true })) {
+  const entries = readDirectoryWithin(standardsRoot, rel, '模板目录');
+  if (!entries) return files;
+  for (const entry of entries) {
     const relative = path.posix.join(rel.split(path.sep).join('/'), entry.name);
-    const absolute = path.join(templateRoot, relative);
-    if (entry.isSymbolicLink()) continue;
-    if (entry.isDirectory()) files.push(...walkTemplateFiles(templateRoot, relative));
-    else if (entry.isFile() && relative !== '.gitignore.append') {
-      files.push({ target: relative, source: 'template/' + relative });
+    if (entry.isDirectory()) files.push(...walkTemplateFiles(standardsRoot, relative));
+    else if ((entry.isFile() || entry.isSymbolicLink()) && relative !== 'template/.gitignore.append') {
+      files.push({
+        target: relative.slice('template/'.length),
+        source: relative,
+        unsafe: entry.isSymbolicLink()
+      });
     }
   }
   return files;
@@ -166,6 +189,8 @@ function classifyManagedBlock(targetRoot, standardsRoot, targetPath, entry, curr
 function readCurrentVersion(standardsRoot) {
   const versionFile = regularFileHashWithin(standardsRoot, 'template/policy/standards-version.json', '模板版本文件路径');
   if (!versionFile.exists || versionFile.unsafe) throw new Error('模板版本文件不存在或路径不安全');
+  const fileInfo = regularFileHashWithin(standardsRoot, 'template/policy/standards-version.json', '模板版本文件路径');
+  if (!fileInfo.exists || fileInfo.unsafe) throw new Error('模板版本文件不存在或路径不安全');
   const file = path.join(standardsRoot, 'template/policy/standards-version.json');
   const value = JSON.parse(fs.readFileSync(file, 'utf8'));
   if (value.schema_version !== 1 || typeof value.version !== 'string') throw new Error('模板版本文件无效');
@@ -192,14 +217,13 @@ function analyzeDrift({ projectRoot, standardsRoot }) {
     || Array.isArray(manifest.managed_files)) throw new Error(MARKER + ' 格式不受支持或已损坏');
   const currentVersion = readCurrentVersion(sourceRoot);
   const templateRoot = path.join(sourceRoot, 'template');
-  const currentFiles = walkTemplateFiles(templateRoot);
-  const presetsRootInfo = regularFileHashWithin(sourceRoot, 'presets/stacks', '技术栈预设目录');
-  if (presetsRootInfo && !presetsRootInfo.unsafe) {
-    const presetDir = path.join(sourceRoot, 'presets/stacks');
-    for (const entry of fs.readdirSync(presetDir, { withFileTypes: true })) {
-      if (entry.isFile() && entry.name.endsWith('.md')) {
-        currentFiles.push({ target: '.spec/stacks/' + entry.name, source: 'presets/stacks/' + entry.name });
-      }
+  const currentFiles = walkTemplateFiles(sourceRoot);
+  const presetEntries = readDirectoryWithin(sourceRoot, 'presets/stacks', '技术栈预设目录');
+  for (const entry of presetEntries ?? []) {
+    if (entry.isFile() && entry.name.endsWith('.md')) {
+      currentFiles.push({ target: '.spec/stacks/' + entry.name, source: 'presets/stacks/' + entry.name });
+    } else if (entry.isSymbolicLink() && entry.name.endsWith('.md')) {
+      currentFiles.push({ target: '.spec/stacks/' + entry.name, source: 'presets/stacks/' + entry.name, unsafe: true });
     }
   }
   const tracked = manifest.managed_files;
@@ -221,7 +245,8 @@ function analyzeDrift({ projectRoot, standardsRoot }) {
     if (tracked[file.target] || derived.has(file.target) || excluded.has(file.target)) continue;
     const absolute = resolveInside(targetRoot, file.target, '新模板文件路径');
     const installed = regularFileHashWithin(targetRoot, file.target, '新模板文件路径');
-    if (installed.unsafe) findings.push({ path: file.target, status: 'local_unsafe', detail: '目标为符号链接或非普通文件' });
+    if (file.unsafe) findings.push({ path: file.target, source: file.source, status: 'upstream_unsafe', detail: '新模板源是符号链接' });
+    else if (installed.unsafe) findings.push({ path: file.target, source: file.source, status: 'local_unsafe', detail: '目标为符号链接或非普通文件' });
     else if (installed.exists && preserved.has(file.target)) findings.push({ path: file.target, source: file.source, status: 'legacy_preserved', detail: '安装时保留的既有文件，缺少可比较的历史基线' });
     else if (installed.exists) findings.push({ path: file.target, source: file.source, status: 'untracked_collision', detail: '目标已存在但不在安装基线中，需人工判断归属' });
     else findings.push({ path: file.target, source: file.source, status: 'new_upstream_file', current_template_sha256: regularFileHashWithin(sourceRoot, file.source, '新增模板源路径').hash, detail: '当前模板新增文件，尚未安装' });
