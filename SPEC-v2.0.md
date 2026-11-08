@@ -177,6 +177,11 @@
 
 **目标**：规范可升级、可比较、可回滚，多个项目能明确知道自己使用哪个版本。
 
+- `tools/plan-template-upgrade.cjs` 把漂移结果转换为只读、可重复的升级预览，包含稳定 `plan_id`、来源/目标版本、逐文件哈希证据、候选动作和人工确认契约。
+- 升级计划覆盖上游更新、本地定制、双向冲突、上游移除、本地缺失、新增模板文件、技术栈预设、旧项目未知基线和未登记同名文件。
+- 所有待审项必须记录 reviewer、reviewed_at、path、decision、reason；冲突必须人工三方合并，删除与新增必须显式批准。
+- 计划器绝不写入、覆盖、删除或合并项目文件；当前没有自动升级应用器或自动回滚器，不能将预览结果描述为迁移完成。
+
 - `policy/standards-version.json` 是母模板版本事实源；初始化生成 `.agent-standards.json`，逐文件记录模板源哈希、安装后哈希和来源版本。
 - `tools/check-template-drift.cjs` 只读比较上游模板与项目安装状态，区分上游更新、本地定制和双向冲突；它不执行覆盖或合并。
 - 没有历史安装标记的旧项目，其基线不可推断。初始化将保留文件列为 `partial_unknown`；只有维护者完成审查后，才能通过独立的 `adopt-template-baseline.cjs --confirm-reviewed` 登记当前基线。
@@ -196,6 +201,8 @@
 - 对不可自动合并的定制内容不静默覆盖。
 - 漂移报告和基线采纳必须拒绝项目目标或模板源路径链中的符号链接，不能跟随父目录链接读取项目/仓库边界外内容。
 - 版本号、CHANGELOG、迁移文档和模板版本一致。
+- `tests/test-template-upgrade-plan.cjs` 验证升级预览稳定、只读、逐文件分类完整，并验证人工决策字段与基线阻断；预览不得执行任何变更。
+- 未经人工决策记录，不得把候选动作应用到项目；自动升级与自动回滚仍属于未来独立能力。
 
 ## 2. 2.0 目录契约
 
@@ -251,5 +258,5 @@
 | 4. 任务、看板与路线图管理 | in_progress | `tests/test-parity.cjs` 覆盖任务状态、ID、BOARD 新鲜度，以及任务波次/里程碑归档索引双向一致、目录指针、归档数量和详情文件完整性；Node/Python 输出保持一致。真实项目规模下的索引维护体验仍待评估。 |
 | 5. 工程治理与初始化机制 | in_progress | `tests/test-init.cjs` 覆盖全树 dry-run 零写入、参数拒绝、Hook 保护、项目内符号链接 fail-closed、禁止执行项目自有 BOARD 脚本，以及故障注入后的文件/目录回滚；`tests/test-migration-v2.cjs` 覆盖空项目 preview、已有多栈项目、自定义文件、Hook 保护和重复初始化。进程被强制终止/断电后的恢复不在事务保证内。 |
 | 6. 自动化验证与质量门禁 | in_progress | Node/Python parity 覆盖任务归档/路线图归档异常夹具；客户端契约、迁移 fixture、Markdown 本地链接检查均接入 Ubuntu/Windows CI；真实 CLI 集成仍未覆盖。 |
-| 7. 长期演进与版本管理 | in_progress | 新增 `policy/standards-version.json` 与 `.agent-standards.json` 逐文件安装基线；`tools/check-template-drift.cjs` 只读识别上游更新、本地定制及双向冲突；`tools/adopt-template-baseline.cjs` 仅在显式确认后登记旧项目已审查内容；`tests/test-template-drift.cjs` 覆盖 clean、local-only、upstream-only、conflict、new-file、legacy unknown 与显式采纳。真实版本升级/回滚演练仍需发布前验收。 |
+| 7. 长期演进与版本管理 | in_progress | `policy/standards-version.json` 与 `.agent-standards.json` 逐文件安装基线；`check-template-drift.cjs` 只读识别漂移；`adopt-template-baseline.cjs` 显式采纳旧项目基线；新增 `plan-template-upgrade.cjs` 生成带稳定 `plan_id`、逐文件候选动作和审批契约的只读升级计划；`tests/test-template-upgrade-plan.cjs` 覆盖上游更新、本地定制、双向冲突、移除/缺失、新增文件、预设、旧基线阻断与零写入。自动应用器、真实跨版本迁移及回滚演练仍待发布前验收。 |
 
