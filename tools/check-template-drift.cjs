@@ -78,15 +78,23 @@ function classifyFile(targetRoot, standardsRoot, targetPath, entry, currentVersi
   }
   const source = regularFileHashWithin(standardsRoot, entry.source, '模板源路径');
   const installed = regularFileHashWithin(targetRoot, targetPath, '项目目标路径');
-  if (source.unsafe) return { path: targetPath, status: 'upstream_unsafe', detail: '当前模板源不是普通文件' };
-  if (installed.unsafe) return { path: targetPath, status: 'local_unsafe', detail: '项目目标不是普通文件或是符号链接' };
-  if (!source.exists) {
-    return { path: targetPath, status: 'upstream_removed', local_changed: installed.exists && installed.hash !== baselineInstalled };
+  if (source.unsafe) return { path: targetPath, source: entry.source, status: 'upstream_unsafe', detail: '当前模板源不是普通文件' };
+  if (installed.unsafe) return { path: targetPath, source: entry.source, status: 'local_unsafe', detail: '项目目标不是普通文件或是符号链接' };
+  const localChanged = installed.exists && (installed.hash !== baselineInstalled
+    || (entry.installed_mode !== undefined && installed.mode !== entry.installed_mode));
+  const upstreamChanged = source.exists && source.hash !== baselineTemplate;
+  if (!source.exists && !installed.exists) {
+    return { path: targetPath, source: entry.source, status: 'removed_both', local_changed: false, upstream_changed: false,
+      baseline_version: entry.template_version ?? null, current_version: currentVersion };
   }
-  if (!installed.exists) return { path: targetPath, status: 'local_missing', upstream_changed: source.hash !== baselineTemplate };
-  const upstreamChanged = source.hash !== baselineTemplate;
-  const localChanged = installed.hash !== baselineInstalled
-    || (entry.installed_mode !== undefined && installed.mode !== entry.installed_mode);
+  if (!source.exists) {
+    return { path: targetPath, source: entry.source, status: 'upstream_removed', local_changed: localChanged, upstream_changed: true,
+      baseline_version: entry.template_version ?? null, current_version: currentVersion };
+  }
+  if (!installed.exists) return { path: targetPath, source: entry.source, status: 'local_missing',
+    upstream_changed: upstreamChanged, local_changed: true,
+    current_template_sha256: source.hash, baseline_template_sha256: baselineTemplate,
+    baseline_version: entry.template_version ?? null, current_version: currentVersion };
   const customizedAtBaseline = entry.customized_at_baseline === true;
   let status = 'current';
   if (upstreamChanged && (localChanged || customizedAtBaseline)) status = 'conflict';
@@ -95,9 +103,17 @@ function classifyFile(targetRoot, standardsRoot, targetPath, entry, currentVersi
   else if (customizedAtBaseline) status = 'accepted_customization';
   return {
     path: targetPath,
+    source: entry.source,
     status,
     upstream_changed: upstreamChanged,
     local_changed: localChanged,
+    baseline_template_sha256: baselineTemplate,
+    current_template_sha256: source.hash,
+    baseline_installed_sha256: baselineInstalled,
+    current_installed_sha256: installed.hash,
+    baseline_installed_mode: entry.installed_mode ?? null,
+    current_installed_mode: installed.mode,
+    customized_at_baseline: customizedAtBaseline,
     baseline_version: entry.template_version ?? null,
     current_version: currentVersion
   };
@@ -121,26 +137,35 @@ function classifyManagedBlock(targetRoot, standardsRoot, targetPath, entry, curr
   }
   const source = regularFileHashWithin(standardsRoot, entry.source, '托管区块源路径');
   const installed = extractManagedBlock(targetRoot, targetPath);
-  if (source.unsafe || installed.unsafe) return { path: targetPath, status: 'unsafe' };
-  if (!source.exists) return { path: targetPath, status: 'upstream_removed' };
-  if (!installed.exists) return { path: targetPath, status: 'local_missing' };
-  if (installed.malformed) return { path: targetPath, status: 'managed_block_malformed' };
+  if (source.unsafe || installed.unsafe) return { path: targetPath, source: entry.source, status: 'unsafe' };
+  if (!source.exists && !installed.exists) return { path: targetPath, source: entry.source, status: 'removed_both' };
+  if (!source.exists) return { path: targetPath, source: entry.source, status: 'upstream_removed', local_changed: installed.hash !== entry.installed_sha256, upstream_changed: true };
+  if (!installed.exists) return { path: targetPath, source: entry.source, status: 'local_missing', upstream_changed: source.hash !== entry.template_sha256, local_changed: true, current_template_sha256: source.hash, baseline_template_sha256: entry.template_sha256 };
+  if (installed.malformed) return { path: targetPath, source: entry.source, status: 'managed_block_malformed' };
   const upstreamChanged = source.hash !== entry.template_sha256;
   const localChanged = installed.hash !== entry.installed_sha256;
   const customizedAtBaseline = entry.customized_at_baseline === true;
   return {
     path: targetPath,
+    source: entry.source,
     status: upstreamChanged && (localChanged || customizedAtBaseline) ? 'conflict'
       : upstreamChanged ? 'update_available'
         : localChanged ? 'local_customized'
           : customizedAtBaseline ? 'accepted_customization' : 'current',
     upstream_changed: upstreamChanged,
     local_changed: localChanged,
+    baseline_template_sha256: entry.template_sha256,
+    current_template_sha256: source.hash,
+    baseline_installed_sha256: entry.installed_sha256,
+    current_installed_sha256: installed.hash,
+    customized_at_baseline: customizedAtBaseline,
     baseline_version: entry.template_version ?? null,
     current_version: currentVersion
   };
 }
 function readCurrentVersion(standardsRoot) {
+  const versionFile = regularFileHashWithin(standardsRoot, 'template/policy/standards-version.json', '模板版本文件路径');
+  if (!versionFile.exists || versionFile.unsafe) throw new Error('模板版本文件不存在或路径不安全');
   const file = path.join(standardsRoot, 'template/policy/standards-version.json');
   const value = JSON.parse(fs.readFileSync(file, 'utf8'));
   if (value.schema_version !== 1 || typeof value.version !== 'string') throw new Error('模板版本文件无效');
@@ -168,6 +193,15 @@ function analyzeDrift({ projectRoot, standardsRoot }) {
   const currentVersion = readCurrentVersion(sourceRoot);
   const templateRoot = path.join(sourceRoot, 'template');
   const currentFiles = walkTemplateFiles(templateRoot);
+  const presetsRootInfo = regularFileHashWithin(sourceRoot, 'presets/stacks', '技术栈预设目录');
+  if (presetsRootInfo && !presetsRootInfo.unsafe) {
+    const presetDir = path.join(sourceRoot, 'presets/stacks');
+    for (const entry of fs.readdirSync(presetDir, { withFileTypes: true })) {
+      if (entry.isFile() && entry.name.endsWith('.md')) {
+        currentFiles.push({ target: '.spec/stacks/' + entry.name, source: 'presets/stacks/' + entry.name });
+      }
+    }
+  }
   const tracked = manifest.managed_files;
   const derived = new Set(manifest.derived_paths ?? []);
   const excluded = new Set(manifest.excluded_paths ?? []);
@@ -188,9 +222,9 @@ function analyzeDrift({ projectRoot, standardsRoot }) {
     const absolute = resolveInside(targetRoot, file.target, '新模板文件路径');
     const installed = regularFileHashWithin(targetRoot, file.target, '新模板文件路径');
     if (installed.unsafe) findings.push({ path: file.target, status: 'local_unsafe', detail: '目标为符号链接或非普通文件' });
-    else if (installed.exists && preserved.has(file.target)) findings.push({ path: file.target, status: 'legacy_preserved', detail: '安装时保留的既有文件，缺少可比较的历史基线' });
-    else if (installed.exists) findings.push({ path: file.target, status: 'untracked_collision', detail: '目标已存在但不在安装基线中，需人工判断归属' });
-    else findings.push({ path: file.target, status: 'new_upstream_file', detail: '当前模板新增文件，尚未安装' });
+    else if (installed.exists && preserved.has(file.target)) findings.push({ path: file.target, source: file.source, status: 'legacy_preserved', detail: '安装时保留的既有文件，缺少可比较的历史基线' });
+    else if (installed.exists) findings.push({ path: file.target, source: file.source, status: 'untracked_collision', detail: '目标已存在但不在安装基线中，需人工判断归属' });
+    else findings.push({ path: file.target, source: file.source, status: 'new_upstream_file', current_template_sha256: regularFileHashWithin(sourceRoot, file.source, '新增模板源路径').hash, detail: '当前模板新增文件，尚未安装' });
   }
 
   const summary = { current: 0, accepted_customization: 0, update_available: 0, local_customized: 0, conflict: 0, other: 0 };
@@ -213,6 +247,7 @@ function analyzeDrift({ projectRoot, standardsRoot }) {
 function renderText(result) {
   const labels = {
     current: '一致',
+    removed_both: '上游与项目均已删除（无需动作）',
     accepted_customization: '已审查并接受的项目定制',
     update_available: '上游有更新',
     local_customized: '项目本地已修改',
