@@ -91,8 +91,8 @@ function applyReviewedActions(project, standards, plan, deferPaths = new Set()) 
       const placeholder = '{{IGNORE_ENTRIES}}';
       const position = sourceText.indexOf(placeholder);
       assert.ok(position >= 0 && sourceText.indexOf(placeholder, position + placeholder.length) < 0);
-      const suffix = sourceText.slice(position + placeholder.length).replace(/\\s+$/, '');
-      const newBlock = `${BLOCK_START}\\n${oldBody}\\n${suffix}\\n${BLOCK_END}`;
+      const suffix = sourceText.slice(position + placeholder.length).replace(/\s+$/, '');
+      const newBlock = `${BLOCK_START}\n${oldBody}\n${suffix}\n${BLOCK_END}`;
       fs.writeFileSync(target, fullText.slice(0, start) + newBlock + fullText.slice(end + BLOCK_END.length));
     } else if (action.operation === 'replace_candidate' || action.operation === 'add_candidate' || action.operation === 'restore_candidate') {
       fs.mkdirSync(path.dirname(target), { recursive: true });
@@ -149,11 +149,11 @@ try {
   const ignoreTemplate = fs.readFileSync(ignoreSource, 'utf8');
   assert.ok(ignoreTemplate.includes('{{IGNORE_ENTRIES}}'));
   fs.writeFileSync(ignoreSource, ignoreTemplate.replace(
-    '{{IGNORE_ENTRIES}}\\n',
-    '{{IGNORE_ENTRIES}}\\n# Reviewed managed-block footer\\n'
+    '{{IGNORE_ENTRIES}}\n',
+    '{{IGNORE_ENTRIES}}\n# Reviewed managed-block footer\n'
   ));
   const projectIgnore = path.join(project, '.gitignore');
-  fs.appendFileSync(projectIgnore, '\\n# Project-owned ignore rules\\nlocal-secrets/\\n');
+  fs.appendFileSync(projectIgnore, '\n# Project-owned ignore rules\nlocal-secrets/\n');
 
   const localPath = '.spec/01-architecture.md';
   fs.appendFileSync(path.join(project, localPath), '\n## Local project-only customization\n');
