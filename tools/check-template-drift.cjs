@@ -67,11 +67,14 @@ function classifyFile(targetRoot, standardsRoot, targetPath, entry, currentVersi
   }
   if (!installed.exists) return { path: targetPath, status: 'local_missing', upstream_changed: source.hash !== baselineTemplate };
   const upstreamChanged = source.hash !== baselineTemplate;
-  const localChanged = installed.hash !== baselineInstalled;
+  const localChanged = installed.hash !== baselineInstalled
+    || (entry.installed_mode !== undefined && installed.mode !== entry.installed_mode);
+  const customizedAtBaseline = entry.customized_at_baseline === true;
   let status = 'current';
-  if (upstreamChanged && localChanged) status = 'conflict';
+  if (upstreamChanged && (localChanged || customizedAtBaseline)) status = 'conflict';
   else if (upstreamChanged) status = 'update_available';
   else if (localChanged) status = 'local_customized';
+  else if (customizedAtBaseline) status = 'accepted_customization';
   return {
     path: targetPath,
     status,
@@ -171,14 +174,14 @@ function analyzeDrift({ projectRoot, standardsRoot }) {
     else findings.push({ path: file.target, status: 'new_upstream_file', detail: '当前模板新增文件，尚未安装' });
   }
 
-  const summary = { current: 0, update_available: 0, local_customized: 0, conflict: 0, other: 0 };
+  const summary = { current: 0, accepted_customization: 0, update_available: 0, local_customized: 0, conflict: 0, other: 0 };
   for (const finding of findings) {
     if (Object.prototype.hasOwnProperty.call(summary, finding.status)) summary[finding.status]++;
     else summary.other++;
   }
   const baselineIncomplete = manifest.baseline_state !== 'complete';
   return {
-    ok: findings.every(item => item.status === 'current') && !baselineIncomplete,
+    ok: findings.every(item => item.status === 'current' || item.status === 'accepted_customization') && !baselineIncomplete,
     current_version: currentVersion,
     installed_with_version: manifest.installed_with_version ?? null,
     baseline_state: manifest.baseline_state ?? 'unknown',
@@ -191,6 +194,7 @@ function analyzeDrift({ projectRoot, standardsRoot }) {
 function renderText(result) {
   const labels = {
     current: '一致',
+    accepted_customization: '已审查并接受的项目定制',
     update_available: '上游有更新',
     local_customized: '项目本地已修改',
     conflict: '双向冲突（必须人工合并）',
@@ -217,10 +221,10 @@ function renderText(result) {
   }
   if (result.baseline_incomplete) lines.push('警告：安装时存在未纳入基线的既有文件；这些文件必须人工核对。');
   for (const item of result.findings) {
-    if (item.status === 'current') continue;
+    if (item.status === 'current' || item.status === 'accepted_customization') continue;
     lines.push('- ' + item.path + ': ' + (labels[item.status] ?? item.status) + (item.detail ? '（' + item.detail + '）' : ''));
   }
-  lines.push('汇总：一致 ' + result.summary.current + '；上游更新 ' + result.summary.update_available + '；本地修改 ' + result.summary.local_customized + '；双向冲突 ' + result.summary.conflict + '；其他 ' + result.summary.other);
+  lines.push('汇总：一致 ' + result.summary.current + '；已接受定制 ' + result.summary.accepted_customization + '；上游更新 ' + result.summary.update_available + '；本地修改 ' + result.summary.local_customized + '；双向冲突 ' + result.summary.conflict + '；其他 ' + result.summary.other);
   lines.push(result.ok ? '结果：无漂移。' : '结果：存在差异；本工具只报告，不写入或合并文件。');
   return lines.join('\n');
 }
