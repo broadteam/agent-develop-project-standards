@@ -8,6 +8,18 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { calculatePlanId } = require('./plan-template-upgrade.cjs');
+const ALLOWED_DECISIONS = new Set([
+  'approve_upstream',
+  'keep_project',
+  'manual_merge',
+  'approve_removal',
+  'keep_or_archive',
+  'approve_restore',
+  'approve_add',
+  'review_legacy_file',
+  'classify_existing_file',
+  'manual_review'
+]);
 
 function isObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -70,9 +82,12 @@ function validateReview(plan, review) {
     if (!nonEmpty(decision.reviewer)) errors.push(filePath + '：缺少 reviewer');
     if (!validTimestamp(decision.reviewed_at)) errors.push(filePath + '：reviewed_at 必须是 ISO 8601 时间');
     if (!nonEmpty(decision.reason)) errors.push(filePath + '：缺少决策 reason');
+    if (!nonEmpty(action.approval) || !ALLOWED_DECISIONS.has(action.approval)) {
+      errors.push(filePath + '：计划包含未知的审批动作，不能被确认');
+    }
     if (!nonEmpty(decision.decision)) errors.push(filePath + '：缺少 decision');
-    else if (decision.decision !== action.approval) {
-      errors.push(filePath + '：decision 必须与计划要求一致（' + action.approval + '）');
+    else if (!ALLOWED_DECISIONS.has(decision.decision) || decision.decision !== action.approval) {
+      errors.push(filePath + '：decision 必须是已知动作并与计划要求一致（' + action.approval + '）');
     }
     if (action.operation === 'manual_merge') {
       if (!nonEmpty(decision.baseline_ref)) errors.push(filePath + '：manual_merge 必须提供 baseline_ref');
