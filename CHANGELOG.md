@@ -3,7 +3,7 @@
 ### Added
 - Add `tools/plan-template-upgrade.cjs`, a read-only planner that converts template drift findings into explicit per-file candidate actions.
 - Include a deterministic `plan_id`, source/target version labels, baseline and hash evidence, blockers, and a human approval contract.
-- Classify upstream-only changes, local-only edits, two-sided conflicts, upstream removals, missing local files, new template files, stack presets, legacy unknowns and untracked collisions.
+- Classify upstream-only changes, local-only edits, two-sided conflicts, upstream removals, missing local files, new common template files, already-installed stack presets, legacy unknowns and untracked collisions; do not report unselected language presets as project-wide additions.
 - Require review metadata for every proposed change; no file is written, replaced, removed or merged by the planner.
 
 ### Tests
