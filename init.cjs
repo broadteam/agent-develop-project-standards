@@ -502,7 +502,7 @@ if (!DRY) {
     derived_paths: [...derivedPaths].sort(),
     excluded_paths: excludedTemplatePaths,
   };
-  writeTransactional(manifestPath, JSON.stringify(manifest, null, 2) + '\\n', 'utf8');
+  writeTransactional(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
 }
 } catch (error) {
   const rollbackFailures = DRY ? [] : rollbackTransaction();
