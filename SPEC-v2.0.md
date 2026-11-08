@@ -203,7 +203,8 @@
 - 漂移报告和基线采纳必须拒绝项目目标或模板源路径链中的符号链接，不能跟随父目录链接读取项目/仓库边界外内容。
 - 版本号、CHANGELOG、迁移文档和模板版本一致。
 - `tests/test-template-upgrade-plan.cjs` 验证升级预览稳定、只读、逐文件分类完整，并验证人工决策字段与基线阻断；预览不得执行任何变更。
-- 未经人工决策记录，不得把候选动作应用到项目；冲突决策必须包含基线与合并结果来源。自动升级与自动回滚仍属于未来独立能力。
+- 未经人工决策记录且审批校验未通过，不得把候选动作应用到项目；冲突决策必须包含基线与合并结果来源。
+- `tests/test-template-upgrade-review.cjs` 覆盖 plan_id 绑定、重复/缺失/错误决策、三方合并基线来源和阻断项不可被审批绕过。自动升级与自动回滚仍属于未来独立能力。
 
 ## 2. 2.0 目录契约
 
@@ -259,5 +260,5 @@
 | 4. 任务、看板与路线图管理 | in_progress | `tests/test-parity.cjs` 覆盖任务状态、ID、BOARD 新鲜度，以及任务波次/里程碑归档索引双向一致、目录指针、归档数量和详情文件完整性；Node/Python 输出保持一致。真实项目规模下的索引维护体验仍待评估。 |
 | 5. 工程治理与初始化机制 | in_progress | `tests/test-init.cjs` 覆盖全树 dry-run 零写入、参数拒绝、Hook 保护、项目内符号链接 fail-closed、禁止执行项目自有 BOARD 脚本，以及故障注入后的文件/目录回滚；`tests/test-migration-v2.cjs` 覆盖空项目 preview、已有多栈项目、自定义文件、Hook 保护和重复初始化。进程被强制终止/断电后的恢复不在事务保证内。 |
 | 6. 自动化验证与质量门禁 | in_progress | Node/Python parity 覆盖任务归档/路线图归档异常夹具；客户端契约、迁移 fixture、Markdown 本地链接检查均接入 Ubuntu/Windows CI；真实 CLI 集成仍未覆盖。 |
-| 7. 长期演进与版本管理 | in_progress | `policy/standards-version.json` 与 `.agent-standards.json` 逐文件安装基线；`check-template-drift.cjs` 只读识别漂移；`adopt-template-baseline.cjs` 显式采纳旧项目基线；新增 `plan-template-upgrade.cjs` 生成带稳定 `plan_id`、逐文件候选动作和审批契约的只读升级计划；`tests/test-template-upgrade-plan.cjs` 覆盖上游更新、本地定制、双向冲突、移除/缺失、新增文件、预设、旧基线阻断与零写入。自动应用器、真实跨版本迁移及回滚演练仍待发布前验收。 |
+| 7. 长期演进与版本管理 | in_progress | `policy/standards-version.json` / `.agent-standards.json` 逐文件基线；`check-template-drift.cjs` 只读漂移检测；`adopt-template-baseline.cjs` 显式采纳旧基线；`plan-template-upgrade.cjs` 输出稳定 plan_id、逐文件候选动作和审批契约；`validate-template-upgrade-review.cjs` 校验逐路径决策、plan_id 和冲突基线来源。`test-template-upgrade-plan.cjs` 与 `test-template-upgrade-review.cjs` 覆盖计划分类、零写入、审批完整性和失败边界。自动应用器、真实跨版本迁移及回滚演练仍待发布前验收。 |
 
