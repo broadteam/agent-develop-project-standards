@@ -86,7 +86,6 @@ function buildBaseline({ projectRoot, standardsRoot }) {
     const targetRel = sourceRel;
     if (derived.has(targetRel) || excluded.has(targetRel) || targetRel === '.spec/tasks/BOARD.md') continue;
     if (managedFiles[targetRel]) continue;
-    const target = safePath(root, targetRel);
     const targetInfo = hashRegularFileWithin(root, targetRel, '项目目标');
     if (!targetInfo) continue;
     const sourceInfo = hashRegularFileWithin(sourceRoot, 'template/' + sourceRel, '模板源');
@@ -111,7 +110,7 @@ function buildBaseline({ projectRoot, standardsRoot }) {
       const targetRel = '.spec/stacks/' + name;
       if (managedFiles[targetRel]) continue;
       const sourceRel = 'presets/stacks/' + name;
-      const targetInfo = hashRegularFile(target);
+      const targetInfo = hashRegularFileWithin(root, targetRel, '项目目标');
       if (!targetInfo) continue;
       const sourceInfo = hashRegularFileWithin(sourceRoot, sourceRel, '模板源');
       if (!sourceInfo) continue;
