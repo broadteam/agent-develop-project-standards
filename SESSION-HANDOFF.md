@@ -46,10 +46,23 @@
 - `SPEC-v2.0.md` 补充第四、第六方向证据；`CHANGELOG.md` 新增 rc.10。
 - 最新完整双平台 CI 对应 HEAD `62dcc9debae3beab514843e79256e7f163f17658`：push [42465012620](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42465012620) 与 pull_request [42465016365](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42465016365) 均成功，Ubuntu / Windows jobs 全绿；新增路径穿越与孤立归档目录用例。当前 HEAD 仍以 PR #2 实时指针为准。
 
+## 本轮工程治理与初始化机制补强
+
+- `init.cjs` 校验未知参数和多目标参数；`--replace-hook` 必须与 `--force` 同时使用。
+- 初始化前通过 `lstat` 预检所有受管目标路径；嵌套符号链接、`.gitignore` 符号链接、非目录父路径会在任何模板写入前失败关闭。
+- 已存在的 BOARD 生成区块先以只读模式校验；初始化阶段执行仓库随附的可信生成器并传入 `--root`，不执行项目自有的 `scripts/generate-board.cjs`。
+- 写入使用同目录临时文件；覆盖文件保留备份，跟踪本次创建的目录；捕获运行时错误时按逆序恢复文件、权限并清理新建内容。
+- 回滚边界明确：覆盖可捕获的运行时异常，不保证进程被强制终止、断电或文件系统损坏时的原子性。迁移仍须先备份、dry-run 并审查差异。
+- `tests/test-init.cjs` 覆盖全树 dry-run 零写入、非法参数、目录/文件符号链接、BOARD 预检、项目自有生成器不执行、普通覆盖回滚，以及自有 Hook 替换失败后内容/权限恢复。
+- `README.md`、`MIGRATION-v2.0.md`、`SPEC-v2.0.md` 同步了安全边界与验收证据；`CHANGELOG.md` 新增 2.0.0-rc.11。
+- 最新代码提交：`ead3050647ae93dab80e7b1adcd6818b8d75cf06`。
+- 最新双平台 CI：Push [42474979601](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42474979601) 与 PR [42474984115](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42474984115) 均成功，Ubuntu / Windows jobs 全绿。
+- 第五方向仍为 in_progress：回滚不覆盖断电/强杀；迁移文档要求先备份。不要据此宣称具备完整文件系统事务保证。
+
 ## 下一步（按优先级）
 
-1. 审查第五方向“工程治理与初始化机制”：重点检查失败中断、部分写入、符号链接/路径边界和迁移回滚是否有可复现测试，不增加没有必要的流程层。
-2. 继续审查第一、第六、第七方向的发布门槛，优先补机器可验证缺口。
+1. 继续审查第五方向的迁移回滚与边界案例，重点验证不同初始化版本/已有用户定制冲突时的恢复说明；只补可以复现的风险。
+2. 审查第一、第六、第七方向的发布门槛，优先补机器可验证缺口，避免扩大初始化器职责。
 3. 真实 Codex/Claude/Gemini/Cursor CLI 集成验证仍未完成；若增加，必须记录客户端版本与可重复 fixture。
 
 ## 恢复工作的方法
