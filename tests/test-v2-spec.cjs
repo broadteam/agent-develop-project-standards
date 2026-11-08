@@ -12,6 +12,9 @@ const adaptation = fs.readFileSync(path.join(root, 'PROJECT-ADAPTATION-v2.0.md')
 const taskResolver = fs.readFileSync(path.join(root, 'template/scripts/task-context-resolver.cjs'), 'utf8');
 const profile = fs.readFileSync(path.join(root, 'template/project-profile.toml'), 'utf8');
 const capabilities = JSON.parse(fs.readFileSync(path.join(root, 'template/policy/capabilities.json'), 'utf8'));
+const memory = fs.readFileSync(path.join(root, 'template/.memory/MEMORY.md'), 'utf8');
+const router = fs.readFileSync(path.join(root, 'template/ROUTER.md'), 'utf8');
+const agents = fs.readFileSync(path.join(root, 'template/AGENTS.md'), 'utf8');
 const pillars = ['规范体系与目录架构','Agent 多客户端兼容','记忆与上下文管理','任务、看板与路线图管理','工程治理与初始化机制','自动化验证与质量门禁','长期演进与版本管理'];
 for (const pillar of pillars) assert.ok(spec.includes(pillar), `missing pillar: ${pillar}`);
 assert.doesNotMatch(spec, /\| (?:1\. 规范体系与目录架构|4\. 任务、看板与路线图管理|5\. 工程治理与初始化机制|7\. 长期演进与版本管理) \| planned \|/, 'implemented pillars must report evidence rather than stale planned status');
@@ -34,4 +37,15 @@ assert.ok(profile.includes('multi_agent = "off"'));
 assert.equal(capabilities.schema_version, 1);
 assert.equal(capabilities.core.always_enabled, true);
 assert.ok(capabilities.capabilities.roadmap.requires);
+
+// Memory contract: the checkpoint is conditional, history points to a real
+// template location, and process details are not duplicated into the snapshot.
+assert.match(memory, /跟踪任务收口或跨会话暂停时覆盖/);
+assert.match(memory, /轻量任务不强制更新断点/);
+assert.match(memory, /任务过程和尝试记录写对应任务的 `log\.md`/);
+assert.match(memory, /查历史收口记录[\s\S]*?\.memory\/log\//);
+assert.doesNotMatch(memory, /\.memory\/archive\//, 'memory must not point to a missing archive directory');
+assert.ok(fs.existsSync(path.join(root, 'template/.memory/log/.gitkeep')), 'memory history pointer must exist in the template');
+assert.match(router, /交接 \/ 换 agent[\s\S]*?\.memory\/MEMORY\.md/);
+assert.match(agents, /轻量任务：只有产生了后续会话必须知道的事实/);
 console.log('test-v2-spec: all cases passed');
