@@ -9,6 +9,7 @@
 
 ### Tests
 - Add `tests/test-template-upgrade-record.cjs` for replacement, new-file addition, local customization acceptance, manual merge, upstream removal, dry-run immutability, tampered-result rejection, post-record drift clearance, stale-plan replay rejection and partial/deferred follow-up completion.
+- Add `UPGRADE-RECORD-TEMPLATE.md` as a reusable audit record for plan/review references, external backups, per-path decisions, deferred batches, baseline recording and recovery evidence.
 - Add syntax and regression checks to the Ubuntu/Windows CI matrix.
 
 ### Boundaries
