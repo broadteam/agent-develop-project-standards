@@ -16,7 +16,7 @@
 
 ### Boundaries
 - The manifest stores hashes, not baseline file contents. Conflicts therefore require recovering the common base from the pre-upgrade Git tree, a backup or the matching old template checkout; record `baseline_ref` and `merge_result_ref` before claiming a three-way merge.
-- This release adds preview, review validation and a disposable-fixture recovery rehearsal only. An upgrade applier and automated rollback tool do not exist; approved changes still require a separately reviewed manual migration process.
+- This release adds preview, review validation and a disposable-fixture recovery rehearsal only. An upgrade applier, automated rollback tool and successful-upgrade baseline advancement tool do not exist; the manifest remains at the old baseline after manual file replacement, so an applied upgrade cannot yet be finalized by the supported tooling.
 
 ## 2.0.0-rc.12 - 2026-11-08
 
