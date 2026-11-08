@@ -38,10 +38,18 @@
 - `CHANGELOG.md`：新增 2.0.0-rc.9 记录。
 - 纠正本文件中历史验证记录过旧的问题；分支最新 HEAD 和 CI 状态仍以 GitHub 实时查询为准。
 
+## 本轮任务与路线图归档完整性改进
+
+- 发现原治理检查器只验证活跃任务/里程碑目录，归档目录被排除扫描后，归档索引、目录指针、任务数量及详情文件没有完整性校验。
+- Node 与 Python 治理检查器现在双向核对活跃索引和归档索引；验证归档目录安全路径、任务波次数量、每张归档卡的 `card.md` / `log.md`，以及归档里程碑的 `milestone.md`。
+- `tests/test-parity.cjs` 新增有效归档、任务数量不一致、缺失任务日志、缺失里程碑目录等 fixture，并继续比较 Node/Python 输出和退出码。
+- `SPEC-v2.0.md` 补充第四、第六方向证据；`CHANGELOG.md` 新增 rc.10。
+- 最新 HEAD：以 PR #2 的实时 head SHA 为准；本轮最后一次完整双平台 CI（代码 HEAD `afd468fa3f956acf654b4c6a8ddcb4194a833bd5`）push [42464642836](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42464642836) 与 pull_request [42464646384](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42464646384) 均成功。随后文档提交需重新核验 CI。
+
 ## 下一步（按优先级）
 
-1. 审查第四方向“任务、看板与路线图管理”：验证索引、卡片、归档、里程碑依赖及 BOARD 派生关系是否形成一致闭环，重点找真实可复现的边界缺口。
-2. 继续审查第一、第五、第六、第七方向的发布门槛，优先补机器可验证缺口，不为形式增加工具。
+1. 审查第五方向“工程治理与初始化机制”：重点检查失败中断、部分写入、符号链接/路径边界和迁移回滚是否有可复现测试，不增加没有必要的流程层。
+2. 继续审查第一、第六、第七方向的发布门槛，优先补机器可验证缺口。
 3. 真实 Codex/Claude/Gemini/Cursor CLI 集成验证仍未完成；若增加，必须记录客户端版本与可重复 fixture。
 
 ## 恢复工作的方法
