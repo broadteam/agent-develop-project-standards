@@ -30,6 +30,7 @@ jobs:
           node --check tools/plan-template-upgrade.cjs
           node --check tools/validate-template-upgrade-review.cjs
           node --check tools/record-reviewed-template-upgrade.cjs
+          node --check tools/template-source-inventory.cjs
           node --check template/scripts/check-governance.cjs
           node --check template/scripts/profile-validator.cjs
           node --check template/scripts/capability-resolver.cjs
