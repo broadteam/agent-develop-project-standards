@@ -57,11 +57,11 @@ try {
   assert.ok(fs.existsSync(path.join(project, 'scripts/generate-board.cjs')));
   const installManifest = JSON.parse(fs.readFileSync(path.join(project, '.agent-standards.json'), 'utf8'));
   assert.equal(installManifest.format_version, 1);
-  assert.equal(installManifest.baseline_state, 'partial_unknown');
+  assert.equal(installManifest.baseline_state, 'complete');
   assert.ok(installManifest.managed_files['gov.toml']);
   assert.ok(installManifest.managed_blocks['.gitignore']);
   assert.ok(installManifest.derived_paths.includes('.spec/tasks/BOARD.md'));
-  assert.ok(installManifest.preserved_paths.includes('AGENTS.md'));
+  assert.ok(!installManifest.preserved_paths.includes('AGENTS.md'));
   assert.ok(!installManifest.preserved_paths.includes('.githooks/pre-commit'), 'protected project hooks are intentionally unmanaged, not an unknown template baseline');
   const profileValidator = require(path.join(root, 'template/scripts/profile-validator.cjs'));
   const profileResult = profileValidator.validateProfile(project);
