@@ -42,10 +42,12 @@ function buildFixture() {
 }
 try {
   const { project, newer, plan, conflictPath } = buildFixture();
+  assert.equal(plan.plan_schema, 2);
+  assert.match(plan.source_inventory_sha256, /^[a-f0-9]{64}$/);
   const required = plan.actions.filter(action => action.requires_human_review);
   assert.ok(required.length >= 3);
   const review = {
-    review_schema: 1,
+    review_schema: 2,
     plan_id: plan.plan_id,
     decisions: required.map(action => ({
       reviewer: 'standards-maintainer',
@@ -53,6 +55,7 @@ try {
       path: action.path,
       decision: action.approval,
       result_sha256: 'a'.repeat(64),
+      result_mode: 0o644,
       reason: '已对照项目影响和模板变更完成审查。',
       ...(action.operation === 'manual_merge'
         ? { baseline_ref: 'project-git:pre-upgrade-commit', merge_result_ref: 'project-git:reviewed-merge-commit' }
@@ -83,6 +86,16 @@ try {
     decisions: review.decisions.map(item => item.path === conflictPath ? { ...item, reviewer: '' } : item)
   };
   assert.equal(validateReview(plan, missingReviewer).valid, false);
+
+  const missingResultMode = {
+    ...review,
+    decisions: review.decisions.map(item => item.path === conflictPath
+      ? { ...item, result_mode: undefined }
+      : item)
+  };
+  const missingModeResult = validateReview(plan, missingResultMode);
+  assert.equal(missingModeResult.valid, false);
+  assert.ok(missingModeResult.errors.some(error => error.includes('result_mode')));
 
   const missingBase = {
     ...review,
@@ -132,7 +145,7 @@ try {
   const partialInstall = init(legacy);
   assert.equal(partialInstall.status, 0, partialInstall.stdout + partialInstall.stderr);
   const blockedPlan = buildUpgradePlan({ projectRoot: legacy, standardsRoot: newer });
-  const blockedReview = { review_schema: 1, plan_id: blockedPlan.plan_id, decisions: [] };
+  const blockedReview = { review_schema: 2, plan_id: blockedPlan.plan_id, decisions: [] };
   assert.equal(validateReview(blockedPlan, blockedReview).valid, false);
 
   console.log('test-template-upgrade-review: all cases passed');
