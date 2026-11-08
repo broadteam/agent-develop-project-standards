@@ -339,6 +339,8 @@ node tools/record-reviewed-template-upgrade.cjs \
 
 上游删除必须确认文件/托管区块确实已删除，或明确选择保留并登记实际结果哈希。登记完成后，重新运行漂移检查、治理检查、项目测试和构建。
 
+单次迁移的版本、plan/review 引用、备份、逐路径结果、延期项、基线登记和失败恢复证据，可按 [UPGRADE-RECORD-TEMPLATE.md](UPGRADE-RECORD-TEMPLATE.md) 归档。备份本身保存在项目目录之外；记录中只保存备份位置和校验引用。
+
 人工审查记录中的每条决策必须带 `result_sha256`（64 位小写 SHA-256）；`approve_removal` 除外，因为它要求目标确实不存在。三方合并还必须提供 `baseline_ref`、`merge_result_ref` 和合并后文件的 `result_sha256`。完成登记后，重新运行漂移检查、治理检查、项目测试和构建；登记成功不代表业务测试自动通过。
 
 当前仍没有自动升级应用器或自动回滚器。规则文件必须由维护者在独立分支/工作树中按审批手工执行；基线登记器只负责验证实际结果并更新元数据。不要手改 manifest，也不要用 `adopt-template-baseline.cjs` 代替升级登记；后者只用于旧项目首次建立历史基线。
