@@ -138,24 +138,9 @@ function planAction(finding) {
   }
 }
 function calculatePlanId(plan) {
-  const identity = {
-    plan_schema: 1,
-    source_version: plan.source_version ?? null,
-    target_version: plan.target_version ?? null,
-    baseline_state: plan.baseline_state ?? 'missing',
-    findings: (plan.actions ?? []).map(action => ({
-      path: action.path,
-      source: action.source,
-      status: action.status,
-      operation: action.operation,
-      recommendation: action.recommendation,
-      requires_human_review: action.requires_human_review,
-      approval: action.approval,
-      reason: action.reason,
-      evidence: action.evidence
-    }))
-  };
-  return sha256(JSON.stringify(identity)).slice(0, 16);
+  const payload = { ...plan };
+  delete payload.plan_id;
+  return sha256(JSON.stringify(payload)).slice(0, 16);
 }
 function buildUpgradePlan({ projectRoot, standardsRoot }) {
   const report = analyzeDrift({ projectRoot, standardsRoot });
@@ -204,27 +189,8 @@ function buildUpgradePlan({ projectRoot, standardsRoot }) {
     else if (action.operation === 'none') counts.no_change++;
   }
   const reviewRequired = actions.some(action => action.requires_human_review) || globalBlockers.length > 0;
-  const identity = {
+  const plan = {
     plan_schema: 1,
-    source_version: sourceVersion,
-    target_version: targetVersion,
-    baseline_state: report.baseline_state ?? 'missing',
-    findings: actions.map(action => ({
-      path: action.path,
-      source: action.source,
-      status: action.status,
-      operation: action.operation,
-      recommendation: action.recommendation,
-      requires_human_review: action.requires_human_review,
-      approval: action.approval,
-      reason: action.reason,
-      evidence: action.evidence
-    }))
-  };
-  const planId = sha256(JSON.stringify(identity)).slice(0, 16);
-  return {
-    plan_schema: 1,
-    plan_id: planId,
     mode: 'read_only_preview',
     source_version: sourceVersion,
     target_version: targetVersion,
@@ -276,6 +242,8 @@ function buildUpgradePlan({ projectRoot, standardsRoot }) {
             : ['模板内容无待处理差异；仍应在目标项目验证当前构建、测试与治理检查'],
     guarantee: '本命令只读取项目和规范仓库，绝不写入、删除、覆盖、移动或合并文件。'
   };
+  plan.plan_id = calculatePlanId(plan);
+  return plan;
 }
 function parseArgs(argv) {
   const args = { root: null, standardsRoot: path.resolve(__dirname, '..'), json: false };
