@@ -66,12 +66,6 @@ try {
   const insideBlock = analyzeDrift({ projectRoot: gitignoreProject, standardsRoot: root });
   assert.ok(insideBlock.findings.some((item) => item.path === '.gitignore' && item.status === 'local_customized'));
 
-  // A future upstream change to the managed source plus a local block edit is a conflict.
-  const newerIgnoreSource = path.join(newerStandards, 'template/.gitignore.append');
-  fs.appendFileSync(newerIgnoreSource, '\n# Upstream ignore addition\n');
-  const ignoreConflict = analyzeDrift({ projectRoot: gitignoreProject, standardsRoot: newerStandards });
-  assert.ok(ignoreConflict.findings.some((item) => item.path === '.gitignore' && item.status === 'conflict'));
-
   // On POSIX, changing executable mode is local drift even when bytes are unchanged.
   if (process.platform !== 'win32') {
     const hook = path.join(cleanProject, '.githooks/pre-commit');
@@ -97,6 +91,13 @@ try {
   const version = JSON.parse(fs.readFileSync(versionPath, 'utf8'));
   version.version = '2.0.0-rc.13';
   fs.writeFileSync(versionPath, JSON.stringify(version, null, 2) + '\n');
+
+  // A future upstream change to the managed source plus a local block edit is a conflict.
+  const newerIgnoreSource = path.join(newerStandards, 'template/.gitignore.append');
+  fs.appendFileSync(newerIgnoreSource, '\n# Upstream ignore addition\n');
+  const ignoreConflict = analyzeDrift({ projectRoot: gitignoreProject, standardsRoot: newerStandards });
+  assert.ok(ignoreConflict.findings.some((item) => item.path === '.gitignore' && item.status === 'conflict'));
+
   const conflict = analyzeDrift({ projectRoot: cleanProject, standardsRoot: newerStandards });
   assert.ok(conflict.findings.some((item) => item.path === '.spec/02-conventions.md' && item.status === 'conflict'));
   assert.equal(conflict.current_version, '2.0.0-rc.13');
