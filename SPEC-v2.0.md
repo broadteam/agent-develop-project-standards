@@ -178,11 +178,13 @@
 **目标**：规范可升级、可比较、可回滚，多个项目能明确知道自己使用哪个版本。
 
 - `tools/plan-template-upgrade.cjs` 把漂移结果转换为只读、可重复的升级预览，包含稳定 `plan_id`、来源/目标版本、逐文件哈希证据、候选动作和人工确认契约。
+- 升级计划使用 `plan_schema: 2`，并绑定 `source_inventory_sha256`：对目标规范 checkout 的 `template/` 与 `presets/stacks/` 做确定性完整快照，覆盖路径、文件类型、内容哈希和权限；目标模板源在计划生成后任何新增、删除、内容或权限变化都必须使旧计划失效。
+- 人工审查使用 `review_schema: 2`；普通文件决策必须绑定最终 `result_sha256` 与 `result_mode`。`.gitignore` 作为渲染托管区块单独验证固定模板前缀/后缀与占位符结构，只登记管理区块哈希，不登记整个文件权限，并保留区块外项目自有规则。
 - 升级计划覆盖上游更新、本地定制、双向冲突、上游移除、本地缺失、新增模板文件、技术栈预设、旧项目未知基线和未登记同名文件。
 - 所有待审项必须记录 reviewer、reviewed_at、path、decision、reason；冲突必须恢复共同基线后人工三方合并，并记录 baseline_ref、merge_result_ref；删除与新增必须显式批准。
 - 安装清单目前只保存哈希，不保存基线正文；哈希不可用于重建共同祖先。升级预览必须明确提示基线恢复来源，禁止在缺失共同基线时声称完成三方合并。
 - 计划器绝不写入、覆盖、删除或合并项目文件；人工变更完成后，`tools/record-reviewed-template-upgrade.cjs` 只验证实际结果与审批哈希，再原子推进 `.agent-standards.json`，不执行规则文件修改。
-- 基线登记必须校验 plan_id、审查决定、原 manifest 基线、当前模板源哈希和实际结果 SHA-256；未批准/未执行/不匹配路径不得推进，任一失败不得写入 manifest。登记成功仍须重新运行漂移、治理、项目测试和构建。
+- 基线登记必须校验 plan_id、review schema、审查决定、原 manifest 基线、完整 source inventory、当前模板源哈希、实际结果 SHA-256 和普通文件权限；未批准/未执行/不匹配路径不得推进，任一失败不得写入 manifest。成功登记把 source_inventory_sha256 存入 last_upgrade 审计信息。登记成功仍须重新运行漂移、治理、项目测试和构建。
 - 支持显式 `defer` 进行分批升级：延期项必须保持计划快照中的存在状态、内容哈希和权限，旧逐文件基线不推进；只要存在延期项，整体 `installed_with_version` 保持来源版本，后续重新生成计划继续处理。
 - 当前没有自动升级应用器或自动回滚器，不能将预览、审批或基线登记描述为自动迁移完成。
 - `UPGRADE-RECORD-TEMPLATE.md` 提供可复用的人工迁移审计字段，覆盖 plan/review、项目外备份引用、逐路径决策、延期批次、基线登记和恢复证据；不要求把完整备份提交到仓库。
@@ -210,7 +212,7 @@
 - 未经人工决策记录且审批校验未通过，不得把候选动作应用到项目；冲突决策必须包含基线与合并结果来源。
 - `tests/test-template-upgrade-review.cjs` 覆盖 plan_id 绑定、重复/缺失/错误决策、三方合并基线来源和阻断项不可被审批绕过。
 - `tests/test-template-upgrade-recovery.cjs` 在临时项目中演练获批规则文件与项目内版本元数据的小批次手工应用、治理失败注入、项目外完整备份恢复、文件树精确比较和恢复后治理/漂移/计划 ID 复验；不得连接或修改真实业务项目。
-- `tests/test-template-upgrade-record.cjs` 验证已审批替换/新增、本地定制接受、人工合并、上游删除、结果哈希篡改拒绝、dry-run 零写入、登记后漂移清零、旧计划重放拒绝，以及现有文件/新文件 defer 后分批完成整个版本升级。
+- `tests/test-template-upgrade-record.cjs` 验证已审批替换/新增、本地定制接受、人工合并、上游删除、结果哈希篡改拒绝、dry-run 零写入、登记后漂移清零、旧计划重放拒绝，以及现有文件/新文件 defer 后分批完成整个版本升级。 回归还覆盖计划后新增未登记模板源文件导致 source inventory 失效、结果权限证据不匹配拒绝，以及 `.gitignore` 渲染托管区块升级与区块外用户规则保留。
 - `record-reviewed-template-upgrade.cjs` 为成功升级后的逐文件基线登记入口；只有当批准的实际结果哈希与审查记录一致时才推进；支持 `defer` 保留原基线并分批处理，全部计划条目收口后才更新整体 `installed_with_version`。该能力不自动应用文件，也不自动回滚。
 
 ## 2. 2.0 目录契约
@@ -267,5 +269,5 @@
 | 4. 任务、看板与路线图管理 | in_progress | `tests/test-parity.cjs` 覆盖任务状态、ID、BOARD 新鲜度，以及任务波次/里程碑归档索引双向一致、目录指针、归档数量和详情文件完整性；Node/Python 输出保持一致。真实项目规模下的索引维护体验仍待评估。 |
 | 5. 工程治理与初始化机制 | in_progress | `tests/test-init.cjs` 覆盖全树 dry-run 零写入、参数拒绝、Hook 保护、项目内符号链接 fail-closed、禁止执行项目自有 BOARD 脚本，以及故障注入后的文件/目录回滚；`tests/test-migration-v2.cjs` 覆盖空项目 preview、已有多栈项目、自定义文件、Hook 保护和重复初始化。进程被强制终止/断电后的恢复不在事务保证内。 |
 | 6. 自动化验证与质量门禁 | in_progress | Node/Python parity 覆盖任务归档/路线图归档异常夹具；客户端契约、迁移 fixture、Markdown 本地链接检查均接入 Ubuntu/Windows CI；真实 CLI 集成仍未覆盖。 |
-| 7. 长期演进与版本管理 | in_progress | `policy/standards-version.json` / `.agent-standards.json` 逐文件基线；`check-template-drift.cjs` 只读漂移检测；`adopt-template-baseline.cjs` 显式采纳旧基线；`plan-template-upgrade.cjs` 输出稳定 plan_id 和逐文件候选动作；`validate-template-upgrade-review.cjs` 校验审批记录；`record-reviewed-template-upgrade.cjs` 仅在结果哈希匹配时推进已审查基线，并支持显式 defer 分批完成、全部收口后再推进整体版本。`test-template-upgrade-plan/review/recovery/record` 在 Ubuntu/Windows 覆盖计划、审批、失败恢复、成功/部分登记和最终漂移清零。自动应用器/自动回滚器和真实跨版本项目迁移仍未实现，发布前仍需完整验收。 |
+| 7. 长期演进与版本管理 | in_progress | `policy/standards-version.json` / `.agent-standards.json` 逐文件基线；`check-template-drift.cjs` 只读漂移检测；`adopt-template-baseline.cjs` 显式采纳旧基线；`plan-template-upgrade.cjs` 使用 plan_schema 2 与完整 source inventory；`validate-template-upgrade-review.cjs` 使用 review_schema 2 校验审批、结果 SHA 和普通文件权限；`record-reviewed-template-upgrade.cjs` 重新核验完整源快照与实际结果后，仅推进已审查基线，并支持 defer 分批完成。`test-template-upgrade-plan/review/recovery/record` 在 Ubuntu/Windows 覆盖计划、审批、失败恢复、源快照过期、权限篡改、渲染 .gitignore 区块、成功/部分登记和最终漂移清零。自动应用器/自动回滚器和真实跨版本项目迁移仍未实现，发布前仍需完整验收。 |
 
