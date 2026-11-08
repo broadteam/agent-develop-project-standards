@@ -194,7 +194,8 @@ function buildUpgradePlan({ projectRoot, standardsRoot }) {
       source: action.source,
       status: action.status,
       operation: action.operation,
-      approval: action.approval
+      approval: action.approval,
+      evidence: action.evidence
     }))
   };
   const planId = sha256(JSON.stringify(identity)).slice(0, 16);
