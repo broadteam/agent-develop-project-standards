@@ -82,6 +82,9 @@ function validateReview(plan, review) {
     if (!nonEmpty(decision.reviewer)) errors.push(filePath + '：缺少 reviewer');
     if (!validTimestamp(decision.reviewed_at)) errors.push(filePath + '：reviewed_at 必须是 ISO 8601 时间');
     if (!nonEmpty(decision.reason)) errors.push(filePath + '：缺少决策 reason');
+    if (decision.decision !== 'approve_removal' && !/^[a-f0-9]{64}$/.test(decision.result_sha256 || '')) {
+      errors.push(filePath + '：必须提供实际结果文件/托管区块的 result_sha256（64 位小写 SHA-256）');
+    }
     if (!nonEmpty(action.approval) || !ALLOWED_DECISIONS.has(action.approval)) {
       errors.push(filePath + '：计划包含未知的审批动作，不能被确认');
     }
