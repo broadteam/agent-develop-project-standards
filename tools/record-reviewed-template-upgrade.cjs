@@ -168,7 +168,7 @@ function verifyManagedBlockTemplateCompatibility(source, actual, targetPath) {
   const prefix = sourceText.slice(0, position);
   const suffix = sourceText.slice(position + placeholder.length);
   const inner = actual.content.slice(BLOCK_START.length + 1, actual.content.length - BLOCK_END.length - 1);
-  const requiredPrefix = prefix.replace(/^\\s+/, '');
+  const requiredPrefix = prefix.replace(/^\s+/, '');
   const requiredSuffix = suffix.replace(/\\s+$/, '');
   if (!inner.startsWith(requiredPrefix) || (requiredSuffix && !inner.endsWith(requiredSuffix))
     || inner.includes(placeholder)) {
