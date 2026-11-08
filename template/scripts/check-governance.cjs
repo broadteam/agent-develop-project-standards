@@ -115,8 +115,8 @@ function validateTaskArchives() {
   for (const [id, row] of activeById) {
     const archived = catalogById.get(id);
     if (!archived) { errors.push(`任务归档：波次 ${id} 未登记到 archive/INDEX.md`); continue; }
-    const activePathRaw = row['详情'] ?? '';
-    const catalogPathRaw = archived['目录'] ?? '';
+    const activePathRaw = (row['详情'] ?? '').replace(/^`|`$/g, '');
+    const catalogPathRaw = (archived['目录'] ?? '').replace(/^`|`$/g, '');
     const activePath = activePathRaw.endsWith('/') ? activePathRaw.slice(0, -1) : activePathRaw;
     const catalogPath = catalogPathRaw.endsWith('/') ? catalogPathRaw.slice(0, -1) : catalogPathRaw;
     if (!catalogPath || activePath !== catalogPath) errors.push(`任务归档：波次 ${id} 的目录指针不一致`);
