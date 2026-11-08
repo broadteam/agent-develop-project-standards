@@ -1,6 +1,8 @@
 ## 2.0.0-rc.13 - 2026-11-08
 
 ### Added
+- Add `tools/validate-template-upgrade-review.cjs`, a read-only validator that checks review decisions against the plan ID and per-file approval contract; manual merges must include common-base and merge-result references.
+- Add `tests/test-template-upgrade-review.cjs` for stale plan IDs, missing/duplicate/incorrect decisions, missing merge provenance, blocked baselines and read-only validation.
 - Add `tools/plan-template-upgrade.cjs`, a read-only planner that converts template drift findings into explicit per-file candidate actions.
 - Include a deterministic `plan_id`, source/target version labels, baseline and hash evidence, blockers, and a human approval contract.
 - Classify upstream-only changes, local-only edits, two-sided conflicts, upstream removals, missing local files, new common template files, already-installed stack presets, legacy unknowns and untracked collisions; do not report unselected language presets as project-wide additions.
