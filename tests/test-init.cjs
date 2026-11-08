@@ -93,6 +93,26 @@ try {
     assert.match(noRuntimeHook.stderr, /找不到可用的治理检查运行环境/);
   }
 
+  // Dry-run validates an existing BOARD but never regenerates it.
+  const dryRunBoardProject = path.join(tmp, 'dry-run-board-project');
+  fs.mkdirSync(path.join(dryRunBoardProject, '.spec/tasks'), { recursive: true });
+  fs.copyFileSync(path.join(root, 'template/.spec/tasks/index.md'), path.join(dryRunBoardProject, '.spec/tasks/index.md'));
+  const staleBoard = '# Custom board\n\n<!-- GENERATED:START -->\nstale content\n<!-- GENERATED:END -->\n';
+  fs.writeFileSync(path.join(dryRunBoardProject, '.spec/tasks/BOARD.md'), staleBoard);
+  const boardPreview = spawnSync(process.execPath, [path.join(root, 'init.cjs'), dryRunBoardProject, '--dry-run'], { encoding: 'utf8' });
+  assert.equal(boardPreview.status, 0, boardPreview.stdout + boardPreview.stderr);
+  assert.equal(fs.readFileSync(path.join(dryRunBoardProject, '.spec/tasks/BOARD.md'), 'utf8'), staleBoard, 'dry-run must not regenerate a stale BOARD');
+
+  // A malformed derived view must be detected before any template files are installed.
+  const malformedBoardProject = path.join(tmp, 'malformed-board-project');
+  fs.mkdirSync(path.join(malformedBoardProject, '.spec/tasks'), { recursive: true });
+  fs.writeFileSync(path.join(malformedBoardProject, '.spec/tasks/index.md'), fs.readFileSync(path.join(root, 'template/.spec/tasks/index.md'), 'utf8'));
+  fs.writeFileSync(path.join(malformedBoardProject, '.spec/tasks/BOARD.md'), '# User board without managed markers\n');
+  const malformedBoardRun = spawnSync(process.execPath, [path.join(root, 'init.cjs'), malformedBoardProject, '--force'], { encoding: 'utf8' });
+  assert.equal(malformedBoardRun.status, 1, malformedBoardRun.stdout + malformedBoardRun.stderr);
+  assert.match(malformedBoardRun.stderr, /BOARD 预检失败/);
+  assert.deepEqual(fs.readdirSync(malformedBoardProject), ['.spec'], 'BOARD preflight must fail before installing unrelated templates');
+
   // A target-owned generator is user code: initialization must never execute it.
   const customGeneratorProject = path.join(tmp, 'custom-generator-project');
   fs.mkdirSync(path.join(customGeneratorProject, '.spec/tasks'), { recursive: true });
