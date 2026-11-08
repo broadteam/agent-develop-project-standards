@@ -63,6 +63,101 @@ function consistency(indexRel,dirRel,label,heading,statusAllowed=null,statusColu
 if(capabilityEnabled('task_tracking'))consistency(layout.tasks_index??'.spec/tasks/index.md',layout.tasks_dir??'.spec/tasks','任务卡','当前波次',['planned','ready','in_progress','review','done','blocked','dropped'],2,layout.tasks_ignore??['archive','assets']);
 if(capabilityEnabled('roadmap'))consistency(layout.roadmap_index??'.spec/roadmap/INDEX.md',layout.roadmap_dir??'.spec/roadmap','里程碑','里程碑',['未开始','进行中','已完成','已放弃'],3,layout.roadmap_ignore??['archive','assets']);
 
+/**
+ * Archived records are intentionally excluded from active directory scans,
+ * but their indexes remain a navigable integrity contract.
+ */
+function markdownTable(rel, sectionHeading = null) {
+  const file = path.join(ROOT, rel);
+  if (!fs.existsSync(file)) return [];
+  const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/);
+  let start = 0;
+  if (sectionHeading) {
+    start = lines.findIndex(line => line.startsWith('## ') && line.replace(/^##\\s*/, '').startsWith(sectionHeading));
+    if (start < 0) return [];
+  }
+  let headerAt = -1;
+  for (let i = start; i < lines.length; i++) {
+    if (lines[i].startsWith('|')) { headerAt = i; break; }
+    if (sectionHeading && i > start && lines[i].startsWith('## ')) break;
+  }
+  if (headerAt < 0) return [];
+  const headers = lines[headerAt].split('|').slice(1, -1).map(x => x.trim());
+  const rows = [];
+  for (let i = headerAt + 2; i < lines.length && lines[i].startsWith('|'); i++) {
+    const cells = lines[i].split('|').slice(1, -1).map(x => x.trim());
+    if (cells.length !== headers.length || !cells[0] || cells[0] === '—') continue;
+    rows.push(Object.fromEntries(headers.map((key, index) => [key, cells[index]])));
+  }
+  return rows;
+}
+function archivePathExists(rel, expectedFile) {
+  if (typeof rel !== 'string' || !rel || path.isAbsolute(rel)) return false;
+  const absolute = path.resolve(ROOT, rel);
+  const relative = path.relative(ROOT, absolute);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) return false;
+  return fs.existsSync(absolute) && (!expectedFile || fs.existsSync(path.join(absolute, expectedFile)));
+}
+function validateTaskArchives() {
+  const active = markdownTable(layout.tasks_index ?? '.spec/tasks/index.md', '已归档波次');
+  const catalog = markdownTable('.spec/tasks/archive/INDEX.md');
+  const activeById = new Map(), catalogById = new Map();
+  for (const row of active) {
+    const id = row['波次'];
+    if (activeById.has(id)) errors.push(`任务归档：活跃索引中波次 ${id} 重复`);
+    activeById.set(id, row);
+  }
+  for (const row of catalog) {
+    const id = row['波次'];
+    if (catalogById.has(id)) errors.push(`任务归档：归档索引中波次 ${id} 重复`);
+    catalogById.set(id, row);
+  }
+  for (const [id, row] of activeById) {
+    const archived = catalogById.get(id);
+    if (!archived) { errors.push(`任务归档：波次 ${id} 未登记到 archive/INDEX.md`); continue; }
+    const activePath = (row['详情'] ?? '').replace(/\\/$/, '');
+    const catalogPath = (archived['目录'] ?? '').replace(/\\/$/, '');
+    if (!catalogPath || activePath !== catalogPath) errors.push(`任务归档：波次 ${id} 的目录指针不一致`);
+    if (!archivePathExists(catalogPath)) { errors.push(`任务归档：波次 ${id} 的归档目录不存在或路径非法`); continue; }
+    const dir = path.join(ROOT, catalogPath);
+    const taskDirs = fs.readdirSync(dir, { withFileTypes: true }).filter(e => e.isDirectory()).map(e => e.name);
+    const declared = Number(archived['任务数']);
+    if (!Number.isInteger(declared) || declared !== taskDirs.length || Number(row['卡数']) !== taskDirs.length) {
+      errors.push(`任务归档：波次 ${id} 任务数与目录内容不一致`);
+    }
+    for (const taskId of taskDirs) {
+      for (const file of ['card.md', 'log.md']) {
+        if (!fs.existsSync(path.join(dir, taskId, file))) errors.push(`任务归档：${id}/${taskId}/ 缺少 ${file}`);
+      }
+    }
+  }
+  for (const id of catalogById.keys()) if (!activeById.has(id)) errors.push(`任务归档：archive/INDEX.md 中波次 ${id} 未在任务索引登记`);
+}
+function validateRoadmapArchives() {
+  const active = markdownTable(layout.roadmap_index ?? '.spec/roadmap/INDEX.md', '已归档里程碑');
+  const catalog = markdownTable('.spec/roadmap/archive/INDEX.md');
+  const activeById = new Map(), catalogById = new Map();
+  for (const row of active) {
+    const id = row['ID'];
+    if (activeById.has(id)) errors.push(`里程碑归档：索引中 ID ${id} 重复`);
+    activeById.set(id, row);
+  }
+  for (const row of catalog) {
+    const id = row['ID'];
+    if (catalogById.has(id)) errors.push(`里程碑归档：归档索引中 ID ${id} 重复`);
+    catalogById.set(id, row);
+  }
+  for (const [id, row] of activeById) {
+    const archived = catalogById.get(id);
+    if (!archived) { errors.push(`里程碑归档：ID ${id} 未登记到 archive/INDEX.md`); continue; }
+    if (row['里程碑'] !== archived['里程碑']) errors.push(`里程碑归档：ID ${id} 的名称不一致`);
+    if (!archivePathExists(archived['目录'], 'milestone.md')) errors.push(`里程碑归档：ID ${id} 的目录或 milestone.md 不存在`);
+  }
+  for (const id of catalogById.keys()) if (!activeById.has(id)) errors.push(`里程碑归档：archive/INDEX.md 中 ID ${id} 未在路线图索引登记`);
+}
+if (capabilityEnabled('task_tracking')) validateTaskArchives();
+if (capabilityEnabled('roadmap')) validateRoadmapArchives();
+
 // 6. Generated board freshness
 const taskIndex=path.join(ROOT,layout.tasks_index??'.spec/tasks/index.md'), board=path.join(ROOT,'.spec/tasks/BOARD.md');
 if(capabilityEnabled('task_tracking')&&fs.existsSync(taskIndex)&&fs.existsSync(board)){const hash=crypto.createHash('sha256').update(fs.readFileSync(taskIndex)).digest('hex');const b=fs.readFileSync(board,'utf8');const sourceOk=b.includes(`<!-- SOURCE-SHA256: ${hash} -->`);const generated=b.match(/<!-- GENERATED-SHA256: ([a-f0-9]+) -->\r?\n([\s\S]*?)<!-- GENERATED:END -->/);const bodyOk=generated&&crypto.createHash('sha256').update(generated[2]).digest('hex')===generated[1];if(!sourceOk||!bodyOk)errors.push('.spec/tasks/BOARD.md 已过期或被手工修改，请运行 node scripts/generate-board.cjs');}
