@@ -130,6 +130,7 @@
 - 轻量、低风险、验收明确的单点工作可不建卡。
 - 跨模块、跨会话、需求不确定或高影响工作必须建卡。
 - 归档保留完整任务资料，索引只留指针；归档默认不加载。
+- 活跃索引与归档索引双向登记；归档目录路径、任务数量及任务卡 `card.md` / `log.md` 必须一致且存在；里程碑归档必须保留 `milestone.md`。
 
 **验收**：
 - 索引与详情目录双向一致、ID 唯一、状态合法。
@@ -241,8 +242,8 @@
 | 1. 规范体系与目录架构 | in_progress | 模板职责、权威文件地图由 `tests/test-v2-spec.cjs` 覆盖；`tests/test-doc-links.cjs` 检查仓库 Markdown 中可识别的本地 inline 链接；仍需审查模板引用、引用式链接与锚点。 |
 | 2. Agent 多客户端兼容 | in_progress | `tests/test-client-adapters.cjs`（模板契约 + 初始化 fixture）；Codex override、Claude 导入深度、Cursor 嵌套规则语义有契约断言；CI run [42456349544](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42456349544) 通过；客户端 CLI 端到端未验证 |
 | 3. 记忆与上下文管理 | in_progress | `template/.memory/MEMORY.md` 定义断点、稳定事实、决策指针、待验证项和历史指针；断点仅在跟踪任务收口/跨会话暂停时更新，任务流水留在任务卡；`tests/test-v2-spec.cjs` 验证更新触发条件与模板路径存在。跨客户端实际恢复效果仍需独立验证。 |
-| 4. 任务、看板与路线图管理 | in_progress | `tests/test-parity.cjs` 覆盖任务状态、ID、归档和 BOARD 新鲜度；仍需以发布门槛逐项审查任务模型的可用性。 |
+| 4. 任务、看板与路线图管理 | in_progress | `tests/test-parity.cjs` 覆盖任务状态、ID、BOARD 新鲜度，以及任务波次/里程碑归档索引双向一致、目录指针、归档数量和详情文件完整性；Node/Python 输出保持一致。真实项目规模下的索引维护体验仍待评估。 |
 | 5. 工程治理与初始化机制 | in_progress | `tests/test-init.cjs` 覆盖初始化、Hook 保护、严格扫描与幂等性；`tests/test-migration-v2.cjs` 覆盖空项目 preview、已有多栈项目、自定义文件与 Hook 保护；迁移后的重复初始化幂等性待补。 |
-| 6. 自动化验证与质量门禁 | in_progress | Node/Python parity、客户端契约、迁移 fixture、Markdown 本地链接检查均接入 Ubuntu/Windows CI；真实 CLI 集成仍未覆盖。 |
+| 6. 自动化验证与质量门禁 | in_progress | Node/Python parity 覆盖任务归档/路线图归档异常夹具；客户端契约、迁移 fixture、Markdown 本地链接检查均接入 Ubuntu/Windows CI；真实 CLI 集成仍未覆盖。 |
 | 7. 长期演进与版本管理 | in_progress | CHANGELOG、1.2.x → 2.0 迁移指南与迁移 fixture 已存在；仍需在正式发布前完成迁移判据、回滚路径和版本支持矩阵的逐项验收。 |
 
