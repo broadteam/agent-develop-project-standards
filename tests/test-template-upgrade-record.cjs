@@ -49,11 +49,21 @@ function byPath(plan, file) {
   assert.ok(action, 'missing action for ' + file + '\n' + JSON.stringify(plan.actions, null, 2));
   return action;
 }
-function applyReviewedActions(project, standards, plan) {
+function applyReviewedActions(project, standards, plan, deferPaths = new Set()) {
   const decisions = [];
   for (const action of plan.actions.filter(item => item.requires_human_review)) {
     const target = path.join(project, action.path);
     const source = action.source ? path.join(standards, action.source) : null;
+    if (deferPaths.has(action.path)) {
+      decisions.push({
+        reviewer: 'baseline-record-maintainer',
+        reviewed_at: '2026-11-08T16:00:00.000Z',
+        path: action.path,
+        decision: 'defer',
+        reason: '本轮明确延期；文件和权限保持计划生成时的原状态。'
+      });
+      continue;
+    }
     let decision = action.approval;
     if (action.operation === 'replace_candidate' || action.operation === 'add_candidate' || action.operation === 'restore_candidate') {
       fs.mkdirSync(path.dirname(target), { recursive: true });
@@ -217,6 +227,88 @@ try {
     () => buildRecord({ projectRoot: project, standardsRoot: newer, plan, review }),
     /source_version/
   );
+
+  // Partial advancement: one explicitly deferred path keeps the overall version at the old release.
+  const partialProject = path.join(tmp, 'partial-project');
+  fs.mkdirSync(partialProject);
+  const partialInstall = init(partialProject);
+  assert.equal(partialInstall.status, 0, partialInstall.stdout + partialInstall.stderr);
+  const partialPlan = buildUpgradePlan({ projectRoot: partialProject, standardsRoot: newer });
+  assert.equal(byPath(partialPlan, addPath).operation, 'add_candidate');
+  const partialReview = applyReviewedActions(partialProject, newer, partialPlan, new Set([addPath]));
+  assert.ok(partialReview.decisions.some(item => item.path === addPath && item.decision === 'defer'));
+  const partialValidation = validateReview(partialPlan, partialReview);
+  assert.equal(partialValidation.valid, true, partialValidation.errors.join('\n'));
+
+  const partialPlanFile = path.join(tmp, 'partial-plan.json');
+  const partialReviewFile = path.join(tmp, 'partial-review.json');
+  writeJson(partialPlanFile, partialPlan);
+  writeJson(partialReviewFile, partialReview);
+  const partialRecord = spawnSync(process.execPath, [
+    path.join(root, 'tools/record-reviewed-template-upgrade.cjs'),
+    '--root', partialProject,
+    '--standards-root', newer,
+    '--plan', partialPlanFile,
+    '--review', partialReviewFile,
+    '--confirm-reviewed',
+    '--json'
+  ], { encoding: 'utf8' });
+  assert.equal(partialRecord.status, 0, partialRecord.stdout + partialRecord.stderr);
+  const partialOutput = JSON.parse(partialRecord.stdout);
+  assert.deepEqual(partialOutput.deferred_paths, [addPath]);
+  assert.equal(partialOutput.installed_with_version, fromVersion);
+
+  let partialManifest = readJson(path.join(partialProject, '.agent-standards.json'));
+  assert.equal(partialManifest.installed_with_version, fromVersion, 'overall version must not advance while a path is deferred');
+  assert.equal(partialManifest.last_upgrade.status, 'partial');
+  assert.ok(partialManifest.last_upgrade.deferred_paths.includes(addPath));
+  assert.ok(!partialManifest.managed_files[addPath], 'deferred addition must not enter the manifest');
+  const partialDrift = analyzeDrift({ projectRoot: partialProject, standardsRoot: newer });
+  assert.ok(partialDrift.findings.some(item => item.path === addPath && item.status === 'new_upstream_file'));
+
+  // Re-plan only the remaining change, apply it and complete the overall version transition.
+  const followupPlan = buildUpgradePlan({ projectRoot: partialProject, standardsRoot: newer });
+  assert.equal(followupPlan.source_version, fromVersion);
+  assert.equal(followupPlan.target_version, version.version);
+  assert.equal(byPath(followupPlan, addPath).operation, 'add_candidate');
+  const followupAction = byPath(followupPlan, addPath);
+  const followupTarget = path.join(partialProject, addPath);
+  fs.mkdirSync(path.dirname(followupTarget), { recursive: true });
+  fs.copyFileSync(path.join(newer, followupAction.source), followupTarget);
+  const followupReview = {
+    review_schema: 1,
+    plan_id: followupPlan.plan_id,
+    decisions: [{
+      reviewer: 'baseline-record-maintainer',
+      reviewed_at: '2026-11-08T16:10:00.000Z',
+      path: addPath,
+      decision: 'approve_add',
+      result_sha256: sha256File(followupTarget),
+      reason: '延期文件已经单独审查并应用，现确认登记。'
+    }]
+  };
+  assert.equal(validateReview(followupPlan, followupReview).valid, true);
+  const followupFile = path.join(tmp, 'followup-review.json');
+  const followupPlanFile = path.join(tmp, 'followup-plan.json');
+  writeJson(followupFile, followupReview);
+  writeJson(followupPlanFile, followupPlan);
+  const followupRecord = spawnSync(process.execPath, [
+    path.join(root, 'tools/record-reviewed-template-upgrade.cjs'),
+    '--root', partialProject,
+    '--standards-root', newer,
+    '--plan', followupPlanFile,
+    '--review', followupFile,
+    '--confirm-reviewed',
+    '--json'
+  ], { encoding: 'utf8' });
+  assert.equal(followupRecord.status, 0, followupRecord.stdout + followupRecord.stderr);
+  partialManifest = readJson(path.join(partialProject, '.agent-standards.json'));
+  assert.equal(partialManifest.installed_with_version, version.version);
+  assert.equal(partialManifest.last_upgrade.status, 'complete');
+  assert.deepEqual(partialManifest.last_upgrade.deferred_paths, []);
+  assert.ok(partialManifest.managed_files[addPath]);
+  const completedPartialDrift = analyzeDrift({ projectRoot: partialProject, standardsRoot: newer });
+  assert.equal(completedPartialDrift.ok, true, JSON.stringify(completedPartialDrift, null, 2));
 
   // Failure path: an approved output hash that no longer matches the project must not advance the manifest.
   const secondProject = path.join(tmp, 'tampered-project');
