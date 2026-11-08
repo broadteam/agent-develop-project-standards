@@ -70,6 +70,9 @@ node tools/record-reviewed-template-upgrade.cjs \
 
 登记器会校验 plan_id、review 完整性、来源版本、逐文件旧基线哈希、当前模板源哈希及审查记录中的实际结果哈希。它只写 `.agent-standards.json`，不应用模板文件；登记失败时原 manifest 保持不变。登记成功后必须重新执行漂移检查、治理检查、项目测试和构建。此工具不提供自动升级或自动回滚能力。
 
+升级可以分批完成。待审路径可在 review 中明确使用 `decision: "defer"`，附上 reviewer、reviewed_at 和 reason，不需要 result_sha256。登记器会验证延期路径仍保持计划生成时的文件存在状态、内容哈希和权限，并保留其原逐文件基线；任何内容或权限变化都会导致登记失败并要求重新生成计划。只要存在 defer 路径，整体 `installed_with_version` 保持来源版本，`last_upgrade.status` 记为 `partial`。维护者之后重新生成计划并处理剩余路径，全部完成时才将整体版本推进到目标版本。不得把 defer 当成忽略风险或绕过审批的方式。
+
+
 ## 不兼容变化登记
 
 2.0 迁移若改变以下任一内容，必须在正式发布说明中列出旧格式、新格式、自动化程度和回滚方式：
@@ -92,5 +95,6 @@ node tools/record-reviewed-template-upgrade.cjs \
 - [ ] 对上游与本地同时修改的文件形成逐项人工合并结论；漂移与升级预览工具不得自动覆盖。
 - [ ] 已生成并审查升级计划，记录 `plan_id` 及所有待审路径的 reviewer / reviewed_at / decision / reason。
 - [ ] 本次迁移没有把只读预览误当成升级已应用；手工应用后通过 `record-reviewed-template-upgrade.cjs` 推进已审批基线，并重新运行漂移/治理/项目测试。
+- [ ] 如采用分批迁移，所有延期路径均有明确 `defer` 决策且保持原快照；整体版本号在所有计划路径收口前不得前移。
 - [ ] 如果没有自动应用器或自动回滚器，必须明确记录其不存在。
 - [ ] 回滚路径可执行或明确标记为未验证；临时恢复演练必须覆盖工作树恢复和恢复后重新验证。
