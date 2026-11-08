@@ -1,3 +1,19 @@
+## 2.0.0-rc.14 - 2026-11-08
+
+### Added
+- Add `tools/record-reviewed-template-upgrade.cjs` to advance the installed baseline after a maintainer has manually applied and validated the approved upgrade changes.
+- Require plan/review binding, matching source version, unchanged baseline hashes, current template source hashes and result SHA-256 values before baseline advancement.
+- Advance only verified managed-file/managed-block entries, preserve accepted local customizations, record accepted upstream removals and update the overall installed version only after every plan item is resolved.
+- Write the manifest through a same-directory temporary file and atomic rename; a failed validation or write leaves the existing manifest unchanged.
+
+### Tests
+- Add `tests/test-template-upgrade-record.cjs` for replacement, new-file addition, local customization acceptance, manual merge, upstream removal, dry-run immutability, tampered-result rejection, post-record drift clearance and stale-plan replay rejection.
+- Add syntax and regression checks to the Ubuntu/Windows CI matrix.
+
+### Boundaries
+- The recorder updates manifest metadata only; it does not apply templates, perform automatic rollback, or replace project-specific tests/build validation.
+- Human-applied changes must still be backed up and validated before the explicit `--confirm-reviewed` step.
+
 ## 2.0.0-rc.13 - 2026-11-08
 
 ### Added
