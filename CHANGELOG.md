@@ -4,10 +4,11 @@
 - Add `tools/record-reviewed-template-upgrade.cjs` to advance the installed baseline after a maintainer has manually applied and validated the approved upgrade changes.
 - Require plan/review binding, matching source version, unchanged baseline hashes, current template source hashes and result SHA-256 values before baseline advancement.
 - Advance only verified managed-file/managed-block entries, preserve accepted local customizations, record accepted upstream removals and update the overall installed version only after every plan item is resolved.
+- Support explicit `defer` decisions for multi-batch upgrades: deferred files must still match the plan snapshot's existence, SHA-256 and mode; their per-file baseline is preserved and the overall installed version stays at the source release until a follow-up plan resolves every path.
 - Write the manifest through a same-directory temporary file and atomic rename; a failed validation or write leaves the existing manifest unchanged.
 
 ### Tests
-- Add `tests/test-template-upgrade-record.cjs` for replacement, new-file addition, local customization acceptance, manual merge, upstream removal, dry-run immutability, tampered-result rejection, post-record drift clearance and stale-plan replay rejection.
+- Add `tests/test-template-upgrade-record.cjs` for replacement, new-file addition, local customization acceptance, manual merge, upstream removal, dry-run immutability, tampered-result rejection, post-record drift clearance, stale-plan replay rejection and partial/deferred follow-up completion.
 - Add syntax and regression checks to the Ubuntu/Windows CI matrix.
 
 ### Boundaries
