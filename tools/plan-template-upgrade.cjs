@@ -43,6 +43,8 @@ function planAction(finding) {
       return { ...base, recommendation: 'no_change' };
     case 'accepted_customization':
       return { ...base, recommendation: 'preserve_reviewed_customization' };
+    case 'accepted_removed':
+      return { ...base, recommendation: 'preserve_reviewed_upstream_removal' };
     case 'update_available':
       return {
         ...base,
@@ -56,7 +58,9 @@ function planAction(finding) {
       return {
         ...base,
         recommendation: 'preserve_local_change',
-        reason: '当前上游未修改该文件；升级计划不需要动作，项目定制继续保留。'
+        requires_human_review: true,
+        approval: 'keep_project',
+        reason: '当前上游未修改该文件；升级时可保留项目定制，但必须明确确认并登记新的已审查基线。'
       };
     case 'conflict':
       return {
