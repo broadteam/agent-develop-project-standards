@@ -215,6 +215,123 @@ if capability_enabled("task_tracking"):
 if capability_enabled("roadmap"):
     consistency(layout.get("roadmap_index", ".spec/roadmap/INDEX.md"), layout.get("roadmap_dir", ".spec/roadmap"), "里程碑", "里程碑", ["未开始", "进行中", "已完成", "已放弃"], 3, layout.get("roadmap_ignore", ["archive", "assets"]))
 
+# Archived records are excluded from active scans, but their catalogs must
+# remain consistent and point to complete, safely-contained directories.
+def markdown_table(rel: str, section_heading: str | None = None) -> list[dict[str, str]]:
+    file = ROOT / rel
+    if not file.exists():
+        return []
+    lines = file.read_text(encoding="utf-8").splitlines()
+    start = 0
+    if section_heading:
+        start = next((i for i, line in enumerate(lines) if line.startswith("## ") and line[3:].startswith(section_heading)), -1)
+        if start < 0:
+            return []
+    header_at = -1
+    for i in range(start, len(lines)):
+        if lines[i].startswith("|"):
+            header_at = i
+            break
+        if section_heading and i > start and lines[i].startswith("## "):
+            break
+    if header_at < 0:
+        return []
+    headers = [cell.strip() for cell in lines[header_at].split("|")[1:-1]]
+    rows = []
+    for line in lines[header_at + 2:]:
+        if not line.startswith("|"):
+            break
+        cells = [cell.strip() for cell in line.split("|")[1:-1]]
+        if len(cells) != len(headers) or not cells[0] or cells[0] == "—":
+            continue
+        rows.append(dict(zip(headers, cells)))
+    return rows
+
+def archive_path_exists(rel: str, expected_file: str | None = None) -> bool:
+    if not rel or Path(rel).is_absolute():
+        return False
+    absolute = (ROOT / rel).resolve()
+    try:
+        absolute.relative_to(ROOT.resolve())
+    except ValueError:
+        return False
+    return absolute.exists() and (expected_file is None or (absolute / expected_file).is_file())
+
+def validate_task_archives() -> None:
+    active = markdown_table(layout.get("tasks_index", ".spec/tasks/index.md"), "已归档波次")
+    catalog = markdown_table(".spec/tasks/archive/INDEX.md")
+    active_by_id, catalog_by_id = {}, {}
+    for row in active:
+        wave_id = row.get("波次", "")
+        if wave_id in active_by_id:
+            errors.append(f"任务归档：活跃索引中波次 {wave_id} 重复")
+        active_by_id[wave_id] = row
+    for row in catalog:
+        wave_id = row.get("波次", "")
+        if wave_id in catalog_by_id:
+            errors.append(f"任务归档：归档索引中波次 {wave_id} 重复")
+        catalog_by_id[wave_id] = row
+    for wave_id, row in active_by_id.items():
+        archived = catalog_by_id.get(wave_id)
+        if archived is None:
+            errors.append(f"任务归档：波次 {wave_id} 未登记到 archive/INDEX.md")
+            continue
+        active_path = row.get("详情", "").removesuffix("/")
+        catalog_path = archived.get("目录", "").removesuffix("/")
+        if not catalog_path or active_path != catalog_path:
+            errors.append(f"任务归档：波次 {wave_id} 的目录指针不一致")
+        if not archive_path_exists(catalog_path):
+            errors.append(f"任务归档：波次 {wave_id} 的归档目录不存在或路径非法")
+            continue
+        directory = ROOT / catalog_path
+        task_dirs = sorted(entry.name for entry in os.scandir(directory) if is_dir(entry))
+        try:
+            declared = int(archived.get("任务数", ""))
+            active_count = int(row.get("卡数", ""))
+        except ValueError:
+            declared, active_count = -1, -1
+        if declared != len(task_dirs) or active_count != len(task_dirs):
+            errors.append(f"任务归档：波次 {wave_id} 任务数与目录内容不一致")
+        for task_id in task_dirs:
+            for filename in ("card.md", "log.md"):
+                if not (directory / task_id / filename).is_file():
+                    errors.append(f"任务归档：{wave_id}/{task_id}/ 缺少 {filename}")
+    for wave_id in catalog_by_id:
+        if wave_id not in active_by_id:
+            errors.append(f"任务归档：archive/INDEX.md 中波次 {wave_id} 未在任务索引登记")
+
+def validate_roadmap_archives() -> None:
+    active = markdown_table(layout.get("roadmap_index", ".spec/roadmap/INDEX.md"), "已归档里程碑")
+    catalog = markdown_table(".spec/roadmap/archive/INDEX.md")
+    active_by_id, catalog_by_id = {}, {}
+    for row in active:
+        milestone_id = row.get("ID", "")
+        if milestone_id in active_by_id:
+            errors.append(f"里程碑归档：索引中 ID {milestone_id} 重复")
+        active_by_id[milestone_id] = row
+    for row in catalog:
+        milestone_id = row.get("ID", "")
+        if milestone_id in catalog_by_id:
+            errors.append(f"里程碑归档：归档索引中 ID {milestone_id} 重复")
+        catalog_by_id[milestone_id] = row
+    for milestone_id, row in active_by_id.items():
+        archived = catalog_by_id.get(milestone_id)
+        if archived is None:
+            errors.append(f"里程碑归档：ID {milestone_id} 未登记到 archive/INDEX.md")
+            continue
+        if row.get("里程碑") != archived.get("里程碑"):
+            errors.append(f"里程碑归档：ID {milestone_id} 的名称不一致")
+        if not archive_path_exists(archived.get("目录", ""), "milestone.md"):
+            errors.append(f"里程碑归档：ID {milestone_id} 的目录或 milestone.md 不存在")
+    for milestone_id in catalog_by_id:
+        if milestone_id not in active_by_id:
+            errors.append(f"里程碑归档：archive/INDEX.md 中 ID {milestone_id} 未在路线图索引登记")
+
+if capability_enabled("task_tracking"):
+    validate_task_archives()
+if capability_enabled("roadmap"):
+    validate_roadmap_archives()
+
 # 6. Generated board freshness
 index_path = ROOT / layout.get("tasks_index", ".spec/tasks/index.md")
 board_path = ROOT / ".spec/tasks/BOARD.md"
