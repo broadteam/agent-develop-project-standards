@@ -13,7 +13,7 @@
 ## 当前 Git 状态
 
 - 工作分支：`feat/standards-v2.0-seven-pillars`，跟踪 `origin/feat/standards-v2.0-seven-pillars`。
-- 上次交接基线：`16bac051499371f7157505789f0116fa9bb536f3`；当前 HEAD 请以 GitHub 分支实时指针为准，避免交接文件因后续提交而过期。
+- 最新已完成代码验证基线：`4e45b10c2a26ee9f76ca0e4cde6d842c95dc6398`；Push [42492535487](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42492535487) 与 PR [42492540414](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42492540414) 的 Ubuntu / Windows jobs 均成功。当前 HEAD 始终以 PR #2 的实时指针为准。
 - 相关 PR：#2（Draft；不要合并）。
 
 ## 已完成
@@ -69,6 +69,20 @@
 - 最新已验证双平台 CI 对应 HEAD `c29a15560b30dd54c12ef799ad9a012d2e84feff`：Push [42485787979](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42485787979) 与 PR [42485793239](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42485793239) 均通过，Ubuntu / Windows jobs 全绿；包含父目录符号链接保护和托管区块读取路径修复。
 - 第七方向仍为 in_progress：跨版本真实迁移/回滚演练、支持矩阵与版本兼容策略仍需正式发布前验收。
 
+## 本轮模板升级预览与人工审批闭环
+
+- 用户确认按此前建议顺序继续：先做只读升级预览和逐文件候选动作，再建立人工审批校验；本轮未实现自动覆盖或自动合并。
+- 新增 `tools/plan-template-upgrade.cjs`：将漂移分类生成稳定 `plan_id`、源/目标版本、逐文件状态、哈希证据、候选动作、全局阻断项和人工审批契约。只读，不写入/删除/替换/合并项目文件。
+- 预览分类覆盖上游更新、本地定制、双向冲突、上游移除、本地缺失、新增通用模板、项目已安装的技术栈预设、旧项目未知基线和未登记同名文件。
+- 技术栈预设仅在项目安装清单中有登记时参与漂移/升级计划；未选择的 PHP/Java/Python 等预设不应被误报成每个项目都要安装的新增文件。临时 Java 项目 fixture 验证已安装的 Java 预设上游更新会成为替换候选。
+- 安装清单只保存哈希、不保存基线正文。发现冲突只代表项目与上游都相对基线改变；必须从升级前 Git 历史、完整备份或对应旧模板 checkout 恢复共同基线，再人工三方合并。审批记录必须保存 `baseline_ref` 与 `merge_result_ref`；找不到共同基线时不得声称已完成三方合并。
+- 新增 `tools/validate-template-upgrade-review.cjs`：只读校验人工审查 JSON 是否绑定同一个完整计划指纹、每个待审路径是否有且仅有一个合法决策、reviewer/reviewed_at/reason 是否齐全，以及 manual_merge 是否有基线/合并结果来源。审批校验通过不是签名、授权凭证，也不表示变更已应用。
+- `plan_id` 现在对整个计划内容做指纹，包括版本、阻断项、每项建议动作、人工确认要求、理由和哈希证据；修改计划内容后旧审查记录会失效。审批决策采用固定白名单，不信任计划文件自行扩展决策枚举。
+- 新增 `tests/test-template-upgrade-plan.cjs` 与 `tests/test-template-upgrade-review.cjs`，并纳入 `.github/workflows/standards-ci.yml`。覆盖零写入、稳定 plan id、通用模板与已安装技术栈预设、local/upstream/conflict/removal/missing/add/collision 分类、legacy baseline blocker、审批缺失/重复/错误、计划篡改与冲突基线来源。
+- README 与迁移指南已加入 plan 生成、审查 JSON、校验命令和人工恢复流程；SPEC 第七方向加入审批证据与边界；CHANGELOG 记录 2.0.0-rc.13。
+- 最新已验证代码 HEAD `4e45b10c2a26ee9f76ca0e4cde6d842c95dc6398` 的 Push [42492535487](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42492535487) 与 PR [42492540414](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42492540414) 均通过；日志明确显示 `test-template-drift`、`test-template-upgrade-plan`、`test-template-upgrade-review` 在 Ubuntu / Windows 均通过。
+- 当前仍无升级应用器和自动回滚器。下一阶段先用临时 fixture 演练“人工执行一小批已批准变更 → 治理/测试失败 → 从备份恢复 → 重新验证”的操作手册与测试证据；在这条流程可重复前，不开发自动应用器，也不对真实 SaaS 项目试点。
+- PR #2 继续保持 Draft / Open；没有合并，没有修改 `main`。
 ## 恢复工作的方法
 
 新会话先读取本文件、`SPEC-v2.0.md`、当前 `git status --short --branch` 和相关测试；不要把旧聊天摘要当作仓库事实。遇到客户端行为变更时，先核对该客户端的官方文档，再修改兼容性说明和契约测试。
