@@ -23,7 +23,19 @@ function planAction(finding) {
     recommendation: 'keep_current',
     requires_human_review: false,
     approval: null,
-    reason: finding.detail ?? null
+    reason: finding.detail ?? null,
+    evidence: {
+      baseline_version: finding.baseline_version ?? null,
+      current_version: finding.current_version ?? null,
+      upstream_changed: finding.upstream_changed ?? null,
+      local_changed: finding.local_changed ?? null,
+      baseline_template_sha256: finding.baseline_template_sha256 ?? null,
+      current_template_sha256: finding.current_template_sha256 ?? null,
+      baseline_installed_sha256: finding.baseline_installed_sha256 ?? null,
+      current_installed_sha256: finding.current_installed_sha256 ?? null,
+      baseline_installed_mode: finding.baseline_installed_mode ?? null,
+      current_installed_mode: finding.current_installed_mode ?? null
+    }
   };
   switch (finding.status) {
     case 'current':
@@ -43,10 +55,8 @@ function planAction(finding) {
     case 'local_customized':
       return {
         ...base,
-        recommendation: 'keep_project_customization',
-        requires_human_review: true,
-        approval: 'keep_project',
-        reason: '当前上游未修改该文件；保留项目版本，不从模板反向覆盖。'
+        recommendation: 'preserve_local_change',
+        reason: '当前上游未修改该文件；升级计划不需要动作，项目定制继续保留。'
       };
     case 'conflict':
       return {
@@ -206,6 +216,7 @@ function buildUpgradePlan({ projectRoot, standardsRoot }) {
       ...counts,
       human_review: actions.filter(action => action.requires_human_review).length
     },
+    preserved_paths: report.preserved_paths ?? [],
     actions,
     approval_contract: {
       required_fields: ['reviewer', 'reviewed_at', 'path', 'decision', 'reason'],
