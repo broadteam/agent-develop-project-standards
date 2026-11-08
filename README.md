@@ -333,7 +333,11 @@ node tools/record-reviewed-template-upgrade.cjs \
   --confirm-reviewed
 ```
 
-登记器不应用模板内容，只更新 `.agent-standards.json`。它会重新校验 plan_id、审批记录、来源版本、共同基线哈希、当前模板源哈希和每个结果的实际 SHA-256；仅推进已批准且已验证的路径。当前实现要求本次计划中的可处理条目全部收口后才推进整体 `installed_with_version`；上游删除必须确认文件已删除，或明确选择保留并登记实际结果哈希。失败时不会写入 manifest。
+登记器不应用模板内容，只更新 `.agent-standards.json`。它会重新校验 plan_id、审批记录、来源版本、共同基线哈希、当前模板源哈希和每个结果的实际 SHA-256；仅推进已批准且已验证的路径。失败时不会写入 manifest。
+
+一次升级可以分批完成。对暂不处理的待审路径，审查记录可以明确填写 `decision: "defer"`，并说明延期原因。登记器会确认该文件/区块仍与计划生成时的内容和权限完全一致，然后保留它原来的逐文件基线；延期路径不会被复制、删除或推进。只要存在延期路径，整体 `installed_with_version` 就保持来源版本。之后重新生成升级计划，只处理剩余路径；全部路径完成后才推进整体版本。若延期期间文件内容或权限发生变化，旧计划会失效，必须重新生成计划和审查记录。
+
+上游删除必须确认文件/托管区块确实已删除，或明确选择保留并登记实际结果哈希。登记完成后，重新运行漂移检查、治理检查、项目测试和构建。
 
 人工审查记录中的每条决策必须带 `result_sha256`（64 位小写 SHA-256）；`approve_removal` 除外，因为它要求目标确实不存在。三方合并还必须提供 `baseline_ref`、`merge_result_ref` 和合并后文件的 `result_sha256`。完成登记后，重新运行漂移检查、治理检查、项目测试和构建；登记成功不代表业务测试自动通过。
 
@@ -353,6 +357,7 @@ node tools/record-reviewed-template-upgrade.cjs \
       "path": ".spec/02-conventions.md",
       "decision": "manual_merge",
       "reason": "已比较项目定制与上游变化，完成手工合并。",
+      "result_sha256": "<合并后文件的64位小写SHA-256>",
       "baseline_ref": "git:<升级前提交>",
       "merge_result_ref": "git:<审查后的合并提交>"
     }
@@ -360,6 +365,7 @@ node tools/record-reviewed-template-upgrade.cjs \
 }
 ```
 
+`defer` 决策不需要 `result_sha256`，但必须有 reviewer、reviewed_at 和 reason；它只用于明确延期，不能作为忽略差异的通用选项。登记器会校验延期路径仍保持原快照，否则拒绝登记。
 
 升级前仍应在独立分支/备份副本中操作，并在变更后运行治理检查、项目测试和构建。
 
@@ -387,7 +393,9 @@ node tests/test-migration-v2.cjs
 node tests/test-template-drift.cjs
 node tests/test-template-upgrade-plan.cjs
 node tests/test-template-upgrade-review.cjs
+node tests/test-template-upgrade-recovery.cjs
+node tests/test-template-upgrade-record.cjs
 node tests/test-doc-links.cjs
 ```
 
-`test-init` 验证 PHP 项目探测、`.gitignore` 幂等合并以及已有 Hook 保护；`test-parity` 使用同一测试夹具验证 Node/Python 检查器的退出码和输出一致，并覆盖符号链接、非法状态、缺失日志、重复 ID、任务波次归档与 BOARD 过期检测；`test-migration-v2` 在临时项目中演练空项目 preview 和已有多栈项目的安全迁移；`test-template-drift` 验证安装基线与只读漂移检测；`test-template-upgrade-plan` 验证升级建议、人工确认契约和预览零写入；`test-template-upgrade-review` 验证审批记录与 plan ID 绑定、完整性、冲突基线来源和拒绝不完整决策；`test-doc-links` 验证所有仓库内 Markdown 相对链接。GitHub Actions 在 Ubuntu 与 Windows 的 Push 和 Pull Request 中执行这些检查。
+`test-init` 验证 PHP 项目探测、`.gitignore` 幂等合并以及已有 Hook 保护；`test-parity` 使用同一测试夹具验证 Node/Python 检查器的退出码和输出一致，并覆盖符号链接、非法状态、缺失日志、重复 ID、任务波次归档与 BOARD 过期检测；`test-migration-v2` 在临时项目中演练空项目 preview 和已有多栈项目的安全迁移；`test-template-drift` 验证安装基线与只读漂移检测；`test-template-upgrade-plan` 验证升级建议、人工确认契约和预览零写入；`test-template-upgrade-review` 验证审批记录与 plan ID 绑定、完整性、冲突基线来源和拒绝不完整决策；`test-template-upgrade-recovery` 验证失败后的完整备份恢复；`test-template-upgrade-record` 验证成功基线登记、结果哈希校验、分批 defer 与最终版本推进；`test-doc-links` 验证所有仓库内 Markdown 相对链接。GitHub Actions 在 Ubuntu 与 Windows 的 Push 和 Pull Request 中执行这些检查。
