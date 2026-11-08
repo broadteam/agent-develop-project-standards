@@ -110,6 +110,10 @@ function classifyFile(targetRoot, standardsRoot, targetPath, entry, currentVersi
     return { path: targetPath, source: entry.source, status: 'removed_both', local_changed: false, upstream_changed: false,
       baseline_version: entry.template_version ?? null, current_version: currentVersion };
   }
+  if (!source.exists && entry.upstream_removed_accepted === true) {
+    return { path: targetPath, source: entry.source, status: 'accepted_removed', local_changed: localChanged, upstream_changed: true,
+      baseline_version: entry.template_version ?? null, current_version: currentVersion };
+  }
   if (!source.exists) {
     return { path: targetPath, source: entry.source, status: 'upstream_removed', local_changed: localChanged, upstream_changed: true,
       baseline_version: entry.template_version ?? null, current_version: currentVersion };
@@ -162,6 +166,7 @@ function classifyManagedBlock(targetRoot, standardsRoot, targetPath, entry, curr
   const installed = extractManagedBlock(targetRoot, targetPath);
   if (source.unsafe || installed.unsafe) return { path: targetPath, source: entry.source, status: 'unsafe' };
   if (!source.exists && !installed.exists) return { path: targetPath, source: entry.source, status: 'removed_both' };
+  if (!source.exists && entry.upstream_removed_accepted === true) return { path: targetPath, source: entry.source, status: 'accepted_removed', local_changed: installed.hash !== entry.installed_sha256, upstream_changed: true };
   if (!source.exists) return { path: targetPath, source: entry.source, status: 'upstream_removed', local_changed: installed.hash !== entry.installed_sha256, upstream_changed: true };
   if (!installed.exists) return { path: targetPath, source: entry.source, status: 'local_missing', upstream_changed: source.hash !== entry.template_sha256, local_changed: true, current_template_sha256: source.hash, baseline_template_sha256: entry.template_sha256 };
   if (installed.malformed) return { path: targetPath, source: entry.source, status: 'managed_block_malformed' };
@@ -252,7 +257,7 @@ function analyzeDrift({ projectRoot, standardsRoot }) {
   }
   const baselineIncomplete = manifest.baseline_state !== 'complete';
   return {
-    ok: findings.every(item => item.status === 'current' || item.status === 'accepted_customization') && !baselineIncomplete,
+    ok: findings.every(item => item.status === 'current' || item.status === 'accepted_customization' || item.status === 'accepted_removed') && !baselineIncomplete,
     current_version: currentVersion,
     installed_with_version: manifest.installed_with_version ?? null,
     baseline_state: manifest.baseline_state ?? 'unknown',
@@ -267,6 +272,7 @@ function renderText(result) {
     current: '一致',
     removed_both: '上游与项目均已删除（无需动作）',
     accepted_customization: '已审查并接受的项目定制',
+    accepted_removed: '已审查并接受上游移除，项目文件按决定保留',
     update_available: '上游有更新',
     local_customized: '项目本地已修改',
     conflict: '双向冲突（必须人工合并）',
@@ -293,10 +299,10 @@ function renderText(result) {
   }
   if (result.baseline_incomplete) lines.push('警告：安装时存在未纳入基线的既有文件；这些文件必须人工核对。');
   for (const item of result.findings) {
-    if (item.status === 'current' || item.status === 'accepted_customization') continue;
+    if (item.status === 'current' || item.status === 'accepted_customization' || item.status === 'accepted_removed') continue;
     lines.push('- ' + item.path + ': ' + (labels[item.status] ?? item.status) + (item.detail ? '（' + item.detail + '）' : ''));
   }
-  lines.push('汇总：一致 ' + result.summary.current + '；已接受定制 ' + result.summary.accepted_customization + '；上游更新 ' + result.summary.update_available + '；本地修改 ' + result.summary.local_customized + '；双向冲突 ' + result.summary.conflict + '；其他 ' + result.summary.other);
+  lines.push('汇总：一致 ' + result.summary.current + '；已接受定制 ' + result.summary.accepted_customization + '；已接受移除 ' + result.summary.accepted_removed + '；上游更新 ' + result.summary.update_available + '；本地修改 ' + result.summary.local_customized + '；双向冲突 ' + result.summary.conflict + '；其他 ' + result.summary.other);
   lines.push(result.ok ? '结果：无漂移。' : '结果：存在差异；本工具只报告，不写入或合并文件。');
   return lines.join('\n');
 }
