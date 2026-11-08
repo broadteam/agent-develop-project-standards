@@ -47,6 +47,9 @@ try {
   for (const [rel, content] of before) assert.equal(fs.readFileSync(path.join(existing, rel), 'utf8'), content, `${rel} must not be overwritten without --force`);
   assert.ok(fs.existsSync(path.join(existing, 'GEMINI.md')), 'missing client pointers may be added safely');
   assert.ok(fs.existsSync(path.join(existing, 'project-profile.toml')));
+  const migrationManifest = JSON.parse(fs.readFileSync(path.join(existing, '.agent-standards.json'), 'utf8'));
+  assert.equal(migrationManifest.baseline_state, 'partial_unknown', 'pre-existing customized rules must not be assumed to match a clean template baseline');
+  assert.ok(migrationManifest.preserved_paths.includes('AGENTS.md'));
   const profile = fs.readFileSync(path.join(existing, 'project-profile.toml'), 'utf8');
   assert.match(profile, /status = "needs_review"/);
   assert.match(profile, /detected = \["python", "node"\]/);
