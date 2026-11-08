@@ -7,6 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { analyzeDrift } = require('../tools/check-template-drift.cjs');
+const { buildBaseline } = require('../tools/adopt-template-baseline.cjs');
 
 const root = path.resolve(__dirname, '..');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-template-drift-'));
@@ -65,6 +66,28 @@ try {
   fs.writeFileSync(gitignorePath, gitignoreText.slice(0, blockEnd) + '# project edit inside managed block\n' + gitignoreText.slice(blockEnd));
   const insideBlock = analyzeDrift({ projectRoot: gitignoreProject, standardsRoot: root });
   assert.ok(insideBlock.findings.some((item) => item.path === '.gitignore' && item.status === 'local_customized'));
+
+  // A symlinked parent directory must not cause the checker to read outside the project.
+  if (process.platform !== 'win32') {
+    const linkedProject = path.join(tmp, 'linked-parent');
+    fs.mkdirSync(linkedProject);
+    const linkedInstall = init(linkedProject);
+    assert.equal(linkedInstall.status, 0, linkedInstall.stdout + linkedInstall.stderr);
+    const outsideSpec = path.join(tmp, 'outside-spec');
+    fs.mkdirSync(outsideSpec);
+    fs.writeFileSync(path.join(outsideSpec, '02-conventions.md'), '# external file must not be trusted\n');
+    fs.renameSync(path.join(linkedProject, '.spec'), path.join(linkedProject, '.spec-real'));
+    fs.symlinkSync(outsideSpec, path.join(linkedProject, '.spec'), 'dir');
+    const linked = analyzeDrift({ projectRoot: linkedProject, standardsRoot: root });
+    assert.ok(linked.findings.some((item) => item.path === '.spec/02-conventions.md' && item.status === 'local_unsafe'));
+    assert.equal(fs.readFileSync(path.join(outsideSpec, '02-conventions.md'), 'utf8'), '# external file must not be trusted\n');
+
+    const legacyLinkedProject = path.join(tmp, 'legacy-linked-parent');
+    fs.mkdirSync(legacyLinkedProject);
+    fs.mkdirSync(path.join(legacyLinkedProject, '.memory'));
+    fs.symlinkSync(outsideSpec, path.join(legacyLinkedProject, '.spec'), 'dir');
+    assert.throws(() => buildBaseline({ projectRoot: legacyLinkedProject, standardsRoot: root }), /路径包含符号链接/);
+  }
 
   // On POSIX, changing executable mode is local drift even when bytes are unchanged.
   if (process.platform !== 'win32') {
