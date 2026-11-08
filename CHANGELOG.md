@@ -12,6 +12,15 @@
 - Add `UPGRADE-RECORD-TEMPLATE.md` as a reusable audit record for plan/review references, external backups, per-path decisions, deferred batches, baseline recording and recovery evidence.
 - Add syntax and regression checks to the Ubuntu/Windows CI matrix.
 
+### Integrity hardening (same installed template release)
+
+- Upgrade plans now use `plan_schema: 2` and bind a deterministic `source_inventory_sha256` over the complete `template/` and `presets/stacks/` source trees, including file paths, content hashes and source permissions. Any post-plan source addition, removal or change invalidates the old plan.
+- Human review records now use `review_schema: 2`; ordinary files require both `result_sha256` and `result_mode`. The recorder rejects a result whose bytes or permissions differ from the reviewed evidence.
+- Treat `.gitignore` as a rendered managed block rather than comparing the rendered block hash to the raw `.gitignore.append` source hash. Validate the source placeholder and fixed prefix/suffix, hash the actual managed block, and preserve project-owned rules outside the block.
+- Store the verified `source_inventory_sha256` in `last_upgrade` audit metadata.
+- Add regression coverage for stale source inventory, mismatched result modes, rendered `.gitignore` block upgrades, and preservation of external user rules.
+- Force UTF-8 mode for Python subprocess output in Windows CI to avoid locale-dependent `UnicodeEncodeError` failures.
+
 ### Boundaries
 - The recorder updates manifest metadata only; it does not apply templates, perform automatic rollback, or replace project-specific tests/build validation.
 - Human-applied changes must still be backed up and validated before the explicit `--confirm-reviewed` step.
