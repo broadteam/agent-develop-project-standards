@@ -65,7 +65,7 @@ function planAction(finding) {
         recommendation: 'manual_three_way_merge',
         requires_human_review: true,
         approval: 'manual_merge',
-        reason: '模板和项目相对共同基线均发生变化，必须人工比较三方内容并记录合并结论。'
+        reason: '模板和项目均相对基线发生变化。安装清单只保存基线哈希，没有保存基线正文；必须先从升级前 Git 历史、备份或旧模板 checkout 恢复共同基线，再进行三方人工合并。'
       };
     case 'upstream_removed':
       return {
@@ -211,6 +211,12 @@ function buildUpgradePlan({ projectRoot, standardsRoot }) {
     baseline_incomplete: baselineIncomplete,
     can_apply_automatically: false,
     human_review_required: reviewRequired,
+    baseline_recovery: {
+      manifest_stores_baseline_content: false,
+      conflicts_require_external_base: true,
+      recovery_sources: ['升级前项目 Git commit / 分支', '升级前完整备份', '与 installed_with_version 对应的旧模板 checkout'],
+      rule: '哈希只能证明内容是否变化，不能重建共同基线正文；无法恢复基线时不得声称完成三方合并。'
+    },
     global_blockers: globalBlockers,
     summary: {
       total_entries: actions.length,
@@ -221,6 +227,7 @@ function buildUpgradePlan({ projectRoot, standardsRoot }) {
     actions,
     approval_contract: {
       required_fields: ['reviewer', 'reviewed_at', 'path', 'decision', 'reason'],
+      additional_required_fields: { manual_merge: ['baseline_ref', 'merge_result_ref'] },
       allowed_decisions: [
         'approve_upstream',
         'keep_project',
@@ -233,7 +240,7 @@ function buildUpgradePlan({ projectRoot, standardsRoot }) {
         'classify_existing_file',
         'manual_review'
       ],
-      rule: '每个 requires_human_review=true 的条目必须有明确决策和理由；任何 blocked 项必须先修复并重新生成计划。当前版本仅生成预览，不读取审批文件、不执行任何动作。'
+      rule: '每个 requires_human_review=true 的条目必须有明确决策和理由；manual_merge 还必须记录共同基线来源 baseline_ref 与合并结果 merge_result_ref；任何 blocked 项必须先修复并重新生成计划。当前版本仅生成预览，不读取审批文件、不执行任何动作。'
     },
     next_steps: baselineMissing
       ? ['备份项目并人工比较现有规范', '按需使用 adopt-template-baseline.cjs --dry-run', '完成审查后才可显式采纳基线并重新生成计划']
@@ -242,7 +249,7 @@ function buildUpgradePlan({ projectRoot, standardsRoot }) {
         : globalBlockers.length
           ? ['先修复所有路径或元数据阻断项', '重新生成升级预览']
           : reviewRequired
-            ? ['逐项审查 actions 中的 source、目标路径和建议动作', '形成 reviewer/reason 决策记录', '完成审查后再设计独立的升级应用器']
+            ? ['逐项审查 actions 中的 source、目标路径和建议动作', '冲突项先恢复共同基线，再记录 baseline_ref 与 merge_result_ref', '形成 reviewer/reviewed_at/decision/reason 决策记录', '完成审查后再设计独立的升级应用器']
             : ['模板内容无待处理差异；仍应在目标项目验证当前构建、测试与治理检查'],
     guarantee: '本命令只读取项目和规范仓库，绝不写入、删除、覆盖、移动或合并文件。'
   };
