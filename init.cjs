@@ -62,7 +62,9 @@ try {
     || typeof previousManifest.managed_files !== 'object'
     || previousManifest.managed_files === null
     || Array.isArray(previousManifest.managed_files)
-    || !Array.isArray(previousManifest.preserved_paths)) {
+    || !Array.isArray(previousManifest.preserved_paths)
+    || (previousManifest.managed_blocks !== undefined && (typeof previousManifest.managed_blocks !== 'object' || previousManifest.managed_blocks === null || Array.isArray(previousManifest.managed_blocks)))
+    || (previousManifest.derived_paths !== undefined && !Array.isArray(previousManifest.derived_paths))) {
     throw new Error('不支持或损坏的 .agent-standards.json 格式；请先备份并人工检查，初始化未执行');
   }
 } catch (error) {
@@ -425,7 +427,7 @@ if (report.created.includes('gov.toml') || report.forced.includes('gov.toml')) {
   }
 }
 
-// Merge .gitignore entries independently and idempotently; do not use one sentinel as a proxy for all rules.
+// Merge .gitignore entries independently and idempotently; reject malformed managed markers.
 const ignoreSrc = path.join(TEMPLATE, '.gitignore.append');
 const ignoreDst = path.join(TARGET, '.gitignore');
 const START = '# >>> agent-project-standards (managed)';
@@ -433,25 +435,31 @@ const END = '# <<< agent-project-standards (managed)';
 if (fs.existsSync(ignoreSrc)) {
   const desired = fs.readFileSync(ignoreSrc, 'utf8').replace('{{IGNORE_ENTRIES}}', profile.ignore.join('\n')).trim();
   const current = fs.existsSync(ignoreDst) ? fs.readFileSync(ignoreDst, 'utf8') : '';
-  const block = `${START}\n${desired}\n${END}`;
-  const re = new RegExp(`${START.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}[\\s\\S]*?${END.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}`, 'm');
-  const next = re.test(current) ? current.replace(re, block) : `${current.trimEnd()}${current.trim() ? '\n\n' : ''}${block}\n`;
+  const startAt = current.indexOf(START);
+  const endAt = current.indexOf(END);
+  const duplicateStart = startAt >= 0 && current.indexOf(START, startAt + START.length) >= 0;
+  const duplicateEnd = endAt >= 0 && current.indexOf(END, endAt + END.length) >= 0;
+  if (duplicateStart || duplicateEnd || ((startAt >= 0) !== (endAt >= 0)) || (startAt >= 0 && endAt < startAt)) {
+    throw new Error('.gitignore 中 Agent Standards 托管区块标记损坏或重复；请先人工修复，未继续修改。');
+  }
+  const managedBlock = `${START}\n${desired}\n${END}`;
+  const next = startAt >= 0
+    ? current.slice(0, startAt) + managedBlock + current.slice(endAt + END.length)
+    : `${current.trimEnd()}${current.trim() ? '\n\n' : ''}${managedBlock}\n`;
   if (next !== current) {
     if (!DRY) writeTransactional(ignoreDst, next, 'utf8');
     report.created.push('.gitignore（合并托管区块）');
   } else report.skipped.push('.gitignore（托管区块已是最新）');
   if (!DRY) {
-    const startAt = next.indexOf(START);
-    const endAt = next.indexOf(END, startAt + START.length);
-    if (startAt >= 0 && endAt >= startAt) {
-      const managedRegion = next.slice(startAt, endAt + END.length);
-      managedBlocks['.gitignore'] = {
-        source: 'template/.gitignore.append',
-        template_sha256: sha256(fs.readFileSync(ignoreSrc)),
-        installed_sha256: sha256(managedRegion),
-        template_version: TEMPLATE_VERSION,
-      };
-    }
+    const blockStart = next.indexOf(START);
+    const blockEnd = next.indexOf(END, blockStart + START.length);
+    const managedRegion = next.slice(blockStart, blockEnd + END.length);
+    managedBlocks['.gitignore'] = {
+      source: 'template/.gitignore.append',
+      template_sha256: sha256(fs.readFileSync(ignoreSrc)),
+      installed_sha256: sha256(managedRegion),
+      template_version: TEMPLATE_VERSION,
+    };
   }
 }
 
