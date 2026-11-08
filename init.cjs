@@ -233,6 +233,7 @@ function writeTransactional(file, content, encoding = 'utf8') {
     : null;
   try {
     fs.writeFileSync(temp, content, encoding);
+    if (before.existed) fs.chmodSync(temp, before.mode);
     if (before.existed) fs.renameSync(file, backup);
     try { fs.renameSync(temp, file); }
     catch (error) {
@@ -240,6 +241,14 @@ function writeTransactional(file, content, encoding = 'utf8') {
       throw error;
     }
     transaction.files.push({ file, before, backup });
+    // Deterministic failure injection is available only to the repository's own
+    // tests; normal project initialization cannot activate this path.
+    if (process.env.NODE_ENV === 'test' && process.env.AGENT_STANDARDS_TEST_FAIL_AFTER_PATH) {
+      const rel = path.relative(TARGET, file).split(path.sep).join('/');
+      if (rel === process.env.AGENT_STANDARDS_TEST_FAIL_AFTER_PATH) {
+        throw new Error('测试故障注入：' + rel);
+      }
+    }
   } catch (error) {
     try { if (fs.existsSync(temp)) fs.unlinkSync(temp); } catch {}
     throw error;
