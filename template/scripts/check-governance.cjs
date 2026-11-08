@@ -93,10 +93,24 @@ function markdownTable(rel, sectionHeading = null) {
 }
 function archivePathExists(rel, baseRel, expectedFile) {
   if (typeof rel !== 'string' || !rel || path.isAbsolute(rel)) return false;
-  const absolute = path.resolve(ROOT, baseRel, rel);
-  const relative = path.relative(ROOT, absolute);
-  if (relative.startsWith('..') || path.isAbsolute(relative)) return false;
-  return fs.existsSync(absolute) && (!expectedFile || fs.existsSync(path.join(absolute, expectedFile)));
+  const base = path.resolve(ROOT, baseRel);
+  const archiveRoot = path.resolve(base, 'archive');
+  const absolute = path.resolve(base, rel);
+  const relative = path.relative(archiveRoot, absolute);
+  if (!relative || relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) return false;
+  try {
+    if (!fs.statSync(absolute).isDirectory()) return false;
+    return !expectedFile || fs.statSync(path.join(absolute, expectedFile)).isFile();
+  } catch { return false; }
+}
+function validateArchiveDirectories(baseRel, catalogById, label) {
+  const archiveRoot = path.resolve(ROOT, baseRel, 'archive');
+  if (!fs.existsSync(archiveRoot)) return;
+  for (const entry of fs.readdirSync(archiveRoot, { withFileTypes: true })) {
+    if (entry.isDirectory() && !catalogById.has(entry.name)) {
+      errors.push(`${label}：归档目录 ${entry.name} 未登记到 archive/INDEX.md`);
+    }
+  }
 }
 function validateTaskArchives() {
   const active = markdownTable(layout.tasks_index ?? '.spec/tasks/index.md', '已归档波次');
@@ -134,6 +148,7 @@ function validateTaskArchives() {
     }
   }
   for (const id of catalogById.keys()) if (!activeById.has(id)) errors.push(`任务归档：archive/INDEX.md 中波次 ${id} 未在任务索引登记`);
+  validateArchiveDirectories(layout.tasks_dir ?? '.spec/tasks', catalogById, '任务归档');
 }
 function validateRoadmapArchives() {
   const active = markdownTable(layout.roadmap_index ?? '.spec/roadmap/INDEX.md', '已归档里程碑');
@@ -156,6 +171,7 @@ function validateRoadmapArchives() {
     if (!archivePathExists(archived['目录'], layout.roadmap_dir ?? '.spec/roadmap', 'milestone.md')) errors.push(`里程碑归档：ID ${id} 的目录或 milestone.md 不存在`);
   }
   for (const id of catalogById.keys()) if (!activeById.has(id)) errors.push(`里程碑归档：archive/INDEX.md 中 ID ${id} 未在路线图索引登记`);
+  validateArchiveDirectories(layout.roadmap_dir ?? '.spec/roadmap', catalogById, '里程碑归档');
 }
 if (capabilityEnabled('task_tracking')) validateTaskArchives();
 if (capabilityEnabled('roadmap')) validateRoadmapArchives();
