@@ -13,7 +13,7 @@
 ## 当前 Git 状态
 
 - 工作分支：`feat/standards-v2.0-seven-pillars`，跟踪 `origin/feat/standards-v2.0-seven-pillars`。
-- 最新已完成代码验证基线：`4e45b10c2a26ee9f76ca0e4cde6d842c95dc6398`；Push [42492535487](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42492535487) 与 PR [42492540414](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42492540414) 的 Ubuntu / Windows jobs 均成功。当前 HEAD 始终以 PR #2 的实时指针为准。
+- 最新完整代码验证 HEAD：`02d4337d9e7b12416b0c2069b94aba6e85dd731a`；Push [42493895276](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42493895276) 与 PR [42493900304](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42493900304) 的 Ubuntu / Windows jobs 均成功，恢复演练测试两平台均通过。最近文档 HEAD `35fbfac7d23c3a5fb0bd199fe560ff088c8f7791` 的 Push [42493962678](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42493962678) 与 PR [42493967270](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42493967270) 也全部通过。当前 HEAD 始终以 PR #2 的实时指针为准。
 - 相关 PR：#2（Draft；不要合并）。
 
 ## 已完成
@@ -83,6 +83,23 @@
 - 最新已验证代码 HEAD `4e45b10c2a26ee9f76ca0e4cde6d842c95dc6398` 的 Push [42492535487](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42492535487) 与 PR [42492540414](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42492540414) 均通过；日志明确显示 `test-template-drift`、`test-template-upgrade-plan`、`test-template-upgrade-review` 在 Ubuntu / Windows 均通过。
 - 当前仍无升级应用器和自动回滚器。下一阶段先用临时 fixture 演练“人工执行一小批已批准变更 → 治理/测试失败 → 从备份恢复 → 重新验证”的操作手册与测试证据；在这条流程可重复前，不开发自动应用器，也不对真实 SaaS 项目试点。
 - PR #2 继续保持 Draft / Open；没有合并，没有修改 `main`。
+## 本轮人工升级失败恢复演练
+
+- 新增 `tests/test-template-upgrade-recovery.cjs`，仅创建系统临时目录中的一次性项目与规范 checkout，不访问真实 SaaS 项目。
+- 演练步骤：初始化临时项目并确认治理通过 → 制作项目外完整备份 → 对目标规范版本生成升级计划 → 对逐项待审决策生成 review JSON 并通过 `validate-template-upgrade-review.cjs` → 手工应用获批小批次（模板规则文件 + `policy/standards-version.json` 项目版本元数据） → 注入未登记根目录使治理检查失败 → 停止升级并恢复整个工作树 → 对比恢复前后文件、目录、符号链接和权限快照 → 重新运行治理检查、漂移检查和升级计划。
+- 恢复验收：恢复后对旧规范仓库的 drift 报告必须 `ok=true`；对目标新版本的升级计划 ID 必须与升级前完全一致，目标文件重新显示 `update_available`；失败注入目录必须不存在。
+- 该演练验证的是人工备份/恢复流程，不是自动升级应用器或自动回滚器；生产项目仍应优先用升级前 Git commit/独立 worktree，并在项目外保存第二份备份。恢复不完整或没有重新验证时必须标记 `unverified`。
+- CI 曾按测试日志发现两个真实假设问题：升级计划不只包含业务规则文件，也会包含项目内版本元数据更新；此外，审查决策应覆盖计划中所有待审项，而实际演练只应用已明确选定的小批次。当前 fixture 已修正为完整审核所有待审项，并手工应用两项替换候选。
+- 最新测试代码 HEAD `02d4337d9e7b12416b0c2069b94aba6e85dd731a` 的 Push [42493895276](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42493895276) 与 PR [42493900304](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42493900304) 全部成功。CI 日志确认 Ubuntu / Windows 的 `test-template-upgrade-recovery: all cases passed`，并且 plan/review/drift/migration 测试通过。
+- 最新文档 HEAD `35fbfac7d23c3a5fb0bd199fe560ff088c8f7791` 的 Push [42493962678](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42493962678) 与 PR [42493967270](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42493967270) 也全部成功；README、迁移指南、SPEC 与 CHANGELOG 已同步恢复演练内容及“审批校验不应用变更”的边界。
+- PR #2 保持 Draft / Open；未合并、未修改 `main`、未进行真实项目试点。
+
+## 下一步（按既定优先级）
+
+1. 完成对本轮迁移恢复演练文档与测试边界的最终检查；不开发自动应用器。
+2. 复核版本元数据是否应该作为项目内普通受管文件继续升级，还是改为仅在 `.agent-standards.json` 中记录；当前行为已测试并显式纳入审批，不要悄悄排除。
+3. 补充一份最小人工迁移记录样例，示范如何归档 plan JSON、review JSON、备份引用、失败日志和恢复验证结果。
+4. 然后再回到七大方向中未完成项，不开展真实 SaaS 项目试点。
 ## 恢复工作的方法
 
 新会话先读取本文件、`SPEC-v2.0.md`、当前 `git status --short --branch` 和相关测试；不要把旧聊天摘要当作仓库事实。遇到客户端行为变更时，先核对该客户端的官方文档，再修改兼容性说明和契约测试。
