@@ -4,6 +4,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
 const { spawnSync } = require('node:child_process');
 
 const TEMPLATE = path.join(__dirname, 'template');
@@ -35,6 +36,40 @@ if (!fs.existsSync(TARGET) || !fs.statSync(TARGET).isDirectory()) {
 if (!fs.existsSync(TEMPLATE)) {
   console.error(`找不到模板目录：${TEMPLATE}`);
   process.exit(1);
+}
+
+const VERSION_PATH = path.join(TEMPLATE, 'policy/standards-version.json');
+let templateVersionInfo;
+try {
+  templateVersionInfo = JSON.parse(fs.readFileSync(VERSION_PATH, 'utf8'));
+  if (templateVersionInfo.schema_version !== 1
+    || typeof templateVersionInfo.version !== 'string'
+    || !/^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$/.test(templateVersionInfo.version)) {
+    throw new Error('版本文件 schema 或 version 字段无效');
+  }
+} catch (error) {
+  console.error('[init] 无法读取模板版本：' + error.message);
+  process.exit(1);
+}
+const TEMPLATE_VERSION = templateVersionInfo.version;
+const manifestPath = path.join(TARGET, '.agent-standards.json');
+let previousManifest = null;
+try {
+  const stat = fs.lstatSync(manifestPath);
+  if (stat.isSymbolicLink() || !stat.isFile()) throw new Error('.agent-standards.json 必须是普通文件');
+  previousManifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  if (previousManifest.format_version !== 1
+    || typeof previousManifest.managed_files !== 'object'
+    || previousManifest.managed_files === null
+    || Array.isArray(previousManifest.managed_files)
+    || !Array.isArray(previousManifest.preserved_paths)) {
+    throw new Error('不支持或损坏的 .agent-standards.json 格式；请先备份并人工检查，初始化未执行');
+  }
+} catch (error) {
+  if (error.code !== 'ENOENT') {
+    console.error('[init] 无法读取安装基线：' + error.message);
+    process.exit(1);
+  }
 }
 
 const has = (f) => fs.existsSync(path.join(TARGET, f));
@@ -89,7 +124,7 @@ const cmdLines = Object.keys(scripts).filter(k => ['dev', 'start', 'build', 'tes
 const COMMANDS = cmdLines.length ? cmdLines.join('\n') : profile.cmds.join('\n');
 
 const TEMPLATE_DIRS = ['.memory', '.spec', '.tmp', '.githooks', 'scripts', 'policy'];
-const TEMPLATE_FILES = ['AGENTS.md', 'ROUTER.md', 'CLAUDE.md', 'GEMINI.md', 'gov.toml', 'project-profile.toml', '.gitattributes', '.gitignore'];
+const TEMPLATE_FILES = ['AGENTS.md', 'ROUTER.md', 'CLAUDE.md', 'GEMINI.md', 'gov.toml', 'project-profile.toml', '.gitattributes', '.gitignore', '.agent-standards.json'];
 const ALWAYS_SKIP = new Set(['.git', 'node_modules']);
 const entries = fs.readdirSync(TARGET, { withFileTypes: true });
 const existingDirs = entries.filter(e => e.isDirectory() && !ALWAYS_SKIP.has(e.name)).map(e => e.name);
@@ -158,6 +193,7 @@ function collectTemplateFiles(dir, rel = '') {
   return result;
 }
 const preflightPaths = collectTemplateFiles(TEMPLATE);
+preflightPaths.push('.agent-standards.json');
 for (const stack of [...new Set(STACKS.map((value) => value === 'electron' || value === 'node-web' ? 'node' : value))]) {
   if (capabilityResolution.capabilities.stack_rules?.status === 'disabled') break;
   const presetPath = path.join(__dirname, 'presets', 'stacks', stack + '.md');
@@ -194,6 +230,24 @@ function fill(s) {
 }
 
 const report = { created: [], skipped: [], forced: [], protected: [], warnings: [] };
+const managedFiles = { ...(previousManifest?.managed_files ?? {}) };
+const preservedPaths = new Set(previousManifest?.preserved_paths ?? []);
+const managedBlocks = { ...(previousManifest?.managed_blocks ?? {}) };
+const derivedPaths = new Set(previousManifest?.derived_paths ?? []);
+const sha256 = (value) => crypto.createHash('sha256').update(value).digest('hex');
+function trackManagedFile(targetPath, sourcePath, renderedContent) {
+  const sourceBytes = fs.readFileSync(sourcePath);
+  managedFiles[targetPath] = {
+    source: path.relative(__dirname, sourcePath).split(path.sep).join('/'),
+    template_sha256: sha256(sourceBytes),
+    installed_sha256: sha256(Buffer.isBuffer(renderedContent) ? renderedContent : Buffer.from(renderedContent, 'utf8')),
+    template_version: TEMPLATE_VERSION,
+  };
+  preservedPaths.delete(targetPath);
+}
+function trackPreservedPath(targetPath) {
+  if (!managedFiles[targetPath]) preservedPaths.add(targetPath);
+}
 const transaction = { files: [], directories: [], committed: false };
 let transactionSequence = 0;
 
@@ -310,9 +364,9 @@ function walk(dir, rel = '') {
     const exists = fs.existsSync(to);
     // A project-owned hook is protected even under --force unless explicitly opted in.
     if (relPath === '.githooks/pre-commit' && exists && !REPLACE_HOOK) {
-      report.protected.push(relPath); continue;
+      report.protected.push(relPath); trackPreservedPath(relPath); continue;
     }
-    if (exists && !FORCE) { report.skipped.push(relPath); continue; }
+    if (exists && !FORCE) { report.skipped.push(relPath); trackPreservedPath(relPath); continue; }
     if (!DRY) {
       ensureDirectoryTransactional(path.dirname(to));
       let content = fill(fs.readFileSync(from, 'utf8'));
@@ -327,6 +381,7 @@ function walk(dir, rel = '') {
         }
       }
       writeTransactional(to, content, 'utf8');
+      trackManagedFile(relPath, from, content);
     }
     (exists ? report.forced : report.created).push(relPath);
   }
@@ -343,8 +398,8 @@ for (const stack of presetMap) {
   const rel = `.spec/stacks/${stack}.md`;
   const to = path.join(TARGET, rel);
   const exists = fs.existsSync(to);
-  if (exists && !FORCE) { report.skipped.push(rel); continue; }
-  if (!DRY) { ensureDirectoryTransactional(path.dirname(to)); writeTransactional(to, fs.readFileSync(from, 'utf8'), 'utf8'); }
+  if (exists && !FORCE) { report.skipped.push(rel); trackPreservedPath(rel); continue; }
+  if (!DRY) { const content = fs.readFileSync(from, 'utf8'); ensureDirectoryTransactional(path.dirname(to)); writeTransactional(to, content, 'utf8'); trackManagedFile(rel, from, content); }
   (exists ? report.forced : report.created).push(rel);
 }
 
@@ -385,6 +440,25 @@ if (fs.existsSync(ignoreSrc)) {
     if (!DRY) writeTransactional(ignoreDst, next, 'utf8');
     report.created.push('.gitignore（合并托管区块）');
   } else report.skipped.push('.gitignore（托管区块已是最新）');
+  if (!DRY) {
+    const match = next.match(new RegExp(`${START.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\  if (next !== current) {
+    if (!DRY) writeTransactional(ignoreDst, next, 'utf8');
+    report.created.push('.gitignore（合并托管区块）');
+  } else report.skipped.push('.gitignore（托管区块已是最新）');
+')}[\\s\\S]*?${END.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\  if (next !== current) {
+    if (!DRY) writeTransactional(ignoreDst, next, 'utf8');
+    report.created.push('.gitignore（合并托管区块）');
+  } else report.skipped.push('.gitignore（托管区块已是最新）');
+')}`));
+    if (match) {
+      managedBlocks['.gitignore'] = {
+        source: 'template/.gitignore.append',
+        template_sha256: sha256(fs.readFileSync(ignoreSrc)),
+        installed_sha256: sha256(match[0]),
+        template_version: TEMPLATE_VERSION,
+      };
+    }
+  }
 }
 
 // Set executable bit only on a hook created/replaced by this run.
@@ -400,6 +474,7 @@ if (!DRY && capabilityResolution.capabilities.task_tracking?.status !== 'disable
   recordExternalWrite(path.join(TARGET, '.spec/tasks/BOARD.md'));
   const generated = spawnSync(process.execPath, [trustedGenerator, '--root', TARGET], { cwd: TARGET, encoding: 'utf8' });
   if (generated.status !== 0) throw new Error((generated.stderr || generated.stdout || 'BOARD 生成失败').trim());
+  derivedPaths.add('.spec/tasks/BOARD.md');
 }
 if (existingDirs.length) {
   report.warnings.push(STRICT_SCAN
@@ -407,6 +482,21 @@ if (existingDirs.length) {
     : `发现 ${existingDirs.length} 个既有根目录，兼容模式下已纳入白名单；请人工审查 gov.toml [dirs]。`);
 }
 if (STACKS.length > 1) report.warnings.push(`检测到多技术栈：${STACKS.join(', ')}。当前默认配置按 ${STACK} 生成，请人工确认 gov.toml [project]。`);
+if (!DRY) {
+  const preserved = [...preservedPaths].sort();
+  const manifest = {
+    format_version: 1,
+    installed_with_version: TEMPLATE_VERSION,
+    baseline_state: previousManifest
+      ? (previousManifest.baseline_state ?? 'partial_unknown')
+      : (preserved.length ? 'partial_unknown' : 'complete'),
+    managed_files: Object.fromEntries(Object.entries(managedFiles).sort(([a], [b]) => a.localeCompare(b))),
+    managed_blocks: managedBlocks,
+    preserved_paths: preserved,
+    derived_paths: [...derivedPaths].sort(),
+  };
+  writeTransactional(manifestPath, JSON.stringify(manifest, null, 2) + '\\n', 'utf8');
+}
 } catch (error) {
   const rollbackFailures = DRY ? [] : rollbackTransaction();
   console.error('[init] 初始化失败' + (DRY ? '' : '，已尝试回滚本次写入') + '：' + error.message);
