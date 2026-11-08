@@ -1,3 +1,18 @@
+## 2.0.0-rc.13 - 2026-11-08
+
+### Added
+- Add `tools/plan-template-upgrade.cjs`, a read-only planner that converts template drift findings into explicit per-file candidate actions.
+- Include a deterministic `plan_id`, source/target version labels, baseline and hash evidence, blockers, and a human approval contract.
+- Classify upstream-only changes, local-only edits, two-sided conflicts, upstream removals, missing local files, new template files, stack presets, legacy unknowns and untracked collisions.
+- Require review metadata for every proposed change; no file is written, replaced, removed or merged by the planner.
+
+### Tests
+- Add `tests/test-template-upgrade-plan.cjs` for stable plan identity, read-only behavior, per-file action classification, stack preset discovery, incomplete-baseline blockers and JSON CLI output.
+- Run the upgrade-plan tests and syntax check in the Ubuntu/Windows CI matrix.
+
+### Boundaries
+- This release adds preview and decision guidance only. An upgrade applier and automated rollback tool do not exist; approved changes still require a separately reviewed manual migration process.
+
 ## 2.0.0-rc.12 - 2026-11-08
 
 ### Added
