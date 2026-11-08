@@ -25,6 +25,7 @@ jobs:
       - name: Syntax checks
         run: |
           node --check init.cjs
+          node --check tools/check-template-drift.cjs
           node --check template/scripts/check-governance.cjs
           node --check template/scripts/profile-validator.cjs
           node --check template/scripts/capability-resolver.cjs
@@ -41,4 +42,5 @@ jobs:
           node tests/test-v2-spec.cjs
           node tests/test-client-adapters.cjs
           node tests/test-migration-v2.cjs
+          node tests/test-template-drift.cjs
           node tests/test-doc-links.cjs
