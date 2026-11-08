@@ -18,6 +18,21 @@ const root = path.resolve(__dirname, '..');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-template-upgrade-record-'));
 const sha256 = value => crypto.createHash('sha256').update(value).digest('hex');
 const sha256File = file => sha256(fs.readFileSync(file));
+const BLOCK_START = '# >>> agent-project-standards (managed)';
+const BLOCK_END = '# <<< agent-project-standards (managed)';
+function readManagedBlock(file) {
+  const text = fs.readFileSync(file, 'utf8');
+  const start = text.indexOf(BLOCK_START);
+  const end = text.indexOf(BLOCK_END);
+  assert.ok(start >= 0 && end > start, 'managed ignore block must be present');
+  return text.slice(start, end + BLOCK_END.length);
+}
+function managedBlockHash(file) {
+  return sha256(Buffer.from(readManagedBlock(file), 'utf8'));
+}
+function isManagedIgnoreAction(action) {
+  return action.path === '.gitignore' && action.source === 'template/.gitignore.append';
+}
 const init = project => spawnSync(process.execPath, [path.join(root, 'init.cjs'), project], { encoding: 'utf8' });
 
 function cloneStandards(destination) {
@@ -65,7 +80,21 @@ function applyReviewedActions(project, standards, plan, deferPaths = new Set()) 
       continue;
     }
     let decision = action.approval;
-    if (action.operation === 'replace_candidate' || action.operation === 'add_candidate' || action.operation === 'restore_candidate') {
+    if (isManagedIgnoreAction(action) && ['replace_candidate', 'add_candidate', 'restore_candidate'].includes(action.operation)) {
+      const fullText = fs.readFileSync(target, 'utf8');
+      const start = fullText.indexOf(BLOCK_START);
+      const end = fullText.indexOf(BLOCK_END, start + BLOCK_START.length);
+      assert.ok(start >= 0 && end > start, 'managed ignore block must be well-formed before replacement');
+      const oldBlock = fullText.slice(start, end + BLOCK_END.length);
+      const oldBody = oldBlock.slice(BLOCK_START.length + 1, oldBlock.length - BLOCK_END.length - 1);
+      const sourceText = fs.readFileSync(source, 'utf8');
+      const placeholder = '{{IGNORE_ENTRIES}}';
+      const position = sourceText.indexOf(placeholder);
+      assert.ok(position >= 0 && sourceText.indexOf(placeholder, position + placeholder.length) < 0);
+      const suffix = sourceText.slice(position + placeholder.length).replace(/\\s+$/, '');
+      const newBlock = `${BLOCK_START}\\n${oldBody}\\n${suffix}\\n${BLOCK_END}`;
+      fs.writeFileSync(target, fullText.slice(0, start) + newBlock + fullText.slice(end + BLOCK_END.length));
+    } else if (action.operation === 'replace_candidate' || action.operation === 'add_candidate' || action.operation === 'restore_candidate') {
       fs.mkdirSync(path.dirname(target), { recursive: true });
       fs.copyFileSync(source, target);
     } else if (action.operation === 'manual_merge') {
@@ -92,19 +121,12 @@ function applyReviewedActions(project, standards, plan, deferPaths = new Set()) 
         row.baseline_ref = 'git:before-upgrade';
         row.merge_result_ref = 'git:reviewed-manual-merge';
       }
-      if (action.operation === 'replace_candidate' || action.operation === 'add_candidate' || action.operation === 'restore_candidate') {
-        row.result_sha256 = sha256File(target);
-      } else if (action.operation === 'local_customized' || action.status === 'local_customized'
-        || action.operation === 'manual_merge' || action.operation === 'ownership_review'
-        || (action.operation === 'review_removal' && decision === 'keep_or_archive')) {
-        row.result_sha256 = sha256File(target);
-      } else {
-        row.result_sha256 = sha256File(target);
-      }
+      row.result_sha256 = isManagedIgnoreAction(action) ? managedBlockHash(target) : sha256File(target);
+      if (!isManagedIgnoreAction(action)) row.result_mode = fs.statSync(target).mode & 0o777;
     }
     decisions.push(row);
   }
-  return { review_schema: 1, plan_id: plan.plan_id, decisions };
+  return { review_schema: 2, plan_id: plan.plan_id, decisions };
 }
 
 try {
@@ -121,6 +143,17 @@ try {
   const fromVersion = version.version;
   version.version = '2.0.0-baseline-record-fixture';
   writeJson(versionPath, version);
+
+  // Change only the managed-block template suffix; retain project-owned rules outside the block.
+  const ignoreSource = path.join(newer, 'template/.gitignore.append');
+  const ignoreTemplate = fs.readFileSync(ignoreSource, 'utf8');
+  assert.ok(ignoreTemplate.includes('{{IGNORE_ENTRIES}}'));
+  fs.writeFileSync(ignoreSource, ignoreTemplate.replace(
+    '{{IGNORE_ENTRIES}}\\n',
+    '{{IGNORE_ENTRIES}}\\n# Reviewed managed-block footer\\n'
+  ));
+  const projectIgnore = path.join(project, '.gitignore');
+  fs.appendFileSync(projectIgnore, '\\n# Project-owned ignore rules\\nlocal-secrets/\\n');
 
   const localPath = '.spec/01-architecture.md';
   fs.appendFileSync(path.join(project, localPath), '\n## Local project-only customization\n');
@@ -147,6 +180,9 @@ try {
   assert.equal(byPath(plan, removePath).operation, 'review_removal');
   assert.equal(byPath(plan, addPath).operation, 'add_candidate');
   assert.equal(byPath(plan, 'policy/standards-version.json').operation, 'replace_candidate');
+  assert.equal(byPath(plan, '.gitignore').operation, 'replace_candidate');
+  assert.equal(plan.plan_schema, 2);
+  assert.match(plan.source_inventory_sha256, /^[a-f0-9]{64}$/);
 
   // Apply the human-reviewed file changes, then write a result-hash-bound review record.
   const review = applyReviewedActions(project, newer, plan);
@@ -170,6 +206,7 @@ try {
   assert.ok(preview.updated_paths.includes(conflictPath));
   assert.ok(preview.updated_paths.includes(addPath));
   assert.ok(preview.removed_paths.includes(removePath));
+  assert.ok(preview.updated_paths.includes('.gitignore'));
   assert.equal(fs.readFileSync(markerPath).equals(beforeRecord), true);
   assert.equal(JSON.stringify(snapshotTree(project)), beforeSnapshot, 'buildRecord preview must be read-only');
 
@@ -218,6 +255,8 @@ try {
   assert.equal(manifest.managed_files[conflictPath].installed_sha256, sha256File(path.join(project, conflictPath)));
   assert.ok(Object.values(manifest.managed_files).every(entry => entry.template_version === version.version));
   assert.ok(Object.values(manifest.managed_blocks).every(entry => entry.template_version === version.version));
+  assert.equal(manifest.managed_blocks['.gitignore'].template_version, version.version);
+  assert.ok(fs.readFileSync(projectIgnore, 'utf8').includes('# Project-owned ignore rules\\nlocal-secrets/'));
 
   const drift = analyzeDrift({ projectRoot: project, standardsRoot: newer });
   assert.equal(drift.ok, true, JSON.stringify(drift, null, 2));
@@ -278,7 +317,7 @@ try {
   assert.equal(byPath(followupPlan, updatePath).operation, 'replace_candidate');
   const followupActions = [addPath, updatePath].map(filePath => byPath(followupPlan, filePath));
   const followupReview = {
-    review_schema: 1,
+    review_schema: 2,
     plan_id: followupPlan.plan_id,
     decisions: followupActions.map(action => {
       const target = path.join(partialProject, action.path);
@@ -338,14 +377,17 @@ try {
     fs.copyFileSync(path.join(secondTarget, action.source), path.join(secondProject, action.path));
   }
   const secondReview = {
-    review_schema: 1,
+    review_schema: 2,
     plan_id: secondPlan.plan_id,
     decisions: secondPlan.actions.filter(action => action.requires_human_review).map(action => ({
       reviewer: 'maintainer',
       reviewed_at: '2026-11-08T16:05:00.000Z',
       path: action.path,
       decision: action.approval,
-      ...(action.decision === 'approve_removal' ? {} : { result_sha256: sha256File(path.join(secondProject, action.path)) }),
+      ...(action.decision === 'approve_removal' ? {} : {
+        result_sha256: sha256File(path.join(secondProject, action.path)),
+        result_mode: fs.statSync(path.join(secondProject, action.path)).mode & 0o777
+      }),
       reason: '已审查'
     }))
   };
