@@ -232,6 +232,7 @@ function buildRecord({ projectRoot, standardsRoot, plan, review }) {
   const updatedPaths = [];
   const removedPaths = [];
   const preservedPaths = [];
+  const deferredPaths = [];
   const manifestDraft = JSON.parse(JSON.stringify(manifest));
 
   for (const action of plan.actions) {
@@ -248,6 +249,20 @@ function buildRecord({ projectRoot, standardsRoot, plan, review }) {
     if (source.exists && action.evidence?.current_template_sha256
       && source.hash !== action.evidence.current_template_sha256) {
       throw new Error(action.path + '：模板源内容已变化，计划已过期');
+    }
+
+    if (decision?.decision === 'defer') {
+      const expectedHash = action.evidence?.current_installed_sha256 ?? null;
+      const expectedExists = expectedHash !== null;
+      if (actual.exists !== expectedExists || (actual.exists && actual.hash !== expectedHash)) {
+        throw new Error(action.path + '：defer 只允许保持计划生成时的原项目状态；目标文件已被修改或应用，请重新生成计划');
+      }
+      const expectedMode = action.evidence?.current_installed_mode;
+      if (actual.exists && expectedMode !== null && expectedMode !== undefined && actual.mode !== expectedMode) {
+        throw new Error(action.path + '：defer 期间文件权限发生变化，请重新生成计划');
+      }
+      deferredPaths.push(action.path);
+      continue;
     }
 
     if (action.operation === 'blocked' || action.operation === 'manual_review'
@@ -330,20 +345,25 @@ function buildRecord({ projectRoot, standardsRoot, plan, review }) {
   for (const item of manifestDraft.preserved_paths ?? []) {
     throw new Error('仍有历史保留路径未进入完整基线：' + item);
   }
-  const allEntries = [
-    ...Object.values(manifestDraft.managed_files),
-    ...Object.values(manifestDraft.managed_blocks)
+  const stalePaths = [
+    ...Object.entries(manifestDraft.managed_files)
+      .filter(([, entry]) => entry.template_version !== plan.target_version && entry.upstream_removed_accepted !== true)
+      .map(([filePath]) => filePath),
+    ...Object.entries(manifestDraft.managed_blocks)
+      .filter(([, entry]) => entry.template_version !== plan.target_version && entry.upstream_removed_accepted !== true)
+      .map(([filePath]) => filePath)
   ];
-  const staleEntries = allEntries.filter(entry =>
-    entry.template_version !== plan.target_version && entry.upstream_removed_accepted !== true
-  );
-  if (staleEntries.length) {
-    throw new Error('仍有未推进到目标版本的安装基线条目：' + staleEntries.length);
+  const deferredSet = new Set(deferredPaths);
+  const unexplainedStale = stalePaths.filter(filePath => !deferredSet.has(filePath));
+  if (unexplainedStale.length) {
+    throw new Error('存在未登记为 defer 的旧基线条目：' + unexplainedStale.join(', '));
   }
 
-  manifestDraft.installed_with_version = plan.target_version;
+  const isComplete = deferredPaths.length === 0;
+  manifestDraft.installed_with_version = isComplete ? plan.target_version : plan.source_version;
   manifestDraft.baseline_state = 'complete';
   manifestDraft.last_upgrade = {
+    status: isComplete ? 'complete' : 'partial',
     plan_id: plan.plan_id,
     from_version: plan.source_version,
     to_version: plan.target_version,
@@ -352,6 +372,7 @@ function buildRecord({ projectRoot, standardsRoot, plan, review }) {
     updated_paths: updatedPaths.sort(),
     removed_paths: removedPaths.sort(),
     preserved_upstream_removed_paths: preservedPaths.sort(),
+    deferred_paths: deferredPaths.sort(),
     decision_count: review.decisions.length
   };
 
@@ -365,6 +386,8 @@ function buildRecord({ projectRoot, standardsRoot, plan, review }) {
     updated_paths: updatedPaths.sort(),
     removed_paths: removedPaths.sort(),
     preserved_upstream_removed_paths: preservedPaths.sort(),
+    deferred_paths: deferredPaths.sort(),
+    installed_with_version: manifestDraft.installed_with_version,
     review_validation: validation
   };
 }
@@ -441,10 +464,14 @@ function main(argv) {
     updated_paths: result.updated_paths,
     removed_paths: result.removed_paths,
     preserved_upstream_removed_paths: result.preserved_upstream_removed_paths,
+    deferred_paths: result.deferred_paths,
+    installed_with_version: result.installed_with_version,
     manifest_written: !args.dryRun,
     next_step: args.dryRun
-      ? '预览通过；备份项目并确认已应用所有获批文件后，使用 --confirm-reviewed 推进 manifest。'
-      : '已推进安装基线；现在运行 check-template-drift.cjs 和项目治理/测试，确认无残余漂移。'
+      ? '预览通过；备份项目并确认实际文件结果后，使用 --confirm-reviewed 写入已验证基线。defer 路径保持旧基线。'
+      : result.deferred_paths.length
+        ? '已推进已批准路径；整体 installed_with_version 保持旧版本。重新生成升级计划，只处理 deferred_paths。'
+        : '全部计划路径已收口并推进整体安装版本；现在运行 check-template-drift.cjs 和项目治理/测试，确认无残余漂移。'
   };
   console.log(args.json ? JSON.stringify(output, null, 2) : [
     '已审查升级基线登记',
@@ -453,6 +480,8 @@ function main(argv) {
     '更新条目：' + result.updated_paths.length,
     '移除条目：' + result.removed_paths.length,
     '保留上游移除：' + result.preserved_upstream_removed_paths.length,
+    '延期路径：' + result.deferred_paths.length,
+    '整体安装版本：' + result.installed_with_version,
     'Manifest 写入：' + (args.dryRun ? '否（dry-run）' : '是'),
     output.next_step
   ].join('\n'));
