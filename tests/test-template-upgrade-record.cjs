@@ -148,7 +148,7 @@ try {
   const ignoreSource = path.join(newer, 'template/.gitignore.append');
   const ignoreTemplate = fs.readFileSync(ignoreSource, 'utf8');
   assert.ok(ignoreTemplate.includes('{{IGNORE_ENTRIES}}'));
-  fs.writeFileSync(ignoreSource, ignoreTemplate.replace('{{IGNORE_ENTRIES}}', '{{IGNORE_ENTRIES}}\n# Reviewed managed-block footer');
+  fs.writeFileSync(ignoreSource, ignoreTemplate.replace('{{IGNORE_ENTRIES}}', '{{IGNORE_ENTRIES}}\n# Reviewed managed-block footer'));
   const projectIgnore = path.join(project, '.gitignore');
   fs.appendFileSync(projectIgnore, '\n# Project-owned ignore rules\nlocal-secrets/\n');
 
