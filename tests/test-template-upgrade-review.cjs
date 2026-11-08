@@ -52,6 +52,7 @@ try {
       reviewed_at: '2026-11-08T15:00:00.000Z',
       path: action.path,
       decision: action.approval,
+      result_sha256: 'a'.repeat(64),
       reason: '已对照项目影响和模板变更完成审查。',
       ...(action.operation === 'manual_merge'
         ? { baseline_ref: 'project-git:pre-upgrade-commit', merge_result_ref: 'project-git:reviewed-merge-commit' }
