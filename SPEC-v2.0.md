@@ -77,10 +77,10 @@
 
 | 客户端 | 项目入口 | 加载方式与边界 |
 |---|---|---|
-| Codex | 根目录 `AGENTS.md` | 自动发现从仓库根到当前工作目录的层级规则；更深目录的规则后加载。嵌套规则属于客户端原生能力，不要求模板预生成。 |
-| Claude Code | `CLAUDE.md` | 使用 `@AGENTS.md` 导入唯一正文；Claude Code 也支持向上查找和按需发现子目录中的 `CLAUDE.md`。 |
-| Gemini CLI | `GEMINI.md` | 使用 `@./AGENTS.md` 导入唯一正文；默认上下文文件为 `GEMINI.md`，并支持层级发现。 |
-| Cursor | 根目录 `AGENTS.md` | 原生支持简单 Markdown 规则，但当前文档注明仅支持项目根目录，且不支持按路径分区；需要路径作用域时可另行评估 `.cursor/rules/*.mdc`，不得复制完整通用规则。 |
+| Codex | 根目录 `AGENTS.md` | 从仓库根到当前工作目录按层级加载；更深目录的指令追加在后，形成更具体的上下文。客户端还支持目录级覆盖文件；模板不预生成嵌套规则。 [官方说明](https://developers.openai.com/cookbook/examples/gpt-5/codex_prompting_guide) |
+| Claude Code | `CLAUDE.md` | 使用 `@AGENTS.md` 导入唯一正文；支持递归导入（最多 5 层），并从当前目录向上查找 `CLAUDE.md`，子目录规则在访问相关目录时按需加载。 [官方说明](https://docs.anthropic.com/en/docs/claude-code/memory) |
+| Gemini CLI | `GEMINI.md` | 使用 `@./AGENTS.md` 导入唯一正文；默认文件名为 `GEMINI.md`，支持配置多个上下文文件名，并从全局、项目祖先及子目录发现上下文。 [官方说明](https://geminicli.com/docs/cli/gemini-md/) |
+| Cursor | 根目录 `AGENTS.md` | 原生支持简单 Markdown 规则；官方文档当前说明仅支持项目根目录、不支持路径作用域或拆分多个文件。需要路径作用域时可另行评估 `.cursor/rules/*.mdc`，不得复制完整通用规则。 [官方说明](https://docs.cursor.com/context/rules-for-ai) |
 
 实现约束：
 
@@ -90,7 +90,7 @@
 - 客户端用户级规则、个人记忆和本地配置不由本模板管理；项目事实仍以仓库中的权威文件为准。
 - 客户端升级可能改变加载行为；支持矩阵应以官方文档和本仓库适配器回归测试为依据，未验证行为标记为待验证。
 
-官方依据（核对日期：2026-11-08）：Codex 的 AGENTS 层级加载说明、Claude Code memory/import 说明、Gemini CLI GEMINI.md/import 说明、Cursor Rules/AGENTS.md 说明。详见 README 的客户端适配参考链接。
+官方依据（核对日期：2026-11-08）：上表链接。客户端文档会随版本变化；本仓库的自动化测试只验证模板入口、导入指针和初始化结果，不启动各客户端 CLI，也不声称已完成真实客户端端到端集成验证。若要升级“文档核对”到“客户端集成支持”，必须另增可重复的 CLI fixture 验证，并记录客户端版本。
 
 ### 1.3 记忆与上下文管理
 
@@ -234,7 +234,7 @@
 | 方向 | 状态 | 证据 |
 |---|---|---|
 | 1. 规范体系与目录架构 | planned | 待审查模板与文档引用 |
-| 2. Agent 多客户端兼容 | in_progress | `tests/test-client-adapters.cjs`；官方加载语义核对；CI run 42451672424 通过 |
+| 2. Agent 多客户端兼容 | in_progress | `tests/test-client-adapters.cjs`（模板契约 + 初始化 fixture）；官方加载语义核对；CI run [42451736665](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42451736665) 通过；客户端 CLI 端到端未验证 |
 | 3. 记忆与上下文管理 | in_progress | v1.2 会话分级协议 |
 | 4. 任务、看板与路线图管理 | planned | 待状态模型与生成器审查 |
 | 5. 工程治理与初始化机制 | planned | 待初始化安全/幂等测试 |
