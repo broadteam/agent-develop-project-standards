@@ -236,11 +236,11 @@
 
 | 方向 | 状态 | 证据 |
 |---|---|---|
-| 1. 规范体系与目录架构 | planned | 待审查模板与文档引用 |
+| 1. 规范体系与目录架构 | in_progress | 模板职责、权威文件地图与 v2 文档契约由 `tests/test-v2-spec.cjs` 覆盖；仍需逐项核对发布前的全部文档链接与模板引用。 |
 | 2. Agent 多客户端兼容 | in_progress | `tests/test-client-adapters.cjs`（模板契约 + 初始化 fixture）；官方加载语义核对；CI run [42451736665](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42451736665) 通过；客户端 CLI 端到端未验证 |
 | 3. 记忆与上下文管理 | in_progress | v1.2 会话分级协议 |
-| 4. 任务、看板与路线图管理 | planned | 待状态模型与生成器审查 |
-| 5. 工程治理与初始化机制 | planned | 待初始化安全/幂等测试 |
+| 4. 任务、看板与路线图管理 | in_progress | `tests/test-parity.cjs` 覆盖任务状态、ID、归档和 BOARD 新鲜度；仍需以发布门槛逐项审查任务模型的可用性。 |
+| 5. 工程治理与初始化机制 | in_progress | `tests/test-init.cjs` 覆盖初始化、Hook 保护、严格扫描与幂等性；`tests/test-migration-v2.cjs` 覆盖空项目 preview 与已有多栈项目的安全迁移。 |
 | 6. 自动化验证与质量门禁 | in_progress | 已有 Node/Python parity 与 CI |
-| 7. 长期演进与版本管理 | planned | 本文件定义 2.0 验收边界 |
+| 7. 长期演进与版本管理 | in_progress | CHANGELOG、1.2.x → 2.0 迁移指南与迁移 fixture 已存在；仍需在正式发布前完成迁移判据、回滚路径和版本支持矩阵的逐项验收。 |
 

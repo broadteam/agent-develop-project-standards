@@ -14,6 +14,7 @@ const profile = fs.readFileSync(path.join(root, 'template/project-profile.toml')
 const capabilities = JSON.parse(fs.readFileSync(path.join(root, 'template/policy/capabilities.json'), 'utf8'));
 const pillars = ['规范体系与目录架构','Agent 多客户端兼容','记忆与上下文管理','任务、看板与路线图管理','工程治理与初始化机制','自动化验证与质量门禁','长期演进与版本管理'];
 for (const pillar of pillars) assert.ok(spec.includes(pillar), `missing pillar: ${pillar}`);
+assert.doesNotMatch(spec, /\| (?:1\. 规范体系与目录架构|4\. 任务、看板与路线图管理|5\. 工程治理与初始化机制|7\. 长期演进与版本管理) \| planned \|/, 'implemented pillars must report evidence rather than stale planned status');
 assert.match(spec, /2\.0 发布门槛/);
 assert.match(spec, /明确不做/);
 assert.match(spec, /不以真实 SaaS 项目作为 2\.0 验收前提/);
