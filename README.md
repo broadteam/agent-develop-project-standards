@@ -137,7 +137,8 @@ project-standards/
 │   ├── test-parity.cjs
 │   ├── test-template-drift.cjs
 │   ├── test-template-upgrade-plan.cjs
-│   └── test-template-upgrade-review.cjs
+│   ├── test-template-upgrade-review.cjs
+│   └── test-template-upgrade-recovery.cjs
 ├── .github/workflows/standards-ci.yml
 └── template/
     ├── AGENTS.md
@@ -300,6 +301,17 @@ node tools/validate-template-upgrade-review.cjs \
 ```
 
 审查记录使用 `review_schema: 1`、对应 `plan_id` 和 `decisions[]`；每条决策包含 `reviewer`、`reviewed_at`、`path`、`decision`、`reason`。三方合并另外必须提供 `baseline_ref` 与 `merge_result_ref`。校验器会拒绝计划 ID 不匹配、重复路径、缺少决策、错误决策和未解除的阻断项。校验通过只代表人工审查记录完整，不代表变更已经应用，也不是签名或授权凭证。
+
+### 升级失败恢复演练
+
+本仓库提供 `tests/test-template-upgrade-recovery.cjs`，只在系统临时目录创建项目 fixture。它演练一项获批文件替换、治理检查失败、从项目外完整备份恢复，以及恢复后重新验证治理状态和升级计划 ID。不会触碰真实业务项目。
+
+```bash
+node tests/test-template-upgrade-recovery.cjs
+```
+
+实际项目升级仍应使用独立 Git 分支/工作树并在项目目录外保存完整备份。失败后立即停止后续变更，恢复到升级前 commit 和工作树状态，再运行治理检查、项目测试/构建、漂移检查和升级计划；恢复结果必须与备份核对，不能只凭脚本返回码宣称恢复成功。
+
 
 最小审查记录示例（路径和决策必须逐项来自实际计划，不能照抄示例值）：
 
