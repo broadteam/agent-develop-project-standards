@@ -245,6 +245,7 @@ function trackManagedFile(targetPath, sourcePath, renderedContent) {
     source: path.relative(__dirname, sourcePath).split(path.sep).join('/'),
     template_sha256: sha256(sourceBytes),
     installed_sha256: sha256(Buffer.isBuffer(renderedContent) ? renderedContent : Buffer.from(renderedContent, 'utf8')),
+    installed_mode: fs.statSync(path.join(TARGET, targetPath)).mode & 0o777,
     template_version: TEMPLATE_VERSION,
   };
   preservedPaths.delete(targetPath);
@@ -471,6 +472,9 @@ if (fs.existsSync(ignoreSrc)) {
 const hook = path.join(TARGET, '.githooks', 'pre-commit');
 if (!DRY && fs.existsSync(hook) && (report.created.includes('.githooks/pre-commit') || report.forced.includes('.githooks/pre-commit'))) {
   try { chmodTransactional(hook, 0o755); } catch (error) { report.warnings.push('无法设置 pre-commit 可执行位，请在 Unix 环境执行 chmod +x .githooks/pre-commit（' + error.message + '）'); }
+}
+if (!DRY && managedFiles['.githooks/pre-commit'] && fs.existsSync(hook)) {
+  managedFiles['.githooks/pre-commit'].installed_mode = fs.statSync(hook).mode & 0o777;
 }
 if (!DRY && capabilityResolution.capabilities.task_tracking?.status !== 'disabled'
   && fs.existsSync(path.join(TARGET, '.spec/tasks/index.md'))) {
