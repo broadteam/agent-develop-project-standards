@@ -108,19 +108,30 @@ function classifyFile(targetRoot, standardsRoot, targetPath, entry, currentVersi
   const upstreamChanged = source.exists && source.hash !== baselineTemplate;
   if (!source.exists && !installed.exists) {
     return { path: targetPath, source: entry.source, status: 'removed_both', local_changed: false, upstream_changed: false,
+      baseline_template_sha256: baselineTemplate, current_template_sha256: null,
+      baseline_installed_sha256: baselineInstalled, current_installed_sha256: null,
+      baseline_installed_mode: entry.installed_mode ?? null, current_installed_mode: null,
       baseline_version: entry.template_version ?? null, current_version: currentVersion };
   }
   if (!source.exists && entry.upstream_removed_accepted === true) {
     return { path: targetPath, source: entry.source, status: 'accepted_removed', local_changed: localChanged, upstream_changed: true,
+      baseline_template_sha256: baselineTemplate, current_template_sha256: null,
+      baseline_installed_sha256: baselineInstalled, current_installed_sha256: installed.hash,
+      baseline_installed_mode: entry.installed_mode ?? null, current_installed_mode: installed.mode,
       baseline_version: entry.template_version ?? null, current_version: currentVersion };
   }
   if (!source.exists) {
     return { path: targetPath, source: entry.source, status: 'upstream_removed', local_changed: localChanged, upstream_changed: true,
+      baseline_template_sha256: baselineTemplate, current_template_sha256: null,
+      baseline_installed_sha256: baselineInstalled, current_installed_sha256: installed.hash,
+      baseline_installed_mode: entry.installed_mode ?? null, current_installed_mode: installed.mode,
       baseline_version: entry.template_version ?? null, current_version: currentVersion };
   }
   if (!installed.exists) return { path: targetPath, source: entry.source, status: 'local_missing',
     upstream_changed: upstreamChanged, local_changed: true,
     current_template_sha256: source.hash, baseline_template_sha256: baselineTemplate,
+    baseline_installed_sha256: baselineInstalled, current_installed_sha256: null,
+    baseline_installed_mode: entry.installed_mode ?? null, current_installed_mode: null,
     baseline_version: entry.template_version ?? null, current_version: currentVersion };
   const customizedAtBaseline = entry.customized_at_baseline === true;
   let status = 'current';
@@ -165,10 +176,10 @@ function classifyManagedBlock(targetRoot, standardsRoot, targetPath, entry, curr
   const source = regularFileHashWithin(standardsRoot, entry.source, '托管区块源路径');
   const installed = extractManagedBlock(targetRoot, targetPath);
   if (source.unsafe || installed.unsafe) return { path: targetPath, source: entry.source, status: 'unsafe' };
-  if (!source.exists && !installed.exists) return { path: targetPath, source: entry.source, status: 'removed_both' };
-  if (!source.exists && entry.upstream_removed_accepted === true) return { path: targetPath, source: entry.source, status: 'accepted_removed', local_changed: installed.hash !== entry.installed_sha256, upstream_changed: true };
-  if (!source.exists) return { path: targetPath, source: entry.source, status: 'upstream_removed', local_changed: installed.hash !== entry.installed_sha256, upstream_changed: true };
-  if (!installed.exists) return { path: targetPath, source: entry.source, status: 'local_missing', upstream_changed: source.hash !== entry.template_sha256, local_changed: true, current_template_sha256: source.hash, baseline_template_sha256: entry.template_sha256 };
+  if (!source.exists && !installed.exists) return { path: targetPath, source: entry.source, status: 'removed_both', baseline_template_sha256: entry.template_sha256, current_template_sha256: null, baseline_installed_sha256: entry.installed_sha256, current_installed_sha256: null };
+  if (!source.exists && entry.upstream_removed_accepted === true) return { path: targetPath, source: entry.source, status: 'accepted_removed', local_changed: installed.hash !== entry.installed_sha256, upstream_changed: true, baseline_template_sha256: entry.template_sha256, current_template_sha256: null, baseline_installed_sha256: entry.installed_sha256, current_installed_sha256: installed.hash };
+  if (!source.exists) return { path: targetPath, source: entry.source, status: 'upstream_removed', local_changed: installed.hash !== entry.installed_sha256, upstream_changed: true, baseline_template_sha256: entry.template_sha256, current_template_sha256: null, baseline_installed_sha256: entry.installed_sha256, current_installed_sha256: installed.hash };
+  if (!installed.exists) return { path: targetPath, source: entry.source, status: 'local_missing', upstream_changed: source.hash !== entry.template_sha256, local_changed: true, current_template_sha256: source.hash, baseline_template_sha256: entry.template_sha256, baseline_installed_sha256: entry.installed_sha256, current_installed_sha256: null };
   if (installed.malformed) return { path: targetPath, source: entry.source, status: 'managed_block_malformed' };
   const upstreamChanged = source.hash !== entry.template_sha256;
   const localChanged = installed.hash !== entry.installed_sha256;
