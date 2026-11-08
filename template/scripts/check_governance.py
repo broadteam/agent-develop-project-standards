@@ -276,8 +276,8 @@ def validate_task_archives() -> None:
         if archived is None:
             errors.append(f"任务归档：波次 {wave_id} 未登记到 archive/INDEX.md")
             continue
-        active_path = row.get("详情", "").removesuffix("/")
-        catalog_path = archived.get("目录", "").removesuffix("/")
+        active_path = row.get("详情", "").strip("`").removesuffix("/")
+        catalog_path = archived.get("目录", "").strip("`").removesuffix("/")
         if not catalog_path or active_path != catalog_path:
             errors.append(f"任务归档：波次 {wave_id} 的目录指针不一致")
         if not archive_path_exists(catalog_path, layout.get('tasks_dir', '.spec/tasks')):
