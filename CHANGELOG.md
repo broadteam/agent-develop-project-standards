@@ -1,3 +1,18 @@
+## 2.0.0-rc.11 - 2026-11-08
+
+### Fixed
+- Reject symlinks in managed target paths before writing, including `.gitignore` and nested template destinations.
+- Stop executing project-owned `scripts/generate-board.cjs`; invoke the bundled generator with an explicit target root instead.
+- Validate an existing BOARD managed region before any template mutation.
+- Validate initializer flags and require `--replace-hook` to be combined with `--force`.
+
+### Added
+- Add a lightweight write journal with same-directory temporary files, backups for overwritten files, and best-effort rollback on caught runtime failures.
+- Add tests for whole-tree dry-run immutability, symlink escape rejection, board preflight, untrusted generator non-execution, and rollback after deterministic failure injection.
+
+### Boundaries
+- Rollback covers caught runtime errors, not process termination, power loss, or filesystem corruption. Migration still requires a backup and dry-run review.
+
 ## 2.0.0-rc.10 - 2026-11-08
 
 ### Added
