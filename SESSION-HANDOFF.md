@@ -13,7 +13,7 @@
 ## 当前 Git 状态
 
 - 工作分支：`feat/standards-v2.0-seven-pillars`，跟踪 `origin/feat/standards-v2.0-seven-pillars`。
-- 最近完成提交：`16bac051499371f7157505789f0116fa9bb536f3`。
+- 上次交接基线：`16bac051499371f7157505789f0116fa9bb536f3`；当前 HEAD 请以 GitHub 分支实时指针为准，避免交接文件因后续提交而过期。
 - 相关 PR：#2（Draft；不要合并）。
 
 ## 已完成
@@ -28,12 +28,12 @@
 
 - 本机通过：`test-migration-v2`、`test-policy`、`test-task-context-resolver`、`test-client-adapters`、`test-v2-spec`。
 - 本机未安装可用 Python，因此没有将 `test-init`、`test-parity`、`test-capability-resolver` 记为本机通过。
-- CI 已在 Ubuntu 与 Windows 的 Python 3.11 环境完整通过（run [42456073209](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42456073209)）。
+- CI 已在 Ubuntu 与 Windows 的 Python 3.11 环境完整通过；最近核验 run [42456349544](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42456349544) 与 [42456344833](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42456344833) 均成功。
 
 ## 下一步（按优先级）
 
-1. 继续逐项审查七大方向，先补机器可验证缺口，再更新 `SPEC-v2.0.md` 的状态表。不要只因文档存在就把方向标记完成。
-2. 真实 Codex/Claude/Gemini/Cursor CLI 集成验证仍未完成，不能宣称支持已端到端验证；若要增加，必须记录每个客户端的版本与可重复 fixture。
+1. 复核迁移 fixture 的重复初始化幂等性，以及 `test-doc-links` 对 Markdown 链接语法的覆盖边界。\n2. 继续逐项审查七大方向，先补机器可验证缺口，再更新 `SPEC-v2.0.md` 的状态表。不要只因文档存在就把方向标记完成。
+3. 真实 Codex/Claude/Gemini/Cursor CLI 集成验证仍未完成，不能宣称支持已端到端验证；若要增加，必须记录每个客户端的版本与可重复 fixture。
 
 ## 恢复工作的方法
 
