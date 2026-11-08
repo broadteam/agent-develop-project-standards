@@ -132,7 +132,8 @@ project-standards/
 │   ├── adopt-template-baseline.cjs
 │   ├── plan-template-upgrade.cjs
 │   ├── validate-template-upgrade-review.cjs
-│   └── record-reviewed-template-upgrade.cjs
+│   ├── record-reviewed-template-upgrade.cjs
+│   └── template-source-inventory.cjs
 ├── tests/
 │   ├── test-init.cjs
 │   ├── test-parity.cjs
@@ -287,7 +288,7 @@ node tools/plan-template-upgrade.cjs --root /path/to/your-project
 node tools/plan-template-upgrade.cjs --root /path/to/your-project --json > /path/to/your-project/.tmp/upgrade-plan.json
 ```
 
-需要比较另一个规范仓库目录时，增加 `--standards-root /path/to/project-standards`。预览输出包含稳定的 `plan_id`、来源/目标版本、逐文件建议动作、哈希证据、阻断项以及人工审批字段。它覆盖通用模板文件，以及项目安装清单中实际登记的技术栈预设；未选择的语言预设不会被当成每个项目都必须安装的文件。
+需要比较另一个规范仓库目录时，增加 `--standards-root /path/to/project-standards`。预览使用 `plan_schema: 2`，包含稳定的 `plan_id`、来源/目标版本、逐文件建议动作、哈希证据、阻断项，以及 `source_inventory_sha256`（目标规范仓库中整个 `template/` 与 `presets/stacks/` 的确定性快照）。它覆盖通用模板文件，以及项目安装清单中实际登记的技术栈预设；未选择的语言预设不会被当成每个项目都必须安装的文件。
 
 计划将变化分为：可审查的上游替换候选、项目本地修改保留、双向冲突（三方人工合并）、上游移除审查、本地缺失恢复候选、上游新增文件候选、旧项目基线审查和未登记同名文件归属审查。任何删除、覆盖或合并都不会自动执行。
 
@@ -302,7 +303,7 @@ node tools/validate-template-upgrade-review.cjs \
   --json
 ```
 
-审查记录使用 `review_schema: 1`、对应 `plan_id` 和 `decisions[]`；每条决策包含 `reviewer`、`reviewed_at`、`path`、`decision`、`reason` 和实际结果 `result_sha256`（`approve_removal` 除外）。三方合并另外必须提供 `baseline_ref` 与 `merge_result_ref`。校验器会拒绝计划 ID 不匹配、重复路径、缺少决策、错误决策和未解除的阻断项。校验通过只代表人工审查记录完整，不代表变更已经应用，也不是签名或授权凭证。
+审查记录使用 `review_schema: 2`，必须绑定相同 `plan_id`；每条决策包含 `reviewer`、`reviewed_at`、`path`、`decision`、`reason` 和实际结果 `result_sha256`。普通文件还必须记录最终权限 `result_mode`（0..0o777）；`approve_removal` 与 `defer` 不需要结果哈希/权限。三方合并另外必须提供 `baseline_ref` 与 `merge_result_ref`。`.gitignore` 是特殊的渲染托管区块：`result_sha256` 只计算标记包围的实际区块，不计算整个 `.gitignore`；不记录 `result_mode`，区块外的项目自有忽略规则必须原样保留。校验器会拒绝计划 ID 不匹配、重复路径、缺少决策、错误决策和未解除的阻断项。校验通过只代表人工审查记录完整，不代表变更已经应用，也不是签名或授权凭证。
 
 ### 升级失败恢复演练
 
@@ -333,7 +334,7 @@ node tools/record-reviewed-template-upgrade.cjs \
   --confirm-reviewed
 ```
 
-登记器不应用模板内容，只更新 `.agent-standards.json`。它会重新校验 plan_id、审批记录、来源版本、共同基线哈希、当前模板源哈希和每个结果的实际 SHA-256；仅推进已批准且已验证的路径。失败时不会写入 manifest。
+登记器不应用模板内容，只更新 `.agent-standards.json`。它会重新校验 plan_id、审批记录、来源版本、共同基线哈希、完整 `source_inventory_sha256`、当前模板源哈希、普通文件的结果 SHA-256/权限，以及 `.gitignore` 托管区块的渲染骨架与结果 SHA-256；仅推进已批准且已验证的路径。完整源快照发现计划生成后新增/删除/修改的任意模板文件或技术栈预设时，会拒绝登记并要求重做计划。成功登记时把该快照摘要写入 `last_upgrade.source_inventory_sha256`。失败时不会写入 manifest。
 
 一次升级可以分批完成。对暂不处理的待审路径，审查记录可以明确填写 `decision: "defer"`，并说明延期原因。登记器会确认该文件/区块仍与计划生成时的内容和权限完全一致，然后保留它原来的逐文件基线；延期路径不会被复制、删除或推进。只要存在延期路径，整体 `installed_with_version` 就保持来源版本。之后重新生成升级计划，只处理剩余路径；全部路径完成后才推进整体版本。若延期期间文件内容或权限发生变化，旧计划会失效，必须重新生成计划和审查记录。
 
@@ -341,7 +342,7 @@ node tools/record-reviewed-template-upgrade.cjs \
 
 单次迁移的版本、plan/review 引用、备份、逐路径结果、延期项、基线登记和失败恢复证据，可按 [UPGRADE-RECORD-TEMPLATE.md](UPGRADE-RECORD-TEMPLATE.md) 归档。备份本身保存在项目目录之外；记录中只保存备份位置和校验引用。
 
-人工审查记录中的每条决策必须带 `result_sha256`（64 位小写 SHA-256）；`approve_removal` 除外，因为它要求目标确实不存在。三方合并还必须提供 `baseline_ref`、`merge_result_ref` 和合并后文件的 `result_sha256`。完成登记后，重新运行漂移检查、治理检查、项目测试和构建；登记成功不代表业务测试自动通过。
+人工审查记录采用 `review_schema: 2`。普通文件决策必须同时带 `result_sha256`（64 位小写 SHA-256）和 `result_mode`；`.gitignore` 只对渲染托管区块提供 `result_sha256`，不提供权限，因为文件本身由项目和模板共同管理。`approve_removal`、`defer` 不需要结果哈希/权限。三方合并还必须提供 `baseline_ref`、`merge_result_ref` 和合并后文件的 `result_sha256`。完成登记后，重新运行漂移检查、治理检查、项目测试和构建；登记成功不代表业务测试自动通过。
 
 当前仍没有自动升级应用器或自动回滚器。规则文件必须由维护者在独立分支/工作树中按审批手工执行；基线登记器只负责验证实际结果并更新元数据。不要手改 manifest，也不要用 `adopt-template-baseline.cjs` 代替升级登记；后者只用于旧项目首次建立历史基线。
 
@@ -350,7 +351,7 @@ node tools/record-reviewed-template-upgrade.cjs \
 
 ```json
 {
-  "review_schema": 1,
+  "review_schema": 2,
   "plan_id": "<从 upgrade-plan.json 复制>",
   "decisions": [
     {
@@ -360,6 +361,7 @@ node tools/record-reviewed-template-upgrade.cjs \
       "decision": "manual_merge",
       "reason": "已比较项目定制与上游变化，完成手工合并。",
       "result_sha256": "<合并后文件的64位小写SHA-256>",
+      "result_mode": 420,
       "baseline_ref": "git:<升级前提交>",
       "merge_result_ref": "git:<审查后的合并提交>"
     }
@@ -400,4 +402,4 @@ node tests/test-template-upgrade-record.cjs
 node tests/test-doc-links.cjs
 ```
 
-`test-init` 验证 PHP 项目探测、`.gitignore` 幂等合并以及已有 Hook 保护；`test-parity` 使用同一测试夹具验证 Node/Python 检查器的退出码和输出一致，并覆盖符号链接、非法状态、缺失日志、重复 ID、任务波次归档与 BOARD 过期检测；`test-migration-v2` 在临时项目中演练空项目 preview 和已有多栈项目的安全迁移；`test-template-drift` 验证安装基线与只读漂移检测；`test-template-upgrade-plan` 验证升级建议、人工确认契约和预览零写入；`test-template-upgrade-review` 验证审批记录与 plan ID 绑定、完整性、冲突基线来源和拒绝不完整决策；`test-template-upgrade-recovery` 验证失败后的完整备份恢复；`test-template-upgrade-record` 验证成功基线登记、结果哈希校验、分批 defer 与最终版本推进；`test-doc-links` 验证所有仓库内 Markdown 相对链接。GitHub Actions 在 Ubuntu 与 Windows 的 Push 和 Pull Request 中执行这些检查。
+`test-init` 验证 PHP 项目探测、`.gitignore` 幂等合并以及已有 Hook 保护；`test-parity` 使用同一测试夹具验证 Node/Python 检查器的退出码和输出一致，并覆盖符号链接、非法状态、缺失日志、重复 ID、任务波次归档与 BOARD 过期检测；`test-migration-v2` 在临时项目中演练空项目 preview 和已有多栈项目的安全迁移；`test-template-drift` 验证安装基线与只读漂移检测；`test-template-upgrade-plan` 验证升级建议、人工确认契约和预览零写入；`test-template-upgrade-review` 验证审批记录与 plan ID 绑定、完整性、冲突基线来源和拒绝不完整决策；`test-template-upgrade-recovery` 验证失败后的完整备份恢复；`test-template-upgrade-record` 验证成功基线登记、结果哈希/权限校验、完整模板源快照防过期、渲染 `.gitignore` 托管区块及区块外用户规则保留、分批 defer 与最终版本推进；`test-doc-links` 验证所有仓库内 Markdown 相对链接。GitHub Actions 在 Ubuntu 与 Windows 的 Push 和 Pull Request 中执行这些检查。
