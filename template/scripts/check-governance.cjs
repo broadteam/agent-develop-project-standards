@@ -73,7 +73,7 @@ function markdownTable(rel, sectionHeading = null) {
   const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/);
   let start = 0;
   if (sectionHeading) {
-    start = lines.findIndex(line => line.startsWith('## ') && line.replace(/^##\\s*/, '').startsWith(sectionHeading));
+    start = lines.findIndex(line => line.startsWith('## ') && line.slice(3).trimStart().startsWith(sectionHeading));
     if (start < 0) return [];
   }
   let headerAt = -1;
@@ -91,9 +91,9 @@ function markdownTable(rel, sectionHeading = null) {
   }
   return rows;
 }
-function archivePathExists(rel, expectedFile) {
+function archivePathExists(rel, baseRel, expectedFile) {
   if (typeof rel !== 'string' || !rel || path.isAbsolute(rel)) return false;
-  const absolute = path.resolve(ROOT, rel);
+  const absolute = path.resolve(ROOT, baseRel, rel);
   const relative = path.relative(ROOT, absolute);
   if (relative.startsWith('..') || path.isAbsolute(relative)) return false;
   return fs.existsSync(absolute) && (!expectedFile || fs.existsSync(path.join(absolute, expectedFile)));
@@ -120,8 +120,8 @@ function validateTaskArchives() {
     const activePath = activePathRaw.endsWith('/') ? activePathRaw.slice(0, -1) : activePathRaw;
     const catalogPath = catalogPathRaw.endsWith('/') ? catalogPathRaw.slice(0, -1) : catalogPathRaw;
     if (!catalogPath || activePath !== catalogPath) errors.push(`任务归档：波次 ${id} 的目录指针不一致`);
-    if (!archivePathExists(catalogPath)) { errors.push(`任务归档：波次 ${id} 的归档目录不存在或路径非法`); continue; }
-    const dir = path.join(ROOT, catalogPath);
+    if (!archivePathExists(catalogPath, layout.tasks_dir ?? '.spec/tasks')) { errors.push(`任务归档：波次 ${id} 的归档目录不存在或路径非法`); continue; }
+    const dir = path.resolve(ROOT, layout.tasks_dir ?? '.spec/tasks', catalogPath);
     const taskDirs = fs.readdirSync(dir, { withFileTypes: true }).filter(e => e.isDirectory()).map(e => e.name);
     const declared = Number(archived['任务数']);
     if (!Number.isInteger(declared) || declared !== taskDirs.length || Number(row['卡数']) !== taskDirs.length) {
@@ -153,7 +153,7 @@ function validateRoadmapArchives() {
     const archived = catalogById.get(id);
     if (!archived) { errors.push(`里程碑归档：ID ${id} 未登记到 archive/INDEX.md`); continue; }
     if (row['里程碑'] !== archived['里程碑']) errors.push(`里程碑归档：ID ${id} 的名称不一致`);
-    if (!archivePathExists(archived['目录'], 'milestone.md')) errors.push(`里程碑归档：ID ${id} 的目录或 milestone.md 不存在`);
+    if (!archivePathExists(archived['目录'], layout.roadmap_dir ?? '.spec/roadmap', 'milestone.md')) errors.push(`里程碑归档：ID ${id} 的目录或 milestone.md 不存在`);
   }
   for (const id of catalogById.keys()) if (!activeById.has(id)) errors.push(`里程碑归档：archive/INDEX.md 中 ID ${id} 未在路线图索引登记`);
 }
