@@ -303,7 +303,7 @@ node tools/validate-template-upgrade-review.cjs \
   --json
 ```
 
-审查记录使用 `review_schema: 2`，必须绑定相同 `plan_id`；每条决策包含 `reviewer`、`reviewed_at`、`path`、`decision`、`reason` 和实际结果 `result_sha256`。普通文件还必须记录最终权限 `result_mode`（0..0o777）；`approve_removal` 与 `defer` 不需要结果哈希/权限。三方合并另外必须提供 `baseline_ref` 与 `merge_result_ref`。`.gitignore` 是特殊的渲染托管区块：`result_sha256` 只计算标记包围的实际区块，不计算整个 `.gitignore`；不记录 `result_mode`，区块外的项目自有忽略规则必须原样保留。校验器会拒绝计划 ID 不匹配、重复路径、缺少决策、错误决策和未解除的阻断项。校验通过只代表人工审查记录完整，不代表变更已经应用，也不是签名或授权凭证。
+当前工具只接受 `plan_schema: 2` 与 `review_schema: 2`；旧 schema 1 的 plan/review 不兼容，必须重新生成，不要手工改 JSON 字段。审查记录使用 `review_schema: 2`，必须绑定相同 `plan_id`；每条决策包含 `reviewer`、`reviewed_at`、`path`、`decision`、`reason` 和实际结果 `result_sha256`。普通文件还必须记录最终权限 `result_mode`（0..0o777）；`approve_removal` 与 `defer` 不需要结果哈希/权限。三方合并另外必须提供 `baseline_ref` 与 `merge_result_ref`。`.gitignore` 是特殊的渲染托管区块：`result_sha256` 只计算标记包围的实际区块，不计算整个 `.gitignore`；不记录 `result_mode`，区块外的项目自有忽略规则必须原样保留。校验器会拒绝计划 ID 不匹配、重复路径、缺少决策、错误决策和未解除的阻断项。校验通过只代表人工审查记录完整，不代表变更已经应用，也不是签名或授权凭证。
 
 ### 升级失败恢复演练
 
