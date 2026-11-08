@@ -118,21 +118,24 @@ project-standards/
 ├── MIGRATION-v1.1.md
 ├── init.cjs
 ├── PROJECT-ADAPTATION-v2.0.md
-├── presets/stacks/          # 按检测到的技术栈选择性铺设
+├── presets/
+│   └── stacks/              # 按检测到的技术栈选择性铺设
+│       ├── php.md
+│       ├── java.md
+│       ├── node.md
+│       ├── python.md
+│       ├── go.md
+│       ├── rust.md
+│       └── dotnet.md
 ├── tools/
 │   ├── check-template-drift.cjs
 │   ├── adopt-template-baseline.cjs
 │   └── plan-template-upgrade.cjs
-│   ├── php.md
-│   ├── java.md
-│   ├── node.md
-│   ├── python.md
-│   ├── go.md
-│   ├── rust.md
-│   └── dotnet.md
 ├── tests/
 │   ├── test-init.cjs
-│   └── test-parity.cjs
+│   ├── test-parity.cjs
+│   ├── test-template-drift.cjs
+│   └── test-template-upgrade-plan.cjs
 ├── .github/workflows/standards-ci.yml
 └── template/
     ├── AGENTS.md
