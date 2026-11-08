@@ -216,16 +216,9 @@ function analyzeDrift({ projectRoot, standardsRoot }) {
   if (manifest.format_version !== 1 || !manifest.managed_files || typeof manifest.managed_files !== 'object'
     || Array.isArray(manifest.managed_files)) throw new Error(MARKER + ' 格式不受支持或已损坏');
   const currentVersion = readCurrentVersion(sourceRoot);
-  const templateRoot = path.join(sourceRoot, 'template');
+  // Only the template tree is globally applicable. Stack presets are optional:
+  // an unselected language preset must not be reported as missing/new for every project.
   const currentFiles = walkTemplateFiles(sourceRoot);
-  const presetEntries = readDirectoryWithin(sourceRoot, 'presets/stacks', '技术栈预设目录');
-  for (const entry of presetEntries ?? []) {
-    if (entry.isFile() && entry.name.endsWith('.md')) {
-      currentFiles.push({ target: '.spec/stacks/' + entry.name, source: 'presets/stacks/' + entry.name });
-    } else if (entry.isSymbolicLink() && entry.name.endsWith('.md')) {
-      currentFiles.push({ target: '.spec/stacks/' + entry.name, source: 'presets/stacks/' + entry.name, unsafe: true });
-    }
-  }
   const tracked = manifest.managed_files;
   const derived = new Set(manifest.derived_paths ?? []);
   const excluded = new Set(manifest.excluded_paths ?? []);
