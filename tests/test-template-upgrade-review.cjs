@@ -27,7 +27,7 @@ function buildFixture() {
   cloneStandards(newer);
   const versionPath = path.join(newer, 'template/policy/standards-version.json');
   const version = JSON.parse(fs.readFileSync(versionPath, 'utf8'));
-  version.version = '2.0.0-rc.14';
+  version.version = '2.0.0-rc.15';
   fs.writeFileSync(versionPath, JSON.stringify(version, null, 2) + '\n');
 
   const conflictPath = '.spec/02-conventions.md';
