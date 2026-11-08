@@ -58,7 +58,6 @@ function buildTemplateSourceInventory(standardsRoot) {
     throw new Error('规范仓库根目录必须是真实目录');
   }
   const entries = [];
-  walk(root, 'init.cjs', entries);
   walk(root, 'template', entries);
   walk(root, 'presets/stacks', entries);
   entries.sort((a, b) => a.path.localeCompare(b.path));
