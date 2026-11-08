@@ -113,6 +113,21 @@ try {
   assert.match(malformedBoardRun.stderr, /BOARD 预检失败/);
   assert.deepEqual(fs.readdirSync(malformedBoardProject), ['.spec'], 'BOARD preflight must fail before installing unrelated templates');
 
+  // If a later installation step fails, overwritten files and new artifacts must roll back.
+  const rollbackProject = path.join(tmp, 'rollback-project');
+  fs.mkdirSync(rollbackProject);
+  const originalAgents = '# Project-owned rules\nKeep this exact content.\n';
+  fs.writeFileSync(path.join(rollbackProject, 'AGENTS.md'), originalAgents);
+  const rollbackBefore = JSON.stringify(snapshotTree(rollbackProject));
+  const failedInstall = spawnSync(process.execPath, [path.join(root, 'init.cjs'), rollbackProject, '--force'], {
+    encoding: 'utf8',
+    env: { ...process.env, NODE_ENV: 'test', AGENT_STANDARDS_TEST_FAIL_AFTER_PATH: 'AGENTS.md' },
+  });
+  assert.equal(failedInstall.status, 1, failedInstall.stdout + failedInstall.stderr);
+  assert.match(failedInstall.stderr, /已尝试回滚本次写入/);
+  assert.match(failedInstall.stderr, /测试故障注入：AGENTS\\.md/);
+  assert.equal(JSON.stringify(snapshotTree(rollbackProject)), rollbackBefore, 'failed initialization must restore overwritten files and remove newly created artifacts');
+
   // A target-owned generator is user code: initialization must never execute it.
   const customGeneratorProject = path.join(tmp, 'custom-generator-project');
   fs.mkdirSync(path.join(customGeneratorProject, '.spec/tasks'), { recursive: true });
