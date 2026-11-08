@@ -108,17 +108,25 @@ try {
   assert.equal(approvedAction.approval, 'approve_upstream');
 
   const requiredActions = planBefore.actions.filter(action => action.requires_human_review);
-  assert.equal(requiredActions.length, 1, 'fixture should contain exactly one reviewable upgrade action');
+  const replacementActions = requiredActions.filter(action => action.operation === 'replace_candidate');
+  assert.deepEqual(replacementActions.map(action => action.path), [approvedPath],
+    'the fixture must have exactly one upstream replacement candidate: ' + JSON.stringify(requiredActions.map(action => ({ path: action.path, status: action.status, operation: action.operation, reason: action.reason }))));
+  assert.ok(requiredActions.length >= 1);
   const review = {
     review_schema: 1,
     plan_id: planBefore.plan_id,
-    decisions: [{
+    decisions: requiredActions.map(action => ({
       reviewer: 'recovery-fixture-maintainer',
       reviewed_at: '2026-11-08T15:30:00.000Z',
-      path: approvedPath,
-      decision: 'approve_upstream',
-      reason: '该通用登记说明仅有上游更新，已检查目标文件差异，批准在临时项目中演练。'
-    }]
+      path: action.path,
+      decision: action.approval,
+      reason: action.path === approvedPath
+        ? '该通用登记说明仅有上游更新，已检查目标文件差异，批准在临时项目中演练。'
+        : '该计划项已检查并按计划要求记录决策；本次恢复演练只实际执行登记说明文件的替换。',
+      ...(action.operation === 'manual_merge'
+        ? { baseline_ref: 'fixture:pre-upgrade-backup', merge_result_ref: 'fixture:reviewed-merge-not-applied' }
+        : {})
+    }))
   };
   const approval = validateReview(planBefore, review);
   assert.equal(approval.valid, true, approval.errors.join('\n'));
