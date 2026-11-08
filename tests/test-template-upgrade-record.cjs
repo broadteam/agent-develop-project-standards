@@ -329,6 +329,7 @@ try {
         path: action.path,
         decision: action.approval,
         result_sha256: sha256File(target),
+        result_mode: fs.statSync(target).mode & 0o777,
         reason: '延期路径已经单独审查并应用，现确认登记。'
       };
     })
@@ -402,6 +403,58 @@ try {
     /result_sha256 不匹配/
   );
   assert.equal(fs.readFileSync(path.join(secondProject, '.agent-standards.json')).equals(secondManifestBefore), true);
+
+  // A target source added after plan creation invalidates the complete source inventory.
+  const inventoryProject = path.join(tmp, 'inventory-stale-project');
+  const inventoryTarget = path.join(tmp, 'inventory-stale-target');
+  fs.mkdirSync(inventoryProject);
+  assert.equal(init(inventoryProject).status, 0);
+  cloneStandards(inventoryTarget);
+  const inventoryVersionFile = path.join(inventoryTarget, 'template/policy/standards-version.json');
+  const inventoryVersion = readJson(inventoryVersionFile);
+  inventoryVersion.version = '2.0.0-inventory-stale-fixture';
+  writeJson(inventoryVersionFile, inventoryVersion);
+  const inventoryChangedPath = '.spec/REGISTRY.md';
+  fs.appendFileSync(path.join(inventoryTarget, 'template', inventoryChangedPath), '\n## Reviewed registry change\n');
+  const inventoryPlan = buildUpgradePlan({ projectRoot: inventoryProject, standardsRoot: inventoryTarget });
+  const inventoryReview = applyReviewedActions(inventoryProject, inventoryTarget, inventoryPlan);
+  assert.equal(validateReview(inventoryPlan, inventoryReview).valid, true);
+  const inventoryManifestBefore = fs.readFileSync(path.join(inventoryProject, '.agent-standards.json'));
+  fs.appendFileSync(path.join(inventoryTarget, 'template/.spec/00-constitution.md'), '\n## Unplanned source change\n');
+  assert.throws(
+    () => buildRecord({ projectRoot: inventoryProject, standardsRoot: inventoryTarget, plan: inventoryPlan, review: inventoryReview }),
+    /模板源快照已变化/
+  );
+  assert.equal(
+    fs.readFileSync(path.join(inventoryProject, '.agent-standards.json')).equals(inventoryManifestBefore),
+    true,
+    'a source inventory mismatch must not advance the manifest'
+  );
+
+  // A reviewed file mode is evidence: a tampered result_mode must not advance the baseline.
+  const modeProject = path.join(tmp, 'mode-mismatch-project');
+  const modeTarget = path.join(tmp, 'mode-mismatch-target');
+  fs.mkdirSync(modeProject);
+  assert.equal(init(modeProject).status, 0);
+  cloneStandards(modeTarget);
+  const modeVersionFile = path.join(modeTarget, 'template/policy/standards-version.json');
+  const modeVersion = readJson(modeVersionFile);
+  modeVersion.version = '2.0.0-mode-fixture';
+  writeJson(modeVersionFile, modeVersion);
+  const modeChangedPath = '.spec/REGISTRY.md';
+  fs.appendFileSync(path.join(modeTarget, 'template', modeChangedPath), '\n## Mode fixture change\n');
+  const modePlan = buildUpgradePlan({ projectRoot: modeProject, standardsRoot: modeTarget });
+  const modeReview = applyReviewedActions(modeProject, modeTarget, modePlan);
+  const modeDecision = modeReview.decisions.find(item => item.path === modeChangedPath);
+  assert.ok(modeDecision);
+  modeDecision.result_mode = modeDecision.result_mode === 0o644 ? 0o600 : 0o644;
+  assert.equal(validateReview(modePlan, modeReview).valid, true, 'a different but well-formed mode remains structurally valid for content-stage verification');
+  const modeManifestBefore = fs.readFileSync(path.join(modeProject, '.agent-standards.json'));
+  assert.throws(
+    () => buildRecord({ projectRoot: modeProject, standardsRoot: modeTarget, plan: modePlan, review: modeReview }),
+    /result_mode 不匹配/
+  );
+  assert.equal(fs.readFileSync(path.join(modeProject, '.agent-standards.json')).equals(modeManifestBefore), true);
 
   console.log('test-template-upgrade-record: all cases passed');
 } finally {
