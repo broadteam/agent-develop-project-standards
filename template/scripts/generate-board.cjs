@@ -4,7 +4,10 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const root = path.resolve(__dirname, '..');
+const args = process.argv.slice(2);
+const rootAt = args.indexOf('--root');
+if (rootAt >= 0 && !args[rootAt + 1]) { console.error('--root 缺少目标目录'); process.exit(2); }
+const root = rootAt >= 0 ? path.resolve(args[rootAt + 1]) : path.resolve(__dirname, '..');
 const indexPath = path.join(root, '.spec/tasks/index.md');
 const boardPath = path.join(root, '.spec/tasks/BOARD.md');
 if (!fs.existsSync(indexPath)) { console.error('缺少 .spec/tasks/index.md'); process.exit(1); }
