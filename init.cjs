@@ -44,7 +44,7 @@ try {
   templateVersionInfo = JSON.parse(fs.readFileSync(VERSION_PATH, 'utf8'));
   if (templateVersionInfo.schema_version !== 1
     || typeof templateVersionInfo.version !== 'string'
-    || !/^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$/.test(templateVersionInfo.version)) {
+    || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(templateVersionInfo.version)) {
     throw new Error('版本文件 schema 或 version 字段无效');
   }
 } catch (error) {
