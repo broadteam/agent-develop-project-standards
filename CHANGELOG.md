@@ -1,3 +1,12 @@
+## 2.0.0-rc.8 - 2026-11-08
+
+### Added
+- Add a migration-fixture regression suite for empty and pre-existing multi-stack projects, including dry-run safety, custom rule and Hook preservation, generated-profile review state, and post-migration governance validation.
+- Run the complete regression suite on Ubuntu and Windows in CI.
+
+### Changed
+- Define the boundary for client global/project/local rule conflicts: repository facts stay authoritative, while actual client-specific loading behavior is not inferred by this template; Codex directory overrides require explicit review because they replace ordinary rules.
+
 ## 2.0.0-rc.7 - 2026-11-08
 
 ### Fixed

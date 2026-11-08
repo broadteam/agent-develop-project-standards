@@ -9,7 +9,11 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -36,3 +40,4 @@ jobs:
           node tests/test-policy.cjs
           node tests/test-v2-spec.cjs
           node tests/test-client-adapters.cjs
+          node tests/test-migration-v2.cjs

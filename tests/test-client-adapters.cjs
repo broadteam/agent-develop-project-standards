@@ -35,6 +35,8 @@ assert.ok(spec.includes('Claude Code') && spec.includes('最多四跳'), 'Claude
 assert.ok(spec.includes('Cursor') && spec.includes('根目录及子目录') && spec.includes('后者优先'), 'Cursor nested AGENTS semantics must be documented');
 assert.ok(!spec.includes('仅支持项目根目录') && !spec.includes('最多 5 层'), 'superseded client-loading claims must not remain in the specification');
 assert.ok(readme.includes('根目录及子目录 `AGENTS.md`') && !readme.includes('当前仅根级、无路径作用域'), 'README must agree with the client compatibility matrix');
+assert.ok(spec.includes('客户端实际加载结果为准'), 'cross-client global/project/local precedence must not be inferred');
+assert.ok(spec.includes('替代而非补充普通 `AGENTS.md`'), 'Codex override must be treated as a replacement in conflict guidance');
 assert.ok(spec.includes('Gemini CLI') && spec.includes('@./AGENTS.md'));
 assert.ok(spec.includes('Claude Code') && spec.includes('@AGENTS.md'));
 assert.ok(spec.includes('Codex') && spec.includes('仓库根到当前工作目录'));
