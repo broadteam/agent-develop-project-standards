@@ -68,7 +68,7 @@ try {
   const updatePath = '.spec/REGISTRY.md';
   fs.appendFileSync(path.join(newerStandards, 'template', updatePath), '\n## Upstream registry note\n');
 
-  // Project-only change: keep project content; no template update action is necessary.
+  // Project-only change: keep project content; explicit review is needed before accepting it as the next baseline.
   const localPath = '.spec/01-architecture.md';
   fs.appendFileSync(path.join(project, localPath), '\n## Local architecture note\n');
 
@@ -127,7 +127,8 @@ try {
   assert.equal(byPath(plan, updatePath).operation, 'replace_candidate');
   assert.equal(byPath(plan, updatePath).approval, 'approve_upstream');
   assert.equal(byPath(plan, localPath).recommendation, 'preserve_local_change');
-  assert.equal(byPath(plan, localPath).requires_human_review, false);
+  assert.equal(byPath(plan, localPath).requires_human_review, true);
+  assert.equal(byPath(plan, localPath).approval, 'keep_project');
   assert.equal(byPath(plan, removedPath).operation, 'review_removal');
   assert.equal(byPath(plan, removedBothPath).status, 'removed_both');
   assert.equal(byPath(plan, removedBothPath).operation, 'none');
