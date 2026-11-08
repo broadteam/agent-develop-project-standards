@@ -1,6 +1,6 @@
 # 会话交接：Agent 项目开发规范 2.0
 
-更新时间：2026-11-08
+更新时间：2026-11-09
 
 ## 项目目标与边界
 
@@ -13,9 +13,21 @@
 ## 当前 Git 状态
 
 - 工作分支：`feat/standards-v2.0-seven-pillars`，跟踪 `origin/feat/standards-v2.0-seven-pillars`。
-- 最新完整代码验证 HEAD：`02d4337d9e7b12416b0c2069b94aba6e85dd731a`；Push [42493895276](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42493895276) 与 PR [42493900304](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42493900304) 的 Ubuntu / Windows jobs 均成功，恢复演练测试两平台均通过。最近文档 HEAD `35fbfac7d23c3a5fb0bd199fe560ff088c8f7791` 的 Push [42493962678](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42493962678) 与 PR [42493967270](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42493967270) 也全部通过。当前 HEAD 始终以 PR #2 的实时指针为准。
+- 当前 HEAD：`18f16abb0bc847bf02c252a8e9f9d8e93c3ba2a3`；该 HEAD 的 Push [42512897301](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42512897301) 与 PR [42512903054](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42512903054) 均通过，Ubuntu / Windows jobs 全绿。当前 PR #2 实时指针为准。
 - 相关 PR：#2（Draft；不要合并）。
 
+## 本轮成功升级基线登记加固（2026-11-09）
+
+- 远程分支已存在 `tools/record-reviewed-template-upgrade.cjs`，本轮在代码审查后继续加固，而不是重复创建工具。
+- 新增 `tools/template-source-inventory.cjs`：对 `template/` 与 `presets/stacks/` 做确定性完整快照，记录路径/类型/内容 SHA-256/权限或符号链接目标；计划绑定 `source_inventory_sha256`，登记前重新计算。计划生成后任何模板源新增、删除、内容或权限变化都会使旧计划失效。
+- `plan-template-upgrade.cjs` 升级到 `plan_schema: 2`；`validate-template-upgrade-review.cjs` 升级到 `review_schema: 2`。旧 schema 1 的 plan/review 不再可供当前登记器使用，必须重新生成计划和审查记录。
+- 普通文件审批结果绑定 `result_sha256` 与 `result_mode`；登记器同时验证项目实际内容/权限。源快照摘要写入 `manifest.last_upgrade.source_inventory_sha256`，为后续审计保留目标模板来源证据。
+- `.gitignore` 特殊处理：模板源 `.gitignore.append` 含 `{{IGNORE_ENTRIES}}`，项目内是按 project profile 渲染后的托管区块，不能直接比较源文件原始 SHA 与渲染区块 SHA。登记器验证固定模板前缀/后缀、占位符唯一且已被替换，审批结果只哈希标记包围的区块，不记录整个 `.gitignore` 文件权限；区块外项目自有忽略规则保留。
+- `tests/test-template-upgrade-record.cjs` 增加计划后模板源新增文件拒绝、审批权限结果被篡改拒绝、`.gitignore` 管理区块升级以及区块外项目规则保留的回归；Windows CI 的 Regression tests step 设置 `PYTHONUTF8=1`，避免系统 cp1252 环境下 Python 中文输出造成 `UnicodeEncodeError`。
+- 期间 CI 曾发现并修复真实问题：升级记录 fixture 的 `.gitignore` 换行假设不兼容 Windows、一个修复中括号缺失、Windows Python 控制台编码问题。不要沿用这些失败 SHA 的结果；当前最终 HEAD 的 push/PR 全部通过。
+- 最新 HEAD `18f16abb0bc847bf02c252a8e9f9d8e93c3ba2a3`：Push [42512897301](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42512897301) 和 PR [42512903054](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42512903054) 的 Ubuntu / Windows jobs 均成功。包括 plan/review/recovery/record 的升级全链路测试，以及 doc links 检查。
+- README、MIGRATION-v2.0、SPEC-v2.0、CHANGELOG 与 `UPGRADE-RECORD-TEMPLATE.md` 已同步 schema、source inventory、result_mode 和 `.gitignore` 特殊处理说明。
+- 目前仍无自动升级应用器/自动回滚器；登记器只更新 `.agent-standards.json`，不应用模板文件。PR #2 继续 Open / Draft，未合并；未修改 `main`；未进行真实 SaaS 项目试点。
 ## 已完成
 
 - 2.0 七大方向的设计基线在 `SPEC-v2.0.md`；能力画像、治理检查、任务上下文解析器与模板夹具测试已在该分支实现。
@@ -109,10 +121,11 @@
 - 新增 `UPGRADE-RECORD-TEMPLATE.md`：记录版本和 commit、项目外备份引用、plan/review 与 SHA-256、逐路径决定、defer 批次、测试/构建结果、manifest 登记输出及失败恢复证据；README 和迁移指南已链接该模板。
 ## 下一步（按既定优先级）
 
-1. 验证本次交接修订后的 Ubuntu / Windows CI；若通过，刷新 PR #2 说明中的最终 HEAD 和 CI 状态。
+1. 以 `plan_schema: 2` / `review_schema: 2` 为当前审批契约；旧 schema 1 文件必须重新生成，不要手动迁移 JSON。
 2. 对照最初七大方向逐项审查未完成项，重点核对 SPEC 状态表、README 目录树、模板实际文件、测试清单与 CHANGELOG 版本的一致性。
-3. 复核升级记录模板是否足够精简；保留可追溯字段，不要求归档完整备份内容，只保存项目外备份引用与校验结果。
-4. 不开展真实 SaaS 项目试点，不实现自动升级应用器或自动回滚器，除非后续重复人工操作成本和失败风险有真实证据支撑。
+3. 复核升级登记器中 `keep_or_archive`、`accepted_removed`、managed block、defer 的长期漂移行为，并补最小回归；保持不自动应用文件。
+4. 复核升级记录模板是否足够精简；保留可追溯字段，不要求归档完整备份内容，只保存项目外备份引用与校验结果。
+5. 不开展真实 SaaS 项目试点，不实现自动升级应用器或自动回滚器，除非后续重复人工操作成本和失败风险有真实证据支撑。
 ## 恢复工作的方法
 
 新会话先读取本文件、`SPEC-v2.0.md`、当前 `git status --short --branch` 和相关测试；不要把旧聊天摘要当作仓库事实。遇到客户端行为变更时，先核对该客户端的官方文档，再修改兼容性说明和契约测试。
