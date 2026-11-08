@@ -257,7 +257,7 @@ try {
   const secondManifestBefore = fs.readFileSync(path.join(secondProject, '.agent-standards.json'));
   assert.throws(
     () => buildRecord({ projectRoot: secondProject, standardsRoot: secondTarget, plan: secondPlan, review: secondReview }),
-    /哈希不匹配/
+    /result_sha256 不匹配/
   );
   assert.equal(fs.readFileSync(path.join(secondProject, '.agent-standards.json')).equals(secondManifestBefore), true);
 
