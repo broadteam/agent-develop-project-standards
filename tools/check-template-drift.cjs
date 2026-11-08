@@ -37,6 +37,26 @@ function regularFileHash(file) {
   if (stat.isSymbolicLink() || !stat.isFile()) return { exists: true, unsafe: true, hash: null };
   return { exists: true, unsafe: false, hash: sha256(fs.readFileSync(file)), mode: stat.mode & 0o777 };
 }
+function regularFileHashWithin(root, rel, label) {
+  const absolute = resolveInside(root, rel, label);
+  const relative = path.relative(root, absolute);
+  let cursor = root;
+  const parts = relative.split(path.sep).filter(Boolean);
+  for (let i = 0; i < parts.length; i++) {
+    cursor = path.join(cursor, parts[i]);
+    let stat;
+    try { stat = fs.lstatSync(cursor); }
+    catch (error) {
+      if (error.code === 'ENOENT') return { exists: false, hash: null };
+      throw error;
+    }
+    if (stat.isSymbolicLink()) return { exists: true, unsafe: true, hash: null };
+    if (i < parts.length - 1 && !stat.isDirectory()) return { exists: true, unsafe: true, hash: null };
+    if (i === parts.length - 1 && !stat.isFile()) return { exists: true, unsafe: true, hash: null };
+    if (i === parts.length - 1) return { exists: true, unsafe: false, hash: sha256(fs.readFileSync(cursor)), mode: stat.mode & 0o777 };
+  }
+  return { exists: false, hash: null };
+}
 function walkTemplateFiles(templateRoot, rel = '') {
   const files = [];
   for (const entry of fs.readdirSync(path.join(templateRoot, rel), { withFileTypes: true })) {
@@ -58,8 +78,8 @@ function classifyFile(targetRoot, standardsRoot, targetPath, entry, currentVersi
   if (!/^[a-f0-9]{64}$/.test(baselineTemplate || '') || !/^[a-f0-9]{64}$/.test(baselineInstalled || '')) {
     throw new Error('安装基线哈希无效：' + targetPath);
   }
-  const source = regularFileHash(sourcePath);
-  const installed = regularFileHash(projectPath);
+  const source = regularFileHashWithin(standardsRoot, entry.source, '模板源路径');
+  const installed = regularFileHashWithin(targetRoot, targetPath, '项目目标路径');
   if (source.unsafe) return { path: targetPath, status: 'upstream_unsafe', detail: '当前模板源不是普通文件' };
   if (installed.unsafe) return { path: targetPath, status: 'local_unsafe', detail: '项目目标不是普通文件或是符号链接' };
   if (!source.exists) {
@@ -102,7 +122,7 @@ function classifyManagedBlock(targetRoot, standardsRoot, targetPath, entry, curr
   if (!/^[a-f0-9]{64}$/.test(entry.template_sha256 || '') || !/^[a-f0-9]{64}$/.test(entry.installed_sha256 || '')) {
     throw new Error('托管区块基线哈希无效：' + targetPath);
   }
-  const source = regularFileHash(sourcePath);
+  const source = regularFileHashWithin(standardsRoot, entry.source, '托管区块源路径');
   const installed = extractManagedBlock(projectPath);
   if (source.unsafe || installed.unsafe) return { path: targetPath, status: 'unsafe' };
   if (!source.exists) return { path: targetPath, status: 'upstream_removed' };
@@ -169,7 +189,7 @@ function analyzeDrift({ projectRoot, standardsRoot }) {
   for (const file of currentFiles) {
     if (tracked[file.target] || derived.has(file.target) || excluded.has(file.target)) continue;
     const absolute = resolveInside(targetRoot, file.target, '新模板文件路径');
-    const installed = regularFileHash(absolute);
+    const installed = regularFileHashWithin(targetRoot, file.target, '新模板文件路径');
     if (installed.unsafe) findings.push({ path: file.target, status: 'local_unsafe', detail: '目标为符号链接或非普通文件' });
     else if (installed.exists && preserved.has(file.target)) findings.push({ path: file.target, status: 'legacy_preserved', detail: '安装时保留的既有文件，缺少可比较的历史基线' });
     else if (installed.exists) findings.push({ path: file.target, status: 'untracked_collision', detail: '目标已存在但不在安装基线中，需人工判断归属' });
