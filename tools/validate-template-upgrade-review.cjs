@@ -44,7 +44,7 @@ function validateReview(plan, review) {
     throw new Error('当前升级计划必须声明 can_apply_automatically=false');
   }
   if (!isObject(review) || review.review_schema !== 2 || !Array.isArray(review.decisions)) {
-    throw new Error('人工审查记录格式无效；需要 review_schema=1 和 decisions 数组');
+    throw new Error('人工审查记录格式无效；需要 review_schema=2 和 decisions 数组');
   }
   if (review.plan_id !== plan.plan_id) {
     throw new Error('人工审查记录 plan_id 与升级计划不匹配');
