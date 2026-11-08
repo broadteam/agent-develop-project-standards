@@ -52,6 +52,18 @@ try {
   assert.match(profile, /detected = \["python", "node"\]/);
   assert.match(migrate.stderr, /检测到多技术栈：python, node/);
 
+  // A second initialization must be safe and must not duplicate managed content.
+  const stableFiles = ['gov.toml', 'project-profile.toml', '.gitignore', 'scripts/check-governance.cjs'];
+  const firstPass = new Map(stableFiles.map((rel) => [rel, fs.readFileSync(path.join(existing, rel), 'utf8')]));
+  const secondPass = init(existing);
+  assert.equal(secondPass.status, 0, secondPass.stdout + secondPass.stderr);
+  for (const [rel, content] of firstPass) {
+    assert.equal(fs.readFileSync(path.join(existing, rel), 'utf8'), content, `${rel} must remain stable after repeated initialization`);
+  }
+  for (const [rel, content] of before) {
+    assert.equal(fs.readFileSync(path.join(existing, rel), 'utf8'), content, `${rel} must remain protected after repeated initialization`);
+  }
+
   const governance = spawnSync(process.execPath, [path.join(existing, 'scripts', 'check-governance.cjs')], { cwd: existing, encoding: 'utf8' });
   assert.equal(governance.status, 0, governance.stdout + governance.stderr);
   console.log('test-migration-v2: all cases passed');
