@@ -128,6 +128,21 @@ try {
   assert.ok(failedInstall.stderr.includes('测试故障注入：AGENTS.md'));
   assert.equal(JSON.stringify(snapshotTree(rollbackProject)), rollbackBefore, 'failed initialization must restore overwritten files and remove newly created artifacts');
 
+  const rollbackHookProject = path.join(tmp, 'rollback-hook-project');
+  fs.mkdirSync(path.join(rollbackHookProject, '.githooks'), { recursive: true });
+  const originalRollbackHook = '#!/bin/sh\n# keep project hook\nexit 0\n';
+  fs.writeFileSync(path.join(rollbackHookProject, '.githooks/pre-commit'), originalRollbackHook);
+  if (process.platform !== 'win32') fs.chmodSync(path.join(rollbackHookProject, '.githooks/pre-commit'), 0o755);
+  const rollbackHookBefore = JSON.stringify(snapshotTree(rollbackHookProject));
+  const failedHookReplacement = spawnSync(process.execPath, [
+    path.join(root, 'init.cjs'), rollbackHookProject, '--force', '--replace-hook',
+  ], {
+    encoding: 'utf8',
+    env: { ...process.env, NODE_ENV: 'test', AGENT_STANDARDS_TEST_FAIL_AFTER_PATH: '.githooks/pre-commit' },
+  });
+  assert.equal(failedHookReplacement.status, 1, failedHookReplacement.stdout + failedHookReplacement.stderr);
+  assert.equal(JSON.stringify(snapshotTree(rollbackHookProject)), rollbackHookBefore, 'failed hook replacement must restore original hook content and mode');
+
   // A target-owned generator is user code: initialization must never execute it.
   const customGeneratorProject = path.join(tmp, 'custom-generator-project');
   fs.mkdirSync(path.join(customGeneratorProject, '.spec/tasks'), { recursive: true });
