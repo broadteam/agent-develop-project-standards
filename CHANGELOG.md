@@ -10,7 +10,7 @@
 - Require review metadata for every proposed change; no file is written, replaced, removed or merged by the planner.
 
 ### Tests
-- Add `tests/test-template-upgrade-recovery.cjs` to rehearse one approved manual replacement, deterministic governance failure, full external backup restore, exact tree comparison and post-restore governance/drift/plan-ID verification on disposable fixtures only.
+- Add `tests/test-template-upgrade-recovery.cjs` to rehearse a small approved batch containing a template file and installed version metadata, deterministic governance failure, full external backup restore, exact tree comparison and post-restore governance/drift/plan-ID verification on disposable fixtures only.
 - Add `tests/test-template-upgrade-plan.cjs` for stable plan identity, read-only behavior, per-file action classification, stack preset discovery, incomplete-baseline blockers and JSON CLI output.
 - Run the upgrade-plan tests and syntax check in the Ubuntu/Windows CI matrix.
 
