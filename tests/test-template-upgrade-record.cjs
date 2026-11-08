@@ -235,8 +235,11 @@ try {
   assert.equal(partialInstall.status, 0, partialInstall.stdout + partialInstall.stderr);
   const partialPlan = buildUpgradePlan({ projectRoot: partialProject, standardsRoot: newer });
   assert.equal(byPath(partialPlan, addPath).operation, 'add_candidate');
-  const partialReview = applyReviewedActions(partialProject, newer, partialPlan, new Set([addPath]));
+  const deferredPaths = [addPath, updatePath].sort();
+  const deferredExistingFileHash = sha256File(path.join(partialProject, updatePath));
+  const partialReview = applyReviewedActions(partialProject, newer, partialPlan, new Set(deferredPaths));
   assert.ok(partialReview.decisions.some(item => item.path === addPath && item.decision === 'defer'));
+  assert.ok(partialReview.decisions.some(item => item.path === updatePath && item.decision === 'defer'));
   const partialValidation = validateReview(partialPlan, partialReview);
   assert.equal(partialValidation.valid, true, partialValidation.errors.join('\n'));
 
@@ -255,7 +258,7 @@ try {
   ], { encoding: 'utf8' });
   assert.equal(partialRecord.status, 0, partialRecord.stdout + partialRecord.stderr);
   const partialOutput = JSON.parse(partialRecord.stdout);
-  assert.deepEqual(partialOutput.deferred_paths, [addPath]);
+  assert.deepEqual(partialOutput.deferred_paths, deferredPaths);
   assert.equal(partialOutput.installed_with_version, fromVersion);
 
   let partialManifest = readJson(path.join(partialProject, '.agent-standards.json'));
@@ -265,27 +268,31 @@ try {
   assert.ok(!partialManifest.managed_files[addPath], 'deferred addition must not enter the manifest');
   const partialDrift = analyzeDrift({ projectRoot: partialProject, standardsRoot: newer });
   assert.ok(partialDrift.findings.some(item => item.path === addPath && item.status === 'new_upstream_file'));
+  assert.ok(partialDrift.findings.some(item => item.path === updatePath && item.status === 'update_available'));
 
   // Re-plan only the remaining change, apply it and complete the overall version transition.
   const followupPlan = buildUpgradePlan({ projectRoot: partialProject, standardsRoot: newer });
   assert.equal(followupPlan.source_version, fromVersion);
   assert.equal(followupPlan.target_version, version.version);
   assert.equal(byPath(followupPlan, addPath).operation, 'add_candidate');
-  const followupAction = byPath(followupPlan, addPath);
-  const followupTarget = path.join(partialProject, addPath);
-  fs.mkdirSync(path.dirname(followupTarget), { recursive: true });
-  fs.copyFileSync(path.join(newer, followupAction.source), followupTarget);
+  assert.equal(byPath(followupPlan, updatePath).operation, 'replace_candidate');
+  const followupActions = [addPath, updatePath].map(filePath => byPath(followupPlan, filePath));
   const followupReview = {
     review_schema: 1,
     plan_id: followupPlan.plan_id,
-    decisions: [{
-      reviewer: 'baseline-record-maintainer',
-      reviewed_at: '2026-11-08T16:10:00.000Z',
-      path: addPath,
-      decision: 'approve_add',
-      result_sha256: sha256File(followupTarget),
-      reason: '延期文件已经单独审查并应用，现确认登记。'
-    }]
+    decisions: followupActions.map(action => {
+      const target = path.join(partialProject, action.path);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.copyFileSync(path.join(newer, action.source), target);
+      return {
+        reviewer: 'baseline-record-maintainer',
+        reviewed_at: '2026-11-08T16:10:00.000Z',
+        path: action.path,
+        decision: action.approval,
+        result_sha256: sha256File(target),
+        reason: '延期路径已经单独审查并应用，现确认登记。'
+      };
+    })
   };
   assert.equal(validateReview(followupPlan, followupReview).valid, true);
   const followupFile = path.join(tmp, 'followup-review.json');
@@ -307,6 +314,7 @@ try {
   assert.equal(partialManifest.last_upgrade.status, 'complete');
   assert.deepEqual(partialManifest.last_upgrade.deferred_paths, []);
   assert.ok(partialManifest.managed_files[addPath]);
+  assert.equal(partialManifest.managed_files[updatePath].template_version, version.version);
   const completedPartialDrift = analyzeDrift({ projectRoot: partialProject, standardsRoot: newer });
   assert.equal(completedPartialDrift.ok, true, JSON.stringify(completedPartialDrift, null, 2));
 
