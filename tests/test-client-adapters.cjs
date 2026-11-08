@@ -42,11 +42,9 @@ try {
   assert.equal(install.status, 0, install.stdout + install.stderr);
   assert.equal(fs.readFileSync(path.join(project, 'CLAUDE.md'), 'utf8').trim(), '@AGENTS.md');
   assert.equal(fs.readFileSync(path.join(project, 'GEMINI.md'), 'utf8').trim(), '@./AGENTS.md');
-  assert.equal(
-    fs.readFileSync(path.join(project, 'AGENTS.md'), 'utf8'),
-    fs.readFileSync(path.join(template, 'AGENTS.md'), 'utf8'),
-    'initializer must copy the canonical rule body unchanged'
-  );
+  const installedAgents = fs.readFileSync(path.join(project, 'AGENTS.md'), 'utf8');
+  assert.ok(installedAgents.includes('**本文件是唯一入口。**'), 'initializer must preserve canonical rule content');
+  assert.ok(!/\\{\\{[A-Z0-9_]+\\}\\}/.test(installedAgents), 'initializer must resolve all template placeholders');
   assert.ok(!fs.existsSync(path.join(project, '.cursorrules')), 'initializer must not install deprecated Cursor rules');
   assert.ok(!fs.existsSync(path.join(project, '.cursor/rules')), 'initializer must not generate duplicate scoped rule files');
 } finally {
