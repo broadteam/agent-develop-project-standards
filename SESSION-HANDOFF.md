@@ -59,11 +59,15 @@
 - 最新双平台 CI：Push [42474979601](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42474979601) 与 PR [42474984115](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42474984115) 均成功，Ubuntu / Windows jobs 全绿。
 - 第五方向仍为 in_progress：回滚不覆盖断电/强杀；迁移文档要求先备份。不要据此宣称具备完整文件系统事务保证。
 
-## 下一步（按优先级）
+## 本轮模板版本漂移与旧项目基线改进
 
-1. 继续审查第五方向的迁移回滚与边界案例，重点验证不同初始化版本/已有用户定制冲突时的恢复说明；只补可以复现的风险。
-2. 审查第一、第六、第七方向的发布门槛，优先补机器可验证缺口，避免扩大初始化器职责。
-3. 真实 Codex/Claude/Gemini/Cursor CLI 集成验证仍未完成；若增加，必须记录客户端版本与可重复 fixture。
+- 新增 `template/policy/standards-version.json`（2.0.0-rc.12），初始化生成 `.agent-standards.json`；逐文件记录模板源哈希、安装后哈希、安装权限、来源版本，并记录 `.gitignore` 托管区块、派生文件和能力裁剪路径。
+- 新增只读 `tools/check-template-drift.cjs`：区分上游更新、本地修改、双向冲突、文件缺失、新增模板文件和旧项目基线未知；不执行覆盖、合并或初始化。
+- 新增显式 `tools/adopt-template-baseline.cjs`：先 dry-run，再由维护者传入 `--confirm-reviewed`，只更新安装元数据；已审查接受的项目定制在未来发生上游改动时仍会触发冲突。
+- 测试覆盖 clean / partial / legacy baseline、local-only / upstream-only / two-sided conflict、新模板文件、只读保证、显式基线采纳、managed .gitignore 区块外/内修改、POSIX 文件权限漂移，以及项目/模板父目录符号链接拒绝。
+- 漂移与基线采纳工具逐级 `lstat` 路径组件，避免父目录符号链接绕过最终文件检查；托管区块读取也使用同一安全路径函数。
+- 最新修复后的双平台 CI 对应 SHA `0385bde263f6b6437781db99f9dc18e2c70b9ea6`，但该 SHA 的测试仍在排队；更早一次已通过 SHA `01aa` 并不应被当作最新结果。当前 head 以 PR #2 实时指针为准。
+- 第七方向仍为 in_progress：跨版本真实迁移/回滚演练、支持矩阵与版本兼容策略仍需正式发布前验收。
 
 ## 恢复工作的方法
 
