@@ -47,7 +47,7 @@ node init.cjs /path/to/your-project --strict-scan
 | Codex | `AGENTS.md` | 支持从仓库根目录到当前目录的层级规则。 |
 | Claude Code | `CLAUDE.md` → `@AGENTS.md` | 支持 Markdown 导入与层级记忆文件。 |
 | Gemini CLI | `GEMINI.md` → `@./AGENTS.md` | 支持 `@file` 导入和层级上下文文件。 |
-| Cursor | 根目录 `AGENTS.md` | 当前仅根级、无路径作用域；需要细粒度规则时再评估 `.cursor/rules/*.mdc`。不生成已弃用的 `.cursorrules`。 |
+| Cursor | 根目录及子目录 `AGENTS.md` | 父目录与更具体目录的规则会组合；需要按 glob、手动或智能触发的规则时再评估 `.cursor/rules/*.mdc`。不生成已弃用的 `.cursorrules`。 |
 
 客户端兼容性不是“规则文件存在就算通过”。仓库通过 `tests/test-client-adapters.cjs` 检查指针目标、导入语法和弃用入口；客户端原生加载能力以官方文档为准。客户端配置不得复制或分叉项目规则正文。
 

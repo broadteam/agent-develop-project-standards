@@ -77,16 +77,17 @@
 
 | 客户端 | 项目入口 | 加载方式与边界 |
 |---|---|---|
-| Codex | 根目录 `AGENTS.md` | 从仓库根到当前工作目录按层级加载；更深目录的指令追加在后，形成更具体的上下文。客户端还支持目录级覆盖文件；模板不预生成嵌套规则。 [官方说明](https://developers.openai.com/cookbook/examples/gpt-5/codex_prompting_guide) |
-| Claude Code | `CLAUDE.md` | 使用 `@AGENTS.md` 导入唯一正文；支持递归导入（最多 5 层），并从当前目录向上查找 `CLAUDE.md`，子目录规则在访问相关目录时按需加载。 [官方说明](https://docs.anthropic.com/en/docs/claude-code/memory) |
+| Codex | 根目录 `AGENTS.md` | 从仓库根到当前工作目录按层级加载；更深目录的指令后加载，拥有更具体的语义。同目录存在 `AGENTS.override.md` 时使用覆盖文件而不是普通 `AGENTS.md`；模板不预生成嵌套或覆盖规则。 [官方说明](https://developers.openai.com/cookbook/examples/gpt-5/codex_prompting_guide) |
+| Claude Code | `CLAUDE.md` | 使用 `@AGENTS.md` 导入唯一正文；导入可递归（最多四跳），并从当前目录向上查找 `CLAUDE.md`，子目录规则在访问相关目录时按需加载。 [官方说明](https://code.claude.com/docs/en/memory) |
 | Gemini CLI | `GEMINI.md` | 使用 `@./AGENTS.md` 导入唯一正文；默认文件名为 `GEMINI.md`，支持配置多个上下文文件名，并从全局、项目祖先及子目录发现上下文。 [官方说明](https://geminicli.com/docs/cli/gemini-md/) |
-| Cursor | 根目录 `AGENTS.md` | 原生支持简单 Markdown 规则；官方文档当前说明仅支持项目根目录、不支持路径作用域或拆分多个文件。需要路径作用域时可另行评估 `.cursor/rules/*.mdc`，不得复制完整通用规则。 [官方说明](https://docs.cursor.com/context/rules-for-ai) |
+| Cursor | 根目录及子目录 `AGENTS.md` | 原生支持简单 Markdown 规则；父目录与更具体目录的规则会组合，后者优先。需要 glob、手动或智能触发时可另行评估 `.cursor/rules/*.mdc`，不得复制完整通用规则。 [官方说明](https://cursor.com/docs/rules) |
 
 实现约束：
 
 - 初始化器只生成根级 `AGENTS.md`、`CLAUDE.md`、`GEMINI.md`；不生成 `.cursorrules`。
 - `CLAUDE.md` 与 `GEMINI.md` 必须保持为可自动验证的短导入指针。
-- Cursor 的根级 AGENTS 入口不等于支持嵌套 AGENTS；不要把 Codex/Claude/Gemini 的层级发现能力推断给 Cursor。
+- Cursor 已支持嵌套 `AGENTS.md`，但模板不默认生成局部规则；只有局部规则有独立、稳定的职责时才添加，并保持与根规则不重复。
+- Codex 的 `AGENTS.override.md` 是同目录 `AGENTS.md` 的替代入口，不是追加层；项目如需使用它，必须在变更说明中交代被替代的规则和适用目录。
 - 客户端用户级规则、个人记忆和本地配置不由本模板管理；项目事实仍以仓库中的权威文件为准。
 - 客户端升级可能改变加载行为；支持矩阵应以官方文档和本仓库适配器回归测试为依据，未验证行为标记为待验证。
 

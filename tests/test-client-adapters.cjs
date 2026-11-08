@@ -17,6 +17,7 @@ const claude = read('template/CLAUDE.md').trim();
 const gemini = read('template/GEMINI.md').trim();
 const init = read('init.cjs');
 const spec = read('SPEC-v2.0.md');
+const readme = read('README.md');
 
 assert.ok(exists('template/AGENTS.md'), 'canonical AGENTS.md must exist');
 assert.equal(claude, '@AGENTS.md', 'Claude entry must import the canonical rules');
@@ -29,7 +30,11 @@ assert.ok(init.includes("'AGENTS.md', 'ROUTER.md', 'CLAUDE.md', 'GEMINI.md'"), '
 assert.ok(!init.includes('.cursorrules'), 'initializer must not create the deprecated Cursor entry');
 assert.ok(!exists('template/.cursorrules'), 'deprecated Cursor entry must not exist in the template');
 assert.ok(!exists('template/.cursor/rules'), 'client-specific scoped rules must not silently become a second canonical ruleset');
-assert.ok(spec.includes('Cursor') && spec.includes('仅支持项目根目录'));
+assert.ok(spec.includes('Codex') && spec.includes('AGENTS.override.md') && spec.includes('替代入口'), 'Codex override semantics must be documented');
+assert.ok(spec.includes('Claude Code') && spec.includes('最多四跳'), 'Claude import depth must match documented behavior');
+assert.ok(spec.includes('Cursor') && spec.includes('根目录及子目录') && spec.includes('后者优先'), 'Cursor nested AGENTS semantics must be documented');
+assert.ok(!spec.includes('仅支持项目根目录') && !spec.includes('最多 5 层'), 'superseded client-loading claims must not remain in the specification');
+assert.ok(readme.includes('根目录及子目录 `AGENTS.md`') && !readme.includes('当前仅根级、无路径作用域'), 'README must agree with the client compatibility matrix');
 assert.ok(spec.includes('Gemini CLI') && spec.includes('@./AGENTS.md'));
 assert.ok(spec.includes('Claude Code') && spec.includes('@AGENTS.md'));
 assert.ok(spec.includes('Codex') && spec.includes('仓库根到当前工作目录'));

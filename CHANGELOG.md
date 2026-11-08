@@ -1,3 +1,11 @@
+## 2.0.0-rc.7 - 2026-11-08
+
+### Fixed
+- Correct the client compatibility matrix after an official-documentation review: Cursor supports nested `AGENTS.md`; Claude Code imports allow at most four hops; Codex documents `AGENTS.override.md` as a same-directory replacement rather than an additional layer.
+
+### Added
+- Add regression assertions for the documented Codex override, Claude import-depth and Cursor nested-rule semantics.
+
 ## 2.0.0-rc.6 - 2026-11-08
 
 ### Changed
@@ -16,7 +24,7 @@
 - Run client-adapter tests in GitHub Actions.
 
 ### Notes
-- Cursor's native AGENTS.md support is root-level only and has no path scoping; do not infer nested AGENTS.md support from other clients.
+- This release-note entry was superseded by rc.7 after a documentation review found that Cursor now supports nested `AGENTS.md` files.
 - Client-specific scoped rules remain optional and must not become a second copy of canonical project rules.
 
 # Changelog
