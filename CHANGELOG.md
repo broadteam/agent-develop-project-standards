@@ -8,6 +8,7 @@
 - Add temporary-project tests for clean installs, local/upstream/both-side changes, new upstream files, read-only behavior, legacy unknown baselines and explicit baseline adoption.
 
 ### Safety
+- 漂移检查和旧基线采纳逐级检查路径组件，拒绝目标文件或父目录中的符号链接；`.gitignore` 托管区块外的用户内容不被误报，区块内编辑、文件权限漂移和父目录符号链接均有回归用例。
 - `--force` remains a file-copy override, not a version upgrade mechanism.
 - Legacy projects without a marker are never assumed to match the current template.
 - Baseline inspection and adoption do not write or merge project rules; only the explicit adoption command updates `.agent-standards.json`.
