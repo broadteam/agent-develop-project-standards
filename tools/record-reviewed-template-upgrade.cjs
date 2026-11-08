@@ -181,9 +181,10 @@ function advanceEntry(action, actual, source, oldEntry, decision, version, isMan
   }
   if (decision?.decision === 'manual_merge'
     || decision?.decision === 'keep_project'
-    || decision?.decision === 'keep_or_archive'
-    || decision?.decision === 'classify_existing_file') {
+    || decision?.decision === 'keep_or_archive') {
     entry.customized_at_baseline = true;
+  } else if (decision?.decision === 'classify_existing_file') {
+    entry.customized_at_baseline = actual.hash !== source.hash;
   } else if (decision?.decision === 'approve_upstream'
     || decision?.decision === 'approve_add'
     || decision?.decision === 'approve_restore') {
