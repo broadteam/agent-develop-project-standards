@@ -26,6 +26,6 @@ assert.ok(!exists('template/.cursorrules'), 'deprecated Cursor entry must not ex
 assert.match(spec, /Cursor[\s\S]*仅支持项目根目录/);
 assert.match(spec, /Gemini CLI[\s\S]*@\.\/AGENTS\.md/);
 assert.match(spec, /Claude Code[\s\S]*@AGENTS\.md/);
-assert.match(spec, /Codex[\s\S]*root-to-leaf/i);
+assert.match(spec, /Codex[\s\S]*仓库根到当前工作目录/);
 
 console.log('test-client-adapters: all cases passed');
