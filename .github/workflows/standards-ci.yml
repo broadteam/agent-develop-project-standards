@@ -41,3 +41,4 @@ jobs:
           node tests/test-v2-spec.cjs
           node tests/test-client-adapters.cjs
           node tests/test-migration-v2.cjs
+          node tests/test-doc-links.cjs
