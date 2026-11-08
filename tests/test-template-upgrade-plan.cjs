@@ -56,7 +56,7 @@ try {
   cloneStandards(newerStandards);
   const versionFile = path.join(newerStandards, 'template/policy/standards-version.json');
   const version = JSON.parse(fs.readFileSync(versionFile, 'utf8'));
-  version.version = '2.0.0-rc.13';
+  version.version = '2.0.0-rc.14';
   fs.writeFileSync(versionFile, JSON.stringify(version, null, 2) + '\n');
 
   // Both sides changed: a three-way manual merge is mandatory.
@@ -100,8 +100,8 @@ try {
 
   const beforePlan = JSON.stringify(snapshotTree(project));
   const plan = buildUpgradePlan({ projectRoot: project, standardsRoot: newerStandards });
-  assert.equal(plan.source_version, '2.0.0-rc.12');
-  assert.equal(plan.target_version, '2.0.0-rc.13');
+  assert.equal(plan.source_version, '2.0.0-rc.13');
+  assert.equal(plan.target_version, '2.0.0-rc.14');
   assert.equal(plan.version_label_changed, true);
   assert.equal(plan.can_apply_automatically, false);
   assert.equal(plan.human_review_required, true);
