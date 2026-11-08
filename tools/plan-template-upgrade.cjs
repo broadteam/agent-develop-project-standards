@@ -148,7 +148,10 @@ function calculatePlanId(plan) {
       source: action.source,
       status: action.status,
       operation: action.operation,
+      recommendation: action.recommendation,
+      requires_human_review: action.requires_human_review,
       approval: action.approval,
+      reason: action.reason,
       evidence: action.evidence
     }))
   };
@@ -211,7 +214,10 @@ function buildUpgradePlan({ projectRoot, standardsRoot }) {
       source: action.source,
       status: action.status,
       operation: action.operation,
+      recommendation: action.recommendation,
+      requires_human_review: action.requires_human_review,
       approval: action.approval,
+      reason: action.reason,
       evidence: action.evidence
     }))
   };
