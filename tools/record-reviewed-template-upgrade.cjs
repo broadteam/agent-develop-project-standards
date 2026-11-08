@@ -81,14 +81,15 @@ function inspectExternalFile(file, label) {
 }
 function readManagedBlock(projectRoot) {
   const file = inspectWithin(projectRoot, '.gitignore', '项目 .gitignore');
-  if (!file.exists) throw new Error('.gitignore 不存在，无法验证托管区块');
+  if (!file.exists) return { exists: false, hash: null, mode: null };
   const text = file.bytes.toString('utf8');
   const start = text.indexOf(BLOCK_START);
   const end = text.indexOf(BLOCK_END);
+  if (start < 0 && end < 0) return { exists: false, hash: null, mode: file.mode };
   if (start < 0 || end < start
     || text.indexOf(BLOCK_START, start + BLOCK_START.length) >= 0
     || text.indexOf(BLOCK_END, end + BLOCK_END.length) >= 0) {
-    throw new Error('.gitignore 托管区块标记缺失、重复或顺序错误');
+    throw new Error('.gitignore 托管区块标记重复或结构损坏');
   }
   return {
     exists: true,
@@ -250,7 +251,7 @@ function buildRecord({ projectRoot, standardsRoot, plan, review }) {
     }
 
     if (action.operation === 'blocked' || action.operation === 'manual_review'
-      || action.operation === 'baseline_review' || action.operation === 'ownership_review') {
+      || action.operation === 'baseline_review') {
       throw new Error(action.path + '：该计划状态尚不支持自动登记基线：' + action.operation);
     }
 
