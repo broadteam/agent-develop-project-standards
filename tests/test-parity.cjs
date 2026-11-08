@@ -23,6 +23,8 @@ function assertParity(label) {
 try {
   copy(path.join(root, 'template'), fixture);
   fs.mkdirSync(path.join(fixture, 'src'));
+  // The governance fixture must satisfy the new installation metadata requirement.
+  fs.writeFileSync(path.join(fixture, '.agent-standards.json'), '{}\\n');
   fs.rmSync(path.join(fixture, '.gitignore.append'), { force: true });
   // Make a self-contained fixture and generate its board/hash.
   const rootEntries = fs.readdirSync(fixture, { withFileTypes: true });
