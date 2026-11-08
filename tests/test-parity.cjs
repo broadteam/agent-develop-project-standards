@@ -102,9 +102,12 @@ try {
   fs.writeFileSync(archivedLog, archivedLogText);
 
   // Roadmap archives have the same two-way catalog and detail-file contract.
-  const roadmapActive = originalRoadmap
-    .replace('| M1 | 示例里程碑：把这张换成你的第一阶段 | — | 未开始 | T1 |', '| — | — | — | — | — |')
-    .replace('| — | — | — |', '| M1 | 示例里程碑：把这张换成你的第一阶段 | 已完成并归档 |');
+  const roadmapWithoutActive = originalRoadmap
+    .replace('| M1 | 示例里程碑：把这张换成你的第一阶段 | — | 未开始 | T1 |', '| — | — | — | — | — |');
+  const roadmapArchiveMarker = '## 已归档里程碑';
+  const roadmapArchiveAt = roadmapWithoutActive.indexOf(roadmapArchiveMarker);
+  const roadmapActive = roadmapWithoutActive.slice(0, roadmapArchiveAt)
+    + roadmapWithoutActive.slice(roadmapArchiveAt).replace('| — | — | — |', '| M1 | 示例里程碑：把这张换成你的第一阶段 | 已完成并归档 |');
   fs.writeFileSync(roadmapIndex, roadmapActive);
   fs.mkdirSync(path.join(fixture, '.spec/roadmap/archive'), { recursive: true });
   fs.renameSync(path.join(fixture, '.spec/roadmap/M1'), path.join(fixture, '.spec/roadmap/archive/M1'));
