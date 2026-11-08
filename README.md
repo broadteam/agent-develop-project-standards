@@ -304,7 +304,7 @@ node tools/validate-template-upgrade-review.cjs \
 
 ### 升级失败恢复演练
 
-本仓库提供 `tests/test-template-upgrade-recovery.cjs`，只在系统临时目录创建项目 fixture。它演练一项获批文件替换、治理检查失败、从项目外完整备份恢复，以及恢复后重新验证治理状态和升级计划 ID。不会触碰真实业务项目。
+本仓库提供 `tests/test-template-upgrade-recovery.cjs`，只在系统临时目录创建项目 fixture。它演练一批获批变更（规则文件与项目内版本元数据）、治理检查失败、从项目外完整备份恢复，以及恢复后重新验证治理状态和升级计划 ID。不会触碰真实业务项目。
 
 ```bash
 node tests/test-template-upgrade-recovery.cjs
