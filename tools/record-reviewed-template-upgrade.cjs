@@ -12,6 +12,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { validateReview } = require('./validate-template-upgrade-review.cjs');
+const { buildTemplateSourceInventory } = require('./template-source-inventory.cjs');
 
 const MARKER = '.agent-standards.json';
 const BLOCK_START = '# >>> agent-project-standards (managed)';
@@ -94,6 +95,7 @@ function readManagedBlock(projectRoot) {
   return {
     exists: true,
     hash: sha256(Buffer.from(text.slice(start, end + BLOCK_END.length), 'utf8')),
+    content: text.slice(start, end + BLOCK_END.length),
     mode: file.mode
   };
 }
@@ -130,7 +132,9 @@ function checkPlanBaseline(manifest, action, entry, isManagedBlock) {
       throw new Error(action.path + '：计划 source 与安装基线 source 不匹配，计划可能过期');
     }
     if (evidence.baseline_template_sha256 !== entry.template_sha256
-      || evidence.baseline_installed_sha256 !== entry.installed_sha256) {
+      || evidence.baseline_installed_sha256 !== entry.installed_sha256
+      || (evidence.baseline_version ?? null) !== (entry.template_version ?? null)
+      || (evidence.baseline_installed_mode ?? null) !== (entry.installed_mode ?? null)) {
       throw new Error(action.path + '：计划共同基线与当前 manifest 不匹配，请重新生成计划');
     }
   } else if (evidence.baseline_template_sha256 || evidence.baseline_installed_sha256) {
@@ -151,7 +155,27 @@ function requireDecision(decisions, action) {
   if (!decision) throw new Error(action.path + '：缺少人工审批决策');
   return decision;
 }
-function verifyReviewedResult(action, decision, actual, source) {
+function verifyManagedBlockTemplateCompatibility(source, actual, targetPath) {
+  if (!source.exists || !actual.exists || !Buffer.isBuffer(source.bytes) || typeof actual.content !== 'string') {
+    throw new Error(targetPath + '：无法验证 .gitignore 托管区块的模板来源');
+  }
+  const sourceText = source.bytes.toString('utf8');
+  const placeholder = '{{IGNORE_ENTRIES}}';
+  const position = sourceText.indexOf(placeholder);
+  if (position < 0 || sourceText.indexOf(placeholder, position + placeholder.length) >= 0) {
+    throw new Error(targetPath + '：模板 .gitignore 源必须且只能包含一个 IGNORE_ENTRIES 占位符');
+  }
+  const prefix = sourceText.slice(0, position);
+  const suffix = sourceText.slice(position + placeholder.length);
+  const inner = actual.content.slice(BLOCK_START.length + 1, actual.content.length - BLOCK_END.length - 1);
+  const requiredPrefix = prefix.replace(/^\\s+/, '');
+  const requiredSuffix = suffix.replace(/\\s+$/, '');
+  if (!inner.startsWith(requiredPrefix) || (requiredSuffix && !inner.endsWith(requiredSuffix))
+    || inner.includes(placeholder)) {
+    throw new Error(targetPath + '：托管区块不符合当前模板的固定结构；请重新渲染并审查区块');
+  }
+}
+function verifyReviewedResult(action, decision, actual, source, isManagedBlock) {
   if (action.operation === 'review_removal' && decision.decision === 'approve_removal') {
     if (actual.exists) throw new Error(action.path + '：审批为 approve_removal，但项目文件/区块仍存在');
     if (source.exists) throw new Error(action.path + '：上游源仍存在，拒绝登记删除');
@@ -161,13 +185,31 @@ function verifyReviewedResult(action, decision, actual, source) {
   if (!HASH_RE.test(decision.result_sha256 || '') || actual.hash !== decision.result_sha256) {
     throw new Error(action.path + '：实际内容哈希与审查记录 result_sha256 不匹配');
   }
+  if (!isManagedBlock && (!Number.isInteger(decision.result_mode)
+    || decision.result_mode < 0 || decision.result_mode > 0o777 || actual.mode !== decision.result_mode)) {
+    throw new Error(action.path + '：实际文件权限与审查记录 result_mode 不匹配');
+  }
   if (action.operation === 'replace_candidate' || action.operation === 'add_candidate' || action.operation === 'restore_candidate') {
-    if (!source.exists || actual.hash !== source.hash) {
+    if (!source.exists) throw new Error(action.path + '：当前模板源已经不存在，计划已过期');
+    if (isManagedBlock) {
+      verifyManagedBlockTemplateCompatibility(source, actual, action.path);
+    } else if (actual.hash !== source.hash) {
       throw new Error(action.path + '：目标内容必须与当前模板源完全一致；若是人工合并，应生成 manual_merge 决策');
     }
   }
   if (action.operation === 'review_removal' && decision.decision === 'keep_or_archive') {
     if (source.exists) throw new Error(action.path + '：上游源仍存在，不应登记为已接受移除');
+  }
+}
+function assertPlannedProjectSnapshot(action, actual) {
+  const evidence = action.evidence ?? {};
+  const expectedHash = evidence.current_installed_sha256 ?? null;
+  if (!actual.exists || expectedHash === null || actual.hash !== expectedHash) {
+    throw new Error(action.path + '：项目文件内容已偏离计划快照；请重新生成计划和审批记录');
+  }
+  const expectedMode = evidence.current_installed_mode;
+  if (expectedMode !== null && expectedMode !== undefined && actual.mode !== expectedMode) {
+    throw new Error(action.path + '：项目文件权限已偏离计划快照；请重新生成计划和审批记录');
   }
 }
 function advanceEntry(action, actual, source, oldEntry, decision, version, isManagedBlock) {
@@ -223,6 +265,13 @@ function buildRecord({ projectRoot, standardsRoot, plan, review }) {
   const currentVersion = readVersion(sourceRoot);
   if (currentVersion !== plan.target_version) {
     throw new Error('规范仓库当前版本已变化；请重新生成计划和审批记录');
+  }
+  if (!HASH_RE.test(plan.source_inventory_sha256 || '')) {
+    throw new Error('升级计划缺少有效的 source_inventory_sha256；请重新生成 plan_schema=2 计划');
+  }
+  const currentInventory = buildTemplateSourceInventory(sourceRoot);
+  if (currentInventory.sha256 !== plan.source_inventory_sha256) {
+    throw new Error('目标规范模板源快照已变化（新增、删除、内容或权限变化）；请重新生成升级计划和审批记录');
   }
   if (!plan.target_version || plan.target_version === plan.source_version) {
     throw new Error('升级目标版本与来源版本相同或无效');
@@ -290,7 +339,9 @@ function buildRecord({ projectRoot, standardsRoot, plan, review }) {
     if (action.status === 'current' || action.status === 'accepted_customization') {
       if (!entry || !source.exists || !actual.exists) throw new Error(action.path + '：当前基线条目/文件缺失');
       if (action.evidence?.current_template_sha256 !== source.hash
-        || action.evidence?.current_installed_sha256 !== actual.hash) {
+        || action.evidence?.current_installed_sha256 !== actual.hash
+        || (action.evidence?.current_installed_mode !== null && action.evidence?.current_installed_mode !== undefined
+          && action.evidence.current_installed_mode !== actual.mode)) {
         throw new Error(action.path + '：实际内容与计划快照不一致');
       }
       table[action.path] = advanceEntry(action, actual, source, entry, null, plan.target_version, isManagedBlock);
@@ -306,7 +357,11 @@ function buildRecord({ projectRoot, standardsRoot, plan, review }) {
     if (!supported.has(action.operation)) {
       throw new Error(action.path + '：不支持的升级动作 ' + action.operation);
     }
-    verifyReviewedResult(action, decision, actual, source);
+    if (decision.decision === 'keep_project' || decision.decision === 'keep_or_archive'
+      || decision.decision === 'classify_existing_file') {
+      assertPlannedProjectSnapshot(action, actual);
+    }
+    verifyReviewedResult(action, decision, actual, source, isManagedBlock);
 
     if (action.operation === 'review_removal' && decision.decision === 'approve_removal') {
       delete table[action.path];
