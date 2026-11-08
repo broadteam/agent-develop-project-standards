@@ -101,6 +101,21 @@ try {
   assert.match(result.stdout, /任务归档：W1\/T1\/ 缺少 log.md/);
   fs.writeFileSync(archivedLog, archivedLogText);
 
+  // Archive paths cannot escape their owning archive root; unindexed folders are rejected.
+  const taskIndexText = fs.readFileSync(index, 'utf8');
+  fs.writeFileSync(index, taskIndexText.replace('`archive/W1/`', '`../../README.md`'));
+  fs.writeFileSync(taskArchiveIndex, fs.readFileSync(taskArchiveIndex, 'utf8').replace('archive/W1/', '../../README.md'));
+  result = assertParity('archive path traversal');
+  assert.equal(result.status, 1);
+  assert.match(result.stdout, /任务归档：波次 W1 的归档目录不存在或路径非法/);
+  fs.writeFileSync(index, taskIndexText);
+  fs.writeFileSync(taskArchiveIndex, taskArchiveOriginal.replace('| — | — | — | — |', '| W1 | 1 | 2026-11-08 | archive/W1/ |'));
+  fs.mkdirSync(path.join(fixture, '.spec/tasks/archive/W2'));
+  result = assertParity('orphan task archive directory');
+  assert.equal(result.status, 1);
+  assert.match(result.stdout, /任务归档：归档目录 W2 未登记到 archive\/INDEX\.md/);
+  fs.rmdirSync(path.join(fixture, '.spec/tasks/archive/W2'));
+
   // Roadmap archives have the same two-way catalog and detail-file contract.
   const roadmapWithoutActive = originalRoadmap
     .replace('| M1 | 示例里程碑：把这张换成你的第一阶段 | — | 未开始 | T1 |', '| — | — | — | — | — |');
