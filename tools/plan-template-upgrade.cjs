@@ -10,6 +10,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { analyzeDrift } = require('./check-template-drift.cjs');
+const { buildTemplateSourceInventory } = require('./template-source-inventory.cjs');
 
 function sha256(value) {
   return crypto.createHash('sha256').update(value).digest('hex');
@@ -148,6 +149,7 @@ function calculatePlanId(plan) {
 }
 function buildUpgradePlan({ projectRoot, standardsRoot }) {
   const report = analyzeDrift({ projectRoot, standardsRoot });
+  const sourceInventory = buildTemplateSourceInventory(standardsRoot);
   const sourceVersion = report.installed_with_version ?? null;
   const targetVersion = report.current_version ?? null;
   const baselineMissing = report.reason === 'baseline_missing';
@@ -194,8 +196,10 @@ function buildUpgradePlan({ projectRoot, standardsRoot }) {
   }
   const reviewRequired = actions.some(action => action.requires_human_review) || globalBlockers.length > 0;
   const plan = {
-    plan_schema: 1,
+    plan_schema: 2,
     mode: 'read_only_preview',
+    source_inventory_sha256: sourceInventory.sha256,
+    source_inventory_entries: sourceInventory.entries.length,
     source_version: sourceVersion,
     target_version: targetVersion,
     version_label_changed: sourceVersion !== targetVersion,
@@ -220,7 +224,10 @@ function buildUpgradePlan({ projectRoot, standardsRoot }) {
     actions,
     approval_contract: {
       required_fields: ['reviewer', 'reviewed_at', 'path', 'decision', 'reason'],
-      additional_required_fields: { manual_merge: ['baseline_ref', 'merge_result_ref'] },
+      additional_required_fields: {
+        file_result: ['result_sha256', 'result_mode'],
+        manual_merge: ['baseline_ref', 'merge_result_ref', 'result_sha256', 'result_mode']
+      },
       allowed_decisions: [
         'approve_upstream',
         'keep_project',
@@ -234,7 +241,7 @@ function buildUpgradePlan({ projectRoot, standardsRoot }) {
         'manual_review',
         'defer'
       ],
-      rule: '每个 requires_human_review=true 的条目必须有明确决策和理由；defer 表示本次不应用、不推进该路径基线；manual_merge 还必须记录共同基线来源 baseline_ref 与合并结果 merge_result_ref；任何 blocked 项必须先修复并重新生成计划。当前版本仅生成预览，不读取审批文件、不执行任何动作。'
+      rule: '每个 requires_human_review=true 的条目必须有明确决策和理由；普通文件的最终结果须记录 result_sha256 与 result_mode；defer 表示本次不应用、不推进该路径基线；manual_merge 还必须记录共同基线来源 baseline_ref 与合并结果 merge_result_ref；任何 blocked 项必须先修复并重新生成计划。当前版本仅生成预览，不读取审批文件、不执行任何动作。'
     },
     next_steps: baselineMissing
       ? ['备份项目并人工比较现有规范', '按需使用 adopt-template-baseline.cjs --dry-run', '完成审查后才可显式采纳基线并重新生成计划']
