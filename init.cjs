@@ -184,17 +184,19 @@ function assertSafeTargetFile(relPath) {
     }
   }
 }
-function collectTemplateFiles(dir, rel = '') {
+function collectTemplateFiles(dir, rel = '', includeExcluded = false) {
   const result = [];
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const relPath = path.posix.join(rel.split(path.sep).join('/'), entry.name);
-    if (capabilityResolution.isExcluded(relPath)) continue;
-    if (entry.isDirectory()) result.push(...collectTemplateFiles(path.join(dir, entry.name), relPath));
+    if (!includeExcluded && capabilityResolution.isExcluded(relPath)) continue;
+    if (entry.isDirectory()) result.push(...collectTemplateFiles(path.join(dir, entry.name), relPath, includeExcluded));
     else if (entry.name !== '.gitignore.append') result.push(relPath);
   }
   return result;
 }
-const preflightPaths = collectTemplateFiles(TEMPLATE);
+const allTemplatePaths = collectTemplateFiles(TEMPLATE, '', true);
+const excludedTemplatePaths = allTemplatePaths.filter((relPath) => capabilityResolution.isExcluded(relPath)).sort();
+const preflightPaths = allTemplatePaths.filter((relPath) => !capabilityResolution.isExcluded(relPath));
 preflightPaths.push('.agent-standards.json');
 for (const stack of [...new Set(STACKS.map((value) => value === 'electron' || value === 'node-web' ? 'node' : value))]) {
   if (capabilityResolution.capabilities.stack_rules?.status === 'disabled') break;
@@ -498,6 +500,7 @@ if (!DRY) {
     managed_blocks: managedBlocks,
     preserved_paths: preserved,
     derived_paths: [...derivedPaths].sort(),
+    excluded_paths: excludedTemplatePaths,
   };
   writeTransactional(manifestPath, JSON.stringify(manifest, null, 2) + '\\n', 'utf8');
 }
