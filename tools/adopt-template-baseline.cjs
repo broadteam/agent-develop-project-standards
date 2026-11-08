@@ -28,6 +28,23 @@ function hashRegularFile(file) {
   if (stat.isSymbolicLink() || !stat.isFile()) throw new Error('拒绝将非普通文件纳入基线：' + file);
   return { hash: sha256(fs.readFileSync(file)), mode: stat.mode & 0o777 };
 }
+function hashRegularFileWithin(root, rel, label) {
+  const absolute = safePath(root, rel);
+  const relative = path.relative(root, absolute);
+  const parts = relative.split(path.sep).filter(Boolean);
+  let cursor = root;
+  for (let i = 0; i < parts.length; i++) {
+    cursor = path.join(cursor, parts[i]);
+    let stat;
+    try { stat = fs.lstatSync(cursor); }
+    catch (error) { if (error.code === 'ENOENT') return null; throw error; }
+    if (stat.isSymbolicLink()) throw new Error(label + ' 路径包含符号链接：' + rel);
+    if (i < parts.length - 1 && !stat.isDirectory()) throw new Error(label + ' 父路径不是目录：' + rel);
+    if (i === parts.length - 1 && !stat.isFile()) throw new Error(label + ' 不是普通文件：' + rel);
+    if (i === parts.length - 1) return { hash: sha256(fs.readFileSync(cursor)), mode: stat.mode & 0o777 };
+  }
+  return null;
+}
 function collectTemplateFiles(templateRoot, rel = '') {
   const files = [];
   for (const entry of fs.readdirSync(path.join(templateRoot, rel), { withFileTypes: true })) {
@@ -70,9 +87,9 @@ function buildBaseline({ projectRoot, standardsRoot }) {
     if (derived.has(targetRel) || excluded.has(targetRel) || targetRel === '.spec/tasks/BOARD.md') continue;
     if (managedFiles[targetRel]) continue;
     const target = safePath(root, targetRel);
-    const targetInfo = hashRegularFile(target);
+    const targetInfo = hashRegularFileWithin(root, targetRel, '项目目标');
     if (!targetInfo) continue;
-    const sourceInfo = hashRegularFile(source);
+    const sourceInfo = hashRegularFileWithin(sourceRoot, 'template/' + sourceRel, '模板源');
     if (!sourceInfo) continue;
     managedFiles[targetRel] = {
       source: 'template/' + sourceRel,
@@ -98,7 +115,7 @@ function buildBaseline({ projectRoot, standardsRoot }) {
       const target = safePath(root, targetRel);
       const targetInfo = hashRegularFile(target);
       if (!targetInfo) continue;
-      const sourceInfo = hashRegularFile(source);
+      const sourceInfo = hashRegularFileWithin(sourceRoot, sourceRel, '模板源');
       if (!sourceInfo) continue;
       managedFiles[targetRel] = {
         source: sourceRel,
@@ -114,9 +131,9 @@ function buildBaseline({ projectRoot, standardsRoot }) {
   }
 
   const ignoreFile = path.join(root, '.gitignore');
-  const ignoreInfo = hashRegularFile(ignoreFile);
+  const ignoreInfo = hashRegularFileWithin(root, '.gitignore', '项目目标');
   const ignoreSource = path.join(sourceRoot, 'template/.gitignore.append');
-  const ignoreSourceInfo = hashRegularFile(ignoreSource);
+  const ignoreSourceInfo = hashRegularFileWithin(sourceRoot, 'template/.gitignore.append', '模板源');
   if (ignoreInfo && ignoreSourceInfo) {
     const text = fs.readFileSync(ignoreFile, 'utf8');
     const start = text.indexOf(START);
