@@ -45,6 +45,10 @@ const end = '<!-- GENERATED:END -->';
 let current = fs.existsSync(boardPath) ? fs.readFileSync(boardPath, 'utf8') : `# 工作板（自动生成视图）\n\n${start}\n${end}\n`;
 const a = current.indexOf(start), b = current.indexOf(end);
 if (a < 0 || b < a) { console.error('BOARD.md 缺少有效的 GENERATED 标记'); process.exit(1); }
+if (args.includes('--validate')) {
+  console.log('BOARD.md 结构有效。');
+  process.exit(0);
+}
 const next = `${current.slice(0, a + start.length)}${body}${current.slice(b)}`;
 if (process.argv.includes('--check')) {
   if (next !== current) { console.error('BOARD.md 已过期，请运行 node scripts/generate-board.cjs'); process.exit(1); }
