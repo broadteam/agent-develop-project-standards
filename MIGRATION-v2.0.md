@@ -17,7 +17,7 @@
 2. 备份 `AGENTS.md`、`gov.toml`、`project-profile.toml`（若已有）、`.spec/`、`.memory/`、`.githooks/` 与 CI 配置。
 3. 在项目副本或临时 fixture 中执行 2.0 初始化器 `--dry-run`，审查创建、跳过、覆盖、保护清单。
 4. 从新规范仓库执行 `node tools/check-template-drift.cjs --root <项目目录>`。若项目没有 `.agent-standards.json`，先将其视为历史基线未知；不要把旧规则内容推断为与当前模板一致。人工审查、备份并确认当前内容后，可先运行 `tools/adopt-template-baseline.cjs --dry-run`，再显式执行 `--confirm-reviewed` 仅登记元数据基线。
-5. 在基线可比较后，执行 `node tools/plan-template-upgrade.cjs --root <项目目录> --json` 生成只读升级计划。记录 `plan_id`，逐项审查源路径、目标路径、基线哈希、当前哈希和建议动作；对每个待审条目记录 `reviewer`、`reviewed_at`、`path`、`decision`、`reason`；对 `manual_merge` 另记录 `baseline_ref`、`merge_result_ref`。 完成后，将计划和审查记录交给 `tools/validate-template-upgrade-review.cjs --plan <plan.json> --review <review.json>` 校验；校验器只验证完整性，不会执行变更。双向修改必须先通过升级前 Git 历史、备份或旧模板 checkout 恢复共同基线，再进行三方人工合并；记录 `baseline_ref` 和 `merge_result_ref`。安装清单只存哈希，不包含基线正文；无法恢复基线时不得宣称已完成三方合并。上游移除不得直接删除项目文件；新通用模板文件和项目已安装的技术栈预设也要确认是否适用；未选择的语言预设不属于该项目的升级对象。
+5. 在基线可比较后，执行 `node tools/plan-template-upgrade.cjs --root <项目目录> --json` 生成只读升级计划。记录 `plan_id`，逐项审查源路径、目标路径、基线哈希、当前哈希和建议动作；对每个待审条目记录 `reviewer`、`reviewed_at`、`path`、`decision`、`reason` 和 `result_sha256`（`approve_removal` 除外）；对 `manual_merge` 另记录 `baseline_ref`、`merge_result_ref`。 完成后，将计划和审查记录交给 `tools/validate-template-upgrade-review.cjs --plan <plan.json> --review <review.json>` 校验；校验器只验证完整性，不会执行变更。双向修改必须先通过升级前 Git 历史、备份或旧模板 checkout 恢复共同基线，再进行三方人工合并；记录 `baseline_ref` 和 `merge_result_ref`。安装清单只存哈希，不包含基线正文；无法恢复基线时不得宣称已完成三方合并。上游移除不得直接删除项目文件；新通用模板文件和项目已安装的技术栈预设也要确认是否适用；未选择的语言预设不属于该项目的升级对象。
 6. 比较 2.0 的规则入口、客户端指针、记忆模型、任务索引和治理配置；逐项处理项目定制。首次引入 `project-profile.toml` 时，初始化器只填写可探测的技术栈候选，项目类型、规模、风险、架构与能力开关必须由维护者确认后将 status 改为 `confirmed`。
 7. 检查 Hook 路径与执行权限；保留原有项目专属检查。`--replace-hook` 必须与 `--force` 同时指定；初始化器不会执行项目已有的同名 BOARD 生成脚本。
 8. 运行 Node/Python 治理检查、初始化回归、检查器 parity、项目 lint/类型检查/测试和构建。
@@ -41,9 +41,34 @@
 
 实际项目发生失败时，建议使用升级前 Git commit/独立 worktree 作为主要恢复点，外部备份作为第二恢复来源。恢复时停止后续修改，先保存失败现场日志；恢复文件与目录后重新运行治理检查、项目测试、构建及漂移检查，并比较原 commit、安装清单、文件树和未提交改动。未逐项验证的恢复必须标记为 `unverified`。
 
-**成功升级后的基线推进也尚未实现。** 手工应用获批文件后，项目的 `.agent-standards.json` 仍持有旧安装版本和旧的逐文件哈希；此时重新运行漂移检查，已应用文件会被识别为本地变化/冲突。不能把这一步标记为迁移完成，也不能手工改写 manifest 或滥用旧项目基线采纳工具。后续需要独立的“已审查升级登记”能力：绑定 plan_id 与 review 记录，验证每个批准路径的实际内容确实等于对应目标模板/人工合并结果，再推进相关基线条目；未批准路径保持原样。该能力尚未实现。
+新增 `tools/record-reviewed-template-upgrade.cjs` 用于成功升级后的基线登记。它不应用模板内容，只验证 plan/review、原 manifest 基线、当前模板源和项目内实际结果哈希，然后原子更新 `.agent-standards.json`。先执行 `--dry-run`，确认后再显式执行 `--confirm-reviewed`。它只推进已批准且哈希匹配的条目；本地定制必须用 `keep_project` 明确接受，人工合并必须记录共同基线、合并结果和结果哈希；上游删除必须确认目标已删除或明确保留并记录哈希。未处理状态、过期计划或任一结果不匹配都会拒绝登记，manifest 不写入。
+
+登记成功后，必须重新运行 `check-template-drift.cjs`、项目治理、测试和构建。该工具推进的是安装元数据，不是自动升级应用器，也不代替项目验证；自动升级应用器和自动回滚器仍未实现。不要手工编辑 manifest，也不要使用 `adopt-template-baseline.cjs` 代替升级登记。
 
 目前仓库尚未提供自动升级应用器或升级回滚器。上述是人工迁移的安全流程，不代表自动事务能力已经实现。
+
+## 成功升级后的基线登记
+
+手工应用并验证获批文件后，使用：
+
+```bash
+node tools/record-reviewed-template-upgrade.cjs \
+  --root <项目目录> \
+  --standards-root <规范仓库目录> \
+  --plan <upgrade-plan.json> \
+  --review <review.json> \
+  --dry-run
+
+# 备份并确认 dry-run 通过后，显式写入
+node tools/record-reviewed-template-upgrade.cjs \
+  --root <项目目录> \
+  --standards-root <规范仓库目录> \
+  --plan <upgrade-plan.json> \
+  --review <review.json> \
+  --confirm-reviewed
+```
+
+登记器会校验 plan_id、review 完整性、来源版本、逐文件旧基线哈希、当前模板源哈希及审查记录中的实际结果哈希。它只写 `.agent-standards.json`，不应用模板文件；登记失败时原 manifest 保持不变。登记成功后必须重新执行漂移检查、治理检查、项目测试和构建。此工具不提供自动升级或自动回滚能力。
 
 ## 不兼容变化登记
 
@@ -66,5 +91,6 @@
 - [ ] 已登记安装基线；无法恢复历史基线的旧项目必须明确标记并经维护者审查后才允许采纳当前基线。
 - [ ] 对上游与本地同时修改的文件形成逐项人工合并结论；漂移与升级预览工具不得自动覆盖。
 - [ ] 已生成并审查升级计划，记录 `plan_id` 及所有待审路径的 reviewer / reviewed_at / decision / reason。
-- [ ] 本次迁移没有把只读预览误当成升级已应用；自动应用器和自动回滚器若不存在，必须明确记录。
+- [ ] 本次迁移没有把只读预览误当成升级已应用；手工应用后通过 `record-reviewed-template-upgrade.cjs` 推进已审批基线，并重新运行漂移/治理/项目测试。
+- [ ] 如果没有自动应用器或自动回滚器，必须明确记录其不存在。
 - [ ] 回滚路径可执行或明确标记为未验证；临时恢复演练必须覆盖工作树恢复和恢复后重新验证。
