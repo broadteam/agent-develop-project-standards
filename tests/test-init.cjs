@@ -125,7 +125,7 @@ try {
   });
   assert.equal(failedInstall.status, 1, failedInstall.stdout + failedInstall.stderr);
   assert.match(failedInstall.stderr, /已尝试回滚本次写入/);
-  assert.match(failedInstall.stderr, /测试故障注入：AGENTS\\.md/);
+  assert.ok(failedInstall.stderr.includes('测试故障注入：AGENTS.md'));
   assert.equal(JSON.stringify(snapshotTree(rollbackProject)), rollbackBefore, 'failed initialization must restore overwritten files and remove newly created artifacts');
 
   // A target-owned generator is user code: initialization must never execute it.
@@ -134,7 +134,8 @@ try {
   fs.mkdirSync(path.join(customGeneratorProject, 'scripts'), { recursive: true });
   fs.copyFileSync(path.join(root, 'template/.spec/tasks/index.md'), path.join(customGeneratorProject, '.spec/tasks/index.md'));
   const executionMarker = path.join(customGeneratorProject, 'CUSTOM_GENERATOR_WAS_EXECUTED');
-  fs.writeFileSync(path.join(customGeneratorProject, 'scripts/generate-board.cjs'), \`require('node:fs').writeFileSync(\${JSON.stringify(executionMarker)}, 'executed');\n\`);
+  const customGeneratorSource = "require('node:fs').writeFileSync(" + JSON.stringify(executionMarker) + ", 'executed');\\n";
+  fs.writeFileSync(path.join(customGeneratorProject, 'scripts/generate-board.cjs'), customGeneratorSource);
   const customGeneratorRun = spawnSync(process.execPath, [path.join(root, 'init.cjs'), customGeneratorProject], { encoding: 'utf8' });
   assert.equal(customGeneratorRun.status, 0, customGeneratorRun.stdout + customGeneratorRun.stderr);
   assert.equal(fs.existsSync(executionMarker), false, 'initializer must not execute a project-owned generator');
