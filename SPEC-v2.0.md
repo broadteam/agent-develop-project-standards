@@ -204,7 +204,8 @@
 - 版本号、CHANGELOG、迁移文档和模板版本一致。
 - `tests/test-template-upgrade-plan.cjs` 验证升级预览稳定、只读、逐文件分类完整，并验证人工决策字段与基线阻断；预览不得执行任何变更。
 - 未经人工决策记录且审批校验未通过，不得把候选动作应用到项目；冲突决策必须包含基线与合并结果来源。
-- `tests/test-template-upgrade-review.cjs` 覆盖 plan_id 绑定、重复/缺失/错误决策、三方合并基线来源和阻断项不可被审批绕过。自动升级与自动回滚仍属于未来独立能力。
+- `tests/test-template-upgrade-review.cjs` 覆盖 plan_id 绑定、重复/缺失/错误决策、三方合并基线来源和阻断项不可被审批绕过。
+- `tests/test-template-upgrade-recovery.cjs` 在临时项目中演练获批文件手工应用、治理失败注入、项目外完整备份恢复、文件树精确比较和恢复后治理/漂移/计划 ID 复验；不得连接或修改真实业务项目。自动升级与自动回滚仍属于未来独立能力。
 
 ## 2. 2.0 目录契约
 
