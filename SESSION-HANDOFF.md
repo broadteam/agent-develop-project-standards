@@ -44,7 +44,7 @@
 - Node 与 Python 治理检查器现在双向核对活跃索引和归档索引；验证归档目录安全路径、任务波次数量、每张归档卡的 `card.md` / `log.md`，以及归档里程碑的 `milestone.md`。
 - `tests/test-parity.cjs` 新增有效归档、任务数量不一致、缺失任务日志、缺失里程碑目录等 fixture，并继续比较 Node/Python 输出和退出码。
 - `SPEC-v2.0.md` 补充第四、第六方向证据；`CHANGELOG.md` 新增 rc.10。
-- 最新完整双平台 CI 对应 HEAD `b1b03704bf8be9cde48465a79d08075f934928d3`：push [42464765721](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42464765721) 与 pull_request [42464769058](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42464769058) 均成功，Ubuntu / Windows jobs 全绿。当前 HEAD 仍以 PR #2 实时指针为准。
+- 最新完整双平台 CI 对应 HEAD `62dcc9debae3beab514843e79256e7f163f17658`：push [42465012620](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42465012620) 与 pull_request [42465016365](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42465016365) 均成功，Ubuntu / Windows jobs 全绿；新增路径穿越与孤立归档目录用例。当前 HEAD 仍以 PR #2 实时指针为准。
 
 ## 下一步（按优先级）
 
