@@ -47,6 +47,41 @@ try {
   analyzeDrift({ projectRoot: cleanProject, standardsRoot: root });
   assert.equal(JSON.stringify(snapshotTree(cleanProject)), beforeRead);
 
+  // Text outside the managed .gitignore block is project-owned and must not be mistaken for template drift.
+  const gitignoreProject = path.join(tmp, 'gitignore-boundary');
+  fs.mkdirSync(gitignoreProject);
+  const gitignoreInstall = init(gitignoreProject);
+  assert.equal(gitignoreInstall.status, 0, gitignoreInstall.stdout + gitignoreInstall.stderr);
+  const gitignorePath = path.join(gitignoreProject, '.gitignore');
+  fs.appendFileSync(gitignorePath, '\n# Project-owned ignore rule\nlocal-cache/\n');
+  const outsideBlock = analyzeDrift({ projectRoot: gitignoreProject, standardsRoot: root });
+  assert.ok(outsideBlock.findings.some((item) => item.path === '.gitignore' && item.status === 'current'),
+    JSON.stringify(outsideBlock.findings.filter((item) => item.path === '.gitignore')));
+
+  // Changes inside the managed block are tracked separately from user content.
+  const gitignoreText = fs.readFileSync(gitignorePath, 'utf8');
+  const blockEnd = gitignoreText.indexOf('# <<< agent-project-standards (managed)');
+  assert.ok(blockEnd >= 0, 'managed ignore block end marker must exist');
+  fs.writeFileSync(gitignorePath, gitignoreText.slice(0, blockEnd) + '# project edit inside managed block\n' + gitignoreText.slice(blockEnd));
+  const insideBlock = analyzeDrift({ projectRoot: gitignoreProject, standardsRoot: root });
+  assert.ok(insideBlock.findings.some((item) => item.path === '.gitignore' && item.status === 'local_customized'));
+
+  // A future upstream change to the managed source plus a local block edit is a conflict.
+  const newerIgnoreSource = path.join(newerStandards, 'template/.gitignore.append');
+  fs.appendFileSync(newerIgnoreSource, '\n# Upstream ignore addition\n');
+  const ignoreConflict = analyzeDrift({ projectRoot: gitignoreProject, standardsRoot: newerStandards });
+  assert.ok(ignoreConflict.findings.some((item) => item.path === '.gitignore' && item.status === 'conflict'));
+
+  // On POSIX, changing executable mode is local drift even when bytes are unchanged.
+  if (process.platform !== 'win32') {
+    const hook = path.join(cleanProject, '.githooks/pre-commit');
+    const originalMode = fs.statSync(hook).mode & 0o777;
+    fs.chmodSync(hook, originalMode & ~0o111);
+    const modeDrift = analyzeDrift({ projectRoot: cleanProject, standardsRoot: root });
+    assert.ok(modeDrift.findings.some((item) => item.path === '.githooks/pre-commit' && item.status === 'local_customized'));
+    fs.chmodSync(hook, originalMode);
+  }
+
   // A project-only change is identified as local customization, not upstream drift.
   const conventions = path.join(cleanProject, '.spec/02-conventions.md');
   fs.appendFileSync(conventions, '\n## Project-specific customization\n');
