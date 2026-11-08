@@ -80,9 +80,44 @@ try {
   fs.writeFileSync(index, archivedIndex.slice(0, archiveAt) + archivedIndex.slice(archiveAt).replace('| — | — | — | — |', '| W1 | 1 | done | `archive/W1/` |'));
   fs.mkdirSync(path.join(fixture, '.spec/tasks/archive/W1'), { recursive: true });
   fs.renameSync(path.join(fixture, '.spec/tasks/T1'), path.join(fixture, '.spec/tasks/archive/W1/T1'));
+  const taskArchiveIndex = path.join(fixture, '.spec/tasks/archive/INDEX.md');
+  const taskArchiveOriginal = fs.readFileSync(taskArchiveIndex, 'utf8');
+  fs.writeFileSync(taskArchiveIndex, taskArchiveOriginal.replace('| — | — | — | — |', '| W1 | 1 | 2026-11-08 | archive/W1/ |'));
   run(process.execPath, ['scripts/generate-board.cjs']);
   result = assertParity('archived wave');
   assert.equal(result.status, 0, result.stdout + result.stderr);
+
+  // Archive catalogs must match the active archive pointer and the real contents.
+  fs.writeFileSync(taskArchiveIndex, fs.readFileSync(taskArchiveIndex, 'utf8').replace('| W1 | 1 |', '| W1 | 2 |'));
+  result = assertParity('archived task count mismatch');
+  assert.equal(result.status, 1);
+  assert.match(result.stdout, /任务归档：波次 W1 任务数与目录内容不一致/);
+  fs.writeFileSync(taskArchiveIndex, taskArchiveOriginal.replace('| — | — | — | — |', '| W1 | 1 | 2026-11-08 | archive/W1/ |'));
+  const archivedLog = path.join(fixture, '.spec/tasks/archive/W1/T1/log.md');
+  const archivedLogText = fs.readFileSync(archivedLog, 'utf8');
+  fs.unlinkSync(archivedLog);
+  result = assertParity('archived task missing log');
+  assert.equal(result.status, 1);
+  assert.match(result.stdout, /任务归档：W1\/T1\/ 缺少 log.md/);
+  fs.writeFileSync(archivedLog, archivedLogText);
+
+  // Roadmap archives have the same two-way catalog and detail-file contract.
+  const roadmapActive = originalRoadmap
+    .replace('| M1 | 示例里程碑：把这张换成你的第一阶段 | — | 未开始 | T1 |', '| — | — | — | — | — |')
+    .replace('| — | — | — |', '| M1 | 示例里程碑：把这张换成你的第一阶段 | 已完成并归档 |');
+  fs.writeFileSync(roadmapIndex, roadmapActive);
+  fs.mkdirSync(path.join(fixture, '.spec/roadmap/archive'), { recursive: true });
+  fs.renameSync(path.join(fixture, '.spec/roadmap/M1'), path.join(fixture, '.spec/roadmap/archive/M1'));
+  const roadmapArchiveIndex = path.join(fixture, '.spec/roadmap/archive/INDEX.md');
+  const roadmapArchiveOriginal = fs.readFileSync(roadmapArchiveIndex, 'utf8');
+  fs.writeFileSync(roadmapArchiveIndex, roadmapArchiveOriginal.replace('| — | — | — | — |', '| M1 | 示例里程碑：把这张换成你的第一阶段 | 2026-11-08 | archive/M1/ |'));
+  result = assertParity('archived milestone');
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  fs.writeFileSync(roadmapArchiveIndex, fs.readFileSync(roadmapArchiveIndex, 'utf8').replace('archive/M1/', 'archive/Missing/'));
+  result = assertParity('archived milestone missing directory');
+  assert.equal(result.status, 1);
+  assert.match(result.stdout, /里程碑归档：ID M1 的目录或 milestone\.md 不存在/);
+  fs.writeFileSync(roadmapArchiveIndex, roadmapArchiveOriginal.replace('| — | — | — | — |', '| M1 | 示例里程碑：把这张换成你的第一阶段 | 2026-11-08 | archive/M1/ |'));
 
   // Any subsequent index edit must invalidate the derived board until regenerated.
   fs.writeFileSync(index, fs.readFileSync(index, 'utf8') + '\n<!-- changed -->\n');
