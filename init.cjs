@@ -175,6 +175,18 @@ try {
   process.exit(1);
 }
 
+// Validate an existing derived BOARD before any template write. --validate is
+// read-only; generation itself happens only after installation succeeds.
+if (capabilityResolution.capabilities.task_tracking?.status !== 'disabled' && has('.spec/tasks/index.md')) {
+  const validation = spawnSync(process.execPath, [
+    path.join(TEMPLATE, 'scripts/generate-board.cjs'), '--root', TARGET, '--validate',
+  ], { cwd: TARGET, encoding: 'utf8' });
+  if (validation.status !== 0) {
+    console.error('[init] BOARD 预检失败，未写入任何模板文件：' + (validation.stderr || validation.stdout || '未知错误'));
+    process.exit(1);
+  }
+}
+
 function fill(s) {
   let out = s;
   for (const [k, v] of Object.entries(replacements)) out = out.split(`{{${k}}}`).join(v);
