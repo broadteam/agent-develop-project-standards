@@ -148,6 +148,7 @@ function analyzeDrift({ projectRoot, standardsRoot }) {
   const currentFiles = walkTemplateFiles(templateRoot);
   const tracked = manifest.managed_files;
   const derived = new Set(manifest.derived_paths ?? []);
+  const excluded = new Set(manifest.excluded_paths ?? []);
   const preserved = new Set(manifest.preserved_paths ?? []);
   const findings = [];
 
@@ -161,7 +162,7 @@ function analyzeDrift({ projectRoot, standardsRoot }) {
   }
 
   for (const file of currentFiles) {
-    if (tracked[file.target] || derived.has(file.target)) continue;
+    if (tracked[file.target] || derived.has(file.target) || excluded.has(file.target)) continue;
     const absolute = resolveInside(targetRoot, file.target, '新模板文件路径');
     const installed = regularFileHash(absolute);
     if (installed.unsafe) findings.push({ path: file.target, status: 'local_unsafe', detail: '目标为符号链接或非普通文件' });
