@@ -102,9 +102,10 @@ function classifyFile(targetRoot, standardsRoot, targetPath, entry, currentVersi
     current_version: currentVersion
   };
 }
-function extractManagedBlock(file) {
-  const value = regularFileHash(file);
+function extractManagedBlock(root, rel) {
+  const value = regularFileHashWithin(root, rel, '托管区块目标路径');
   if (!value.exists || value.unsafe) return value;
+  const file = resolveInside(root, rel, '托管区块目标路径');
   const text = fs.readFileSync(file, 'utf8');
   const start = text.indexOf(BLOCK_START);
   const end = text.indexOf(BLOCK_END);
@@ -119,7 +120,7 @@ function classifyManagedBlock(targetRoot, standardsRoot, targetPath, entry, curr
     throw new Error('托管区块基线哈希无效：' + targetPath);
   }
   const source = regularFileHashWithin(standardsRoot, entry.source, '托管区块源路径');
-  const installed = extractManagedBlock(projectPath);
+  const installed = extractManagedBlock(targetRoot, targetPath);
   if (source.unsafe || installed.unsafe) return { path: targetPath, status: 'unsafe' };
   if (!source.exists) return { path: targetPath, status: 'upstream_removed' };
   if (!installed.exists) return { path: targetPath, status: 'local_missing' };
