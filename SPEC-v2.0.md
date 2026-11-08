@@ -177,6 +177,11 @@
 
 **目标**：规范可升级、可比较、可回滚，多个项目能明确知道自己使用哪个版本。
 
+- `policy/standards-version.json` 是母模板版本事实源；初始化生成 `.agent-standards.json`，逐文件记录模板源哈希、安装后哈希和来源版本。
+- `tools/check-template-drift.cjs` 只读比较上游模板与项目安装状态，区分上游更新、本地定制和双向冲突；它不执行覆盖或合并。
+- 没有历史安装标记的旧项目，其基线不可推断。初始化将保留文件列为 `partial_unknown`；只有维护者完成审查后，才能通过独立的 `adopt-template-baseline.cjs --confirm-reviewed` 登记当前基线。
+- 显式采纳的本地定制被记录为已接受；未来上游修改该文件时仍按冲突处理。基线工具只改元数据，不改规则正文。
+
 - 使用语义化版本：PATCH 修复不改变行为；MINOR 向后兼容新增；MAJOR 允许目录、规则、配置或迁移契约不兼容变更。
 - 每个版本必须有 CHANGELOG、迁移指南、模板版本标识和兼容性说明。
 - 初始化器升级采用显式迁移，不把 `--force` 当升级机制。
@@ -245,5 +250,5 @@
 | 4. 任务、看板与路线图管理 | in_progress | `tests/test-parity.cjs` 覆盖任务状态、ID、BOARD 新鲜度，以及任务波次/里程碑归档索引双向一致、目录指针、归档数量和详情文件完整性；Node/Python 输出保持一致。真实项目规模下的索引维护体验仍待评估。 |
 | 5. 工程治理与初始化机制 | in_progress | `tests/test-init.cjs` 覆盖全树 dry-run 零写入、参数拒绝、Hook 保护、项目内符号链接 fail-closed、禁止执行项目自有 BOARD 脚本，以及故障注入后的文件/目录回滚；`tests/test-migration-v2.cjs` 覆盖空项目 preview、已有多栈项目、自定义文件、Hook 保护和重复初始化。进程被强制终止/断电后的恢复不在事务保证内。 |
 | 6. 自动化验证与质量门禁 | in_progress | Node/Python parity 覆盖任务归档/路线图归档异常夹具；客户端契约、迁移 fixture、Markdown 本地链接检查均接入 Ubuntu/Windows CI；真实 CLI 集成仍未覆盖。 |
-| 7. 长期演进与版本管理 | in_progress | CHANGELOG、1.2.x → 2.0 迁移指南与迁移 fixture 已存在；仍需在正式发布前完成迁移判据、回滚路径和版本支持矩阵的逐项验收。 |
+| 7. 长期演进与版本管理 | in_progress | 新增 `policy/standards-version.json` 与 `.agent-standards.json` 逐文件安装基线；`tools/check-template-drift.cjs` 只读识别上游更新、本地定制及双向冲突；`tools/adopt-template-baseline.cjs` 仅在显式确认后登记旧项目已审查内容；`tests/test-template-drift.cjs` 覆盖 clean、local-only、upstream-only、conflict、new-file、legacy unknown 与显式采纳。真实版本升级/回滚演练仍需发布前验收。 |
 
