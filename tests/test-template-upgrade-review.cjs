@@ -100,6 +100,14 @@ try {
   const tamperedPlan = { ...plan, target_version: '2.0.0-rc.99' };
   assert.throws(() => validateReview(tamperedPlan, review), /plan_id/);
 
+  const tamperedApprovalPlan = {
+    ...plan,
+    actions: plan.actions.map((action, index) => index === 0
+      ? { ...action, requires_human_review: !action.requires_human_review }
+      : action)
+  };
+  assert.throws(() => validateReview(tamperedApprovalPlan, review), /plan_id/);
+
   // CLI validation is read-only and returns success only for a complete review.
   const planFile = path.join(tmp, 'upgrade-plan.json');
   const reviewFile = path.join(tmp, 'upgrade-review.json');
