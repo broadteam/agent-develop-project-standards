@@ -233,7 +233,10 @@ try {
   fs.appendFileSync(path.join(secondTarget, 'template', secondPath), '\n## approved source\n');
   const secondPlan = buildUpgradePlan({ projectRoot: secondProject, standardsRoot: secondTarget });
   const secondAction = byPath(secondPlan, secondPath);
-  fs.copyFileSync(path.join(secondTarget, secondAction.source), path.join(secondProject, secondPath));
+  const secondReplaceActions = secondPlan.actions.filter(action => action.operation === 'replace_candidate');
+  for (const action of secondReplaceActions) {
+    fs.copyFileSync(path.join(secondTarget, action.source), path.join(secondProject, action.path));
+  }
   const secondReview = {
     review_schema: 1,
     plan_id: secondPlan.plan_id,
@@ -242,9 +245,7 @@ try {
       reviewed_at: '2026-11-08T16:05:00.000Z',
       path: action.path,
       decision: action.approval,
-      result_sha256: action.operation === 'replace_candidate'
-        ? sha256File(path.join(secondProject, action.path))
-        : sha256File(path.join(secondProject, action.path)),
+      ...(action.decision === 'approve_removal' ? {} : { result_sha256: sha256File(path.join(secondProject, action.path)) }),
       reason: '已审查'
     }))
   };
