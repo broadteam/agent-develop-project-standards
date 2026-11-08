@@ -1,3 +1,14 @@
+## 2.0.0-rc.5 - 2026-11-08
+
+### Added
+- Specify verified Codex, Claude Code, Gemini CLI and Cursor rule-entry behavior and known scope limitations.
+- Add client-adapter contract tests for canonical rule pointers, native import syntax and deprecated Cursor entry exclusion.
+- Run client-adapter tests in GitHub Actions.
+
+### Notes
+- Cursor's native AGENTS.md support is root-level only and has no path scoping; do not infer nested AGENTS.md support from other clients.
+- Client-specific scoped rules remain optional and must not become a second copy of canonical project rules.
+
 # Changelog
 
 ## 2.0.0-rc.4 - 2026-11-08
