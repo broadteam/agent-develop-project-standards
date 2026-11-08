@@ -137,6 +137,23 @@ function planAction(finding) {
       };
   }
 }
+function calculatePlanId(plan) {
+  const identity = {
+    plan_schema: 1,
+    source_version: plan.source_version ?? null,
+    target_version: plan.target_version ?? null,
+    baseline_state: plan.baseline_state ?? 'missing',
+    findings: (plan.actions ?? []).map(action => ({
+      path: action.path,
+      source: action.source,
+      status: action.status,
+      operation: action.operation,
+      approval: action.approval,
+      evidence: action.evidence
+    }))
+  };
+  return sha256(JSON.stringify(identity)).slice(0, 16);
+}
 function buildUpgradePlan({ projectRoot, standardsRoot }) {
   const report = analyzeDrift({ projectRoot, standardsRoot });
   const sourceVersion = report.installed_with_version ?? null;
@@ -302,4 +319,4 @@ if (require.main === module) {
   try { process.exitCode = main(process.argv.slice(2)); }
   catch (error) { console.error('[template-upgrade-plan] ' + error.message); process.exitCode = 2; }
 }
-module.exports = { buildUpgradePlan, planAction, renderText };
+module.exports = { buildUpgradePlan, calculatePlanId, planAction, renderText };
