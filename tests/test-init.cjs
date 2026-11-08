@@ -7,6 +7,18 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const root = path.resolve(__dirname, '..');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-standards-init-'));
+function snapshotTree(dir, rel = '') {
+  const entries = [];
+  for (const name of fs.readdirSync(dir).sort()) {
+    const absolute = path.join(dir, name);
+    const childRel = path.posix.join(rel.split(path.sep).join('/'), name);
+    const stat = fs.lstatSync(absolute);
+    if (stat.isSymbolicLink()) entries.push([childRel, 'symlink', fs.readlinkSync(absolute)]);
+    else if (stat.isDirectory()) entries.push([childRel, 'directory', stat.mode & 0o777, ...snapshotTree(absolute, childRel)]);
+    else entries.push([childRel, 'file', stat.mode & 0o777, fs.readFileSync(absolute).toString('base64')]);
+  }
+  return entries;
+}
 try {
   const project = path.join(tmp, 'php-app');
   fs.mkdirSync(project);
@@ -16,6 +28,19 @@ try {
   const originalHook = '#!/bin/sh\necho project-hook\n';
   fs.writeFileSync(path.join(project, '.githooks/pre-commit'), originalHook);
   fs.writeFileSync(path.join(project, '.gitignore'), '.tmp/\n');
+  const beforePreview = JSON.stringify(snapshotTree(project));
+  const preview = spawnSync(process.execPath, [path.join(root, 'init.cjs'), project, '--force', '--dry-run'], { encoding: 'utf8' });
+  assert.equal(preview.status, 0, preview.stdout + preview.stderr);
+  assert.deepEqual(JSON.stringify(snapshotTree(project)), beforePreview, '--dry-run must leave the complete target tree unchanged');
+
+  const unknownFlag = spawnSync(process.execPath, [path.join(root, 'init.cjs'), project, '--unknown-option'], { encoding: 'utf8' });
+  assert.equal(unknownFlag.status, 2, 'unknown options must be rejected');
+  const multipleTargets = spawnSync(process.execPath, [path.join(root, 'init.cjs'), project, path.join(tmp, 'another-target')], { encoding: 'utf8' });
+  assert.equal(multipleTargets.status, 2, 'multiple target directories must be rejected');
+  const replaceWithoutForce = spawnSync(process.execPath, [path.join(root, 'init.cjs'), project, '--replace-hook'], { encoding: 'utf8' });
+  assert.equal(replaceWithoutForce.status, 2, '--replace-hook must require --force');
+  assert.deepEqual(JSON.stringify(snapshotTree(project)), beforePreview, 'invalid arguments must not mutate the target');
+
   const run = spawnSync(process.execPath, [path.join(root, 'init.cjs'), project, '--force'], { encoding: 'utf8' });
   assert.equal(run.status, 0, run.stdout + run.stderr);
   assert.equal(fs.readFileSync(path.join(project, '.githooks/pre-commit'), 'utf8'), originalHook, 'existing hook must be protected even with --force');
@@ -66,6 +91,59 @@ try {
     const noRuntimeHook = spawnSync('/bin/sh', ['.githooks/pre-commit'], { cwd: noRuntime, env: { PATH: '/nonexistent' }, encoding: 'utf8' });
     assert.equal(noRuntimeHook.status, 1, 'pre-commit must fail closed when no runtime is available');
     assert.match(noRuntimeHook.stderr, /找不到可用的治理检查运行环境/);
+  }
+
+  // A target-owned generator is user code: initialization must never execute it.
+  const customGeneratorProject = path.join(tmp, 'custom-generator-project');
+  fs.mkdirSync(path.join(customGeneratorProject, '.spec/tasks'), { recursive: true });
+  fs.mkdirSync(path.join(customGeneratorProject, 'scripts'), { recursive: true });
+  fs.copyFileSync(path.join(root, 'template/.spec/tasks/index.md'), path.join(customGeneratorProject, '.spec/tasks/index.md'));
+  const executionMarker = path.join(customGeneratorProject, 'CUSTOM_GENERATOR_WAS_EXECUTED');
+  fs.writeFileSync(path.join(customGeneratorProject, 'scripts/generate-board.cjs'), \`require('node:fs').writeFileSync(\${JSON.stringify(executionMarker)}, 'executed');\n\`);
+  const customGeneratorRun = spawnSync(process.execPath, [path.join(root, 'init.cjs'), customGeneratorProject], { encoding: 'utf8' });
+  assert.equal(customGeneratorRun.status, 0, customGeneratorRun.stdout + customGeneratorRun.stderr);
+  assert.equal(fs.existsSync(executionMarker), false, 'initializer must not execute a project-owned generator');
+  assert.ok(fs.existsSync(path.join(customGeneratorProject, '.spec/tasks/BOARD.md')), 'trusted bundled generator should still produce BOARD.md');
+
+  // Existing symlinked managed paths must be rejected before any template file is written.
+  const symlinkProject = path.join(tmp, 'symlink-project');
+  const externalDir = path.join(tmp, 'external-target');
+  fs.mkdirSync(symlinkProject);
+  fs.mkdirSync(externalDir);
+  fs.writeFileSync(path.join(externalDir, 'keep.txt'), 'external data must remain untouched');
+  let symlinkCreated = false;
+  try {
+    fs.symlinkSync(externalDir, path.join(symlinkProject, '.spec'), process.platform === 'win32' ? 'junction' : 'dir');
+    symlinkCreated = true;
+  } catch (error) {
+    if (process.platform !== 'win32' || !['EPERM', 'EACCES', 'UNKNOWN'].includes(error.code)) throw error;
+    console.warn('Skipping Windows symlink fixture: current runner does not permit symlink creation.');
+  }
+  if (symlinkCreated) {
+    const blocked = spawnSync(process.execPath, [path.join(root, 'init.cjs'), symlinkProject, '--force'], { encoding: 'utf8' });
+    assert.equal(blocked.status, 1, blocked.stdout + blocked.stderr);
+    assert.match(blocked.stderr, /安全预检失败/);
+    assert.deepEqual(fs.readdirSync(symlinkProject), ['.spec'], 'preflight must abort before writing any template file');
+    assert.equal(fs.readFileSync(path.join(externalDir, 'keep.txt'), 'utf8'), 'external data must remain untouched');
+  }
+
+  const symlinkIgnoreProject = path.join(tmp, 'symlink-ignore-project');
+  const externalIgnore = path.join(tmp, 'external-ignore');
+  fs.mkdirSync(symlinkIgnoreProject);
+  fs.writeFileSync(externalIgnore, 'external ignore file');
+  let ignoreSymlinkCreated = false;
+  try {
+    fs.symlinkSync(externalIgnore, path.join(symlinkIgnoreProject, '.gitignore'), 'file');
+    ignoreSymlinkCreated = true;
+  } catch (error) {
+    if (process.platform !== 'win32' || !['EPERM', 'EACCES', 'UNKNOWN'].includes(error.code)) throw error;
+    console.warn('Skipping Windows file-symlink fixture: current runner does not permit symlink creation.');
+  }
+  if (ignoreSymlinkCreated) {
+    const blocked = spawnSync(process.execPath, [path.join(root, 'init.cjs'), symlinkIgnoreProject, '--force'], { encoding: 'utf8' });
+    assert.equal(blocked.status, 1, blocked.stdout + blocked.stderr);
+    assert.equal(fs.readFileSync(externalIgnore, 'utf8'), 'external ignore file', '.gitignore symlink target must not be modified');
+    assert.deepEqual(fs.readdirSync(symlinkIgnoreProject), ['.gitignore'], 'file-symlink preflight must happen before template writes');
   }
 
   const strictProject = path.join(tmp, 'strict-project');
