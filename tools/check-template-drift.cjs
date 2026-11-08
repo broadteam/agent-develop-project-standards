@@ -35,7 +35,7 @@ function regularFileHash(file) {
     throw error;
   }
   if (stat.isSymbolicLink() || !stat.isFile()) return { exists: true, unsafe: true, hash: null };
-  return { exists: true, unsafe: false, hash: sha256(fs.readFileSync(file)) };
+  return { exists: true, unsafe: false, hash: sha256(fs.readFileSync(file)), mode: stat.mode & 0o777 };
 }
 function walkTemplateFiles(templateRoot, rel = '') {
   const files = [];
@@ -110,11 +110,13 @@ function classifyManagedBlock(targetRoot, standardsRoot, targetPath, entry, curr
   if (installed.malformed) return { path: targetPath, status: 'managed_block_malformed' };
   const upstreamChanged = source.hash !== entry.template_sha256;
   const localChanged = installed.hash !== entry.installed_sha256;
+  const customizedAtBaseline = entry.customized_at_baseline === true;
   return {
     path: targetPath,
-    status: upstreamChanged && localChanged ? 'conflict'
+    status: upstreamChanged && (localChanged || customizedAtBaseline) ? 'conflict'
       : upstreamChanged ? 'update_available'
-        : localChanged ? 'local_customized' : 'current',
+        : localChanged ? 'local_customized'
+          : customizedAtBaseline ? 'accepted_customization' : 'current',
     upstream_changed: upstreamChanged,
     local_changed: localChanged,
     baseline_version: entry.template_version ?? null,
