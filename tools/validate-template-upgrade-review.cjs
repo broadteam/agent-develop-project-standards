@@ -34,7 +34,7 @@ function validTimestamp(value) {
 function validateReview(plan, review) {
   const errors = [];
   const warnings = [];
-  if (!isObject(plan) || plan.plan_schema !== 1 || !Array.isArray(plan.actions)) {
+  if (!isObject(plan) || plan.plan_schema !== 2 || !Array.isArray(plan.actions)) {
     throw new Error('升级计划格式无效或 plan_schema 不受支持');
   }
   if (!nonEmpty(plan.plan_id) || calculatePlanId(plan) !== plan.plan_id) {
@@ -43,7 +43,7 @@ function validateReview(plan, review) {
   if (plan.can_apply_automatically !== false) {
     throw new Error('当前升级计划必须声明 can_apply_automatically=false');
   }
-  if (!isObject(review) || review.review_schema !== 1 || !Array.isArray(review.decisions)) {
+  if (!isObject(review) || review.review_schema !== 2 || !Array.isArray(review.decisions)) {
     throw new Error('人工审查记录格式无效；需要 review_schema=1 和 decisions 数组');
   }
   if (review.plan_id !== plan.plan_id) {
@@ -85,6 +85,11 @@ function validateReview(plan, review) {
     if (!nonEmpty(decision.reason)) errors.push(filePath + '：缺少决策 reason');
     if (decision.decision !== 'approve_removal' && decision.decision !== 'defer' && !/^[a-f0-9]{64}$/.test(decision.result_sha256 || '')) {
       errors.push(filePath + '：必须提供实际结果文件/托管区块的 result_sha256（64 位小写 SHA-256）');
+    }
+    const managedBlock = action.path === '.gitignore' && action.source === 'template/.gitignore.append';
+    if (decision.decision !== 'approve_removal' && decision.decision !== 'defer' && !managedBlock
+      && (!Number.isInteger(decision.result_mode) || decision.result_mode < 0 || decision.result_mode > 0o777)) {
+      errors.push(filePath + '：普通文件必须提供实际结果权限 result_mode（0..0o777）');
     }
     if (!nonEmpty(action.approval) || !ALLOWED_DECISIONS.has(action.approval)) {
       errors.push(filePath + '：计划包含未知的审批动作，不能被确认');
