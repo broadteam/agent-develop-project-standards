@@ -23,7 +23,7 @@ assert.match(agents, /唯一入口/);
 assert.match(init, /'AGENTS\.md'.*'CLAUDE\.md'.*'GEMINI\.md'/s, 'initializer must install all supported entry files');
 assert.doesNotMatch(init, /\.cursorrules/, 'initializer must not create the deprecated Cursor entry');
 assert.ok(!exists('template/.cursorrules'), 'deprecated Cursor entry must not exist in the template');
-assert.match(spec, /Cursor[\s\S]*root-level only/i);
+assert.match(spec, /Cursor[\s\S]*仅支持项目根目录/);
 assert.match(spec, /Gemini CLI[\s\S]*@\.\/AGENTS\.md/);
 assert.match(spec, /Claude Code[\s\S]*@AGENTS\.md/);
 assert.match(spec, /Codex[\s\S]*root-to-leaf/i);
