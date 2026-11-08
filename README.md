@@ -121,7 +121,8 @@ project-standards/
 ├── presets/stacks/          # 按检测到的技术栈选择性铺设
 ├── tools/
 │   ├── check-template-drift.cjs
-│   └── adopt-template-baseline.cjs
+│   ├── adopt-template-baseline.cjs
+│   └── plan-template-upgrade.cjs
 │   ├── php.md
 │   ├── java.md
 │   ├── node.md
@@ -268,6 +269,23 @@ node tools/adopt-template-baseline.cjs --root /path/to/your-project --confirm-re
 
 基线采纳只更新 `.agent-standards.json`，不修改规则文件。它表示维护者已审查并接受当前项目内容；已接受的定制会被保留，未来上游修改同一文件时会报告为冲突，要求人工合并。不要在未审查差异时执行 `--confirm-reviewed`。
 
+### 版本升级预览（只读）
+
+已有安装基线后，使用独立的升级计划器查看从项目当前版本到所选规范 checkout 的逐文件升级建议：
+
+```bash
+node tools/plan-template-upgrade.cjs --root /path/to/your-project
+node tools/plan-template-upgrade.cjs --root /path/to/your-project --json
+```
+
+需要比较另一个规范仓库目录时，增加 `--standards-root /path/to/project-standards`。预览输出包含稳定的 `plan_id`、来源/目标版本、逐文件建议动作、哈希证据、阻断项以及人工审批字段。它覆盖普通模板文件和技术栈预设。
+
+计划将变化分为：可审查的上游替换候选、项目本地修改保留、双向冲突（三方人工合并）、上游移除审查、本地缺失恢复候选、上游新增文件候选、旧项目基线审查和未登记同名文件归属审查。任何删除、覆盖或合并都不会自动执行。
+
+`plan-template-upgrade.cjs` 目前只生成预览，不读取审批文件、不应用计划，也不回滚项目内容。维护者必须为每个待审条目记录 `reviewer`、`reviewed_at`、`path`、`decision` 和 `reason`；阻断项先修复并重新生成计划。**当前版本没有自动升级应用器，不能把计划报告当作升级已经完成。**
+
+退出码：`0` 没有待处理的人工差异；`1` 有差异、基线不完整或存在阻断；`2` 参数、路径或元数据无效。升级前仍应在独立分支/备份副本中操作，并在变更后运行治理检查、项目测试和构建。
+
 ## 版本与迁移
 
 当前稳定模板版本见 `CHANGELOG.md`。1.1.x 升级到 1.2.0 请阅读 `MIGRATION-v1.2.md`；1.2.x 项目升级到 2.0 前，先阅读 `MIGRATION-v2.0.md`，并以 `SPEC-v2.0.md` 的七大方向与发布门槛为准。2.0 尚未达到正式发布条件前，不要将候选分支当作稳定模板铺设到业务项目。不要对已经定制的项目直接执行 `--force`。
@@ -292,4 +310,4 @@ node tests/test-migration-v2.cjs
 node tests/test-doc-links.cjs
 ```
 
-`test-init` 验证 PHP 项目探测、`.gitignore` 幂等合并以及已有 Hook 保护；`test-parity` 使用同一测试夹具验证 Node/Python 检查器的退出码和输出一致，并覆盖符号链接、非法状态、缺失日志、重复 ID、任务波次归档与 BOARD 过期检测；`test-migration-v2` 在临时项目中演练空项目 preview 和已有多栈项目的安全迁移；`test-doc-links` 验证所有仓库内 Markdown 相对链接。GitHub Actions 在 Ubuntu 与 Windows 的 Push 和 Pull Request 中执行这些检查。
+`test-init` 验证 PHP 项目探测、`.gitignore` 幂等合并以及已有 Hook 保护；`test-parity` 使用同一测试夹具验证 Node/Python 检查器的退出码和输出一致，并覆盖符号链接、非法状态、缺失日志、重复 ID、任务波次归档与 BOARD 过期检测；`test-migration-v2` 在临时项目中演练空项目 preview 和已有多栈项目的安全迁移；`test-template-drift` 验证安装基线与只读漂移检测；`test-template-upgrade-plan` 验证升级建议、人工确认契约和预览零写入；`test-doc-links` 验证所有仓库内 Markdown 相对链接。GitHub Actions 在 Ubuntu 与 Windows 的 Push 和 Pull Request 中执行这些检查。
