@@ -1,3 +1,13 @@
+## 2.0.0-rc.6 - 2026-11-08
+
+### Changed
+- Expand the client compatibility matrix with documented discovery/import semantics and direct official references.
+- Clarify the evidence boundary: automated tests cover template contracts and initializer fixtures, not real CLI end-to-end behavior.
+
+### Added
+- Strengthen adapter tests to detect duplicated client rule prose and unexpected Cursor-specific rule trees.
+- Verify the initializer copies the canonical AGENTS.md body unchanged.
+
 ## 2.0.0-rc.5 - 2026-11-08
 
 ### Added
