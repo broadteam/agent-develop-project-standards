@@ -118,7 +118,7 @@ try {
   );
   assert.ok(requiredActions.length >= replacementActions.length);
   const review = {
-    review_schema: 1,
+    review_schema: 2,
     plan_id: planBefore.plan_id,
     decisions: requiredActions.map(action => ({
       reviewer: 'recovery-fixture-maintainer',
@@ -130,6 +130,11 @@ try {
         : action.operation === 'replace_candidate' || action.operation === 'add_candidate' || action.operation === 'restore_candidate'
           ? sha256File(path.join(newerStandards, action.source))
           : fs.existsSync(path.join(project, action.path)) ? sha256File(path.join(project, action.path)) : undefined,
+      result_mode: action.operation === 'approve_removal'
+        ? undefined
+        : action.operation === 'replace_candidate' || action.operation === 'add_candidate' || action.operation === 'restore_candidate'
+          ? fs.statSync(path.join(newerStandards, action.source)).mode & 0o777
+          : fs.existsSync(path.join(project, action.path)) ? fs.statSync(path.join(project, action.path)).mode & 0o777 : undefined,
       reason: action.path === approvedPath
         ? '该通用登记说明仅有上游更新，已检查目标文件差异，批准在临时项目中演练。'
         : '该计划项已检查并按计划要求记录决策；本次恢复演练只实际执行登记说明文件的替换。',
