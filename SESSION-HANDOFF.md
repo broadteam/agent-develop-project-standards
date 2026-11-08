@@ -66,7 +66,7 @@
 - 新增显式 `tools/adopt-template-baseline.cjs`：先 dry-run，再由维护者传入 `--confirm-reviewed`，只更新安装元数据；已审查接受的项目定制在未来发生上游改动时仍会触发冲突。
 - 测试覆盖 clean / partial / legacy baseline、local-only / upstream-only / two-sided conflict、新模板文件、只读保证、显式基线采纳、managed .gitignore 区块外/内修改、POSIX 文件权限漂移，以及项目/模板父目录符号链接拒绝。
 - 漂移与基线采纳工具逐级 `lstat` 路径组件，避免父目录符号链接绕过最终文件检查；托管区块读取也使用同一安全路径函数。
-- 最新修复后的双平台 CI 对应 SHA `0385bde263f6b6437781db99f9dc18e2c70b9ea6`，但该 SHA 的测试仍在排队；更早一次已通过 SHA `01aa` 并不应被当作最新结果。当前 head 以 PR #2 实时指针为准。
+- 最新已验证双平台 CI 对应 HEAD `c29a15560b30dd54c12ef799ad9a012d2e84feff`：Push [42485787979](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42485787979) 与 PR [42485793239](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42485793239) 均通过，Ubuntu / Windows jobs 全绿；包含父目录符号链接保护和托管区块读取路径修复。
 - 第七方向仍为 in_progress：跨版本真实迁移/回滚演练、支持矩阵与版本兼容策略仍需正式发布前验收。
 
 ## 恢复工作的方法
