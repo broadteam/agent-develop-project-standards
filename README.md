@@ -281,7 +281,7 @@ node tools/plan-template-upgrade.cjs --root /path/to/your-project
 node tools/plan-template-upgrade.cjs --root /path/to/your-project --json
 ```
 
-需要比较另一个规范仓库目录时，增加 `--standards-root /path/to/project-standards`。预览输出包含稳定的 `plan_id`、来源/目标版本、逐文件建议动作、哈希证据、阻断项以及人工审批字段。它覆盖普通模板文件和技术栈预设。
+需要比较另一个规范仓库目录时，增加 `--standards-root /path/to/project-standards`。预览输出包含稳定的 `plan_id`、来源/目标版本、逐文件建议动作、哈希证据、阻断项以及人工审批字段。它覆盖通用模板文件，以及项目安装清单中实际登记的技术栈预设；未选择的语言预设不会被当成每个项目都必须安装的文件。
 
 计划将变化分为：可审查的上游替换候选、项目本地修改保留、双向冲突（三方人工合并）、上游移除审查、本地缺失恢复候选、上游新增文件候选、旧项目基线审查和未登记同名文件归属审查。任何删除、覆盖或合并都不会自动执行。
 
