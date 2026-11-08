@@ -28,6 +28,7 @@ jobs:
           node --check tools/check-template-drift.cjs
           node --check tools/adopt-template-baseline.cjs
           node --check tools/plan-template-upgrade.cjs
+          node --check tools/validate-template-upgrade-review.cjs
           node --check template/scripts/check-governance.cjs
           node --check template/scripts/profile-validator.cjs
           node --check template/scripts/capability-resolver.cjs
@@ -46,4 +47,5 @@ jobs:
           node tests/test-migration-v2.cjs
           node tests/test-template-drift.cjs
           node tests/test-template-upgrade-plan.cjs
+          node tests/test-template-upgrade-review.cjs
           node tests/test-doc-links.cjs
