@@ -250,12 +250,24 @@ def markdown_table(rel: str, section_heading: str | None = None) -> list[dict[st
 def archive_path_exists(rel: str, base_rel: str, expected_file: str | None = None) -> bool:
     if not rel or Path(rel).is_absolute():
         return False
-    absolute = (ROOT / base_rel / rel).resolve()
+    base = (ROOT / base_rel).resolve()
+    archive_root = (base / "archive").resolve()
+    absolute = (base / rel).resolve()
     try:
-        absolute.relative_to(ROOT.resolve())
+        relative = absolute.relative_to(archive_root)
     except ValueError:
         return False
-    return absolute.exists() and (expected_file is None or (absolute / expected_file).is_file())
+    if not relative.parts or not absolute.is_dir():
+        return False
+    return expected_file is None or (absolute / expected_file).is_file()
+
+def validate_archive_directories(base_rel: str, catalog_by_id: dict, label: str) -> None:
+    archive_root = ROOT / base_rel / "archive"
+    if not archive_root.exists():
+        return
+    for entry in sorted(os.scandir(archive_root), key=lambda item: item.name):
+        if entry.is_dir(follow_symlinks=False) and entry.name not in catalog_by_id:
+            errors.append(f"{label}：归档目录 {entry.name} 未登记到 archive/INDEX.md")
 
 def validate_task_archives() -> None:
     active = markdown_table(layout.get("tasks_index", ".spec/tasks/index.md"), "已归档波次")
@@ -299,6 +311,7 @@ def validate_task_archives() -> None:
     for wave_id in catalog_by_id:
         if wave_id not in active_by_id:
             errors.append(f"任务归档：archive/INDEX.md 中波次 {wave_id} 未在任务索引登记")
+    validate_archive_directories(layout.get("tasks_dir", ".spec/tasks"), catalog_by_id, "任务归档")
 
 def validate_roadmap_archives() -> None:
     active = markdown_table(layout.get("roadmap_index", ".spec/roadmap/INDEX.md"), "已归档里程碑")
@@ -326,6 +339,7 @@ def validate_roadmap_archives() -> None:
     for milestone_id in catalog_by_id:
         if milestone_id not in active_by_id:
             errors.append(f"里程碑归档：archive/INDEX.md 中 ID {milestone_id} 未在路线图索引登记")
+    validate_archive_directories(layout.get("roadmap_dir", ".spec/roadmap"), catalog_by_id, "里程碑归档")
 
 if capability_enabled("task_tracking"):
     validate_task_archives()
