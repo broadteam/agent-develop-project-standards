@@ -92,7 +92,8 @@ try {
   }, { root, profile, registry });
   assert.ok(productionRelease.requiredRead.some((x) => x.path === '.spec/00-constitution.md'));
   assert.ok(productionRelease.requiredRead.some((x) => x.path === '.spec/03-delivery.md'));
-  assert.equal(productionRelease.capabilityDecisions.release_governance.decision, 'auto_selected_for_task');
+  assert.equal(productionRelease.capabilityDecisions.release_governance.decision, 'load_for_task');
+  assert.equal(productionRelease.capabilityDecisions.release_governance.effective, 'light', 'profile capabilities load task-relevant guidance without being rewritten as toggles');
   assert.equal(productionRelease.riskAssessment.highImpact, true);
 
   const unknownRisk = resolveTaskContext({ kind: 'code_change', impact: 'local' }, { root, profile, registry });
