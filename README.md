@@ -131,14 +131,16 @@ project-standards/
 │   ├── check-template-drift.cjs
 │   ├── adopt-template-baseline.cjs
 │   ├── plan-template-upgrade.cjs
-│   └── validate-template-upgrade-review.cjs
+│   ├── validate-template-upgrade-review.cjs
+│   └── record-reviewed-template-upgrade.cjs
 ├── tests/
 │   ├── test-init.cjs
 │   ├── test-parity.cjs
 │   ├── test-template-drift.cjs
 │   ├── test-template-upgrade-plan.cjs
 │   ├── test-template-upgrade-review.cjs
-│   └── test-template-upgrade-recovery.cjs
+│   ├── test-template-upgrade-recovery.cjs
+│   └── test-template-upgrade-record.cjs
 ├── .github/workflows/standards-ci.yml
 └── template/
     ├── AGENTS.md
@@ -300,7 +302,7 @@ node tools/validate-template-upgrade-review.cjs \
   --json
 ```
 
-审查记录使用 `review_schema: 1`、对应 `plan_id` 和 `decisions[]`；每条决策包含 `reviewer`、`reviewed_at`、`path`、`decision`、`reason`。三方合并另外必须提供 `baseline_ref` 与 `merge_result_ref`。校验器会拒绝计划 ID 不匹配、重复路径、缺少决策、错误决策和未解除的阻断项。校验通过只代表人工审查记录完整，不代表变更已经应用，也不是签名或授权凭证。
+审查记录使用 `review_schema: 1`、对应 `plan_id` 和 `decisions[]`；每条决策包含 `reviewer`、`reviewed_at`、`path`、`decision`、`reason` 和实际结果 `result_sha256`（`approve_removal` 除外）。三方合并另外必须提供 `baseline_ref` 与 `merge_result_ref`。校验器会拒绝计划 ID 不匹配、重复路径、缺少决策、错误决策和未解除的阻断项。校验通过只代表人工审查记录完整，不代表变更已经应用，也不是签名或授权凭证。
 
 ### 升级失败恢复演练
 
@@ -312,7 +314,30 @@ node tests/test-template-upgrade-recovery.cjs
 
 实际项目升级仍应使用独立 Git 分支/工作树并在项目目录外保存完整备份。失败后立即停止后续变更，恢复到升级前 commit 和工作树状态，再运行治理检查、项目测试/构建、漂移检查和升级计划；恢复结果必须与备份核对，不能只凭脚本返回码宣称恢复成功。
 
-**成功升级后的基线推进目前尚未实现。** 手工复制获批文件后，`.agent-standards.json` 仍保存升级前的安装哈希和版本；再次运行漂移检查会把已替换文件识别为本地变化/冲突。因此当前工具链只能预览、审批、演练失败恢复，不能完成受支持的成功升级收口。不要手改 manifest，也不要用 `adopt-template-baseline.cjs` 代替升级登记；后者只用于旧项目基线采纳。后续需要单独设计一个校验批准路径与实际目标哈希后再推进 manifest 的升级登记工具。
+成功应用获批文件并通过项目治理/测试后，使用独立的基线登记器推进 manifest：
+
+```bash
+node tools/record-reviewed-template-upgrade.cjs \
+  --root /path/to/your-project \
+  --standards-root /path/to/project-standards \
+  --plan /path/to/your-project/.tmp/upgrade-plan.json \
+  --review /path/to/your-project/.tmp/upgrade-review.json \
+  --dry-run
+
+# 确认备份、人工变更和结果哈希均无误后，才显式写入
+node tools/record-reviewed-template-upgrade.cjs \
+  --root /path/to/your-project \
+  --standards-root /path/to/project-standards \
+  --plan /path/to/your-project/.tmp/upgrade-plan.json \
+  --review /path/to/your-project/.tmp/upgrade-review.json \
+  --confirm-reviewed
+```
+
+登记器不应用模板内容，只更新 `.agent-standards.json`。它会重新校验 plan_id、审批记录、来源版本、共同基线哈希、当前模板源哈希和每个结果的实际 SHA-256；仅推进已批准且已验证的路径。当前实现要求本次计划中的可处理条目全部收口后才推进整体 `installed_with_version`；上游删除必须确认文件已删除，或明确选择保留并登记实际结果哈希。失败时不会写入 manifest。
+
+人工审查记录中的每条决策必须带 `result_sha256`（64 位小写 SHA-256）；`approve_removal` 除外，因为它要求目标确实不存在。三方合并还必须提供 `baseline_ref`、`merge_result_ref` 和合并后文件的 `result_sha256`。完成登记后，重新运行漂移检查、治理检查、项目测试和构建；登记成功不代表业务测试自动通过。
+
+当前仍没有自动升级应用器或自动回滚器。规则文件必须由维护者在独立分支/工作树中按审批手工执行；基线登记器只负责验证实际结果并更新元数据。不要手改 manifest，也不要用 `adopt-template-baseline.cjs` 代替升级登记；后者只用于旧项目首次建立历史基线。
 
 
 最小审查记录示例（路径和决策必须逐项来自实际计划，不能照抄示例值）：
