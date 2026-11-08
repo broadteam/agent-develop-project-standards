@@ -22,13 +22,13 @@ assert.ok(exists('template/AGENTS.md'), 'canonical AGENTS.md must exist');
 assert.equal(claude, '@AGENTS.md', 'Claude entry must import the canonical rules');
 assert.equal(gemini, '@./AGENTS.md', 'Gemini entry must import the canonical rules');
 assert.match(agents, /唯一入口/);
-assert.match(init, /'AGENTS\\.md'.*'CLAUDE\\.md'.*'GEMINI\\.md'/s, 'initializer must install all supported entry files');
-assert.doesNotMatch(init, /\\.cursorrules/, 'initializer must not create the deprecated Cursor entry');
+assert.ok(init.includes("'AGENTS.md', 'ROUTER.md', 'CLAUDE.md', 'GEMINI.md'"), 'initializer must install all supported entry files');
+assert.ok(!init.includes('.cursorrules'), 'initializer must not create the deprecated Cursor entry');
 assert.ok(!exists('template/.cursorrules'), 'deprecated Cursor entry must not exist in the template');
-assert.match(spec, /Cursor[\\s\\S]*仅支持项目根目录/);
-assert.match(spec, /Gemini CLI[\\s\\S]*@\\.\\/AGENTS\\.md/);
-assert.match(spec, /Claude Code[\\s\\S]*@AGENTS\\.md/);
-assert.match(spec, /Codex[\\s\\S]*仓库根到当前工作目录/);
+assert.ok(spec.includes('Cursor') && spec.includes('仅支持项目根目录'));
+assert.ok(spec.includes('Gemini CLI') && spec.includes('@./AGENTS.md'));
+assert.ok(spec.includes('Claude Code') && spec.includes('@AGENTS.md'));
+assert.ok(spec.includes('Codex') && spec.includes('仓库根到当前工作目录'));
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-client-adapters-'));
 try {
