@@ -89,6 +89,7 @@
 - 演练步骤：初始化临时项目并确认治理通过 → 制作项目外完整备份 → 对目标规范版本生成升级计划 → 对逐项待审决策生成 review JSON 并通过 `validate-template-upgrade-review.cjs` → 手工应用获批小批次（模板规则文件 + `policy/standards-version.json` 项目版本元数据） → 注入未登记根目录使治理检查失败 → 停止升级并恢复整个工作树 → 对比恢复前后文件、目录、符号链接和权限快照 → 重新运行治理检查、漂移检查和升级计划。
 - 恢复验收：恢复后对旧规范仓库的 drift 报告必须 `ok=true`；对目标新版本的升级计划 ID 必须与升级前完全一致，目标文件重新显示 `update_available`；失败注入目录必须不存在。
 - 该演练验证的是人工备份/恢复流程，不是自动升级应用器或自动回滚器；生产项目仍应优先用升级前 Git commit/独立 worktree，并在项目外保存第二份备份。恢复不完整或没有重新验证时必须标记 `unverified`。
+- 重要限制：失败恢复闭环已通过，但成功升级后的 manifest 基线推进工具尚不存在。人工替换模板文件后，`.agent-standards.json` 仍保留旧版本与旧哈希，再跑 drift 会报告冲突；不能声明为正式升级完成，也不要手工改 manifest 或复用 `adopt-template-baseline`。下一项应单独设计 `record-reviewed-template-upgrade` 一类登记流程，校验 plan/review、目标文件实际哈希和合并结果后，仅推进获批条目的基线。
 - CI 曾按测试日志发现两个真实假设问题：升级计划不只包含业务规则文件，也会包含项目内版本元数据更新；此外，审查决策应覆盖计划中所有待审项，而实际演练只应用已明确选定的小批次。当前 fixture 已修正为完整审核所有待审项，并手工应用两项替换候选。
 - 最新测试代码 HEAD `02d4337d9e7b12416b0c2069b94aba6e85dd731a` 的 Push [42493895276](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42493895276) 与 PR [42493900304](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42493900304) 全部成功。CI 日志确认 Ubuntu / Windows 的 `test-template-upgrade-recovery: all cases passed`，并且 plan/review/drift/migration 测试通过。
 - 最新文档 HEAD `35fbfac7d23c3a5fb0bd199fe560ff088c8f7791` 的 Push [42493962678](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42493962678) 与 PR [42493967270](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42493967270) 也全部成功；README、迁移指南、SPEC 与 CHANGELOG 已同步恢复演练内容及“审批校验不应用变更”的边界。
@@ -98,8 +99,9 @@
 
 1. 完成对本轮迁移恢复演练文档与测试边界的最终检查；不开发自动应用器。
 2. 复核版本元数据是否应该作为项目内普通受管文件继续升级，还是改为仅在 `.agent-standards.json` 中记录；当前行为已测试并显式纳入审批，不要悄悄排除。
-3. 补充一份最小人工迁移记录样例，示范如何归档 plan JSON、review JSON、备份引用、失败日志和恢复验证结果。
-4. 然后再回到七大方向中未完成项，不开展真实 SaaS 项目试点。
+3. 优先设计并测试成功升级后的 manifest 基线推进工具（仅对已审批且实际文件哈希匹配的路径推进），明确失败时如何回滚登记。
+4. 补充一份最小人工迁移记录样例，示范如何归档 plan JSON、review JSON、备份引用、失败日志和恢复验证结果。
+5. 然后再回到七大方向中未完成项，不开展真实 SaaS 项目试点。
 ## 恢复工作的方法
 
 新会话先读取本文件、`SPEC-v2.0.md`、当前 `git status --short --branch` 和相关测试；不要把旧聊天摘要当作仓库事实。遇到客户端行为变更时，先核对该客户端的官方文档，再修改兼容性说明和契约测试。
