@@ -103,16 +103,16 @@
 - 进一步支持显式 decision=defer：延期条目必须保持计划生成时的文件存在状态、内容 SHA-256 和权限，不推进该路径基线；只要有 defer，整体 installed_with_version 保持 source_version，last_upgrade.status=partial。重新生成计划后继续完成剩余条目，全部处理后才推进整体版本。
 - tests/test-template-upgrade-record.cjs 已覆盖：完整升级登记、替换/新增/本地定制/人工合并/上游删除、dry-run 零写入、结果哈希篡改拒绝、旧计划重放拒绝；另外覆盖延期一个新增文件和一个已有上游更新文件，确认两者原状态/旧逐文件基线保留，再重新计划并完成，最终 drift 清零。
 - 代码 HEAD 6d4dca724b01b99134f6ade26dc439c1d7b40843 的 Push https://github.com/broadteam/agent-develop-project-standards/actions/runs/42497163179 与 PR https://github.com/broadteam/agent-develop-project-standards/actions/runs/42497167640 均通过；Ubuntu / Windows 的 test-template-upgrade-record: all cases passed，drift/plan/review/recovery 测试也均通过。
-- README、MIGRATION-v2.0、SPEC、CHANGELOG 已加入基线登记与 defer 语义；最新文档 HEAD 当前为 aeaefb0f58c515115f9fd2601f8a64fb02bf105b，Push 42497311896 / PR 42497316047 正在执行，结束后更新为最终结果。
-- PR #2 保持 Draft / Open，未合并、未修改 main；未进行真实 SaaS 项目试点。
+- README、MIGRATION-v2.0、SPEC、CHANGELOG、SESSION-HANDOFF 与升级记录模板已同步分批登记语义。功能分支 HEAD `6e199a2c20e1e554e760b136acb83e1f74385f78` 的 Push [42498077916](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42498077916) 与 PR [42498083089](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42498083089) 均通过；Ubuntu / Windows 全绿，`test-doc-links` 检查 37 个 Markdown 文件，plan/review/recovery/record 测试全部通过。
+- PR #2 保持 Draft / Open，未合并；未进行真实 SaaS 项目试点。注意：本轮曾因一次 GitHub create_file 调用漏传 branch，将 `UPGRADE-RECORD-TEMPLATE.md` 短暂提交到默认分支 main（提交 `9111072980fcaac114ed91318f266215cd0e3b35`，该提交只新增此文件）。随后提交删除恢复（`59862672187bcef3b70e6a1fb2adc2425900015f`，只删除此文件）；已核对删除提交的 tree SHA 与误提交前父提交 `e7cb21bad50f9132775a062ee1d7fc6407cd4289` 的 tree SHA 完全一致（`215566cc488e6c90495adf42f83adbded2486fbe`）。因此 main 当前文件树已恢复，但 Git 历史保留新增/删除两条提交；之后所有创建写入均显式传入功能分支。
 
 - 新增 `UPGRADE-RECORD-TEMPLATE.md`：记录版本和 commit、项目外备份引用、plan/review 与 SHA-256、逐路径决定、defer 批次、测试/构建结果、manifest 登记输出及失败恢复证据；README 和迁移指南已链接该模板。
 ## 下一步（按既定优先级）
 
-1. 验证本轮 README/迁移/SPEC/CHANGELOG/交接文档和升级记录模板新增后，最新 HEAD 的 Ubuntu / Windows CI 全部通过。
-2. 复核升级记录模板是否足够精简；保留真正支持追溯的字段，不要求项目归档完整备份内容，只保存项目外备份引用与校验结果。
-3. 回到七大方向未完成项，优先做规范自身的目录/权威来源一致性审查与发布门槛核对；不开展真实 SaaS 项目试点。
-4. 不实现自动升级应用器或自动回滚器，除非后续重复人工操作成本和失败风险有真实证据支撑。
+1. 验证本次交接修订后的 Ubuntu / Windows CI；若通过，刷新 PR #2 说明中的最终 HEAD 和 CI 状态。
+2. 对照最初七大方向逐项审查未完成项，重点核对 SPEC 状态表、README 目录树、模板实际文件、测试清单与 CHANGELOG 版本的一致性。
+3. 复核升级记录模板是否足够精简；保留可追溯字段，不要求归档完整备份内容，只保存项目外备份引用与校验结果。
+4. 不开展真实 SaaS 项目试点，不实现自动升级应用器或自动回滚器，除非后续重复人工操作成本和失败风险有真实证据支撑。
 ## 恢复工作的方法
 
 新会话先读取本文件、`SPEC-v2.0.md`、当前 `git status --short --branch` 和相关测试；不要把旧聊天摘要当作仓库事实。遇到客户端行为变更时，先核对该客户端的官方文档，再修改兼容性说明和契约测试。
