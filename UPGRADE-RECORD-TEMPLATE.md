@@ -15,7 +15,10 @@
 | 目标规范版本 | <target-version> |
 | 规范仓库 commit | <standards-commit-sha> |
 | 项目升级前 commit | <project-before-commit-sha> |
+| 升级计划 schema | 2 |
+| 人工审查 schema | 2 |
 | 升级计划 ID | <plan-id> |
+| 目标模板源快照 SHA-256 | <source_inventory_sha256> |
 | 负责人 / 审核人 | <reviewer> |
 | 开始时间 / 完成时间 | <ISO-8601> / <ISO-8601> |
 
@@ -44,6 +47,7 @@
 |---|---|---|
 | upgrade-plan.json | <path-or-artifact-id> | <sha256> |
 | upgrade-review.json | <path-or-artifact-id> | <sha256> |
+| source inventory digest | <source_inventory_sha256 from upgrade-plan.json> | <sha256> |
 | 升级前 drift JSON | <path-or-artifact-id> | <sha256> |
 
 计划生成命令：
@@ -64,18 +68,22 @@ node tools/validate-template-upgrade-review.cjs \
   --json
 ~~~
 
-审批记录必须绑定同一个 plan_id。每个需要人工确认的路径必须有 reviewer、reviewed_at、decision 和 reason；除 approve_removal、defer 外，还必须记录实际结果 result_sha256。manual_merge 还必须记录 baseline_ref 与 merge_result_ref。
+升级计划使用 `plan_schema: 2`，必须绑定目标规范 checkout 的 `source_inventory_sha256`（覆盖 `template/` 与 `presets/stacks/` 的路径、文件类型、内容和权限）。计划生成后任何源文件新增、删除、内容或权限变化都会使计划失效。
+
+审批记录使用 `review_schema: 2`，必须绑定同一个 plan_id。每个需要人工确认的路径必须有 reviewer、reviewed_at、decision 和 reason；普通文件除 approve_removal、defer 外，还必须记录实际结果 result_sha256 和 result_mode。manual_merge 还必须记录 baseline_ref 与 merge_result_ref。
+
+`.gitignore` 是特殊的渲染托管区块：result_sha256 仅计算管理标记内的渲染区块，登记器验证模板固定前缀/后缀和占位符结构；不记录整个 `.gitignore` 文件权限，且必须保留管理区块外项目自有规则。
 
 ## 4. 逐路径处理记录
 
 每条计划路径一行。不要只记录“升级完成”，应记录实际决策和结果证据。
 
-| 路径 | 原计划状态 / 动作 | 人工决定 | 实际结果 SHA-256 | 基线处理 | 备注 |
+| 路径 | 原计划状态 / 动作 | 人工决定 | 实际结果 SHA-256 | 实际结果权限模式 | 基线处理 | 备注 |
 |---|---|---|---|---|---|
-| <path> | update_available / replace_candidate | approve_upstream | <result-sha256> | advanced | <note> |
-| <path> | conflict / manual_merge | manual_merge | <result-sha256> | advanced-as-customized | baseline_ref=<ref>; merge_result_ref=<ref> |
-| <path> | new_upstream_file / add_candidate | defer | n/a | unchanged | <defer reason> |
-| <path> | upstream_removed / review_removal | approve_removal | n/a | entry-removed | <reference / impact> |
+| <path> | update_available / replace_candidate | approve_upstream | <result-sha256> | 420 (0644) | advanced | <note> |
+| <path> | conflict / manual_merge | manual_merge | <result-sha256> | 420 (0644) | advanced-as-customized | baseline_ref=<ref>; merge_result_ref=<ref> |
+| <path> | new_upstream_file / add_candidate | defer | n/a | n/a | unchanged | <defer reason> |
+| <path> | upstream_removed / review_removal | approve_removal | n/a | n/a | entry-removed | <reference / impact> |
 
 延期规则：
 
@@ -139,11 +147,12 @@ node tools/record-reviewed-template-upgrade.cjs \
 | installed_with_version | <version> |
 | last_upgrade.status | partial / complete |
 | last_upgrade.plan_id | <plan-id> |
+| last_upgrade.source_inventory_sha256 | <source_inventory_sha256> |
 | updated_paths | <count / list reference> |
 | removed_paths | <count / list reference> |
 | deferred_paths | <count / list reference> |
 
-登记工具只修改 .agent-standards.json，不应用模板文件。登记成功后仍必须重新运行漂移检查、治理检查和项目测试/构建。
+登记工具只修改 `.agent-standards.json`，不应用模板文件。它会重新计算整个 source inventory，并核验普通文件的结果哈希和权限；对 `.gitignore` 则只核验渲染管理区块，用户区块外内容保留不变。登记成功后仍必须重新运行漂移检查、治理检查和项目测试/构建。
 
 ## 7. 失败与恢复记录
 
