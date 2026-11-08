@@ -257,7 +257,7 @@ function analyzeDrift({ projectRoot, standardsRoot }) {
     if (file.unsafe) findings.push({ path: file.target, source: file.source, status: 'upstream_unsafe', detail: '新模板源是符号链接' });
     else if (installed.unsafe) findings.push({ path: file.target, source: file.source, status: 'local_unsafe', detail: '目标为符号链接或非普通文件' });
     else if (installed.exists && preserved.has(file.target)) findings.push({ path: file.target, source: file.source, status: 'legacy_preserved', detail: '安装时保留的既有文件，缺少可比较的历史基线' });
-    else if (installed.exists) findings.push({ path: file.target, source: file.source, status: 'untracked_collision', detail: '目标已存在但不在安装基线中，需人工判断归属' });
+    else if (installed.exists) findings.push({ path: file.target, source: file.source, status: 'untracked_collision', current_template_sha256: regularFileHashWithin(sourceRoot, file.source, '冲突模板源路径').hash, current_installed_sha256: installed.hash, current_installed_mode: installed.mode, detail: '目标已存在但不在安装基线中，需人工判断归属' });
     else findings.push({ path: file.target, source: file.source, status: 'new_upstream_file', current_template_sha256: regularFileHashWithin(sourceRoot, file.source, '新增模板源路径').hash, detail: '当前模板新增文件，尚未安装' });
   }
 
