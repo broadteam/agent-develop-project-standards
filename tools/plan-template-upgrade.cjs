@@ -231,9 +231,10 @@ function buildUpgradePlan({ projectRoot, standardsRoot }) {
         'approve_add',
         'review_legacy_file',
         'classify_existing_file',
-        'manual_review'
+        'manual_review',
+        'defer'
       ],
-      rule: '每个 requires_human_review=true 的条目必须有明确决策和理由；manual_merge 还必须记录共同基线来源 baseline_ref 与合并结果 merge_result_ref；任何 blocked 项必须先修复并重新生成计划。当前版本仅生成预览，不读取审批文件、不执行任何动作。'
+      rule: '每个 requires_human_review=true 的条目必须有明确决策和理由；defer 表示本次不应用、不推进该路径基线；manual_merge 还必须记录共同基线来源 baseline_ref 与合并结果 merge_result_ref；任何 blocked 项必须先修复并重新生成计划。当前版本仅生成预览，不读取审批文件、不执行任何动作。'
     },
     next_steps: baselineMissing
       ? ['备份项目并人工比较现有规范', '按需使用 adopt-template-baseline.cjs --dry-run', '完成审查后才可显式采纳基线并重新生成计划']
