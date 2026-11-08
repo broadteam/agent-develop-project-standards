@@ -261,7 +261,7 @@ function analyzeDrift({ projectRoot, standardsRoot }) {
     else findings.push({ path: file.target, source: file.source, status: 'new_upstream_file', current_template_sha256: regularFileHashWithin(sourceRoot, file.source, '新增模板源路径').hash, detail: '当前模板新增文件，尚未安装' });
   }
 
-  const summary = { current: 0, accepted_customization: 0, update_available: 0, local_customized: 0, conflict: 0, other: 0 };
+  const summary = { current: 0, accepted_customization: 0, accepted_removed: 0, update_available: 0, local_customized: 0, conflict: 0, other: 0 };
   for (const finding of findings) {
     if (Object.prototype.hasOwnProperty.call(summary, finding.status)) summary[finding.status]++;
     else summary.other++;
