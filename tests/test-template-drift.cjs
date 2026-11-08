@@ -100,6 +100,31 @@ try {
   assert.equal(partial.baseline_incomplete, true);
   assert.ok(partial.findings.some((item) => item.path === 'AGENTS.md' && item.status === 'legacy_preserved'));
 
+  // Baseline adoption is a separate, explicit, metadata-only operation.
+  const legacyBeforeAdoption = JSON.stringify(snapshotTree(legacyProject));
+  const adoptionPreview = spawnSync(process.execPath, [
+    path.join(root, 'tools/adopt-template-baseline.cjs'), '--root', legacyProject, '--dry-run'
+  ], { encoding: 'utf8' });
+  assert.equal(adoptionPreview.status, 0, adoptionPreview.stdout + adoptionPreview.stderr);
+  assert.equal(JSON.stringify(snapshotTree(legacyProject)), legacyBeforeAdoption, 'baseline preview must be read-only');
+  const adoption = spawnSync(process.execPath, [
+    path.join(root, 'tools/adopt-template-baseline.cjs'), '--root', legacyProject, '--confirm-reviewed'
+  ], { encoding: 'utf8' });
+  assert.equal(adoption.status, 0, adoption.stdout + adoption.stderr);
+  const adoptedMarker = JSON.parse(fs.readFileSync(path.join(legacyProject, '.agent-standards.json'), 'utf8'));
+  assert.equal(adoptedMarker.baseline_state, 'complete');
+  assert.equal(adoptedMarker.baseline_adopted_after_review, true);
+  assert.equal(adoptedMarker.managed_files['AGENTS.md'].customized_at_baseline, true);
+  assert.equal(fs.readFileSync(path.join(legacyProject, 'AGENTS.md'), 'utf8'), '# Custom rules\n', 'adoption must not rewrite local rules');
+  const adopted = analyzeDrift({ projectRoot: legacyProject, standardsRoot: root });
+  assert.equal(adopted.ok, true, JSON.stringify(adopted, null, 2));
+  assert.ok(adopted.findings.some((item) => item.path === 'AGENTS.md' && item.status === 'accepted_customization'));
+
+  // A later upstream edit to a reviewed custom file must become a conflict.
+  fs.appendFileSync(path.join(newerStandards, 'template/AGENTS.md'), '\n## New core guidance\n');
+  const adoptedConflict = analyzeDrift({ projectRoot: legacyProject, standardsRoot: newerStandards });
+  assert.ok(adoptedConflict.findings.some((item) => item.path === 'AGENTS.md' && item.status === 'conflict'));
+
   // A tampered manifest cannot make the checker read outside the project root.
   const tampered = JSON.parse(fs.readFileSync(markerPath, 'utf8'));
   tampered.managed_files['outside'] = {
