@@ -109,9 +109,12 @@ try {
 
   const requiredActions = planBefore.actions.filter(action => action.requires_human_review);
   const replacementActions = requiredActions.filter(action => action.operation === 'replace_candidate');
-  assert.deepEqual(replacementActions.map(action => action.path), [approvedPath],
-    'the fixture must have exactly one upstream replacement candidate: ' + JSON.stringify(requiredActions.map(action => ({ path: action.path, status: action.status, operation: action.operation, reason: action.reason }))));
-  assert.ok(requiredActions.length >= 1);
+  assert.deepEqual(
+    replacementActions.map(action => action.path).sort(),
+    [approvedPath, 'policy/standards-version.json'].sort(),
+    'the small batch must include the approved rule file and its installed version metadata'
+  );
+  assert.ok(requiredActions.length >= replacementActions.length);
   const review = {
     review_schema: 1,
     plan_id: planBefore.plan_id,
@@ -137,11 +140,18 @@ try {
   const backupSnapshot = snapshotTree(backup);
   assert.deepEqual(backupSnapshot, initialSnapshot, 'backup must be an exact tree snapshot before changes');
 
-  // Simulate a maintainer manually applying the one approved replacement.
-  const sourceFile = path.join(newerStandards, 'template', approvedAction.source);
-  const targetFile = path.join(project, approvedAction.path);
-  fs.copyFileSync(sourceFile, targetFile);
-  assert.notEqual(fs.readFileSync(targetFile, 'utf8'), fs.readFileSync(path.join(backup, approvedAction.path), 'utf8'));
+  // Simulate a maintainer manually applying the complete, reviewed replacement batch.
+  for (const action of replacementActions) {
+    const sourceFile = path.join(newerStandards, action.source);
+    const targetFile = path.join(project, action.path);
+    fs.mkdirSync(path.dirname(targetFile), { recursive: true });
+    fs.copyFileSync(sourceFile, targetFile);
+    assert.notEqual(
+      fs.readFileSync(targetFile, 'utf8'),
+      fs.readFileSync(path.join(backup, action.path), 'utf8'),
+      action.path + ' must reflect the reviewed upstream replacement'
+    );
+  }
 
   // Inject a deterministic governance failure after the partial upgrade.
   const injectedFailurePath = path.join(project, 'unreviewed-root-entry');
@@ -149,7 +159,7 @@ try {
   const failedValidation = governance(project);
   assert.notEqual(failedValidation.status, 0, 'governance must fail after the unapproved root directory is injected');
 
-  // Stop the upgrade, restore the whole pre-upgrade tree, then verify byte-for-byte recovery.
+  // Stop the upgrade batch, restore the whole pre-upgrade tree, then verify byte-for-byte recovery.
   clearDirectory(project);
   copyDirectoryContents(backup, project);
   assert.deepEqual(snapshotTree(project), initialSnapshot, 'rollback must restore every original file, directory, link and mode');
