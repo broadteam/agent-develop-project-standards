@@ -94,9 +94,19 @@ try {
   fs.writeFileSync(path.join(newerStandards, 'template', collisionPath), '# New upstream collision\n');
   fs.writeFileSync(path.join(project, collisionPath), '# Existing project file\n');
 
-  // A new stack preset must also appear in the upgrade plan.
-  fs.mkdirSync(path.join(newerStandards, 'presets/stacks'), { recursive: true });
-  fs.writeFileSync(path.join(newerStandards, 'presets/stacks/java.md'), '# Java stack preset\n');
+  // Unselected stack presets are not project-wide upgrade candidates.
+  // A Java project that actually installed its preset must see upstream changes to that preset.
+  fs.appendFileSync(path.join(newerStandards, 'presets/stacks/java.md'), '\n## Upstream Java preset update\n');
+  const javaProject = path.join(tmp, 'java-project');
+  fs.mkdirSync(javaProject);
+  fs.writeFileSync(path.join(javaProject, 'pom.xml'), '<project/>\n');
+  const javaInstall = init(javaProject);
+  assert.equal(javaInstall.status, 0, javaInstall.stdout + javaInstall.stderr);
+  const javaManifest = JSON.parse(fs.readFileSync(path.join(javaProject, '.agent-standards.json'), 'utf8'));
+  assert.ok(javaManifest.managed_files['.spec/stacks/java.md'], 'detected Java project must record the installed Java preset');
+  const javaPlan = buildUpgradePlan({ projectRoot: javaProject, standardsRoot: newerStandards });
+  assert.equal(byPath(javaPlan, '.spec/stacks/java.md').operation, 'replace_candidate');
+  assert.equal(byPath(javaPlan, '.spec/stacks/java.md').status, 'update_available');
 
   const beforePlan = JSON.stringify(snapshotTree(project));
   const plan = buildUpgradePlan({ projectRoot: project, standardsRoot: newerStandards });
@@ -119,7 +129,6 @@ try {
   assert.equal(byPath(plan, missingPath).operation, 'restore_candidate');
   assert.equal(byPath(plan, newPath).operation, 'add_candidate');
   assert.equal(byPath(plan, collisionPath).operation, 'ownership_review');
-  assert.equal(byPath(plan, '.spec/stacks/java.md').operation, 'add_candidate');
   assert.ok(plan.actions.every(action => typeof action.source === 'string' || action.status === 'unsafe'));
 
   const planAgain = buildUpgradePlan({ projectRoot: project, standardsRoot: newerStandards });
