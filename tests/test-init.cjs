@@ -507,6 +507,41 @@ try {
   assert.equal(JSON.parse(fs.readFileSync(editedManifestPath, 'utf8')).installed_with_version, '2.7.1',
     '仍有未迁移的旧版受管文件时不得推进整体版本号');
 
+  // Never follow a project-owned scripts/ symlink while trying to clean legacy tooling.
+  const symlinkLegacyProject = path.join(tmp, 'symlink-legacy-app');
+  const symlinkLegacyExternal = path.join(tmp, 'symlink-legacy-external');
+  fs.mkdirSync(symlinkLegacyProject);
+  fs.mkdirSync(symlinkLegacyExternal);
+  fs.writeFileSync(path.join(symlinkLegacyProject, 'package.json'), JSON.stringify({ name: 'symlink-legacy-app' }));
+  const symlinkLegacySetup = spawnSync(process.execPath, [path.join(root, 'init.cjs'), symlinkLegacyProject], { encoding: 'utf8' });
+  assert.equal(symlinkLegacySetup.status, 0, symlinkLegacySetup.stdout + symlinkLegacySetup.stderr);
+  const symlinkLegacyName = 'check-governance.cjs';
+  const symlinkLegacyExternalFile = path.join(symlinkLegacyExternal, symlinkLegacyName);
+  fs.copyFileSync(path.join(symlinkLegacyProject, '.standards', symlinkLegacyName), symlinkLegacyExternalFile);
+  const symlinkLegacyHash = require('node:crypto').createHash('sha256').update(fs.readFileSync(symlinkLegacyExternalFile)).digest('hex');
+  const symlinkLegacyManifestPath = path.join(symlinkLegacyProject, '.agent-standards.json');
+  const symlinkLegacyManifest = JSON.parse(fs.readFileSync(symlinkLegacyManifestPath, 'utf8'));
+  symlinkLegacyManifest.managed_files['scripts/' + symlinkLegacyName] = {
+    installed_sha256: symlinkLegacyHash,
+    template_version: '2.7.1',
+  };
+  fs.writeFileSync(symlinkLegacyManifestPath, JSON.stringify(symlinkLegacyManifest, null, 2));
+  let legacySymlinkCreated = false;
+  try {
+    fs.symlinkSync(symlinkLegacyExternal, path.join(symlinkLegacyProject, 'scripts'),
+      process.platform === 'win32' ? 'junction' : 'dir');
+    legacySymlinkCreated = true;
+  } catch (error) {
+    if (process.platform !== 'win32' || !['EPERM', 'EACCES', 'UNKNOWN'].includes(error.code)) throw error;
+    console.warn('Skipping Windows legacy-directory symlink fixture: current runner does not permit symlink creation.');
+  }
+  if (legacySymlinkCreated) {
+    const symlinkLegacyRun = spawnSync(process.execPath, [path.join(root, 'init.cjs'), symlinkLegacyProject, '--update'], { encoding: 'utf8' });
+    assert.equal(symlinkLegacyRun.status, 0, symlinkLegacyRun.stdout + symlinkLegacyRun.stderr);
+    assert.equal(fs.existsSync(symlinkLegacyExternalFile), true, 'migration must not delete a file through a project-owned scripts/ symlink');
+    assert.match(symlinkLegacyRun.stdout + symlinkLegacyRun.stderr, /scripts\/ 不是普通目录/);
+  }
+
   // If a later step fails after legacy files were removed, rollback must restore them.
   // The legacy directory must remain until commit; otherwise rollback cannot recreate its file.
   const rollbackMigrationProject = path.join(tmp, 'rollback-migration-app');
