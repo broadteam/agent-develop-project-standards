@@ -17,7 +17,7 @@ AI 展开后就是三条命令，没有别的步骤：
 ```bash
 node D:/develop/project-standards/init.cjs <目标目录> --dry-run   # 只看，不写盘
 node D:/develop/project-standards/init.cjs <目标目录>             # 正式铺
-node <目标目录>/scripts/check-governance.cjs                      # 验收：应输出「全部通过」
+node <目标目录>/.standards/check-governance.cjs                      # 验收：应输出「全部通过」
 ```
 
 不需要先建目录、不需要改 package.json、不需要装依赖。`init.cjs` 零依赖，Node 22+ 直接跑。
@@ -61,7 +61,7 @@ node <目标目录>/scripts/check-governance.cjs                      # 验收�
 |---|---|
 | 项目没有 `scripts/` | 新建，无冲突 |
 | 项目已有 `scripts/`，但文件名不重 | 治理脚本**加进去**，你的脚本原样不动。会混在同一个目录里，但不覆盖、不重命名 |
-| 项目已有同名文件（如自己写了 `scripts/generate-board.cjs`） | **保留你的文件并明确告警**。这种情况治理检查跑的会是你的脚本——所以必须人工确认 |
+| 项目已有同名文件（如自己写了 `.standards/generate-board.cjs`） | **保留你的文件并明确告警**。这种情况治理检查跑的会是你的脚本——所以必须人工确认 |
 
 如果你介意混在一起，可以改 `gov.toml [paths]` 把脚本挪到子目录——但模板里所有引用都是硬编码的 `scripts/`，改起来要连带改钩子和文档。**建议在接入大量项目之前决定**：要么接受混放（简单），要么在下一版统一改成 `scripts/agent-standards/`（干净，但对已铺的项目是破坏性变更）。
 
@@ -102,7 +102,7 @@ node <目标目录>/scripts/check-governance.cjs                      # 验收�
 
 | 已有规则 | 处理 |
 |---|---|
-| 你自己的 `.githooks/pre-commit`（build / lint / test） | 保护不动。想让治理检查也参与，**在你自己钩子的末尾加一行**：`node scripts/check-governance.cjs \|\| exit 1` |
+| 你自己的 `.githooks/pre-commit`（build / lint / test） | 保护不动。想让治理检查也参与，**在你自己钩子的末尾加一行**：`node .standards/check-governance.cjs \|\| exit 1` |
 | 你自己的 `.gitignore` 规则 | 原样保留，规范只追加托管区块 |
 | 你自己的 `AGENTS.md` / `CLAUDE.md` | **跳过不覆盖**。这种情况规范不会接管你的规则，需要你手工把两套并起来 |
 | 根目录已有 `docs/`、`scripts/`、`tests/` 等同名目录 | 兼容模式下自动进白名单，不会报冲突 |
@@ -129,7 +129,7 @@ node <目标目录>/scripts/check-governance.cjs                      # 验收�
 1. **填 `.memory/MEMORY.md` 的 §0 断点**——换会话时 AI 靠这四行恢复上下文
 2. **确认 `.spec/03-delivery.md` 的构建/测试命令**——模板不知道你的项目怎么跑
 3. **把治理检查接进你的钩子或 CI**（见 §4）
-4. **如果你的客户端有自己的项目记忆目录**，在 `gov.toml [memory] mirrors` 里声明它，再跑 `node scripts/sync-memory.cjs`。否则那个目录和 `.memory/` 会各说各话，换客户端就"失忆"。详见 `CLIENTS.md` §3
+4. **如果你的客户端有自己的项目记忆目录**，在 `gov.toml [memory] mirrors` 里声明它，再跑 `node .standards/sync-memory.cjs`。否则那个目录和 `.memory/` 会各说各话，换客户端就"失忆"。详见 `CLIENTS.md` §3
 
 `project-profile.toml` 的 `status` 是 `needs_review`，意思是「技术栈是探测出来的，别当成事实」。确认后再改成 `confirmed`。
 
@@ -178,7 +178,7 @@ node D:/develop/project-standards/tools/check-template-drift.cjs --root <目标�
 ```bash
 node D:/develop/project-standards/tools/check-template-drift.cjs --root <目标目录>   # 1. 看差异
 node D:/develop/project-standards/init.cjs <目标目录> --update                       # 2. 刷新未改动的文件
-node <目标目录>/scripts/check-governance.cjs                                        # 3. 验收
+node <目标目录>/.standards/check-governance.cjs                                        # 3. 验收
 ```
 
 `--update` 的规则只有一条：**只覆盖内容与上次安装完全一致的文件**。你改过的一个都不动，只在报告里列出来。所以它是安全的——最坏情况是什么都没更新，而不是把你的改动冲掉。

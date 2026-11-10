@@ -5,8 +5,8 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
-const { parseProfile } = require('../template/scripts/profile-validator.cjs');
-const { resolveTaskContext, normalizeTask } = require('../template/scripts/task-context-resolver.cjs');
+const { parseProfile } = require('../template/.standards/profile-validator.cjs');
+const { resolveTaskContext, normalizeTask } = require('../template/.standards/task-context-resolver.cjs');
 
 const repoRoot = path.resolve(__dirname, '..');
 const registry = JSON.parse(fs.readFileSync(path.join(repoRoot, 'template/policy/capabilities.json'), 'utf8'));
@@ -102,7 +102,7 @@ try {
 
   assert.throws(() => normalizeTask({ stacks: ['../../outside'] }), /stacks/);
   assert.throws(() => normalizeTask({ kind: 'unknown_kind' }), /kind/);
-  const help = spawnSync(process.execPath, [path.join(repoRoot, 'template/scripts/task-context-resolver.cjs'), '--help'], { encoding: 'utf8' });
+  const help = spawnSync(process.execPath, [path.join(repoRoot, 'template/.standards/task-context-resolver.cjs'), '--help'], { encoding: 'utf8' });
   assert.equal(help.status, 0, help.stdout + help.stderr);
   assert.match(help.stdout, /task-context.json/);
 } finally {

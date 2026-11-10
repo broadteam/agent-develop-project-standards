@@ -14,11 +14,11 @@ const root = path.resolve(__dirname, '..');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-pitfalls-split-'));
 const PLACEHOLDER = '| — | — | 未拆分时保持这一行 |';
 
-const runNode = (dir) => spawnSync(process.execPath, [path.join(dir, 'scripts/check-governance.cjs')], { cwd: dir, encoding: 'utf8' });
+const runNode = (dir) => spawnSync(process.execPath, [path.join(dir, '.standards/check-governance.cjs')], { cwd: dir, encoding: 'utf8' });
 const runPython = (dir) => {
   const env = { ...process.env, PYTHONUTF8: '1' };
-  let result = spawnSync('python3', [path.join(dir, 'scripts/check_governance.py')], { cwd: dir, encoding: 'utf8', env });
-  if (result.error) result = spawnSync('python', [path.join(dir, 'scripts/check_governance.py')], { cwd: dir, encoding: 'utf8', env });
+  let result = spawnSync('python3', [path.join(dir, '.standards/check_governance.py')], { cwd: dir, encoding: 'utf8', env });
+  if (result.error) result = spawnSync('python', [path.join(dir, '.standards/check_governance.py')], { cwd: dir, encoding: 'utf8', env });
   return result;
 };
 const registerTopic = (dir, row) => {

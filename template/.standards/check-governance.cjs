@@ -187,7 +187,7 @@ if(capabilityEnabled('task_tracking')&&fs.existsSync(taskIndex)&&fs.existsSync(b
   const sourceOk=b.includes(`<!-- SOURCE-SHA256: ${sourceHash} -->`);
   const generated=b.match(/<!-- GENERATED-SHA256: ([a-f0-9]+) -->\r?\n([\s\S]*?)<!-- GENERATED:END -->/);
   const bodyOk=generated&&crypto.createHash('sha256').update(lf(generated[2])).digest('hex')===generated[1];
-  if(!sourceOk||!bodyOk)errors.push('.spec/tasks/BOARD.md 已过期或被手工修改，请运行 node scripts/generate-board.cjs');
+  if(!sourceOk||!bodyOk)errors.push('.spec/tasks/BOARD.md 已过期或被手工修改，请运行 node .standards/generate-board.cjs');
 }
 
 // 7. Client-private memory mirrors must carry the current breakpoint. No rule can force a
@@ -203,7 +203,7 @@ if(memoryMirrors.length){
     for(const rel of memoryMirrors){
       const mirrorFile=path.join(ROOT,rel);
       if(!fs.existsSync(mirrorFile))continue;
-      if(section&&!fs.readFileSync(mirrorFile,'utf8').replace(/\r\n/g,'\n').includes(section))errors.push(`客户端私有记忆断点未同步：${rel}（运行 node scripts/sync-memory.cjs）`);
+      if(section&&!fs.readFileSync(mirrorFile,'utf8').replace(/\r\n/g,'\n').includes(section))errors.push(`客户端私有记忆断点未同步：${rel}（运行 node .standards/sync-memory.cjs）`);
     }
   }
 }

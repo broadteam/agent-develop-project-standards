@@ -370,7 +370,7 @@ if capability_enabled("task_tracking") and index_path.exists() and board_path.ex
     generated = re.search(r"<!-- GENERATED-SHA256: ([a-f0-9]+) -->\r?\n([\s\S]*?)<!-- GENERATED:END -->", board_text)
     body_ok = bool(generated and hashlib.sha256(generated.group(2).replace("\r\n", "\n").encode("utf-8")).hexdigest() == generated.group(1))
     if f"<!-- SOURCE-SHA256: {digest} -->" not in board_text or not body_ok:
-        errors.append(".spec/tasks/BOARD.md 已过期或被手工修改，请运行 node scripts/generate-board.cjs")
+        errors.append(".spec/tasks/BOARD.md 已过期或被手工修改，请运行 node .standards/generate-board.cjs")
 
 # 7. Client-private memory mirrors must carry the current breakpoint. No rule can force a
 # client to read .memory/, so the state is copied to where it does look; this checks it is not stale.
@@ -391,7 +391,7 @@ if memory_mirrors:
                 continue
             mirror_text = mirror_file.read_text(encoding="utf-8").replace("\r\n", "\n")
             if section and section not in mirror_text:
-                errors.append(f"客户端私有记忆断点未同步：{mirror_rel}（运行 node scripts/sync-memory.cjs）")
+                errors.append(f"客户端私有记忆断点未同步：{mirror_rel}（运行 node .standards/sync-memory.cjs）")
 
 # 7. Topic-split pitfall files: the index and the files on disk must agree, and each stays in budget.
 memory_dir = ROOT / gov.get("paths", {}).get("memory", ".memory")

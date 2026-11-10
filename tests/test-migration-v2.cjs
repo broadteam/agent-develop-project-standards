@@ -27,7 +27,7 @@ try {
   fs.mkdirSync(fresh);
   const freshInit = init(fresh);
   assert.equal(freshInit.status, 0, freshInit.stdout + freshInit.stderr);
-  const freshCheck = spawnSync(process.execPath, [path.join(fresh, 'scripts/check-governance.cjs')], { encoding: 'utf8' });
+  const freshCheck = spawnSync(process.execPath, [path.join(fresh, '.standards/check-governance.cjs')], { encoding: 'utf8' });
   assert.equal(freshCheck.status, 0, `首次安装后治理检查必须直接通过：\n${freshCheck.stdout}${freshCheck.stderr}`);
   assert.ok(fs.existsSync(path.join(fresh, '.agent-standards.json')), '首次安装必须生成安装清单');
   assert.match(fs.readFileSync(path.join(fresh, 'project-profile.toml'), 'utf8'), /status = "needs_review"/);
@@ -67,7 +67,7 @@ try {
   assert.match(migrate.stderr, /检测到多技术栈：python, node/);
 
   // A second initialization must be safe and must not duplicate managed content.
-  const stableFiles = ['gov.toml', 'project-profile.toml', '.gitignore', 'scripts/check-governance.cjs'];
+  const stableFiles = ['gov.toml', 'project-profile.toml', '.gitignore', '.standards/check-governance.cjs'];
   const firstPass = new Map(stableFiles.map((rel) => [rel, fs.readFileSync(path.join(existing, rel), 'utf8')]));
   const secondPass = init(existing);
   assert.equal(secondPass.status, 0, secondPass.stdout + secondPass.stderr);
@@ -78,7 +78,7 @@ try {
     assert.equal(fs.readFileSync(path.join(existing, rel), 'utf8'), content, `${rel} must remain protected after repeated initialization`);
   }
 
-  const governance = spawnSync(process.execPath, [path.join(existing, 'scripts', 'check-governance.cjs')], { cwd: existing, encoding: 'utf8' });
+  const governance = spawnSync(process.execPath, [path.join(existing, '.standards', 'check-governance.cjs')], { cwd: existing, encoding: 'utf8' });
   assert.equal(governance.status, 0, governance.stdout + governance.stderr);
   console.log('test-migration-v2: all cases passed');
 } finally {

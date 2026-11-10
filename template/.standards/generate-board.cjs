@@ -54,7 +54,7 @@ if (args.includes('--validate')) {
 }
 const next = `${current.slice(0, a + start.length)}${body}${current.slice(b)}`;
 if (process.argv.includes('--check')) {
-  if (lf(next) !== lf(current)) { console.error('BOARD.md 已过期，请运行 node scripts/generate-board.cjs'); process.exit(1); }
+  if (lf(next) !== lf(current)) { console.error('BOARD.md 已过期，请运行 node .standards/generate-board.cjs'); process.exit(1); }
   console.log('BOARD.md 与任务索引一致。');
 } else {
   fs.writeFileSync(boardPath, lf(next), 'utf8');

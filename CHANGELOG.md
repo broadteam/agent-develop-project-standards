@@ -1,3 +1,19 @@
+## 3.0.0 - 2026-11-10
+
+**破坏性变更**：治理工具从 `scripts/` 移到 `.standards/`。所有命令路径都变了，见 `MIGRATION-v3.0.md`。
+
+### Changed
+- `scripts/` → `.standards/`. `scripts/` belongs to the project. Putting governance tooling there meant a project that already had `scripts/check-governance.cjs` silently kept its own file while believing it had the checker, and it made `scripts/build.sh` and `scripts/generate-board.cjs` indistinguishable in a listing. A dot-directory matches `.spec/` and `.memory/`, cannot collide, and stays out of the visible tree.
+- `init --update` migrates automatically: installs to `.standards/`, removes the old copies **only when the recorded hash still matches**, deletes `scripts/` if it becomes empty, and leaves anything the project wrote untouched.
+
+### Fixed
+- A `gov.toml` the project had customized is skipped by `--update`, so its `[required].files` kept pointing at the removed `scripts/` paths and the first post-migration check failed with "缺少必需文件". The migration now rewrites those eight paths (and only those) in place, and ensures `.standards` is in `allowed_dirs`.
+- A hook this installer created and nobody edited was protected from `--update`, so a release that moves the checker path would leave it pointing at a file that no longer exists — failing closed on every commit. Unmodified installer-owned hooks now refresh; project-owned ones are still protected.
+- The template's `.githooks/pre-commit` still referenced the old paths: the bulk rewrite skipped extensionless files. Found by running the migration against a real project.
+
+### Tests
+- `tests/test-init.cjs` covers the migration: our old copy is removed, the project's own `scripts/build.sh` survives, the new location is populated, and the report says what moved.
+
 ## 2.7.1 - 2026-11-10
 
 ### Fixed
@@ -49,7 +65,7 @@
 ## 2.4.0 - 2026-11-10
 
 ### Added
-- `scripts/sync-memory.cjs` mirrors the authoritative §0 breakpoint from `.memory/MEMORY.md` into client-private memory files declared in `gov.toml [memory].mirrors`. No rule in `AGENTS.md` can make another agent read your directory — it has its own conventions — but it will read the file it owns. So the state is copied to where it looks, in a marked block that the script maintains; everything outside the block is untouched. One-way, idempotent, and `--check` fails when the copy is stale. `mirrors` defaults to empty: the path is never guessed.
+- `.standards/sync-memory.cjs` mirrors the authoritative §0 breakpoint from `.memory/MEMORY.md` into client-private memory files declared in `gov.toml [memory].mirrors`. No rule in `AGENTS.md` can make another agent read your directory — it has its own conventions — but it will read the file it owns. So the state is copied to where it looks, in a marked block that the script maintains; everything outside the block is untouched. One-way, idempotent, and `--check` fails when the copy is stale. `mirrors` defaults to empty: the path is never guessed.
 - Both governance checkers report a stale mirror with identical output, so parity still holds.
 
 ### Fixed
@@ -86,7 +102,7 @@
 
 ### Added
 - `init.cjs --update`: refreshes only files whose current content is byte-identical to what a previous run installed. Files the project edited are left untouched and reported. This is the upgrade path that was missing — `--force` overwrites everything including the project's own `AGENTS.md`, and a plain re-run updates nothing.
-- `init.cjs` warns when a same-named file exists that it has never managed. Silently skipping such a file means the project runs its own `scripts/generate-board.cjs` while believing governance installed one.
+- `init.cjs` warns when a same-named file exists that it has never managed. Silently skipping such a file means the project runs its own `.standards/generate-board.cjs` while believing governance installed one.
 - `CLIENTS.md`: the adapter matrix (Codex, Claude Code, Gemini CLI, Cursor, OpenCode, WorkBuddy/CodeBuddy, and CatPaw/ZCode marked unverified), how to add an adapter in three steps, and an explicit note that no real client CLI has ever been exercised.
 - `DEPLOY.md` gains an upgrade section: how to read `.agent-standards.json`, one-sentence upgrade, why not `--force`, what happens to a conflicted file.
 
@@ -140,7 +156,7 @@
 Real-project trial on an existing Vite/TypeScript project surfaced three defects that every fixture test had missed.
 
 ### Fixed
-- `init.cjs` copied untracked build artifacts from `template/` into the target project. Running the Python checker creates `template/scripts/__pycache__`, which is gitignored, so CI never saw it — but every initialized project received a `.pyc`. Template walking now filters `__pycache__`, `*.pyc`, editor temp files and `.DS_Store`.
+- `init.cjs` copied untracked build artifacts from `template/` into the target project. Running the Python checker creates `template/.standards/__pycache__`, which is gitignored, so CI never saw it — but every initialized project received a `.pyc`. Template walking now filters `__pycache__`, `*.pyc`, editor temp files and `.DS_Store`.
 - The compatibility scan counted directories the template itself had just created (`.spec`, `.memory`, `.tmp`, `scripts`, `policy`), so a repeat `init` warned that there were "14 pre-existing root directories to review". A warning that fires on the template's own output teaches users to ignore warnings. Only genuinely pre-existing directories are reported now, and the count is stable across runs.
 - A freshly initialized `AGENTS.md` consumed **99% of its own budget** (12201/12288B, 87 bytes left), while the README instructs the user to add project-specific wording to it — the first edit would have been blocked by the governance gate. `AGENTS.md` §4 also duplicated the `gov.toml [dirs]` whitelist, so every `--force` rerun appended more file names and grew the entry file further.
 - An interrupted `--force` run can leave its own transaction files (`.<name>.agent-standards-backup-<pid>-<n>`) in the project root, and the next run's compatibility scan whitelisted them — permanently legitimizing junk in `gov.toml [dirs]`. Internal transaction files are now excluded from the scan, so leftovers surface as unregistered root files instead of being blessed. `init` also names them explicitly and says not to whitelist them, because the governance message's default advice ("add it to `gov.toml [dirs]`") is exactly the wrong move here.
@@ -242,7 +258,7 @@ Real-project trial on an existing Vite/TypeScript project surfaced three defects
 
 ### Fixed
 - Reject symlinks in managed target paths before writing, including `.gitignore` and nested template destinations.
-- Stop executing project-owned `scripts/generate-board.cjs`; invoke the bundled generator with an explicit target root instead.
+- Stop executing project-owned `.standards/generate-board.cjs`; invoke the bundled generator with an explicit target root instead.
 - Validate an existing BOARD managed region before any template mutation.
 - Validate initializer flags and require `--replace-hook` to be combined with `--force`.
 

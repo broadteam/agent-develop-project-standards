@@ -171,7 +171,7 @@
 
 ## 4. 目录白名单（机器可测）
 
-`node scripts/check-governance.cjs` 检查根目录。允许的目录与文件以 `gov.toml [dirs]` 为**唯一来源**，本文件不重复列举——重复的清单会随每次重跑变长，且两处必然走样。
+`node .standards/check-governance.cjs` 检查根目录。允许的目录与文件以 `gov.toml [dirs]` 为**唯一来源**，本文件不重复列举——重复的清单会随每次重跑变长，且两处必然走样。
 
 新增根级目录/文件 ⇒ 先改 `gov.toml [dirs]`，再跑检查确认通过。
 
@@ -183,7 +183,7 @@
 {{COMMANDS}}
 
 # 治理检查
-node scripts/check-governance.cjs
+node .standards/check-governance.cjs
 
 # 一次性启用提交闸门（每个新克隆都要执行）
 git config core.hooksPath .githooks

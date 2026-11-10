@@ -9,7 +9,7 @@ const root = path.resolve(__dirname, '..');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-standards-init-'));
 // Created inside the test and removed in finally: proves untracked artifacts under
 // template/ are filtered out of the install.
-const junkDir = path.join(root, 'template/scripts/__pycache__');
+const junkDir = path.join(root, 'template/.standards/__pycache__');
 function snapshotTree(dir, rel = '') {
   const entries = [];
   for (const name of fs.readdirSync(dir).sort()) {
@@ -82,7 +82,7 @@ try {
   const gov = fs.readFileSync(path.join(project, 'gov.toml'), 'utf8');
   assert.doesNotMatch(gov, /agent-standards-backup/, '安装残留的事务文件不得进入根目录白名单');
   // Not whitelisted means it surfaces as a violation instead of being silently legitimized.
-  const staleCheck = spawnSync(process.execPath, [path.join(project, 'scripts/check-governance.cjs')], { encoding: 'utf8' });
+  const staleCheck = spawnSync(process.execPath, [path.join(project, '.standards/check-governance.cjs')], { encoding: 'utf8' });
   assert.equal(staleCheck.status, 1, '残留事务文件必须被判为未登记文件');
   assert.match(staleCheck.stdout, /根目录出现未登记文件/);
   // The governance message suggests whitelisting, which is exactly wrong for these files;
@@ -99,8 +99,8 @@ try {
   assert.match(profile, /multi_agent = "off"/);
   assert.match(gov, /language = "php"/);
   assert.match(gov, /package_manager = "composer\+npm"/);
-  assert.ok(fs.existsSync(path.join(project, 'scripts/generate-board.cjs')));
-  assert.ok(!fs.existsSync(path.join(project, 'scripts/__pycache__')), '模板里的编译缓存不得复制进项目');
+  assert.ok(fs.existsSync(path.join(project, '.standards/generate-board.cjs')));
+  assert.ok(!fs.existsSync(path.join(project, '.standards/__pycache__')), '模板里的编译缓存不得复制进项目');
   assert.ok(!fs.existsSync(path.join(project, 'scripts/probe.cpython-313.pyc')), '模板里的 .pyc 不得复制进项目');
   // The README tells the user to add project-specific wording to AGENTS.md. Shipping an entry
   // file at 99% of its own budget makes the governance gate block exactly that edit.
@@ -135,7 +135,7 @@ try {
   assert.ok(installManifest.derived_paths.includes('.spec/tasks/BOARD.md'));
   assert.ok(!installManifest.preserved_paths.includes('AGENTS.md'));
   assert.ok(!installManifest.preserved_paths.includes('.githooks/pre-commit'), 'protected project hooks are intentionally unmanaged, not an unknown template baseline');
-  const profileValidator = require(path.join(root, 'template/scripts/profile-validator.cjs'));
+  const profileValidator = require(path.join(root, 'template/.standards/profile-validator.cjs'));
   const profileResult = profileValidator.validateProfile(project);
   assert.deepEqual(profileResult.errors, []);
   assert.ok(profileResult.warnings.some((warning) => warning.includes('needs_review')));
@@ -146,10 +146,10 @@ try {
   fs.writeFileSync(profilePath, validProfile.replace('roadmap = "auto"', 'roadmap = "on"').replace('task_tracking = "auto"', 'task_tracking = "off"'));
   assert.ok(profileValidator.validateProfile(project).errors.some((error) => error.includes('能力依赖冲突')));
   fs.writeFileSync(profilePath, validProfile);
-  const governance = spawnSync(process.execPath, [path.join(project, 'scripts/check-governance.cjs')], { encoding: 'utf8' });
+  const governance = spawnSync(process.execPath, [path.join(project, '.standards/check-governance.cjs')], { encoding: 'utf8' });
   assert.equal(governance.status, 0, governance.stdout + governance.stderr);
-  let python = spawnSync('python3', [path.join(project, 'scripts/check_governance.py')], { encoding: 'utf8' });
-  if (python.error) python = spawnSync('python', [path.join(project, 'scripts/check_governance.py')], { encoding: 'utf8' });
+  let python = spawnSync('python3', [path.join(project, '.standards/check_governance.py')], { encoding: 'utf8' });
+  if (python.error) python = spawnSync('python', [path.join(project, '.standards/check_governance.py')], { encoding: 'utf8' });
   if (!python.error) assert.equal(python.status, 0, python.stdout + python.stderr);
   const replaceHook = spawnSync(process.execPath, [path.join(root, 'init.cjs'), project, '--force', '--replace-hook'], { encoding: 'utf8' });
   assert.equal(replaceHook.status, 0, replaceHook.stdout + replaceHook.stderr);
@@ -226,11 +226,11 @@ try {
   // A target-owned generator is user code: initialization must never execute it.
   const customGeneratorProject = path.join(tmp, 'custom-generator-project');
   fs.mkdirSync(path.join(customGeneratorProject, '.spec/tasks'), { recursive: true });
-  fs.mkdirSync(path.join(customGeneratorProject, 'scripts'), { recursive: true });
+  fs.mkdirSync(path.join(customGeneratorProject, '.standards'), { recursive: true });
   fs.copyFileSync(path.join(root, 'template/.spec/tasks/index.md'), path.join(customGeneratorProject, '.spec/tasks/index.md'));
   const executionMarker = path.join(customGeneratorProject, 'CUSTOM_GENERATOR_WAS_EXECUTED');
   const customGeneratorSource = "require('node:fs').writeFileSync(" + JSON.stringify(executionMarker) + ", 'executed');\n";
-  fs.writeFileSync(path.join(customGeneratorProject, 'scripts/generate-board.cjs'), customGeneratorSource);
+  fs.writeFileSync(path.join(customGeneratorProject, '.standards/generate-board.cjs'), customGeneratorSource);
   const customGeneratorRun = spawnSync(process.execPath, [path.join(root, 'init.cjs'), customGeneratorProject], { encoding: 'utf8' });
   assert.equal(customGeneratorRun.status, 0, customGeneratorRun.stdout + customGeneratorRun.stderr);
   assert.equal(fs.existsSync(executionMarker), false, 'initializer must not execute a project-owned generator');
@@ -283,7 +283,7 @@ try {
   assert.equal(strictSetup.status, 0, strictSetup.stdout + strictSetup.stderr);
   const strictGov = fs.readFileSync(path.join(strictProject, 'gov.toml'), 'utf8');
   assert.doesNotMatch(strictGov, /legacy-folder/);
-  const strictCheck = spawnSync(process.execPath, [path.join(strictProject, 'scripts/check-governance.cjs')], { encoding: 'utf8' });
+  const strictCheck = spawnSync(process.execPath, [path.join(strictProject, '.standards/check-governance.cjs')], { encoding: 'utf8' });
   assert.equal(strictCheck.status, 1);
   assert.match(strictCheck.stdout, /legacy-folder\//);
   // Root-level plan files are imported instead of failing the first governance run: someone who
@@ -306,7 +306,7 @@ try {
   assert.match(
     fs.readFileSync(path.join(planProject, '.spec/tasks/index.md'), 'utf8'),
     /\| T1 \| 导入：根目录计划文件（NOTES\.md、TODO\.md） \| planned \|/);
-  const planCheck = spawnSync(process.execPath, [path.join(planProject, 'scripts/check-governance.cjs')], { encoding: 'utf8' });
+  const planCheck = spawnSync(process.execPath, [path.join(planProject, '.standards/check-governance.cjs')], { encoding: 'utf8' });
   assert.equal(planCheck.status, 0, `导入后治理检查必须直接通过：\n${planCheck.stdout}${planCheck.stderr}`);
   // The import card is project state now; --update must not revert it to the template example.
   const planUpdate = spawnSync(process.execPath, [path.join(root, 'init.cjs'), planProject, '--update'], { encoding: 'utf8' });
@@ -323,7 +323,7 @@ try {
   const keepRun = spawnSync(process.execPath, [path.join(root, 'init.cjs'), keepProject, '--no-import-plans'], { encoding: 'utf8' });
   assert.equal(keepRun.status, 0, keepRun.stdout + keepRun.stderr);
   assert.ok(fs.existsSync(path.join(keepProject, 'TODO.md')), '--no-import-plans 不得移动文件');
-  const keepCheck = spawnSync(process.execPath, [path.join(keepProject, 'scripts/check-governance.cjs')], { encoding: 'utf8' });
+  const keepCheck = spawnSync(process.execPath, [path.join(keepProject, '.standards/check-governance.cjs')], { encoding: 'utf8' });
   assert.equal(keepCheck.status, 1, '选择不导入时，根目录计划文件必须被判违规');
 
   // Re-running must not claim a version the files do not carry, and --update must refresh only
@@ -364,12 +364,12 @@ try {
   // A same-named file this installer never managed must be preserved AND reported: silently
   // keeping it would leave the project running a foreign script under our path.
   const clashProject = path.join(tmp, 'clash-app');
-  fs.mkdirSync(path.join(clashProject, 'scripts'), { recursive: true });
+  fs.mkdirSync(path.join(clashProject, '.standards'), { recursive: true });
   fs.writeFileSync(path.join(clashProject, 'package.json'), JSON.stringify({ name: 'clash-app' }));
-  fs.writeFileSync(path.join(clashProject, 'scripts/generate-board.cjs'), '// project-owned\n');
+  fs.writeFileSync(path.join(clashProject, '.standards/generate-board.cjs'), '// project-owned\n');
   const clashRun = spawnSync(process.execPath, [path.join(root, 'init.cjs'), clashProject], { encoding: 'utf8' });
   assert.equal(clashRun.status, 0, clashRun.stdout + clashRun.stderr);
-  assert.equal(fs.readFileSync(path.join(clashProject, 'scripts/generate-board.cjs'), 'utf8'), '// project-owned\n',
+  assert.equal(fs.readFileSync(path.join(clashProject, '.standards/generate-board.cjs'), 'utf8'), '// project-owned\n',
     '项目自有同名文件不得被覆盖');
   assert.match(clashRun.stdout + clashRun.stderr, /从未管理过的同名文件/);
 
@@ -409,6 +409,30 @@ try {
   assert.doesNotMatch(offRouter, /\.spec\/tasks\/index\.md/, '路由表同样不得指向未安装的目录');
   assert.doesNotMatch(offRouter, /\.spec\/roadmap\/INDEX\.md/);
   assert.doesNotMatch(offRouter, /<!--cap/, '路由表渲染后不得残留标记');
+
+  // 3.0.0 moved the tooling from scripts/ to .standards/. An upgrade must remove our old copies
+  // (proven by hash) and must never touch a file the project wrote itself.
+  const migrateProject = path.join(tmp, 'migrate-app');
+  fs.mkdirSync(migrateProject);
+  fs.writeFileSync(path.join(migrateProject, 'package.json'), JSON.stringify({ name: 'migrate-app' }));
+  assert.equal(spawnSync(process.execPath, [path.join(root, 'init.cjs'), migrateProject], { encoding: 'utf8' }).status, 0);
+  const legacyDir = path.join(migrateProject, 'scripts');
+  fs.mkdirSync(legacyDir);
+  const legacyName = 'check-governance.cjs';
+  fs.copyFileSync(path.join(migrateProject, '.standards', legacyName), path.join(legacyDir, legacyName));
+  fs.writeFileSync(path.join(legacyDir, 'build.sh'), '#!/bin/sh\necho project-owned\n');
+  const migrateManifestPath = path.join(migrateProject, '.agent-standards.json');
+  const migrateManifest = JSON.parse(fs.readFileSync(migrateManifestPath, 'utf8'));
+  migrateManifest.managed_files[`scripts/${legacyName}`] = { ...migrateManifest.managed_files[`.standards/${legacyName}`] };
+  fs.writeFileSync(migrateManifestPath, JSON.stringify(migrateManifest, null, 2));
+  fs.rmSync(path.join(migrateProject, '.standards', legacyName));
+
+  const migrateRun = spawnSync(process.execPath, [path.join(root, 'init.cjs'), migrateProject, '--update'], { encoding: 'utf8' });
+  assert.equal(migrateRun.status, 0, migrateRun.stdout + migrateRun.stderr);
+  assert.match(migrateRun.stdout, /迁移/, '升级时应在报告里说明迁移了什么');
+  assert.ok(!fs.existsSync(path.join(legacyDir, legacyName)), '旧位置的受管脚本应被移除');
+  assert.ok(fs.existsSync(path.join(migrateProject, '.standards', legacyName)), '新位置应存在');
+  assert.ok(fs.existsSync(path.join(legacyDir, 'build.sh')), '项目自己的脚本不得被删除');
 
   console.log('test-init: all cases passed');
 } finally {

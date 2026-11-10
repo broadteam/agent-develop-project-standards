@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const root = path.resolve(__dirname, '..');
-const { resolveCapabilities } = require('../template/scripts/capability-resolver.cjs');
+const { resolveCapabilities } = require('../template/.standards/capability-resolver.cjs');
 const registry = JSON.parse(fs.readFileSync(path.join(root, 'template/policy/capabilities.json'), 'utf8'));
 
 const profile = { capabilities: {
@@ -57,11 +57,11 @@ try {
   assert.doesNotMatch(requiredFiles, /\.spec\/(tasks|roadmap|adr|stacks)\//);
   assert.ok(fs.existsSync(path.join(project, '.spec/00-constitution.md')), 'core rules must remain');
   assert.ok(fs.existsSync(path.join(project, '.spec/01-architecture.md')), 'base architecture guidance must remain');
-  const nodeGate = spawnSync(process.execPath, [path.join(project, 'scripts/check-governance.cjs')], { encoding: 'utf8' });
+  const nodeGate = spawnSync(process.execPath, [path.join(project, '.standards/check-governance.cjs')], { encoding: 'utf8' });
   assert.equal(nodeGate.status, 0, nodeGate.stdout + nodeGate.stderr);
-  const pythonGate = spawnSync(process.env.PYTHON || 'python3', [path.join(project, 'scripts/check_governance.py')], { encoding: 'utf8' });
+  const pythonGate = spawnSync(process.env.PYTHON || 'python3', [path.join(project, '.standards/check_governance.py')], { encoding: 'utf8' });
   if (pythonGate.error && !process.env.PYTHON) {
-    const fallback = spawnSync('python', [path.join(project, 'scripts/check_governance.py')], { encoding: 'utf8' });
+    const fallback = spawnSync('python', [path.join(project, '.standards/check_governance.py')], { encoding: 'utf8' });
     if (!fallback.error) assert.equal(fallback.status, 0, fallback.stdout + fallback.stderr);
   } else {
     assert.equal(pythonGate.status, 0, pythonGate.stdout + pythonGate.stderr);

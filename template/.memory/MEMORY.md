@@ -35,7 +35,7 @@
 |---|---|
 | 开工基线 | `AGENTS.md` + 本文件 §0；宪法、任务卡与踩坑记录按任务读取 |
 | 改架构 | `.spec/01-architecture.md` + `.spec/REGISTRY.md` |
-| 提交前检查 | `node scripts/check-governance.cjs` |
+| 提交前检查 | `node .standards/check-governance.cjs` |
 | 查踩过的坑 | `.memory/PITFALLS.md` |
 | 查历史收口记录 | `.memory/log/` |
 

@@ -1,6 +1,6 @@
 # 工作板（自动生成视图）
 
-> 本文件由 `scripts/generate-board.cjs` 根据 `.spec/tasks/index.md` 生成。不要手改；修改索引后运行生成器。
+> 本文件由 `.standards/generate-board.cjs` 根据 `.spec/tasks/index.md` 生成。不要手改；修改索引后运行生成器。
 
 <!-- GENERATED:START -->
 <!-- SOURCE-SHA256: fc0a2bc8375cd6a8d562d423e447e81c217444253caa54bb0a5093ea7f29d163 -->

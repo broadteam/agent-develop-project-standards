@@ -16,11 +16,11 @@ const MIRROR = '.workbuddy-ai/memory/MEMORY.md';
 const clientOwned = '# 客户端自己的记忆\n\n这里的内容不属于模板。\n';
 
 const init = (dir) => spawnSync(process.execPath, [path.join(root, 'init.cjs'), dir], { encoding: 'utf8' });
-const runNode = (dir, script, ...args) => spawnSync(process.execPath, [path.join(dir, 'scripts', script), ...args], { cwd: dir, encoding: 'utf8' });
+const runNode = (dir, script, ...args) => spawnSync(process.execPath, [path.join(dir, '.standards', script), ...args], { cwd: dir, encoding: 'utf8' });
 const runPython = (dir) => {
   const env = { ...process.env, PYTHONUTF8: '1' };
-  let result = spawnSync('python3', [path.join(dir, 'scripts/check_governance.py')], { cwd: dir, encoding: 'utf8', env });
-  if (result.error) result = spawnSync('python', [path.join(dir, 'scripts/check_governance.py')], { cwd: dir, encoding: 'utf8', env });
+  let result = spawnSync('python3', [path.join(dir, '.standards/check_governance.py')], { cwd: dir, encoding: 'utf8', env });
+  if (result.error) result = spawnSync('python', [path.join(dir, '.standards/check_governance.py')], { cwd: dir, encoding: 'utf8', env });
   return result;
 };
 const setMirror = (dir) => {

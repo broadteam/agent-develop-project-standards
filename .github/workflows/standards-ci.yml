@@ -36,12 +36,12 @@ jobs:
           node --check tools/validate-template-upgrade-review.cjs
           node --check tools/record-reviewed-template-upgrade.cjs
           node --check tools/template-source-inventory.cjs
-          node --check template/scripts/check-governance.cjs
-          node --check template/scripts/profile-validator.cjs
-          node --check template/scripts/capability-resolver.cjs
-          node --check template/scripts/task-context-resolver.cjs
-          node --check template/scripts/generate-board.cjs
-          python -m py_compile template/scripts/check_governance.py template/scripts/profile_validator.py
+          node --check template/.standards/check-governance.cjs
+          node --check template/.standards/profile-validator.cjs
+          node --check template/.standards/capability-resolver.cjs
+          node --check template/.standards/task-context-resolver.cjs
+          node --check template/.standards/generate-board.cjs
+          python -m py_compile template/.standards/check_governance.py template/.standards/profile_validator.py
       - name: Regression tests
         env:
           PYTHONUTF8: '1'

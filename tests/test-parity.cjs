@@ -11,9 +11,9 @@ const fixture = path.join(tmp, 'repo');
 function copy(src, dst) { fs.cpSync(src, dst, { recursive: true }); }
 function run(cmd, args) { return spawnSync(cmd, args, { cwd: fixture, encoding: 'utf8' }); }
 function assertParity(label) {
-  const node = run(process.execPath, ['scripts/check-governance.cjs']);
-  let py = run(process.env.PYTHON || 'python3', ['scripts/check_governance.py']);
-  if (py.error && !process.env.PYTHON) py = run('python', ['scripts/check_governance.py']);
+  const node = run(process.execPath, ['.standards/check-governance.cjs']);
+  let py = run(process.env.PYTHON || 'python3', ['.standards/check_governance.py']);
+  if (py.error && !process.env.PYTHON) py = run('python', ['.standards/check_governance.py']);
   if (py.error) throw new Error(`Python 3.10+ is required for parity tests: ${py.error.message}`);
   assert.equal(node.status, py.status, `${label}: exit code differs\nNode:\n${node.stdout}${node.stderr}\nPython:\n${py.stdout}${py.stderr}`);
   assert.equal(node.stdout, py.stdout, `${label}: stdout differs\nNode:\n${node.stdout}\nPython:\n${py.stdout}`);
@@ -34,7 +34,7 @@ try {
     .replace('allowed_dirs = []', `allowed_dirs = [${dirs.map(x => `"${x}"`).join(', ')}]`)
     .replace('allowed_files = []', `allowed_files = [${files.map(x => `"${x}"`).join(', ')}]`);
   fs.writeFileSync(path.join(fixture, 'gov.toml'), gov);
-  run(process.execPath, ['scripts/generate-board.cjs']);
+  run(process.execPath, ['.standards/generate-board.cjs']);
   let result = assertParity('baseline');
   assert.equal(result.status, 0, result.stdout + result.stderr);
 
@@ -85,7 +85,7 @@ try {
   const taskArchiveIndex = path.join(fixture, '.spec/tasks/archive/INDEX.md');
   const taskArchiveOriginal = fs.readFileSync(taskArchiveIndex, 'utf8');
   fs.writeFileSync(taskArchiveIndex, taskArchiveOriginal.replace('| — | — | — | — |', '| W1 | 1 | 2026-11-08 | archive/W1/ |'));
-  run(process.execPath, ['scripts/generate-board.cjs']);
+  run(process.execPath, ['.standards/generate-board.cjs']);
   result = assertParity('archived wave');
   assert.equal(result.status, 0, result.stdout + result.stderr);
 
@@ -144,7 +144,7 @@ try {
   result = assertParity('stale board');
   assert.equal(result.status, 1);
   assert.match(result.stdout, /BOARD.md 已过期/);
-  run(process.execPath, ['scripts/generate-board.cjs']);
+  run(process.execPath, ['.standards/generate-board.cjs']);
   const boardPath = path.join(fixture, '.spec/tasks/BOARD.md');
   fs.writeFileSync(boardPath, fs.readFileSync(boardPath, 'utf8').replace('## 进行中', '## 手工篡改'));
   result = assertParity('manually edited board');
@@ -154,7 +154,7 @@ try {
   // Line endings must not change semantics. Windows developers commonly have
   // core.autocrlf=true, so a CRLF checkout has to report the same budget bytes and
   // the same board freshness as an LF one.
-  run(process.execPath, ['scripts/generate-board.cjs']);
+  run(process.execPath, ['.standards/generate-board.cjs']);
   const agentsPath = path.join(fixture, 'AGENTS.md');
   const agentsLf = fs.readFileSync(agentsPath, 'utf8').replace(/\r\n/g, '\n');
   fs.writeFileSync(agentsPath, agentsLf, 'utf8');

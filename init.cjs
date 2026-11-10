@@ -137,7 +137,10 @@ const scripts = pkg.scripts ?? {};
 const cmdLines = Object.keys(scripts).filter(k => ['dev', 'start', 'build', 'test', 'lint', 'typecheck'].includes(k)).map(k => `${jsPackageManager || 'npm'} run ${k}`);
 const COMMANDS = cmdLines.length ? cmdLines.join('\n') : profile.cmds.join('\n');
 
-const TEMPLATE_DIRS = ['.memory', '.spec', '.tmp', '.githooks', 'scripts', 'policy'];
+// Governance tooling lives in a dot-directory so it never collides with a project's own
+// scripts/. 'scripts' stays in this list only for projects installed before 3.0.0; the migration
+// below removes our files from there and leaves anything the project wrote alone.
+const TEMPLATE_DIRS = ['.memory', '.spec', '.tmp', '.githooks', '.standards', 'policy'];
 const TEMPLATE_FILES = ['AGENTS.md', 'ROUTER.md', 'CLAUDE.md', 'GEMINI.md', 'gov.toml', 'project-profile.toml', '.gitattributes', '.gitignore', '.agent-standards.json'];
 const ALWAYS_SKIP = new Set(['.git', 'node_modules']);
 // A --force run that is interrupted can leave its own transaction files behind. If the next
@@ -207,7 +210,7 @@ const replacements = {
   ARCH_LAYERS: '（待填：画出分层）', CORE_INTERFACES: '（待填：列出关键接口）',
   DATA_TABLE: '（待填）', MECH_TABLE: '（待填）',
 };
-const capabilityResolution = require(path.join(TEMPLATE, 'scripts/capability-resolver.cjs'))
+const capabilityResolution = require(path.join(TEMPLATE, '.standards/capability-resolver.cjs'))
   .loadCapabilityResolution(TARGET, TEMPLATE);
 if (capabilityResolution.errors.length) {
   console.error('能力配置无法解析：\n' + capabilityResolution.errors.map((e) => '  - ' + e).join('\n'));
@@ -282,7 +285,7 @@ try {
 // read-only; generation itself happens only after installation succeeds.
 if (capabilityResolution.capabilities.task_tracking?.status !== 'disabled' && has('.spec/tasks/index.md')) {
   const validation = spawnSync(process.execPath, [
-    path.join(TEMPLATE, 'scripts/generate-board.cjs'), '--root', TARGET, '--validate',
+    path.join(TEMPLATE, '.standards/generate-board.cjs'), '--root', TARGET, '--validate',
   ], { cwd: TARGET, encoding: 'utf8' });
   if (validation.status !== 0) {
     console.error('[init] BOARD 预检失败，未写入任何模板文件：' + (validation.stderr || validation.stdout || '未知错误'));
@@ -296,7 +299,7 @@ function fill(s) {
   return out.replace(/\{\{([A-Z_]+)\}\}/g, (_, k) => `（待填：${k}）`);
 }
 
-const report = { created: [], skipped: [], forced: [], protected: [], warnings: [], imported: [], updated: [], conflicts: [] };
+const report = { created: [], skipped: [], forced: [], protected: [], warnings: [], imported: [], updated: [], conflicts: [], migrated: [] };
 const managedFiles = { ...(previousManifest?.managed_files ?? {}) };
 const preservedPaths = new Set(previousManifest?.preserved_paths ?? []);
 const managedBlocks = { ...(previousManifest?.managed_blocks ?? {}) };
@@ -456,6 +459,17 @@ function capabilityNotice() {
   return `> **本项目已关闭能力：${disabled.join('、')}**（见 \`project-profile.toml [capabilities]\`）。下文凡引用 ${refs} 的地方一律不适用，替代做法写在 §2.5。\n\n`;
 }
 
+// Template-owned directories are always legitimate, and a newer release may add one (3.0.0 added
+// .standards). Both the refresh path and the customized-gov.toml path need this.
+function ensureTemplateDirs(text) {
+  const line = text.match(/^allowed_dirs = \[(.*)\]$/m);
+  if (!line) return text;
+  const present = [...line[1].matchAll(/"([^"]+)"/g)].map((match) => match[1]);
+  if (!TEMPLATE_DIRS.some((dir) => !present.includes(dir))) return text;
+  const merged = [...new Set([...present, ...TEMPLATE_DIRS])].sort();
+  return text.replace(line[0], `allowed_dirs = [${merged.map((value) => JSON.stringify(value)).join(', ')}]`);
+}
+
 function walk(dir, rel = '') {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const from = path.join(dir, entry.name);
@@ -466,9 +480,16 @@ function walk(dir, rel = '') {
     if (entry.name === '.gitignore.append') continue;
     const to = path.join(TARGET, relPath);
     const exists = fs.existsSync(to);
-    // A project-owned hook is protected even under --force unless explicitly opted in.
+    // A project-owned hook is protected even under --force unless explicitly opted in. But a hook
+    // this installer created and nobody edited is ours: without refreshing it, a release that
+    // moves the checker path leaves a hook pointing at a file that no longer exists.
     if (relPath === '.githooks/pre-commit' && exists && !REPLACE_HOOK) {
-      report.protected.push(relPath); trackPreservedPath(relPath); continue;
+      const installedSha = managedFiles[relPath]?.installed_sha256;
+      const ours = installedSha && sha256(fs.readFileSync(to)) === installedSha;
+      if (!(UPDATE && ours)) {
+        report.protected.push(relPath); trackPreservedPath(relPath); continue;
+      }
+      report.updated.push(relPath);
     }
     if (exists && !FORCE) {
       const installedSha = managedFiles[relPath]?.installed_sha256;
@@ -512,6 +533,10 @@ function walk(dir, rel = '') {
             if (line) content = content.replace(new RegExp(`^${key} = \\[\\]$`, 'm'), line[0]);
           }
         }
+        // Template-owned directories are always legitimate, and a newer release may have added
+        // one (3.0.0 added .standards). Only needed on the upgrade path: a fresh install fills
+        // these arrays from the root scan afterwards, and touching them here would break that.
+        if (exists) content = ensureTemplateDirs(content);
       }
       writeTransactional(to, content, 'utf8');
       trackManagedFile(relPath, from, content);
@@ -624,7 +649,7 @@ ${list}
 
 1. 把原文里仍然有效的条目拆成卡片：\`.spec/tasks/T2/card.md\`、\`T3\`……
 2. 每条写清范围（允许改哪些路径）和验收（怎么证明做完）。
-3. 在 \`.spec/tasks/index.md\` 登记新卡，再运行 \`node scripts/generate-board.cjs\`。
+3. 在 \`.spec/tasks/index.md\` 登记新卡，再运行 \`node .standards/generate-board.cjs\`。
 4. 原文处理完后可以删掉 \`${importedRel}/\`。
 
 ## 范围
@@ -681,6 +706,43 @@ if (planFiles.length && capabilityResolution.capabilities.task_tracking?.status 
   }
 }
 
+// 3.0.0 moved the governance tooling from scripts/ to .standards/ so it stops colliding with a
+// project's own scripts directory. Remove our old copies, but only ones we can prove we installed:
+// the recorded hash must still match, otherwise the project edited it and it is theirs to keep.
+const legacyScripts = path.join(TARGET, 'scripts');
+if (fs.existsSync(legacyScripts)) {
+  for (const rel of Object.keys(previousManifest?.managed_files ?? {}).filter((key) => key.startsWith('scripts/'))) {
+    const file = path.join(TARGET, rel);
+    if (!fs.existsSync(file)) continue;
+    const recorded = previousManifest.managed_files[rel].installed_sha256;
+    if (!recorded || sha256(fs.readFileSync(file)) !== recorded) continue;
+    if (!DRY) removeTransactional(file);
+    delete managedFiles[rel];
+    report.migrated.push(rel);
+  }
+  if (!DRY) {
+    try { if (fs.readdirSync(legacyScripts).length === 0) fs.rmdirSync(legacyScripts); } catch {}
+  }
+}
+
+// A customized gov.toml is skipped by --update, so its required-file list can keep pointing at
+// paths that no longer exist. Rewrite only our own script names, and only when the new file is
+// actually present — the check is idempotent so a half-migrated project converges.
+const govFile = path.join(TARGET, 'gov.toml');
+if (fs.existsSync(govFile)) {
+  const before = fs.readFileSync(govFile, 'utf8');
+  let after = before.replace(/(?:^|[^.\w])scripts\/(capability-resolver\.cjs|check-governance\.cjs|check_governance\.py|generate-board\.cjs|profile-validator\.cjs|profile_validator\.py|sync-memory\.cjs|task-context-resolver\.cjs)/g,
+    (match, name) => (fs.existsSync(path.join(TARGET, '.standards', name))
+      ? match.replace(`scripts/${name}`, `.standards/${name}`)
+      : match));
+  after = ensureTemplateDirs(after);
+  if (after !== before && !DRY) {
+    writeTransactional(govFile, after, 'utf8');
+    if (managedFiles['gov.toml']) managedFiles['gov.toml'].installed_sha256 = sha256(after);
+    report.migrated.push('gov.toml 中的脚本路径');
+  }
+}
+
 // Set executable bit only on a hook created/replaced by this run.
 const hook = path.join(TARGET, '.githooks', 'pre-commit');
 if (!DRY && fs.existsSync(hook) && (report.created.includes('.githooks/pre-commit') || report.forced.includes('.githooks/pre-commit'))) {
@@ -693,7 +755,7 @@ if (!DRY && capabilityResolution.capabilities.task_tracking?.status !== 'disable
   && fs.existsSync(path.join(TARGET, '.spec/tasks/index.md'))) {
   // Execute the generator shipped with this initializer, never a project-owned
   // script that may have been skipped or preserved during installation.
-  const trustedGenerator = path.join(TEMPLATE, 'scripts/generate-board.cjs');
+  const trustedGenerator = path.join(TEMPLATE, '.standards/generate-board.cjs');
   recordExternalWrite(path.join(TARGET, '.spec/tasks/BOARD.md'));
   const generated = spawnSync(process.execPath, [trustedGenerator, '--root', TARGET], { cwd: TARGET, encoding: 'utf8' });
   if (generated.status !== 0) throw new Error((generated.stderr || generated.stdout || 'BOARD 生成失败').trim());
@@ -777,7 +839,7 @@ console.log('  能力解析  ' + Object.entries(capabilityResolution.capabilitie
 console.log(`  项目名    ${PROJECT_NAME}`);
 console.log(`  源码目录  ${SRC_DIR}`);
 console.log(`  产物目录  ${BUILD_OUTPUT}`);
-for (const [label, list] of [['新建', report.created], ['更新', report.updated], ['覆盖', report.forced], ['跳过', report.skipped], ['保护', report.protected], ['导入', report.imported]]) {
+for (const [label, list] of [['新建', report.created], ['更新', report.updated], ['覆盖', report.forced], ['跳过', report.skipped], ['保护', report.protected], ['导入', report.imported], ['迁移', report.migrated]]) {
   if (list.length) console.log(`\n  ${label} ${list.length} 项：\n${list.map(x => `    ${x}`).join('\n')}`);
 }
 for (const warning of report.warnings) console.warn(`\n  ⚠ ${warning}`);

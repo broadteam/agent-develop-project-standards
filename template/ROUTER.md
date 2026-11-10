@@ -19,7 +19,7 @@
 <!--/cap-->
 | 想写 TODO / 计划 / 待办清单 | 先看计划该放哪 | `AGENTS.md` §2.5 |
 | 担心读太多费 token | 分级读取规则 | `AGENTS.md` §2.6 |
-| 判断当前任务需要加载哪些规范 | 任务上下文解析器（复杂/高影响任务可选） | `node scripts/task-context-resolver.cjs` |
+| 判断当前任务需要加载哪些规范 | 任务上下文解析器（复杂/高影响任务可选） | `node .standards/task-context-resolver.cjs` |
 | 推翻一个既有设计 | ADR 模板与已有决策 | `.spec/adr/README.md` |
 | 查踩过的坑 | 判据与实证 | `.memory/PITFALLS.md` |
 | 交接 / 换 agent | 断点与关键事实 | `.memory/MEMORY.md` |

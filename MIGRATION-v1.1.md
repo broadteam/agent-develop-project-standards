@@ -4,11 +4,11 @@
 
 ## 必做
 
-1. 将新版 `scripts/check-governance.cjs`、`scripts/check_governance.py` 和 `scripts/generate-board.cjs` 放入项目。
-2. 更新 `gov.toml [required]`，增加 `.spec/tasks/BOARD.md`、两个归档 `INDEX.md`、`.spec/stacks/README.md` 和 `scripts/generate-board.cjs`。
+1. 将新版 `.standards/check-governance.cjs`、`.standards/check_governance.py` 和 `.standards/generate-board.cjs` 放入项目。
+2. 更新 `gov.toml [required]`，增加 `.spec/tasks/BOARD.md`、两个归档 `INDEX.md`、`.spec/stacks/README.md` 和 `.standards/generate-board.cjs`。
 3. 将已有 `pre-commit` 与新版治理检查合并；不要直接覆盖项目自己的 lint、测试或安全检查。新版模板在缺少 Node/Python 时会失败关闭。项目专属检查迁移到 `.githooks/pre-commit.local`，参考 `.githooks/pre-commit.local.example`。
 4. 在 `.gitignore` 末尾合并新版 `# >>> agent-project-standards (managed)` 区块；保留项目原有规则。
-5. 执行 `node scripts/generate-board.cjs`，再运行 Node 和 Python 两套治理检查。
+5. 执行 `node .standards/generate-board.cjs`，再运行 Node 和 Python 两套治理检查。
 
 ## 任务归档迁移
 
@@ -36,9 +36,9 @@
 ## 验收
 
 ```bash
-node scripts/generate-board.cjs
-node scripts/check-governance.cjs
-python3 scripts/check_governance.py
+node .standards/generate-board.cjs
+node .standards/check-governance.cjs
+python3 .standards/check_governance.py
 ```
 
 两套治理检查的退出码和诊断输出应一致。若有差异，先修复检查器，不要通过放宽白名单掩盖问题。

@@ -105,7 +105,7 @@ node tools/validate-template-upgrade-review.cjs \
 
 | 检查项 | 命令 / CI 运行引用 | 结果 |
 |---|---|---|
-| 规范治理 | node scripts/check-governance.cjs | passed / failed / unverified |
+| 规范治理 | node .standards/check-governance.cjs | passed / failed / unverified |
 | 模板漂移 | node tools/check-template-drift.cjs --root <project> | clean / remaining |
 | 项目测试 | <project-specific test command> | passed / failed / unverified |
 | 类型检查 / lint | <project-specific command> | passed / failed / unverified |

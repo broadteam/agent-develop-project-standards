@@ -93,7 +93,7 @@ const stale = results.filter((item) => item.status === 'updated' || item.status 
 if (CHECK) {
   const ok = stale.length === 0;
   if (JSON_OUT) console.log(JSON.stringify({ ok, mirrors: results }, null, 2));
-  else if (!ok) console.error(`客户端私有记忆断点未同步：${stale.map((item) => item.path).join('、')}\n运行 node scripts/sync-memory.cjs 更新。`);
+  else if (!ok) console.error(`客户端私有记忆断点未同步：${stale.map((item) => item.path).join('、')}\n运行 node .standards/sync-memory.cjs 更新。`);
   process.exit(ok ? 0 : 1);
 }
 

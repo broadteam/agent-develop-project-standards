@@ -32,8 +32,8 @@ node init.cjs /path/to/your-project --dry-run
 node init.cjs /path/to/your-project
 cd /path/to/your-project
 git config core.hooksPath .githooks
-node scripts/generate-board.cjs
-node scripts/check-governance.cjs
+node .standards/generate-board.cjs
+node .standards/check-governance.cjs
 ```
 
 初始化脚本默认采用兼容模式：保留已有文件，并把现有根目录纳入初始白名单，但会明确提示人工审查。严格模式不会自动放行未知的既有根目录：
@@ -83,9 +83,9 @@ node init.cjs /path/to/your-project --strict-scan
 运行：
 
 ```bash
-node scripts/task-context-resolver.cjs --input .tmp/task-context.json
+node .standards/task-context-resolver.cjs --input .tmp/task-context.json
 # 需要机器读取时
-node scripts/task-context-resolver.cjs --input .tmp/task-context.json --format json
+node .standards/task-context-resolver.cjs --input .tmp/task-context.json --format json
 ```
 
 解析器根据任务描述和项目能力画像，列出固定基线、必读规范、按需规范、能力判定和已配置验证命令。它只提供上下文建议，不创建任务卡、不修改项目画像、不执行命令，也不授予任何操作权限。输入是任务事实声明，Agent 不得为了得到更少的读取清单而低估风险或影响范围。
@@ -103,7 +103,7 @@ node scripts/task-context-resolver.cjs --input .tmp/task-context.json --format j
 
 初始化过程采用轻量回滚日志：单文件先写同目录临时文件再替换；后续步骤失败时，会尝试恢复本次覆盖的文件并删除本次新建的文件/目录。该机制覆盖可捕获的运行时错误，不等同于断电、强制终止或文件系统损坏下的事务保证；迁移仍应先备份并审查 dry-run。
 
-若目标项目已存在自己的 `scripts/generate-board.cjs`，初始化器不会执行它。初始化时使用仓库随附的生成器并显式指定目标项目目录，项目自有脚本仅保留供维护者自行运行。
+若目标项目已存在自己的 `.standards/generate-board.cjs`，初始化器不会执行它。初始化时使用仓库随附的生成器并显式指定目标项目目录，项目自有脚本仅保留供维护者自行运行。
 
 `init.cjs` 不会自动覆盖项目已有的提交钩子。若确实需要替换，必须显式执行：
 
@@ -127,7 +127,8 @@ project-standards/
 ├── CHANGELOG.md
 ├── MIGRATION-v1.1.md
 ├── MIGRATION-v1.2.md
-├── MIGRATION-v2.0.md
+├── MIGRATION-v2.0.md                # 2.0 迁移说明
+├── MIGRATION-v3.0.md                # 3.0 迁移说明（scripts/ → .standards/）
 ├── init.cjs                         # 初始化器：探测技术栈 → 铺模板 → 生成画像与安装清单
 ├── .gitignore
 ├── .github/workflows/standards-ci.yml
@@ -177,7 +178,7 @@ project-standards/
     ├── .githooks/
     │   ├── pre-commit
     │   └── pre-commit.local.example
-    ├── scripts/
+    ├── .standards/
     │   ├── check-governance.cjs     # 治理检查（Node）
     │   ├── check_governance.py      # 治理检查（Python，输出与 Node 逐字节一致）
     │   ├── profile-validator.cjs
@@ -241,7 +242,7 @@ project-standards/
 
 - 当前任务的唯一状态源是 `.spec/tasks/index.md`。
 - 每张活跃任务卡必须有 `.spec/tasks/<ID>/card.md` 和 `log.md`。
-- `.spec/tasks/BOARD.md` 是派生视图，由 `node scripts/generate-board.cjs` 生成；治理检查会通过索引 SHA-256 标记检查其是否过期。
+- `.spec/tasks/BOARD.md` 是派生视图，由 `node .standards/generate-board.cjs` 生成；治理检查会通过索引 SHA-256 标记检查其是否过期。
 - 一个波次完成后，将该波次任务目录整体移动到 `.spec/tasks/archive/W<n>/`，并更新归档索引；归档目录默认不参与活跃任务一致性扫描。
 - 里程碑同理：活跃索引与活跃目录对应，归档内容放入 `archive/`。
 
@@ -250,8 +251,8 @@ project-standards/
 提供 Node 与 Python 两个零第三方依赖实现：
 
 ```bash
-node scripts/check-governance.cjs
-python3 scripts/check_governance.py
+node .standards/check-governance.cjs
+python3 .standards/check_governance.py
 ```
 
 两者必须对相同仓库输出相同的违规项与退出码。当前 `gov.toml` 使用受限 TOML 子集：单行 section、字符串、整数、单行字符串数组；不要使用多行数组或复杂 TOML 特性。后续如需完整 TOML 语法，应引入明确依赖并同步两端实现。

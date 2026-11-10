@@ -1,6 +1,6 @@
 # gov.toml — 治理配置
 #
-# 这个文件是「机器可测规则」的唯一数据源：`node scripts/check-governance.cjs` 直接读它。
+# 这个文件是「机器可测规则」的唯一数据源：`node .standards/check-governance.cjs` 直接读它。
 # 改动这里 = 改规则本身，需要和 AGENTS.md §4 同步，并说明防的是什么具体错误。
 #
 # 棘轮原则：预算只准降不准升。要升 => 先在 .spec/adr/ 写一条裁定，再改这里。
@@ -48,7 +48,7 @@ file_patterns = ["\\.bak$", "\\.orig$", "^untitled", "^\\.DS_Store$", "(?i)^(tod
 
 [required]
 # 缺了这些文件说明规范体系被破坏，直接判违规。
-files = ["AGENTS.md", ".agent-standards.json", "gov.toml", "project-profile.toml", "policy/standards-version.json", "policy/capabilities.json", "scripts/profile-validator.cjs", "scripts/capability-resolver.cjs", "scripts/task-context-resolver.cjs", "scripts/profile_validator.py", ".memory/MEMORY.md", ".memory/PITFALLS.md", ".spec/REGISTRY.md", ".spec/00-constitution.md", ".spec/tasks/index.md", ".spec/tasks/BOARD.md", ".spec/tasks/archive/INDEX.md", ".spec/roadmap/INDEX.md", ".spec/roadmap/archive/INDEX.md", ".spec/stacks/README.md", "scripts/generate-board.cjs"]
+files = ["AGENTS.md", ".agent-standards.json", "gov.toml", "project-profile.toml", "policy/standards-version.json", "policy/capabilities.json", ".standards/profile-validator.cjs", ".standards/capability-resolver.cjs", ".standards/task-context-resolver.cjs", ".standards/profile_validator.py", ".memory/MEMORY.md", ".memory/PITFALLS.md", ".spec/REGISTRY.md", ".spec/00-constitution.md", ".spec/tasks/index.md", ".spec/tasks/BOARD.md", ".spec/tasks/archive/INDEX.md", ".spec/roadmap/INDEX.md", ".spec/roadmap/archive/INDEX.md", ".spec/stacks/README.md", ".standards/generate-board.cjs"]
 
 [layout]
 # 计划的唯一位置。检查器用它做「索引 ↔ 卡片目录」双向一致性校验。
@@ -64,7 +64,7 @@ roadmap_ignore = ["archive", "assets"]
 
 [memory]
 # 客户端私有记忆里需要同步断点的文件。只写你确认过客户端会读的路径；留空 = 不镜像（不猜）。
-# 存在才同步，不存在跳过。区块由 scripts/sync-memory.cjs 生成，勿手工编辑。
+# 存在才同步，不存在跳过。区块由 .standards/sync-memory.cjs 生成，勿手工编辑。
 # 例：mirrors = [".workbuddy-ai/memory/MEMORY.md"]
 mirrors = []
 

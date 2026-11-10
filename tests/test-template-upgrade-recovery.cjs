@@ -20,7 +20,7 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-template-upgrade-recove
 const init = project => spawnSync(process.execPath, [path.join(root, 'init.cjs'), project], { encoding: 'utf8' });
 const governance = project => spawnSync(
   process.execPath,
-  [path.join(project, 'scripts/check-governance.cjs')],
+  [path.join(project, '.standards/check-governance.cjs')],
   { cwd: project, encoding: 'utf8' }
 );
 

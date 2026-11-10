@@ -59,8 +59,8 @@
 光在 `AGENTS.md` 写"私有记忆是缓存"没用——agent 有自己的规矩，它不读你的规则你也拦不住。所以把状态**送到它一定会读的地方**：
 
 ```bash
-node scripts/sync-memory.cjs          # 把 .memory/MEMORY.md 的 §0 镜像进私有记忆
-node scripts/sync-memory.cjs --check  # 校验是否过期（治理检查用的是同一个判断）
+node .standards/sync-memory.cjs          # 把 .memory/MEMORY.md 的 §0 镜像进私有记忆
+node .standards/sync-memory.cjs --check  # 校验是否过期（治理检查用的是同一个判断）
 ```
 
 在 `gov.toml` 声明目标，没声明就不镜像（不猜）：

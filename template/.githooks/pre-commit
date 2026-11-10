@@ -3,18 +3,18 @@
 # 启用：git config core.hooksPath .githooks
 set -eu
 
-if command -v node >/dev/null 2>&1 && [ -f scripts/check-governance.cjs ]; then
+if command -v node >/dev/null 2>&1 && [ -f .standards/check-governance.cjs ]; then
   echo "[pre-commit] 治理检查（Node）..."
-  node scripts/check-governance.cjs
-elif command -v python3 >/dev/null 2>&1 && [ -f scripts/check_governance.py ]; then
+  node .standards/check-governance.cjs
+elif command -v python3 >/dev/null 2>&1 && [ -f .standards/check_governance.py ]; then
   echo "[pre-commit] 治理检查（Python 3）..."
-  python3 scripts/check_governance.py
-elif command -v python >/dev/null 2>&1 && [ -f scripts/check_governance.py ]; then
+  python3 .standards/check_governance.py
+elif command -v python >/dev/null 2>&1 && [ -f .standards/check_governance.py ]; then
   echo "[pre-commit] 治理检查（Python）..."
-  python scripts/check_governance.py
+  python .standards/check_governance.py
 else
   echo "[pre-commit] ERROR: 找不到可用的治理检查运行环境或检查器。" >&2
-  echo "请安装 Node.js 或 Python 3，并确认 scripts/check-governance.cjs / check_governance.py 存在。" >&2
+  echo "请安装 Node.js 或 Python 3，并确认 .standards/check-governance.cjs / check_governance.py 存在。" >&2
   exit 1
 fi
 
