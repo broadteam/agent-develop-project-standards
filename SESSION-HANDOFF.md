@@ -12,10 +12,10 @@
 
 ## 当前 Git 状态
 
-- 工作分支：`feat/standards-v2.0-seven-pillars`，跟踪 `origin/feat/standards-v2.0-seven-pillars`。
+- 工作分支：**`main`**。2.0 已通过 PR #2 合并进 `main`（合并提交 `5424d57`），`v1.1.0`、`v1.2.0`、`v2.0` 三条分支的提交全部成为 main 的祖先。
 - 2.0 范围与验收标准的唯一权威：`SPEC-v2.0.md`；七大方向状态见其 §5。
-- 版本事实源：`template/policy/standards-version.json` = `2.0.0-rc.15`。
-- 相关 PR：#2（Draft，不要合并）。
+- 版本事实源：`template/policy/standards-version.json` = `2.0.0-rc.15`。**尚未打 `2.0.0` tag**，见「下一步」。
+- PR #2 已合并关闭；**PR #1（`v1.2.0` → `chore/standards-v1.1.0`）仍开着，但内容已包含在 main 里，应当关闭而不是合并**。
 - **CI 状态必须按 commit SHA 现场查询**，不要引用本文件里的历史结论（见 `.memory/PITFALLS.md` P14）。
 
 ## 本轮完成（2026-11-10）
@@ -66,6 +66,7 @@
 |---|---|---|
 | `984e697` | push + pull_request | **8 / 8 任务全绿**（Ubuntu / Windows × Node 22/24 × Python 3.11/3.13） |
 | `4c73d4f` | push + pull_request | **8 / 8 任务全绿** |
+| `5424d57` | push（main 合并提交） | **全绿** |
 
 后续提交若只改文档，仍应按该 commit 的 checks 复核；若改了代码，必须重新跑完整矩阵，不能沿用上表结论。
 
@@ -79,11 +80,11 @@
 
 ## 下一步
 
-1. **修正 PR #2 的目标分支**。PR #2 现在指向 `docs/low-friction-agent-protocol-v1.2.0`，不是 `main`；照此合并会把 2.0 内容并进 v1.2.0 文档分支，`main` 永远拿不到。需在 GitHub 上把 base 改成 `main`（或在确认是有意堆叠后记录原因）。
-2. 复核本次推送后 8 个 CI 任务的结果；绿了才把发布门槛第 7 项勾上，未复核前保持未勾选。
-3. 复核第七方向剩余项：managed block 与 `defer` 的长期漂移行为已有回归；`keep_or_archive` 本轮补齐。仍需观察真实项目规模下的表现。
+1. **关闭 PR #1**（`v1.2.0` → `chore/standards-v1.1.0`）。它的 7 个提交已在 main 里，合并只会制造无意义的合并提交；评论说明「内容已被 #2 包含」后 Close。
+2. **拿一个真实的小项目试铺一次**，从 `node init.cjs <dir>` 走到提交闸门真正拦住一次违规。这是把「夹具全绿」升级成「有人真的用过」的最小代价，也是目前唯一未覆盖的验证面。
+3. 决定是否打 `2.0.0` tag。门槛已全勾，但第七方向是 `partial`，且从未有真实项目使用过——这两点应写进 release notes，不要只写「2.0 完成」。
 4. 若要推进第七方向到 `done`，先按 `UPGRADE-RECORD-TEMPLATE.md` 完成一次真实跨版本升级的人工记录。
-5. 门槛全绿后再决定是否把 `2.0.0-rc.15` 标记为 `2.0.0`。
+5. 合并后的 `feat/standards-v2.0-seven-pillars`、`docs/low-friction-agent-protocol-v1.2.0`、`chore/standards-v1.1.0` 已无用途，可删远程分支（本地保留不影响）。
 
 ## 恢复工作的方法
 
