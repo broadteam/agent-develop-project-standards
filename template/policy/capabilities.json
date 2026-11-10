@@ -1,0 +1,227 @@
+{
+  "schema_version": 1,
+  "core": {
+    "always_enabled": true,
+    "description": "不可关闭的安全、授权、事实来源与验证诚信底线",
+    "rules": [
+      ".spec/00-constitution.md",
+      "AGENTS.md"
+    ]
+  },
+  "capabilities": {
+    "task_tracking": {
+      "kind": "toggle",
+      "default": "auto",
+      "values": [
+        "off",
+        "auto",
+        "on"
+      ],
+      "rules": [
+        ".spec/tasks/index.md"
+      ],
+      "validation": [
+        "on 时必须保留任务索引与卡片目录结构"
+      ],
+      "artifacts": [
+        ".spec/tasks/"
+      ],
+      "task_context": {
+        "when_any": [
+          "cross_session",
+          "uncertainty_high",
+          "risk_high",
+          "impact_cross_module",
+          "impact_public_contract",
+          "impact_data",
+          "impact_security",
+          "impact_production",
+          "kind_incident",
+          "task_id_present"
+        ]
+      }
+    },
+    "roadmap": {
+      "kind": "toggle",
+      "default": "auto",
+      "values": [
+        "off",
+        "auto",
+        "on"
+      ],
+      "requires": {
+        "when": "on",
+        "capability": "task_tracking",
+        "not": "off"
+      },
+      "rules": [
+        ".spec/roadmap/INDEX.md"
+      ],
+      "validation": [
+        "on 时必须保留里程碑索引与详情目录"
+      ],
+      "artifacts": [
+        ".spec/roadmap/"
+      ],
+      "task_context": {
+        "when_any": [
+          "milestone_planning"
+        ]
+      }
+    },
+    "adr": {
+      "kind": "toggle",
+      "default": "auto",
+      "values": [
+        "off",
+        "auto",
+        "on"
+      ],
+      "rules": [
+        ".spec/adr/README.md"
+      ],
+      "validation": [
+        "on 时必须保留 ADR 模板目录"
+      ],
+      "artifacts": [
+        ".spec/adr/"
+      ],
+      "task_context": {
+        "when_any": [
+          "kind_architecture_change",
+          "kind_database_change",
+          "kind_security_change",
+          "kind_dependency_change",
+          "impact_public_contract",
+          "impact_data",
+          "impact_security",
+          "impact_system"
+        ]
+      }
+    },
+    "module_boundaries": {
+      "kind": "toggle",
+      "default": "auto",
+      "values": [
+        "off",
+        "auto",
+        "on"
+      ],
+      "rules": [
+        ".spec/01-architecture.md"
+      ],
+      "validation": [
+        "on 时需由项目维护者定义可验证的模块边界"
+      ],
+      "task_context": {
+        "when_any": [
+          "impact_cross_module",
+          "impact_system",
+          "kind_module_change",
+          "kind_architecture_change"
+        ]
+      }
+    },
+    "multi_agent": {
+      "kind": "toggle",
+      "default": "off",
+      "values": [
+        "off",
+        "on"
+      ],
+      "rules": [
+        "AGENTS.md"
+      ],
+      "validation": [
+        "on 时必须定义共享状态与并发修改协调方式"
+      ],
+      "task_context": {
+        "when_any": [
+          "multiple_agents"
+        ]
+      }
+    },
+    "memory_mode": {
+      "kind": "profile",
+      "default": "light",
+      "values": [
+        "light",
+        "layered"
+      ],
+      "rules": [
+        ".memory/MEMORY.md"
+      ],
+      "validation": [
+        "layered 允许分层记忆；light 保持最小断点与按需历史"
+      ]
+    },
+    "stack_rules": {
+      "kind": "toggle",
+      "default": "auto",
+      "values": [
+        "off",
+        "auto",
+        "on"
+      ],
+      "rules": [
+        ".spec/stacks/README.md"
+      ],
+      "validation": [
+        "on 时至少有一个已确认的非 generic 技术栈"
+      ],
+      "artifacts": [
+        ".spec/stacks/"
+      ],
+      "task_context": {
+        "when_any": [
+          "stack_involved"
+        ]
+      }
+    },
+    "quality_gates": {
+      "kind": "profile",
+      "default": "baseline",
+      "values": [
+        "baseline",
+        "standard",
+        "strict"
+      ],
+      "rules": [
+        ".spec/03-delivery.md"
+      ],
+      "validation": [
+        "strict 时必须配置 lint、test、build 中适用的验证命令"
+      ],
+      "task_context": {
+        "when_any": [
+          "risk_high",
+          "kind_release",
+          "impact_data",
+          "impact_security",
+          "impact_production"
+        ]
+      }
+    },
+    "release_governance": {
+      "kind": "profile",
+      "default": "light",
+      "values": [
+        "light",
+        "standard",
+        "strict"
+      ],
+      "rules": [
+        ".spec/03-delivery.md"
+      ],
+      "validation": [
+        "strict 时质量门禁不得为 baseline"
+      ],
+      "task_context": {
+        "when_any": [
+          "kind_release",
+          "impact_production"
+        ]
+      }
+    }
+  }
+}

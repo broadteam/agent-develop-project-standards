@@ -1,0 +1,21 @@
+#!/bin/sh
+# 复制为 .githooks/pre-commit.local 后，按项目实际情况启用命令。
+# 任一命令失败都会阻止提交；不要把未执行的检查标记为通过。
+set -eu
+
+# Node / TypeScript
+# npm run typecheck
+# npm run lint
+# npm test
+
+# PHP
+# composer test
+# vendor/bin/phpstan analyse
+
+# Java / Kotlin
+# ./mvnw test
+# ./gradlew test
+
+# Python
+# python -m pytest
+# ruff check .

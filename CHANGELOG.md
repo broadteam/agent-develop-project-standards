@@ -1,0 +1,235 @@
+## 2.0.0-rc.15 - 2026-11-10
+
+### Fixed
+- Python governance checker pins UTF-8 and LF on stdout/stderr. Windows text-mode stdout translated `\n` into `\r\n`, so Node and Python output diverged byte-for-byte and `tests/test-parity.cjs` could never pass on a real Windows checkout. Parity is now genuine, not CI-only.
+- Document byte budgets are measured on LF-normalized bytes instead of on-disk size. With `core.autocrlf=true` the same `AGENTS.md` measured 12029B (CRLF) instead of 11814B (LF), turning 96% of budget into 98% and making the gate platform-dependent.
+- `BOARD.md` source and generated hashes are LF-normalized in both checkers, and `generate-board.cjs` hashes and writes LF. A board generated on Windows and verified on Linux was reported stale.
+- `tests/test-parity.cjs` wrote `'{}\\n'`, i.e. a four-character literal that is not valid JSON, as the installation manifest fixture. It only passed because the manifest is existence-checked.
+
+### Added
+- `tests/test-parity.cjs` now asserts a CRLF checkout reports the same budget bytes as an LF one, and that a CRLF `BOARD.md` still validates.
+- `tests/test-doc-links.cjs` verifies the README directory tree resolves against the repository. The tree had drifted: five root documents, seven test files and four template scripts were missing.
+- `tests/test-init.cjs` enforces a placeholder contract: every `{{KEY}}` in `template/` must be a key `init.cjs` knows, because `fill()` degrades unknown keys into a visible `（待填：KEY）` marker instead of failing.
+- `tests/test-migration-v2.cjs` performs a real first install on an empty project and requires the governance gate to pass immediately. Previously only `--dry-run` covered the empty-project case.
+- `tests/test-template-upgrade-record.cjs` covers the `keep_or_archive` decision: when upstream removes a file the project also modified, the plan must not offer a delete candidate, the file must survive review and recording, and the follow-up drift report must return `ok` with status `accepted_removed`.
+- `template/.memory/PITFALLS.md` P13 (line endings make budgets and hashes platform-dependent) and P14 (CI green is not local green: CI checks out LF while Windows developers check out CRLF).
+
+### Changed
+- Raise the declared runtime floor to Node 22 / Python 3.11 and state it in `policy/standards-version.json` (`minimum_node_major`, `minimum_python`). The previous floor (Node 18 / Python 3.10) was past end-of-life and was never exercised by CI, so "supported" was an untested promise.
+- CI now runs a matrix of the declared floor and the current release: Node 22/24 × Python 3.11/3.13 × Ubuntu/Windows, eight jobs total.
+- `template/gov.toml` documents the LF-normalized measurement basis for `[budget]`.
+- README directory tree regenerated from the actual repository contents.
+
+## 2.0.0-rc.14 - 2026-11-08
+
+### Added
+- Add `tools/record-reviewed-template-upgrade.cjs` to advance the installed baseline after a maintainer has manually applied and validated the approved upgrade changes.
+- Require plan/review binding, matching source version, unchanged baseline hashes, current template source hashes and result SHA-256 values before baseline advancement.
+- Advance only verified managed-file/managed-block entries, preserve accepted local customizations, record accepted upstream removals and update the overall installed version only after every plan item is resolved.
+- Support explicit `defer` decisions for multi-batch upgrades: deferred files must still match the plan snapshot's existence, SHA-256 and mode; their per-file baseline is preserved and the overall installed version stays at the source release until a follow-up plan resolves every path.
+- Write the manifest through a same-directory temporary file and atomic rename; a failed validation or write leaves the existing manifest unchanged.
+
+### Tests
+- Add `tests/test-template-upgrade-record.cjs` for replacement, new-file addition, local customization acceptance, manual merge, upstream removal, dry-run immutability, tampered-result rejection, post-record drift clearance, stale-plan replay rejection and partial/deferred follow-up completion.
+- Add `UPGRADE-RECORD-TEMPLATE.md` as a reusable audit record for plan/review references, external backups, per-path decisions, deferred batches, baseline recording and recovery evidence.
+- Add syntax and regression checks to the Ubuntu/Windows CI matrix.
+
+### Integrity hardening (same installed template release)
+
+- Upgrade plans now use `plan_schema: 2` and bind a deterministic `source_inventory_sha256` over the complete `template/` and `presets/stacks/` source trees, including file paths, content hashes and source permissions. Any post-plan source addition, removal or change invalidates the old plan.
+- Human review records now use `review_schema: 2`; ordinary files require both `result_sha256` and `result_mode`. The recorder rejects a result whose bytes or permissions differ from the reviewed evidence.
+- Treat `.gitignore` as a rendered managed block rather than comparing the rendered block hash to the raw `.gitignore.append` source hash. Validate the source placeholder and fixed prefix/suffix, hash the actual managed block, and preserve project-owned rules outside the block.
+- Store the verified `source_inventory_sha256` in `last_upgrade` audit metadata.
+- Add regression coverage for stale source inventory, mismatched result modes, rendered `.gitignore` block upgrades, and preservation of external user rules.
+- Force UTF-8 mode for Python subprocess output in Windows CI to avoid locale-dependent `UnicodeEncodeError` failures.
+
+### Boundaries
+- The recorder updates manifest metadata only; it does not apply templates, perform automatic rollback, or replace project-specific tests/build validation.
+- Human-applied changes must still be backed up and validated before the explicit `--confirm-reviewed` step.
+
+## 2.0.0-rc.13 - 2026-11-08
+
+### Added
+- Add `tools/validate-template-upgrade-review.cjs`, a read-only validator that checks review decisions against the plan ID and per-file approval contract; manual merges must include common-base and merge-result references.
+- Add `tests/test-template-upgrade-review.cjs` for stale plan IDs, missing/duplicate/incorrect decisions, missing merge provenance, blocked baselines and read-only validation.
+- Bind the plan fingerprint to each action's recommendation, human-review requirement, decision type, reason and hash evidence; reject altered approval requirements as stale plans.
+- Add `tools/plan-template-upgrade.cjs`, a read-only planner that converts template drift findings into explicit per-file candidate actions.
+- Include a deterministic `plan_id`, source/target version labels, baseline and hash evidence, blockers, and a human approval contract.
+- Classify upstream-only changes, local-only edits, two-sided conflicts, upstream removals, missing local files, new common template files, already-installed stack presets, legacy unknowns and untracked collisions; do not report unselected language presets as project-wide additions.
+- Require review metadata for every proposed change; no file is written, replaced, removed or merged by the planner.
+
+### Tests
+- Add `tests/test-template-upgrade-recovery.cjs` to rehearse a small approved batch containing a template file and installed version metadata, deterministic governance failure, full external backup restore, exact tree comparison and post-restore governance/drift/plan-ID verification on disposable fixtures only.
+- Add `tests/test-template-upgrade-plan.cjs` for stable plan identity, read-only behavior, per-file action classification, stack preset discovery, incomplete-baseline blockers and JSON CLI output.
+- Run the upgrade-plan tests and syntax check in the Ubuntu/Windows CI matrix.
+
+### Boundaries
+- The manifest stores hashes, not baseline file contents. Conflicts therefore require recovering the common base from the pre-upgrade Git tree, a backup or the matching old template checkout; record `baseline_ref` and `merge_result_ref` before claiming a three-way merge.
+- This release adds preview, review validation and a disposable-fixture recovery rehearsal only. An upgrade applier, automated rollback tool and successful-upgrade baseline advancement tool do not exist; the manifest remains at the old baseline after manual file replacement, so an applied upgrade cannot yet be finalized by the supported tooling.
+
+## 2.0.0-rc.12 - 2026-11-08
+
+### Added
+- Record a machine-readable template release in `policy/standards-version.json`.
+- Generate `.agent-standards.json` with per-file source/installed hashes, source version, preserved paths, derived paths and capability-pruned paths.
+- Add a read-only `tools/check-template-drift.cjs` report for upstream-only updates, local-only customizations, two-sided conflicts, missing files, new upstream files and legacy unknown baselines.
+- Add an explicit `tools/adopt-template-baseline.cjs` flow. It requires `--confirm-reviewed`, changes metadata only, and marks accepted customizations so future upstream edits to those files become conflicts.
+- Add temporary-project tests for clean installs, local/upstream/both-side changes, new upstream files, read-only behavior, legacy unknown baselines and explicit baseline adoption.
+
+### Safety
+- 漂移检查和旧基线采纳逐级检查路径组件，拒绝目标文件或父目录中的符号链接；`.gitignore` 托管区块外的用户内容不被误报，区块内编辑、文件权限漂移和父目录符号链接均有回归用例。
+- `--force` remains a file-copy override, not a version upgrade mechanism.
+- Legacy projects without a marker are never assumed to match the current template.
+- Baseline inspection and adoption do not write or merge project rules; only the explicit adoption command updates `.agent-standards.json`.
+
+## 2.0.0-rc.11 - 2026-11-08
+
+### Fixed
+- Reject symlinks in managed target paths before writing, including `.gitignore` and nested template destinations.
+- Stop executing project-owned `scripts/generate-board.cjs`; invoke the bundled generator with an explicit target root instead.
+- Validate an existing BOARD managed region before any template mutation.
+- Validate initializer flags and require `--replace-hook` to be combined with `--force`.
+
+### Added
+- Add a lightweight write journal with same-directory temporary files, backups for overwritten files, and best-effort rollback on caught runtime failures.
+- Add tests for whole-tree dry-run immutability, symlink escape rejection, board preflight, untrusted generator non-execution, and rollback after deterministic failure injection.
+
+### Boundaries
+- Rollback covers caught runtime errors, not process termination, power loss, or filesystem corruption. Migration still requires a backup and dry-run review.
+
+## 2.0.0-rc.10 - 2026-11-08
+
+### Added
+- Validate task-wave and roadmap-milestone archive catalogs against their active indexes.
+- Check archive directory pointers, task counts, and required archived detail files; reject unindexed or missing archive entries, path traversal outside the owning archive root, and orphan archive directories.
+
+### Tests
+- Extend Node/Python parity fixtures with valid task and milestone archives, mismatched task counts, missing task logs, missing milestone details, unsafe archive paths, and orphan archive directories.
+- Keep archive validation diagnostics and exit behavior identical across Node and Python.
+
+## 2.0.0-rc.9 - 2026-11-08
+
+### Changed
+- Clarify the memory lifecycle: update the compact checkpoint at tracked-task close or cross-session handoff, while lightweight tasks do not require memory writes.
+- Keep execution history in the task log and point historical closeout notes to the existing `.memory/log/` directory.
+
+### Tests
+- Extend the 2.0 specification contract test to verify memory update triggers, non-duplication of task logs, and that memory pointers resolve to existing template paths.
+
+## 2.0.0-rc.8 - 2026-11-08
+
+### Added
+- Add a migration-fixture regression suite for empty and pre-existing multi-stack projects, including dry-run safety, custom rule and Hook preservation, generated-profile review state, and post-migration governance validation.
+- Run the complete regression suite on Ubuntu and Windows in CI.
+- Add an offline CI check for broken repository-local Markdown links.
+
+### Changed
+- Define the boundary for client global/project/local rule conflicts: repository facts stay authoritative, while actual client-specific loading behavior is not inferred by this template; Codex directory overrides require explicit review because they replace ordinary rules.
+
+## 2.0.0-rc.7 - 2026-11-08
+
+### Fixed
+- Correct the client compatibility matrix after an official-documentation review: Cursor supports nested `AGENTS.md`; Claude Code imports allow at most four hops; Codex documents `AGENTS.override.md` as a same-directory replacement rather than an additional layer.
+
+### Added
+- Add regression assertions for the documented Codex override, Claude import-depth and Cursor nested-rule semantics.
+
+## 2.0.0-rc.6 - 2026-11-08
+
+### Changed
+- Expand the client compatibility matrix with documented discovery/import semantics and direct official references.
+- Clarify the evidence boundary: automated tests cover template contracts and initializer fixtures, not real CLI end-to-end behavior.
+
+### Added
+- Strengthen adapter tests to detect duplicated client rule prose and unexpected Cursor-specific rule trees.
+- Verify the initializer copies the canonical AGENTS.md body unchanged.
+
+## 2.0.0-rc.5 - 2026-11-08
+
+### Added
+- Specify verified Codex, Claude Code, Gemini CLI and Cursor rule-entry behavior and known scope limitations.
+- Add client-adapter contract tests for canonical rule pointers, native import syntax and deprecated Cursor entry exclusion.
+- Run client-adapter tests in GitHub Actions.
+
+### Notes
+- This release-note entry was superseded by rc.7 after a documentation review found that Cursor now supports nested `AGENTS.md` files.
+- Client-specific scoped rules remain optional and must not become a second copy of canonical project rules.
+
+# Changelog
+
+## 2.0.0-rc.4 - 2026-11-08
+
+### Added
+- Add a read-only Task Context Resolver that evaluates `auto` capability triggers against an explicit task descriptor.
+- Output fixed context, task-required references, optional history, capability decisions, configured verification commands and follow-up warnings.
+- Keep the resolver optional for lightweight tasks; it does not create task cards, mutate profiles, run commands or grant permissions.
+- Add fixture tests for local changes, high-impact database work, explicit capability overrides, unknown risk and safe task identifiers.
+
+## 2.0.0-rc.3 - 2026-11-08
+
+### Added
+- Add a registry-driven Capability Resolver for initialization-time capability states and optional artifact pruning.
+- Preserve `auto` as `deferred`; only explicit `off` prunes optional template artifacts, while `on` remains enabled.
+- Add fixture tests for dependency conflicts, lean-profile pruning, preservation of core rules, and Node/Python governance-gate parity when optional capabilities are disabled.
+
+### Notes
+- Existing project-owned files are never deleted when a capability is switched off. Task-context resolution for `auto` remains a session-level responsibility.
+
+
+## 2.0.0-rc.2 - 2026-11-07
+
+### Added
+- Add project-profile.toml as a review-first project profile and capability selection file.
+- Define the cross-cutting mother-template adaptation model: core/capability/stack/project/advisory rules, lean/balanced/rigorous recommendations, and task-driven context loading.
+- Extend initialization and regression contracts to cover generated project profiles.
+
+### Notes
+- Profile generation only records detectable candidates; maintainers must confirm project scale, risk, architecture and enabled capabilities.
+
+
+## 2.0.0-rc.1 - 2026-11-07
+
+### Added
+- Define the seven-pillar 2.0 architecture, scope boundaries and objective release gates in `SPEC-v2.0.md`.
+- Add a 1.2.x-to-2.0 migration guide requiring dry-run, customization review and fixture-based validation.
+
+### Notes
+- This is a design-baseline release candidate, not the final 2.0.0 template release. The seven pillars remain subject to implementation and automated verification.
+
+
+## 1.2.0 - 2026-11-07
+
+### Changed
+- Replace the mandatory five-step session ritual with a lightweight baseline and task-based context loading.
+- Make task cards optional for localized, low-risk work with clear acceptance criteria; retain tracked workflows for cross-module, multi-session, uncertain or high-impact changes.
+- Load constitution, pitfalls, ADRs, roadmap and Git history only when relevant to the task or risk.
+- Clarify that context budgets are maintenance signals, not reasons to omit necessary correctness or safety information.
+
+### Added
+- Add regression coverage for the low-friction session protocol.
+- Add migration guidance for existing projects adopting the 1.2.0 workflow.
+
+## 1.1.0 - 2026-11-07
+
+### Fixed
+- Fail closed when pre-commit cannot locate a governance runtime or checker.
+- Protect existing project pre-commit hooks from `--force` unless `--replace-hook` is explicitly supplied.
+- Separate project-specific checks into `.githooks/pre-commit.local` so shared hook updates do not overwrite them.
+- Merge `.gitignore` rules through an idempotent managed block instead of treating `.tmp/` as a proxy for all entries.
+- Populate the generated root allowlist when a new `gov.toml` is installed.
+- Regenerate the derived task board after template placeholders are filled.
+- Align Node and Python governance checks for symlinks and deterministic diagnostics.
+
+### Added
+- PHP and multi-stack detection with selective language preset installation.
+- Task and milestone archive indexes; task wave archives retain complete `card.md` and `log.md` directories.
+- Task status validation, duplicate-ID detection, required task logs and generated-board freshness checks.
+- `generate-board.cjs` to derive `BOARD.md` from the authoritative task index.
+- Agent operation permission levels and explicit project architecture dependency-boundary guidance.
+- Self-tests and GitHub Actions CI for initialization, checker parity and regression scenarios.
+
+### Changed
+- Cursor projects use native `AGENTS.md`; the deprecated `.cursorrules` template is removed.
+- Universal conventions no longer impose TypeScript-specific language rules on other stacks.
+- Project memory is the authoritative source for project facts; client-private memory is not prohibited but cannot override repository facts.
+- Project-external standard tool caches are distinguished from Agent-created project artifacts.

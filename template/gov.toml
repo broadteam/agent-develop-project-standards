@@ -8,6 +8,9 @@
 [project]
 name = "{{PROJECT_NAME}}"
 desc = "{{PROJECT_DESC}}"
+language = "{{LANGUAGE}}"
+framework = "{{FRAMEWORK}}"
+package_manager = "{{PACKAGE_MANAGER}}"
 src_dir = "{{SRC_DIR}}"
 build_output = "{{BUILD_OUTPUT}}"
 
@@ -19,6 +22,10 @@ build_output = "{{BUILD_OUTPUT}}"
 #   4. 重复内容 -> 只留指针，不复制
 #
 # 这套预算同时是 token 预算：L0 每次会话必读，必须小。
+#
+# 计量口径：按 LF 归一化后的字节数，不是磁盘上的原始大小。
+# 否则同一个文件在 Windows（core.autocrlf=true，CRLF）比 Linux 多出「行数」个字节，
+# 会出现「本地超预算、CI 却通过」的平台分歧。
 agents_bytes = 12288        # AGENTS.md 唯一入口
 memory_bytes = 6144         # .memory/MEMORY.md 状态页
 index_bytes = 8192          # .spec/tasks/index.md 任务索引（唯一状态源）
@@ -41,7 +48,7 @@ file_patterns = ["\\.bak$", "\\.orig$", "^untitled", "^\\.DS_Store$", "(?i)^(tod
 
 [required]
 # 缺了这些文件说明规范体系被破坏，直接判违规。
-files = ["AGENTS.md", "gov.toml", ".memory/MEMORY.md", ".memory/PITFALLS.md", ".spec/REGISTRY.md", ".spec/00-constitution.md", ".spec/tasks/index.md", ".spec/roadmap/INDEX.md"]
+files = ["AGENTS.md", ".agent-standards.json", "gov.toml", "project-profile.toml", "policy/standards-version.json", "policy/capabilities.json", "scripts/profile-validator.cjs", "scripts/capability-resolver.cjs", "scripts/task-context-resolver.cjs", "scripts/profile_validator.py", ".memory/MEMORY.md", ".memory/PITFALLS.md", ".spec/REGISTRY.md", ".spec/00-constitution.md", ".spec/tasks/index.md", ".spec/tasks/BOARD.md", ".spec/tasks/archive/INDEX.md", ".spec/roadmap/INDEX.md", ".spec/roadmap/archive/INDEX.md", ".spec/stacks/README.md", "scripts/generate-board.cjs"]
 
 [layout]
 # 计划的唯一位置。检查器用它做「索引 ↔ 卡片目录」双向一致性校验。
@@ -53,6 +60,7 @@ roadmap_dir = ".spec/roadmap"
 roadmap_archive = ".spec/roadmap/archive"
 # 这些子目录不是卡片，校验时跳过
 tasks_ignore = ["archive", "assets"]
+roadmap_ignore = ["archive", "assets"]
 
 [paths]
 # 产物与数据的固定位置，代码里禁止硬编码别的路径
