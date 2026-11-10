@@ -224,6 +224,8 @@ if(fs.existsSync(pitfallIndex)&&fs.existsSync(memoryDir)){
   }
 }
 
+errors.push(...require('./traceability-check.cjs').validateTraceability(ROOT));
+
 const profileValidation = require('./profile-validator.cjs').validateProfile(ROOT);
 for (const warning of profileValidation.warnings) notes.push(warning);
 for (const error of profileValidation.errors) errors.push(error);

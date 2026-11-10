@@ -8,6 +8,7 @@ import sys
 import json
 from pathlib import Path
 from profile_validator import parse_profile, resolve_capabilities
+from traceability_check import validate_traceability
 
 # Windows text-mode stdout translates "\n" into "\r\n", which breaks byte-level
 # parity with check-governance.cjs (tests/test-parity.cjs compares raw stdout).
@@ -409,6 +410,8 @@ if pitfall_index.exists() and memory_dir.exists():
         measured = size_of(f"{gov.get('paths', {}).get('memory', '.memory')}/{rel}")
         if measured is not None and pitfall_budget and measured > pitfall_budget:
             errors.append(f".memory/{rel} 超出预算：{measured}/{pitfall_budget}B（按主题再拆，不要删结论）")
+
+errors.extend(validate_traceability(ROOT))
 
 from profile_validator import validate_profile
 profile_errors, profile_warnings = validate_profile(ROOT)
