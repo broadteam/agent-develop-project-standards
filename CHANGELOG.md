@@ -1,3 +1,8 @@
+## 2.6.1 - 2026-11-10
+
+### Fixed
+- The stale-transaction-file warning fired on every ordinary install. The tree-wide scan ran before `commitTransaction()`, so it saw the backups this run had just created and told the user to delete files that were about to disappear on their own — a warning that is always wrong trains people to ignore the one that matters. In-flight backups are now excluded.
+
 ## 2.6.0 - 2026-11-10
 
 ### Added

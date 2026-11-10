@@ -700,7 +700,11 @@ function findStaleArtifacts(dir, rel = '', found = []) {
   }
   return found;
 }
-const staleArtifacts = findStaleArtifacts(TARGET).sort();
+const ownBackups = new Set(transaction.files.map((entry) => entry.backup).filter(Boolean)
+  .map((file) => path.relative(TARGET, file).split(path.sep).join('/')));
+const staleArtifacts = findStaleArtifacts(TARGET)
+  .filter((rel) => !ownBackups.has(rel))
+  .sort();
 if (staleArtifacts.length) {
   report.warnings.push(`发现 ${staleArtifacts.length} 个上次安装残留的事务文件（${staleArtifacts.slice(0, 3).join('、')}${staleArtifacts.length > 3 ? ' 等' : ''}）。确认没有安装进程在运行后可直接删除；不要加进 gov.toml [dirs]。`);
 }

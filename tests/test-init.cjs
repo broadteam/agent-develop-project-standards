@@ -333,6 +333,8 @@ try {
   fs.writeFileSync(path.join(upProject, 'package.json'), JSON.stringify({ name: 'update-app' }));
   const firstInstall = spawnSync(process.execPath, [path.join(root, 'init.cjs'), upProject], { encoding: 'utf8' });
   assert.equal(firstInstall.status, 0, firstInstall.stdout + firstInstall.stderr);
+  // The stale-artifact scan runs before commit; it must not see this run's own in-flight backups.
+  assert.doesNotMatch(firstInstall.stdout + firstInstall.stderr, /上次安装残留/, '本次运行的备份不得被当成历史残留');
   const manifestPath = path.join(upProject, '.agent-standards.json');
   const baseline = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
   const currentVersion = baseline.installed_with_version;
