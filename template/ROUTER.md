@@ -11,8 +11,12 @@
 | 决定跨语言命名、提交信息、文案怎么写 | 通用约定 | `.spec/02-conventions.md` |
 | 查当前语言/框架的具体约束 | 技术栈规范 | `.spec/stacks/<stack>.md` |
 | 打包、发版、产物放哪 | 构建命令、发布检查单 | `.spec/03-delivery.md` |
+<!--cap:task_tracking-->
 | 知道现在该做什么（几天内） | 任务卡索引（唯一状态源） | `.spec/tasks/index.md` |
+<!--/cap-->
+<!--cap:roadmap-->
 | 知道这个阶段要做什么（几周） | 里程碑索引 | `.spec/roadmap/INDEX.md` |
+<!--/cap-->
 | 想写 TODO / 计划 / 待办清单 | 先看计划该放哪 | `AGENTS.md` §2.5 |
 | 担心读太多费 token | 分级读取规则 | `AGENTS.md` §2.6 |
 | 判断当前任务需要加载哪些规范 | 任务上下文解析器（复杂/高影响任务可选） | `node scripts/task-context-resolver.cjs` |

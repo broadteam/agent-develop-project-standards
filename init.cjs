@@ -487,8 +487,10 @@ function walk(dir, rel = '') {
     if (!DRY) {
       ensureDirectoryTransactional(path.dirname(to));
       let content = fill(fs.readFileSync(from, 'utf8'));
-      if (relPath === 'AGENTS.md') {
+      if (relPath === 'AGENTS.md' || relPath === 'ROUTER.md') {
         content = renderCapabilityBlocks(content);
+      }
+      if (relPath === 'AGENTS.md') {
         const notice = capabilityNotice();
         if (notice) content = content.replace(/^(#[^\n]*\n)/, `$1\n${notice}`);
       }

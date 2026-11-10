@@ -405,6 +405,10 @@ try {
   assert.match(offAgents, /把本项目的待办放在哪写在这里/, '必须留出替代做法的槽位');
   assert.doesNotMatch(offAgents, /<!--cap/, '渲染后不得残留标记');
   assert.ok(!fs.existsSync(path.join(offProject, '.spec/tasks')), '能力关闭时不应创建对应目录');
+  const offRouter = fs.readFileSync(path.join(offProject, 'ROUTER.md'), 'utf8');
+  assert.doesNotMatch(offRouter, /\.spec\/tasks\/index\.md/, '路由表同样不得指向未安装的目录');
+  assert.doesNotMatch(offRouter, /\.spec\/roadmap\/INDEX\.md/);
+  assert.doesNotMatch(offRouter, /<!--cap/, '路由表渲染后不得残留标记');
 
   console.log('test-init: all cases passed');
 } finally {

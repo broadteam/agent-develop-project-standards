@@ -1,3 +1,8 @@
+## 2.7.1 - 2026-11-10
+
+### Fixed
+- `ROUTER.md` was not rendered: turning `task_tracking` off left its two rows pointing at `.spec/tasks/index.md` and `.spec/roadmap/INDEX.md`, directories that were never installed. The entry file said the capability was off while the routing table still sent the agent there. Same marker mechanism, applied to both files.
+
 ## 2.7.0 - 2026-11-10
 
 ### Added
