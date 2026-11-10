@@ -1,6 +1,12 @@
 ## Unreleased
 
 ### Added
+- Add Node/Python traceability integrity checks to the governance gate: stable-ID references, active goal/requirement coverage, and verified-requirement evidence requirements.
+- Add parity-oriented regression coverage for dangling references, invalid evidence commits, partial evidence, and active requirements without work items.
+
+## Unreleased
+
+### Added
 - Define the second-stage traceability chain: project goals (G) map to accepted requirements (R), milestones (M) and tasks (T), while verification records (V) bind acceptance evidence to an exact commit.
 - Separate task completion, requirement verification, milestone completion and goal completion; none can be inferred from another.
 - Add lightweight requirements and verification registries, with explicit rules against creating a requirement for every small task.

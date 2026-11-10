@@ -446,3 +446,8 @@ node tests/test-doc-links.cjs
 ```
 
 `test-init` 验证 PHP 项目探测、`.gitignore` 幂等合并以及已有 Hook 保护；`test-parity` 使用同一测试夹具验证 Node/Python 检查器的退出码和输出一致，并覆盖符号链接、非法状态、缺失日志、重复 ID、任务波次归档与 BOARD 过期检测；`test-migration-v2` 在临时项目中演练空项目 preview 和已有多栈项目的安全迁移；`test-template-drift` 验证安装基线与只读漂移检测；`test-template-upgrade-plan` 验证升级建议、人工确认契约和预览零写入；`test-template-upgrade-review` 验证审批记录与 plan ID 绑定、完整性、冲突基线来源和拒绝不完整决策；`test-template-upgrade-recovery` 验证失败后的完整备份恢复；`test-template-upgrade-record` 验证成功基线登记、结果哈希/权限校验、完整模板源快照防过期、渲染 `.gitignore` 托管区块及区块外用户规则保留、分批 defer 与最终版本推进；`test-doc-links` 验证所有仓库内 Markdown 相对链接。GitHub Actions 在 Ubuntu 与 Windows 的 Push 和 Pull Request 中执行这些检查。
+
+
+### 自动追踪完整性检查
+
+长期/跨会话项目的追踪链由 `.standards/traceability-check.cjs` 与 `.standards/traceability_check.py` 校验，并集成到 Node/Python 治理入口。检查目标、需求、变更、任务、里程碑和验证证据的引用完整性；活跃目标/需求的工作承接；以及 `verified` 需求是否指向覆盖自身的有效 `pass` 证据（完整 Commit SHA 和具体证据位置）。模板中的示例占位行会被忽略。轻量维护工作可通过 `supporting:` 说明支撑关系，不需要机械创建需求。
