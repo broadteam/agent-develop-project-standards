@@ -8,6 +8,13 @@ const crypto = require('node:crypto');
 const { spawnSync } = require('node:child_process');
 
 const TEMPLATE = path.join(__dirname, 'template');
+
+// A closed stdout (e.g. `node init.cjs . | head`) must not kill the installer mid-transaction:
+// the process would die after writing some files, leaving orphaned backups and a half-installed
+// project. Ignore EPIPE and keep writing; the files matter, the report does not.
+for (const stream of [process.stdout, process.stderr]) {
+  stream.on('error', (error) => { if (error.code !== 'EPIPE') throw error; });
+}
 const argv = process.argv.slice(2);
 const VALID_FLAGS = new Set(['--force', '--dry-run', '--replace-hook', '--strict-scan', '--no-import-plans', '--update']);
 const flags = new Set(argv.filter((a) => a.startsWith('--')));
@@ -455,7 +462,17 @@ for (const stack of presetMap) {
   const rel = `.spec/stacks/${stack}.md`;
   const to = path.join(TARGET, rel);
   const exists = fs.existsSync(to);
-  if (exists && !FORCE) { report.skipped.push(rel); trackPreservedPath(rel); continue; }
+  if (exists && !FORCE) {
+    // Same rule as the main walk: --update refreshes only untouched files.
+    const installedSha = managedFiles[rel]?.installed_sha256;
+    const pristine = installedSha && sha256(fs.readFileSync(to)) === installedSha;
+    if (!(UPDATE && pristine)) {
+      report.skipped.push(rel);
+      trackPreservedPath(rel);
+      continue;
+    }
+    report.updated.push(rel);
+  }
   if (!DRY) { const content = fs.readFileSync(from, 'utf8'); ensureDirectoryTransactional(path.dirname(to)); writeTransactional(to, content, 'utf8'); trackManagedFile(rel, from, content); }
   (exists ? report.forced : report.created).push(rel);
 }
@@ -634,10 +651,21 @@ if (!DRY) {
     report.warnings.push(`有 ${staleAfter.length} 个受管文件仍是旧版本内容（已存在，未更新），整体版本标记保持 ${previousManifest?.installed_with_version ?? '未登记'}。要刷新请用 --update（只更新未被改动过的文件），或按 DEPLOY.md 的升级流程人工处理。`);
   }
 }
-// Leftovers from an earlier interrupted run. They are deliberately not whitelisted, so the
-// governance gate reports them as unregistered files — which suggests whitelisting them.
-// Say what they actually are before the user "fixes" it the wrong way.
-const staleArtifacts = entries.filter((entry) => isInternalArtifact(entry.name)).map((entry) => entry.name).sort();
+// Leftovers from an earlier interrupted run can sit anywhere in the tree, not just the root.
+// They are deliberately not whitelisted, so the governance gate reports them as unregistered files — which suggests
+// whitelisting them. Say what they actually are before the user "fixes" it the wrong way.
+function findStaleArtifacts(dir, rel = '', found = []) {
+  let entries;
+  try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return found; }
+  for (const entry of entries) {
+    if (entry.name === '.git' || entry.name === 'node_modules') continue;
+    const relPath = rel ? `${rel}/${entry.name}` : entry.name;
+    if (isInternalArtifact(entry.name)) { found.push(relPath); continue; }
+    if (entry.isDirectory()) findStaleArtifacts(path.join(dir, entry.name), relPath, found);
+  }
+  return found;
+}
+const staleArtifacts = findStaleArtifacts(TARGET).sort();
 if (staleArtifacts.length) {
   report.warnings.push(`发现 ${staleArtifacts.length} 个上次安装残留的事务文件（${staleArtifacts.slice(0, 3).join('、')}${staleArtifacts.length > 3 ? ' 等' : ''}）。确认没有安装进程在运行后可直接删除；不要加进 gov.toml [dirs]。`);
 }

@@ -1,3 +1,13 @@
+## 2.2.1 - 2026-11-10
+
+### Fixed
+- `init.cjs` died when its stdout was closed early (`node init.cjs . | head -3`): the EPIPE was uncaught, so the process exited mid-transaction without reaching either rollback or commit. The real trial project ended up with 25 orphaned `.*.agent-standards-backup-<pid>-<n>` files and a half-installed tree. stdout/stderr EPIPE is now ignored — writing files matters, printing the report does not.
+- Stale transaction files are now searched across the whole tree, not just the root. The root-only check missed orphans under `.spec/`, `scripts/` and `policy/`, where the governance gate never looks for stray files.
+- `--update` now refreshes stack preset files too; previously the preset loop skipped them unconditionally, so `.spec/stacks/<stack>.md` could never be upgraded.
+
+### Docs
+- `template/.memory/PITFALLS.md` P16: piping an installer's output into `head` kills it mid-transaction, and leftovers must be searched tree-wide.
+
 ## 2.2.0 - 2026-11-10
 
 ### Added
