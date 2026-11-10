@@ -286,6 +286,40 @@ try {
   const strictCheck = spawnSync(process.execPath, [path.join(strictProject, 'scripts/check-governance.cjs')], { encoding: 'utf8' });
   assert.equal(strictCheck.status, 1);
   assert.match(strictCheck.stdout, /legacy-folder\//);
+  // Root-level plan files are imported instead of failing the first governance run: someone who
+  // just installed governance should not have to hand-migrate their own notes.
+  const planProject = path.join(tmp, 'plan-app');
+  fs.mkdirSync(planProject);
+  fs.writeFileSync(path.join(planProject, 'package.json'), JSON.stringify({ name: 'plan-app' }));
+  const todoText = '# TODO\n\n- [ ] 加登录页\n- [ ] 修导出 bug\n';
+  fs.writeFileSync(path.join(planProject, 'TODO.md'), todoText);
+  fs.writeFileSync(path.join(planProject, 'NOTES.md'), '# Notes\n\n- 接口草稿\n');
+  const planRun = spawnSync(process.execPath, [path.join(root, 'init.cjs'), planProject], { encoding: 'utf8' });
+  assert.equal(planRun.status, 0, planRun.stdout + planRun.stderr);
+  assert.match(planRun.stdout, /导入 2 项/);
+  assert.ok(!fs.existsSync(path.join(planProject, 'TODO.md')), '根目录计划文件应被移走');
+  assert.ok(!fs.existsSync(path.join(planProject, 'NOTES.md')), '根目录计划文件应被移走');
+  assert.equal(
+    fs.readFileSync(path.join(planProject, '.spec/tasks/T1/imported/TODO.md'), 'utf8'),
+    todoText,
+    '导入必须逐字保留原文');
+  assert.match(
+    fs.readFileSync(path.join(planProject, '.spec/tasks/index.md'), 'utf8'),
+    /\| T1 \| 导入：根目录计划文件（NOTES\.md、TODO\.md） \| planned \|/);
+  const planCheck = spawnSync(process.execPath, [path.join(planProject, 'scripts/check-governance.cjs')], { encoding: 'utf8' });
+  assert.equal(planCheck.status, 0, `导入后治理检查必须直接通过：\n${planCheck.stdout}${planCheck.stderr}`);
+
+  // Opting out must leave the files alone — and then the gate is expected to fail.
+  const keepProject = path.join(tmp, 'keep-plans-app');
+  fs.mkdirSync(keepProject);
+  fs.writeFileSync(path.join(keepProject, 'package.json'), JSON.stringify({ name: 'keep-plans' }));
+  fs.writeFileSync(path.join(keepProject, 'TODO.md'), todoText);
+  const keepRun = spawnSync(process.execPath, [path.join(root, 'init.cjs'), keepProject, '--no-import-plans'], { encoding: 'utf8' });
+  assert.equal(keepRun.status, 0, keepRun.stdout + keepRun.stderr);
+  assert.ok(fs.existsSync(path.join(keepProject, 'TODO.md')), '--no-import-plans 不得移动文件');
+  const keepCheck = spawnSync(process.execPath, [path.join(keepProject, 'scripts/check-governance.cjs')], { encoding: 'utf8' });
+  assert.equal(keepCheck.status, 1, '选择不导入时，根目录计划文件必须被判违规');
+
   console.log('test-init: all cases passed');
 } finally {
   fs.rmSync(junkDir, { recursive: true, force: true });

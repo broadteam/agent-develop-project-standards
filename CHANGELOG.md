@@ -1,3 +1,16 @@
+## 2.1.0 - 2026-11-10
+
+### Added
+- `init.cjs` imports root-level plan files (`TODO.md`, `PLAN.md`, `NOTES.md`, …) into `.spec/tasks/T1/imported/` and replaces the example card with an import card, then removes the root file inside the transaction. Previously the very first governance run after installing into an existing project failed on the user's own notes and told them to migrate it by hand — which is the point where most people either give up or revert the install. The content is copied byte-for-byte; nothing is rewritten. Opt out with `--no-import-plans`, in which case the file stays and the gate reports it as a violation, as before.
+- Plan-file detection reads `gov.toml [forbid].file_patterns` instead of restating the name list, so the forbidden names still have exactly one home. Only markdown is imported; `.bak` / `.orig` / `.DS_Store` remain junk to delete.
+- `DEPLOY.md`: one-sentence deployment for an AI, the impact matrix (what changes, what is never touched), why root plan files must move, how it coexists with an existing pre-commit hook and `.gitignore`, how to roll back, and who decides what in human-vs-AI governance.
+
+### Changed
+- Imported plan files are excluded from the `gov.toml [dirs]` whitelist, since they are about to leave the root.
+
+### Tests
+- `tests/test-init.cjs` covers multi-file import, byte-identical preservation, index registration, a green gate right after install, and that `--no-import-plans` leaves the files alone and fails the gate.
+
 ## 2.0.0 - 2026-11-10
 
 首个稳定版。按 `SPEC-v2.0.md` 的七大方向重构，验收标准与逐项证据见其 §3、§5。

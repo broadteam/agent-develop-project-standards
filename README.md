@@ -2,6 +2,8 @@
 
 一套可复用、跨项目、跨 Agent 的 AI 协作与工程治理规范。目标是让不同项目共享稳定的治理底座，同时保留项目自身的技术栈与业务约束。
 
+> **只想把它铺到某个项目？** 直接看 [`DEPLOY.md`](DEPLOY.md)：一句话命令、会动什么不会动什么、根目录 `TODO.md` 怎么处理、怎么回滚。
+
 ## 核心原则
 
 1. **唯一规则入口**：`AGENTS.md` 是项目规则主入口；`CLAUDE.md`、`GEMINI.md` 仅做客户端适配指针。Cursor 原生支持 `AGENTS.md`，不再生成已弃用的 `.cursorrules`。
@@ -116,6 +118,7 @@ node init.cjs /path/to/project --force --replace-hook
 ```text
 project-standards/
 ├── README.md                        # 用法与设计说明
+├── DEPLOY.md                        # 铺到项目的步骤、影响面与回滚
 ├── SPEC-v2.0.md                     # 2.0 设计基线 + 七大方向状态表
 ├── PROJECT-ADAPTATION-v2.0.md       # 母模板 → 项目规范 的适配机制
 ├── SESSION-HANDOFF.md               # 跨会话交接：当前状态与下一步

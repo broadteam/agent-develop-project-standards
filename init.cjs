@@ -9,12 +9,12 @@ const { spawnSync } = require('node:child_process');
 
 const TEMPLATE = path.join(__dirname, 'template');
 const argv = process.argv.slice(2);
-const VALID_FLAGS = new Set(['--force', '--dry-run', '--replace-hook', '--strict-scan']);
+const VALID_FLAGS = new Set(['--force', '--dry-run', '--replace-hook', '--strict-scan', '--no-import-plans']);
 const flags = new Set(argv.filter((a) => a.startsWith('--')));
 const positional = argv.filter((a) => !a.startsWith('--'));
 const unknownFlags = [...flags].filter((flag) => !VALID_FLAGS.has(flag));
 if (unknownFlags.length || positional.length > 1) {
-  console.error('参数错误。用法：node init.cjs [目标目录] [--dry-run] [--force] [--replace-hook] [--strict-scan]');
+  console.error('参数错误。用法：node init.cjs [目标目录] [--dry-run] [--force] [--replace-hook] [--strict-scan] [--no-import-plans]');
   if (unknownFlags.length) console.error('未知参数：' + unknownFlags.join(', '));
   if (positional.length > 1) console.error('目标目录只能指定一个。');
   process.exit(2);
@@ -23,6 +23,7 @@ const FORCE = flags.has('--force');
 const DRY = flags.has('--dry-run');
 const REPLACE_HOOK = flags.has('--replace-hook');
 const STRICT_SCAN = flags.has('--strict-scan');
+const IMPORT_PLANS = !flags.has('--no-import-plans');
 if (REPLACE_HOOK && !FORCE) {
   console.error('--replace-hook 必须与 --force 一起使用，避免产生不明确的覆盖意图。');
   process.exit(2);
@@ -134,9 +135,25 @@ const isInternalArtifact = (name) => /\.agent-standards-(?:backup|tmp|rollback)-
 const entries = fs.readdirSync(TARGET, { withFileTypes: true });
 const existingDirs = entries.filter(e => e.isDirectory() && !ALWAYS_SKIP.has(e.name) && !isInternalArtifact(e.name)).map(e => e.name);
 const existingFiles = entries.filter((e) => (e.isFile() || e.isSymbolicLink()) && !isInternalArtifact(e.name)).map(e => e.name);
+// Root-level plan files are a governance violation by definition. Rather than failing the very
+// first check and asking a human to hand-migrate, import them (see importPlanFiles below).
+// The forbidden names live in gov.toml [forbid] only; do not restate them here.
+const FORBIDDEN_PATTERNS = (() => {
+  const line = fs.readFileSync(path.join(TEMPLATE, 'gov.toml'), 'utf8')
+    .split(/\r?\n/).find((entry) => /^\s*file_patterns\s*=/.test(entry));
+  if (!line) return [];
+  return [...line.matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((match) => match[1].replace(/\\\\/g, '\\')).map((pattern) => {
+    const insensitive = pattern.startsWith('(?i)');
+    try { return new RegExp(insensitive ? pattern.slice(4) : pattern, insensitive ? 'i' : ''); } catch { return null; }
+  }).filter(Boolean);
+})();
+// Only markdown: .bak/.orig/.DS_Store are junk to delete, not plans to import.
+const isPlanFile = (name) => name.toLowerCase().endsWith('.md') && FORBIDDEN_PATTERNS.some((re) => re.test(name));
+const planFiles = IMPORT_PLANS ? entries.filter((e) => e.isFile() && isPlanFile(e.name)).map((e) => e.name).sort() : [];
 const BUILD_DIRS = [BUILD_OUTPUT];
 const allowedDirs = [...new Set([...(STRICT_SCAN ? [] : existingDirs), ...TEMPLATE_DIRS, ...BUILD_DIRS])].sort();
-const allowedFiles = [...new Set([...existingFiles, ...TEMPLATE_FILES])].sort();
+// Plan files are about to be imported out of the root, so they must not enter the whitelist.
+const allowedFiles = [...new Set([...existingFiles.filter((name) => !planFiles.includes(name)), ...TEMPLATE_FILES])].sort();
 
 const today = new Date().toISOString().slice(0, 10);
 const replacements = {
@@ -242,7 +259,7 @@ function fill(s) {
   return out.replace(/\{\{([A-Z_]+)\}\}/g, (_, k) => `（待填：${k}）`);
 }
 
-const report = { created: [], skipped: [], forced: [], protected: [], warnings: [] };
+const report = { created: [], skipped: [], forced: [], protected: [], warnings: [], imported: [] };
 const managedFiles = { ...(previousManifest?.managed_files ?? {}) };
 const preservedPaths = new Set(previousManifest?.preserved_paths ?? []);
 const managedBlocks = { ...(previousManifest?.managed_blocks ?? {}) };
@@ -330,6 +347,13 @@ function chmodTransactional(file, mode) {
   const before = fs.statSync(file).mode & 0o777;
   fs.chmodSync(file, mode);
   transaction.files.push({ file, before: { existed: true, mode: before, metadataOnly: true }, backup: null });
+}
+function removeTransactional(file) {
+  // Register before unlinking: a crash in between leaves an entry whose restore is a no-op
+  // overwrite, never a file that vanished without the transaction knowing.
+  const before = snapshotManagedFile(file);
+  transaction.files.push({ file, before, backup: null });
+  fs.unlinkSync(file);
 }
 function rollbackTransaction() {
   const failures = [];
@@ -478,6 +502,78 @@ if (fs.existsSync(ignoreSrc)) {
   }
 }
 
+function buildImportCard(names, importedRel) {
+  const list = names.map((name) => `- \`${importedRel}/${name}\``).join('\n');
+  return `# T1 导入：根目录计划文件
+
+- 状态：planned（以 \`../index.md\` 为准）
+- 波次：W1
+- 来源：初始化器自动迁移，原文逐字保留
+
+## 背景
+
+项目在接入规范前把计划写在根目录。根目录计划文件会和 \`.spec/tasks/index.md\` 争夺
+「唯一状态源」，所以初始化器把原文移到这里，并从根目录移除。原文没有被改写。
+
+${list}
+
+## 接下来要做的
+
+1. 把原文里仍然有效的条目拆成卡片：\`.spec/tasks/T2/card.md\`、\`T3\`……
+2. 每条写清范围（允许改哪些路径）和验收（怎么证明做完）。
+3. 在 \`.spec/tasks/index.md\` 登记新卡，再运行 \`node scripts/generate-board.cjs\`。
+4. 原文处理完后可以删掉 \`${importedRel}/\`。
+
+## 范围
+
+（待填：这些计划涉及哪些路径）
+
+## 验收
+
+（待填：怎么证明每条做完）
+`;
+}
+
+// Import root-level plan files into the task index. Someone who just installed governance
+// should not be greeted by a red check telling them to hand-migrate their own notes.
+if (planFiles.length && capabilityResolution.capabilities.task_tracking?.status !== 'disabled') {
+  const cardRel = '.spec/tasks/T1/card.md';
+  const cardPath = path.join(TARGET, cardRel);
+  const renderedExample = fill(fs.readFileSync(path.join(TEMPLATE, cardRel), 'utf8'));
+  const currentCard = fs.existsSync(cardPath) ? fs.readFileSync(cardPath, 'utf8') : null;
+  const canImport = report.created.includes(cardRel) || report.forced.includes(cardRel)
+    || (currentCard !== null && currentCard === renderedExample);
+
+  if (!canImport) {
+    report.warnings.push(`根目录有 ${planFiles.length} 个计划文件（${planFiles.join('、')}），但 T1 已被项目使用，未自动导入。请手工并入 .spec/tasks/ 后删除根目录文件。`);
+  } else if (DRY) {
+    for (const name of planFiles) report.imported.push(`${name} → .spec/tasks/T1/imported/${name}`);
+  } else {
+    const importedRel = '.spec/tasks/T1/imported';
+    ensureDirectoryTransactional(path.join(TARGET, importedRel));
+    for (const name of planFiles) {
+      const from = path.join(TARGET, name);
+      writeTransactional(path.join(TARGET, importedRel, name), fs.readFileSync(from));
+      removeTransactional(from);
+      report.imported.push(`${name} → ${importedRel}/${name}`);
+    }
+    const card = buildImportCard(planFiles, importedRel);
+    writeTransactional(cardPath, card, 'utf8');
+    if (managedFiles[cardRel]) managedFiles[cardRel].installed_sha256 = sha256(card);
+
+    const indexPath = path.join(TARGET, '.spec/tasks/index.md');
+    if (fs.existsSync(indexPath)) {
+      const indexText = fs.readFileSync(indexPath, 'utf8');
+      const title = `导入：根目录计划文件（${planFiles.join('、')}）`;
+      const nextIndex = indexText.replace(/^\| T1 \|.*$/m, `| T1 | ${title} | planned | \`${importedRel}/\` |`);
+      if (nextIndex !== indexText) {
+        writeTransactional(indexPath, nextIndex, 'utf8');
+        if (managedFiles['.spec/tasks/index.md']) managedFiles['.spec/tasks/index.md'].installed_sha256 = sha256(nextIndex);
+      }
+    }
+  }
+}
+
 // Set executable bit only on a hook created/replaced by this run.
 const hook = path.join(TARGET, '.githooks', 'pre-commit');
 if (!DRY && fs.existsSync(hook) && (report.created.includes('.githooks/pre-commit') || report.forced.includes('.githooks/pre-commit'))) {
@@ -544,7 +640,7 @@ console.log('  能力解析  ' + Object.entries(capabilityResolution.capabilitie
 console.log(`  项目名    ${PROJECT_NAME}`);
 console.log(`  源码目录  ${SRC_DIR}`);
 console.log(`  产物目录  ${BUILD_OUTPUT}`);
-for (const [label, list] of [['新建', report.created], ['覆盖', report.forced], ['跳过', report.skipped], ['保护', report.protected]]) {
+for (const [label, list] of [['新建', report.created], ['覆盖', report.forced], ['跳过', report.skipped], ['保护', report.protected], ['导入', report.imported]]) {
   if (list.length) console.log(`\n  ${label} ${list.length} 项：\n${list.map(x => `    ${x}`).join('\n')}`);
 }
 for (const warning of report.warnings) console.warn(`\n  ⚠ ${warning}`);
