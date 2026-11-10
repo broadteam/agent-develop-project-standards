@@ -97,6 +97,7 @@ function validateTraceability(root) {
     const hasTask=[...taskRefs.values()].some(r=>r.goals.includes(goal));
     if (!hasRequirement && !hasTask) errors.push(`追踪关系：活跃目标 ${goal} 没有需求或任务承接`);
   }
+  errors.push(...require('./intent-alignment-check.cjs').validateIntentAlignment(root));
   return errors;
 }
 module.exports = { validateTraceability };

@@ -3,6 +3,7 @@
 from __future__ import annotations
 import re
 from pathlib import Path
+from intent_alignment_check import validate_intent_alignment
 
 def validate_traceability(root: Path) -> list[str]:
     errors: list[str] = []
@@ -135,4 +136,5 @@ def validate_traceability(root: Path) -> list[str]:
         has_task = any(goal in refs["goals"] for refs in task_refs.values())
         if not has_req and not has_task:
             errors.append(f"追踪关系：活跃目标 {goal} 没有需求或任务承接")
+    errors.extend(validate_intent_alignment(root))
     return errors

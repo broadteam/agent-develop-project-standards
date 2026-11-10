@@ -1,5 +1,14 @@
 ## Unreleased
 
+### Added
+- Add task-level intent alignment review: tracked work records its baseline/accepted-change anchors before implementation and compares actual diffs, commits and verification evidence before closeout. Unresolved drift cannot be marked done.
+- Add separate Node/Python `intent-alignment-check` modules, invoked by the existing traceability gates; enforce task kickoff/closeout anchors, accepted change references, task evidence coverage/commit matching, and completed-milestone closure gates. Legacy tasks/milestones without explicit opt-in remain compatible.
+
+### Tests
+- Add positive/negative intent-alignment contract tests for omitted goals/requirements, pending changes, missing closeout, unresolved drift, unjustified adjustments, task evidence coverage/commit mismatch, incomplete milestone requirements, unresolved milestone drift, and legacy opt-in compatibility.
+
+## Unreleased
+
 ### Tests
 - Add a multi-stage intent continuity simulation covering bounded interruptions, pending Agent proposals, accepted user corrections, unresolved conflicts, explicit conflict resolution, session resume, task-done/requirement-not-verified separation, and final passing evidence; compare Node/Python results at each state.
 
