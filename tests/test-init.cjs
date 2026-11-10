@@ -454,7 +454,6 @@ try {
   fs.writeFileSync(externalManifestTarget, externalManifestContent);
   migrateManifest.managed_files['scripts/../../must-not-be-deleted.txt'] = {
     installed_sha256: require('node:crypto').createHash('sha256').update(externalManifestContent).digest('hex'),
-    template_version: '2.7.1',
   };
   fs.writeFileSync(migrateManifestPath, JSON.stringify(migrateManifest, null, 2));
 
