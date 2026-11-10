@@ -89,7 +89,6 @@ function validateTraceability(root) {
       const declared = req.evidence.match(/V\d+/g) || [];
       const valid=[...evidenceRecords.values()].some(v=>v.result==='pass'&&v.covers.includes(id)&&/^[a-f0-9]{40}$/i.test(v.commit)&&v.evidence&&!/（|\(|CI URL/.test(v.evidence));
       if (!declared.length || declared.some(v => !evidenceRecords.has(v) || evidenceRecords.get(v).result !== 'pass' || !evidenceRecords.get(v).covers.includes(id))) errors.push(`追踪关系：需求 ${id} 的验证指针无效或未覆盖该需求`);
-      if (!declared.length || declared.some(v => !evidenceRecords.has(v) || evidenceRecords.get(v).result !== 'pass' || !evidenceRecords.get(v).covers.includes(id))) errors.push(`追踪关系：需求 ${id} 的验证指针无效或未覆盖该需求`);
       if (!valid) errors.push(`追踪关系：需求 ${id} 标记 verified，但没有有效 pass 证据`);
     }
   }
