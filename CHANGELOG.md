@@ -1,3 +1,19 @@
+## 2.4.0 - 2026-11-10
+
+### Added
+- `scripts/sync-memory.cjs` mirrors the authoritative §0 breakpoint from `.memory/MEMORY.md` into client-private memory files declared in `gov.toml [memory].mirrors`. No rule in `AGENTS.md` can make another agent read your directory — it has its own conventions — but it will read the file it owns. So the state is copied to where it looks, in a marked block that the script maintains; everything outside the block is untouched. One-way, idempotent, and `--check` fails when the copy is stale. `mirrors` defaults to empty: the path is never guessed.
+- Both governance checkers report a stale mirror with identical output, so parity still holds.
+
+### Fixed
+- `--update` replaced `gov.toml` with the template copy, whose `allowed_dirs` / `allowed_files` are empty placeholders filled only on a first install. Upgrading therefore wiped the project's root whitelist. Those two arrays are now carried over from the existing file.
+
+### Docs
+- `CLIENTS.md` §3 documents the mirror mechanism, the rules (one-way, marked block, detectable, never guessed), why bidirectional sync is not offered, and the one-time procedure for moving facts out of a private memory that already accumulated real content.
+- `DEPLOY.md` adds configuring `mirrors` to the post-install checklist.
+
+### Tests
+- `tests/test-memory-mirror.cjs`: no-op without a declared target, block creation, client content preserved, idempotency, stale detection in both checkers with byte-identical output, recovery after sync, and a declared target that does not exist being skipped.
+
 ## 2.3.0 - 2026-11-10
 
 ### Added

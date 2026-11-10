@@ -190,6 +190,24 @@ if(capabilityEnabled('task_tracking')&&fs.existsSync(taskIndex)&&fs.existsSync(b
   if(!sourceOk||!bodyOk)errors.push('.spec/tasks/BOARD.md 已过期或被手工修改，请运行 node scripts/generate-board.cjs');
 }
 
+// 7. Client-private memory mirrors must carry the current breakpoint. No rule can force a
+// client to read .memory/, so the state is copied to where it does look; this checks it is not stale.
+const memoryMirrors=gov.memory?.mirrors??[];
+if(memoryMirrors.length){
+  const authorityFile=path.join(ROOT,(gov.paths?.memory??'.memory'),'MEMORY.md');
+  if(fs.existsSync(authorityFile)){
+    const text=fs.readFileSync(authorityFile,'utf8').replace(/\r\n/g,'\n');
+    const start=text.search(/^##\s*§0\b/m);
+    let section='';
+    if(start>=0){const rest=text.slice(start);const next=rest.slice(1).search(/^##\s/m);section=(next<0?rest:rest.slice(0,next+1)).trim();}
+    for(const rel of memoryMirrors){
+      const mirrorFile=path.join(ROOT,rel);
+      if(!fs.existsSync(mirrorFile))continue;
+      if(section&&!fs.readFileSync(mirrorFile,'utf8').replace(/\r\n/g,'\n').includes(section))errors.push(`客户端私有记忆断点未同步：${rel}（运行 node scripts/sync-memory.cjs）`);
+    }
+  }
+}
+
 const profileValidation = require('./profile-validator.cjs').validateProfile(ROOT);
 for (const warning of profileValidation.warnings) notes.push(warning);
 for (const error of profileValidation.errors) errors.push(error);

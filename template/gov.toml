@@ -62,6 +62,12 @@ roadmap_archive = ".spec/roadmap/archive"
 tasks_ignore = ["archive", "assets"]
 roadmap_ignore = ["archive", "assets"]
 
+[memory]
+# 客户端私有记忆里需要同步断点的文件。只写你确认过客户端会读的路径；留空 = 不镜像（不猜）。
+# 存在才同步，不存在跳过。区块由 scripts/sync-memory.cjs 生成，勿手工编辑。
+# 例：mirrors = [".workbuddy-ai/memory/MEMORY.md"]
+mirrors = []
+
 [paths]
 # 产物与数据的固定位置，代码里禁止硬编码别的路径
 temp = ".tmp"            # 临时产物唯一去处

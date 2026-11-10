@@ -116,6 +116,7 @@ node <目标目录>/scripts/check-governance.cjs                      # 验收�
 1. **填 `.memory/MEMORY.md` 的 §0 断点**——换会话时 AI 靠这四行恢复上下文
 2. **确认 `.spec/03-delivery.md` 的构建/测试命令**——模板不知道你的项目怎么跑
 3. **把治理检查接进你的钩子或 CI**（见 §4）
+4. **如果你的客户端有自己的项目记忆目录**，在 `gov.toml [memory] mirrors` 里声明它，再跑 `node scripts/sync-memory.cjs`。否则那个目录和 `.memory/` 会各说各话，换客户端就"失忆"。详见 `CLIENTS.md` §3
 
 `project-profile.toml` 的 `status` 是 `needs_review`，意思是「技术栈是探测出来的，别当成事实」。确认后再改成 `confirmed`。
 

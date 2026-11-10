@@ -355,6 +355,9 @@ try {
   const afterUpdate = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
   assert.equal(afterUpdate.installed_with_version, currentVersion, '--update 后版本标记应推进到当前模板版本');
   assert.equal(afterUpdate.managed_files['ROUTER.md'].template_version, currentVersion);
+  // --update must not wipe the root whitelist: the template ships empty placeholders.
+  assert.match(fs.readFileSync(path.join(upProject, 'gov.toml'), 'utf8'), /^allowed_dirs = \["\.githooks"/m,
+    '--update 不得把根目录白名单冲成空数组');
 
   // A same-named file this installer never managed must be preserved AND reported: silently
   // keeping it would leave the project running a foreign script under our path.

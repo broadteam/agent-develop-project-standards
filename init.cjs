@@ -443,6 +443,15 @@ function walk(dir, rel = '') {
         for (const [key, value] of Object.entries(tomlValues)) {
           content = content.replace(new RegExp(`^${key} = \".*\"$`, 'm'), `${key} = ${JSON.stringify(String(value))}`);
         }
+        // --update must not wipe the project's root whitelist: the template ships empty
+        // placeholders that are only filled on a first install.
+        if (exists) {
+          const previous = fs.readFileSync(to, 'utf8');
+          for (const key of ['allowed_dirs', 'allowed_files']) {
+            const line = previous.match(new RegExp(`^${key} = \\[.*\\]$`, 'm'));
+            if (line) content = content.replace(new RegExp(`^${key} = \\[\\]$`, 'm'), line[0]);
+          }
+        }
       }
       writeTransactional(to, content, 'utf8');
       trackManagedFile(relPath, from, content);

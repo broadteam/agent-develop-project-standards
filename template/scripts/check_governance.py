@@ -372,6 +372,27 @@ if capability_enabled("task_tracking") and index_path.exists() and board_path.ex
     if f"<!-- SOURCE-SHA256: {digest} -->" not in board_text or not body_ok:
         errors.append(".spec/tasks/BOARD.md 已过期或被手工修改，请运行 node scripts/generate-board.cjs")
 
+# 7. Client-private memory mirrors must carry the current breakpoint. No rule can force a
+# client to read .memory/, so the state is copied to where it does look; this checks it is not stale.
+memory_mirrors = gov.get("memory", {}).get("mirrors", [])
+if memory_mirrors:
+    authority_file = ROOT / gov.get("paths", {}).get("memory", ".memory") / "MEMORY.md"
+    if authority_file.exists():
+        authority_text = authority_file.read_text(encoding="utf-8").replace("\r\n", "\n")
+        section = ""
+        start = re.search(r"^##\s*§0\b", authority_text, re.M)
+        if start:
+            rest = authority_text[start.start():]
+            following = re.search(r"^##\s", rest[1:], re.M)
+            section = (rest if not following else rest[: following.start() + 1]).strip()
+        for mirror_rel in memory_mirrors:
+            mirror_file = ROOT / mirror_rel
+            if not mirror_file.exists():
+                continue
+            mirror_text = mirror_file.read_text(encoding="utf-8").replace("\r\n", "\n")
+            if section and section not in mirror_text:
+                errors.append(f"客户端私有记忆断点未同步：{mirror_rel}（运行 node scripts/sync-memory.cjs）")
+
 from profile_validator import validate_profile
 profile_errors, profile_warnings = validate_profile(ROOT)
 errors.extend(profile_errors)
