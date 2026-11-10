@@ -12,7 +12,7 @@
 - `tests/test-init.cjs` enforces a placeholder contract: every `{{KEY}}` in `template/` must be a key `init.cjs` knows, because `fill()` degrades unknown keys into a visible `（待填：KEY）` marker instead of failing.
 - `tests/test-migration-v2.cjs` performs a real first install on an empty project and requires the governance gate to pass immediately. Previously only `--dry-run` covered the empty-project case.
 - `tests/test-template-upgrade-record.cjs` covers the `keep_or_archive` decision: when upstream removes a file the project also modified, the plan must not offer a delete candidate, the file must survive review and recording, and the follow-up drift report must return `ok` with status `accepted_removed`.
-- `template/.memory/PITFALLS.md` P13 (line endings make budgets and hashes platform-dependent) and P14 ("CI green" cannot be restated across sessions).
+- `template/.memory/PITFALLS.md` P13 (line endings make budgets and hashes platform-dependent) and P14 (CI green is not local green: CI checks out LF while Windows developers check out CRLF).
 
 ### Changed
 - Raise the declared runtime floor to Node 22 / Python 3.11 and state it in `policy/standards-version.json` (`minimum_node_major`, `minimum_python`). The previous floor (Node 18 / Python 3.10) was past end-of-life and was never exercised by CI, so "supported" was an untested promise.

@@ -20,7 +20,9 @@
 
 ## 本轮完成（2026-11-10）
 
-起因：本地把 v2 分支快进到 origin 后跑测试，`test-parity` 与 `test-capability-resolver` 在 Windows 上必挂。排查后确认不是环境问题，是产品与测试的真实缺陷。
+起因：本地把 v2 分支快进到 origin 后跑测试，`test-parity` 与 `test-capability-resolver` 在 Windows 上必挂。
+
+**先纠正一个容易误判的点**：这两个测试在 CI 的 Windows 任务上一直是绿的，所以不能说是"CI 撒谎"。CI 的 checkout 不启用 `core.autocrlf`，工作区是 LF；Windows 开发机默认 `true`，工作区是 CRLF。**CI 只覆盖了 LF 世界，恰好绕开了缺陷**——这类"绿得毫无意义"的通过比红灯更危险，因为它让缺陷活了六轮。详见 `.memory/PITFALLS.md` P14。
 
 ### 修复
 
@@ -70,10 +72,11 @@
 
 ## 下一步
 
-1. 推送本分支，按本轮提交的 push / pull_request runs 复核双平台 CI；不绿先修，绿了才把发布门槛第 7 项勾上。
-2. 复核第七方向剩余项：`keep_or_archive`、`accepted_removed`、managed block、`defer` 的长期漂移行为，补最小回归；保持不自动应用文件。
-3. 若要推进第七方向到 `done`，先按 `UPGRADE-RECORD-TEMPLATE.md` 完成一次真实跨版本升级的人工记录。
-4. 门槛全绿后再决定是否把 `2.0.0-rc.15` 标记为 `2.0.0`。
+1. **修正 PR #2 的目标分支**。PR #2 现在指向 `docs/low-friction-agent-protocol-v1.2.0`，不是 `main`；照此合并会把 2.0 内容并进 v1.2.0 文档分支，`main` 永远拿不到。需在 GitHub 上把 base 改成 `main`（或在确认是有意堆叠后记录原因）。
+2. 复核本次推送后 8 个 CI 任务的结果；绿了才把发布门槛第 7 项勾上，未复核前保持未勾选。
+3. 复核第七方向剩余项：managed block 与 `defer` 的长期漂移行为已有回归；`keep_or_archive` 本轮补齐。仍需观察真实项目规模下的表现。
+4. 若要推进第七方向到 `done`，先按 `UPGRADE-RECORD-TEMPLATE.md` 完成一次真实跨版本升级的人工记录。
+5. 门槛全绿后再决定是否把 `2.0.0-rc.15` 标记为 `2.0.0`。
 
 ## 恢复工作的方法
 
