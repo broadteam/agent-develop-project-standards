@@ -222,7 +222,7 @@ ${change('C001', '明确注册成功判据', 'clarification', 'user_explicit', '
 - 判定：注册返回 201；设备编号唯一性场景尚未覆盖
 - 限制：唯一性验收未完成
 `);
-  write('.spec/requirements/INDEX.md', read('.spec/requirements/INDEX.md').replace('| accepted | user_confirmed / C003 |', '| implemented | user_confirmed / C003 |'));
+  write('.spec/requirements/INDEX.md', read('.spec/requirements/INDEX.md').replace('| accepted | user_confirmed / C005 |', '| implemented | user_confirmed / C005 |'));
   assertGraph('S6 partial evidence');
   assert.match(read('.spec/requirements/INDEX.md'), /\| implemented \|/);
   assert.doesNotMatch(read('.spec/requirements/INDEX.md'), /\| verified \|/);
