@@ -720,23 +720,43 @@ if (planFiles.length && capabilityResolution.capabilities.task_tracking?.status 
 // project's own scripts directory. Remove our old copies, but only ones we can prove we installed:
 // the recorded hash must still match, otherwise the project edited it and it is theirs to keep.
 const legacyScripts = path.join(TARGET, 'scripts');
+const legacyToolNames = new Set([
+  'capability-resolver.cjs', 'check-governance.cjs', 'check_governance.py',
+  'generate-board.cjs', 'profile-validator.cjs', 'profile_validator.py',
+  'sync-memory.cjs', 'task-context-resolver.cjs',
+]);
 if (fs.existsSync(legacyScripts)) {
-  for (const rel of Object.keys(previousManifest?.managed_files ?? {}).filter((key) => key.startsWith('scripts/'))) {
-    const file = path.join(TARGET, rel);
-    if (!fs.existsSync(file)) continue;
-    const recorded = previousManifest.managed_files[rel].installed_sha256;
-    if (!recorded || sha256(fs.readFileSync(file)) !== recorded) continue;
-    if (!DRY) removeTransactional(file);
-    delete managedFiles[rel];
-    report.migrated.push(rel);
-  }
-  if (!DRY) {
-    // Do not remove the parent directory while the transaction can still roll back.
-    // A later failure may need to restore a legacy file into this exact directory.
-    try {
-      if (fs.readdirSync(legacyScripts).length === 0) transaction.postCommitDirectories.push(legacyScripts);
-    } catch (error) {
-      if (error.code !== 'ENOENT') throw error;
+  const legacyStat = fs.lstatSync(legacyScripts);
+  if (legacyStat.isSymbolicLink() || !legacyStat.isDirectory()) {
+    report.warnings.push('scripts/ 不是普通目录，未自动迁移其中的旧治理脚本；请人工检查。');
+  } else {
+    // Restrict deletion to the exact legacy tool names. The manifest is project-editable data,
+    // so a startsWith("scripts/") check alone would allow path traversal outside the project.
+    for (const rel of Object.keys(previousManifest?.managed_files ?? {})) {
+      const match = /^scripts\/([^/\\]+)$/.exec(rel);
+      if (!match || !legacyToolNames.has(match[1])) continue;
+      const file = path.join(legacyScripts, match[1]);
+      let stat;
+      try { stat = fs.lstatSync(file); }
+      catch (error) { if (error.code === 'ENOENT') continue; throw error; }
+      if (stat.isSymbolicLink() || !stat.isFile()) {
+        report.warnings.push('旧治理脚本不是普通文件，未自动删除：' + rel);
+        continue;
+      }
+      const recorded = previousManifest.managed_files[rel]?.installed_sha256;
+      if (!recorded || sha256(fs.readFileSync(file)) !== recorded) continue;
+      if (!DRY) removeTransactional(file);
+      delete managedFiles[rel];
+      report.migrated.push(rel);
+    }
+    if (!DRY) {
+      // Do not remove the parent directory while the transaction can still roll back.
+      // A later failure may need to restore a legacy file into this exact directory.
+      try {
+        if (fs.readdirSync(legacyScripts).length === 0) transaction.postCommitDirectories.push(legacyScripts);
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+      }
     }
   }
 }
