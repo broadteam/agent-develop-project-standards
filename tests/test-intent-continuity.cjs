@@ -36,7 +36,7 @@ assert.match(changes, /不等于取消其他目标/);
 assert.match(changes, /当前有效状态以基线加所有适用的 accepted 记录推导/);
 
 assert.match(agentsText, /CHANGES\.md/);
-assert.match(agentsText, /局部修复不代表整体目标完成/);
+assert.match(changes, /局部修复不代表整体目标完成/);
 assert.match(routerText, /原始目标基线与变更账本/);
 assert.match(card, /关联目标：G001/);
 assert.match(card, /关联变更：C001/);
