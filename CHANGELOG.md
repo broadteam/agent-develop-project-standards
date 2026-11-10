@@ -11,11 +11,11 @@
 - A hook this installer created and nobody edited was protected from `--update`, so a release that moves the checker path would leave it pointing at a file that no longer exists — failing closed on every commit. Unmodified installer-owned hooks now refresh; project-owned ones are still protected.
 - The template's `.githooks/pre-commit` still referenced the old paths: the bulk rewrite skipped extensionless files. Found by running the migration against a real project.
 - Empty `scripts/` was removed before the install transaction committed. If a later manifest write failed, rollback could not restore the last legacy script because its parent directory was already gone. Empty-directory cleanup now runs only after commit.
-- Legacy cleanup now accepts only the eight known tool filenames and regular files under a non-symlink `scripts/` directory. This prevents a modified manifest from directing deletion outside the project and avoids traversing project-owned symlinks.
+- Legacy cleanup now accepts only the eight known tool filenames and regular files under a non-symlink `scripts/` directory. Modified legacy tools are retained with an explicit warning; malformed manifest paths cannot direct deletion outside the project, and project-owned symlinks are never traversed.
 - `DEPLOY.md` no longer recommends broad `git clean -fd` / `git checkout -- .gitignore` rollback commands; it documents scoped Git rollback and cautious manual recovery.
 
 ### Tests
-- `tests/test-init.cjs` models the 2.7.1 layout (all eight old tool paths, customized `gov.toml`, installer-owned Hook), verifies the 3.0 migration, injects a late failure and compares the complete pre/post tree, and proves a path-traversal manifest entry cannot delete an outside file.
+- `tests/test-init.cjs` models the 2.7.1 layout (all eight old tool paths, customized `gov.toml`, installer-owned Hook), verifies successful migration, preserves modified legacy tools, rejects symlink traversal and path-traversal manifest entries, and injects a late failure to compare the complete pre/post tree.
 
 ## 2.7.1 - 2026-11-10
 
