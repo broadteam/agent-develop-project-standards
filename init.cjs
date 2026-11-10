@@ -128,9 +128,12 @@ const COMMANDS = cmdLines.length ? cmdLines.join('\n') : profile.cmds.join('\n')
 const TEMPLATE_DIRS = ['.memory', '.spec', '.tmp', '.githooks', 'scripts', 'policy'];
 const TEMPLATE_FILES = ['AGENTS.md', 'ROUTER.md', 'CLAUDE.md', 'GEMINI.md', 'gov.toml', 'project-profile.toml', '.gitattributes', '.gitignore', '.agent-standards.json'];
 const ALWAYS_SKIP = new Set(['.git', 'node_modules']);
+// A --force run that is interrupted can leave its own transaction files behind. If the next
+// run whitelisted them, the governance gate would treat that junk as legitimate forever.
+const isInternalArtifact = (name) => /\.agent-standards-(?:backup|tmp|rollback)-/.test(name);
 const entries = fs.readdirSync(TARGET, { withFileTypes: true });
-const existingDirs = entries.filter(e => e.isDirectory() && !ALWAYS_SKIP.has(e.name)).map(e => e.name);
-const existingFiles = entries.filter(e => e.isFile() || e.isSymbolicLink()).map(e => e.name);
+const existingDirs = entries.filter(e => e.isDirectory() && !ALWAYS_SKIP.has(e.name) && !isInternalArtifact(e.name)).map(e => e.name);
+const existingFiles = entries.filter((e) => (e.isFile() || e.isSymbolicLink()) && !isInternalArtifact(e.name)).map(e => e.name);
 const BUILD_DIRS = [BUILD_OUTPUT];
 const allowedDirs = [...new Set([...(STRICT_SCAN ? [] : existingDirs), ...TEMPLATE_DIRS, ...BUILD_DIRS])].sort();
 const allowedFiles = [...new Set([...existingFiles, ...TEMPLATE_FILES])].sort();

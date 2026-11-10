@@ -56,6 +56,10 @@ try {
   const originalHook = '#!/bin/sh\necho project-hook\n';
   fs.writeFileSync(path.join(project, '.githooks/pre-commit'), originalHook);
   fs.writeFileSync(path.join(project, '.gitignore'), '.tmp/\n');
+  // An interrupted --force run leaves transaction files in the project root. Whitelisting them
+  // would make the governance gate treat that junk as legitimate forever.
+  const staleArtifact = '.AGENTS.md.agent-standards-backup-9999-1';
+  fs.writeFileSync(path.join(project, staleArtifact), 'stale');
   const beforePreview = JSON.stringify(snapshotTree(project));
   const preview = spawnSync(process.execPath, [path.join(root, 'init.cjs'), project, '--force', '--dry-run'], { encoding: 'utf8' });
   assert.equal(preview.status, 0, preview.stdout + preview.stderr);
@@ -76,6 +80,12 @@ try {
   assert.match(ignore, /vendor\//, '.gitignore should merge missing entries even if .tmp/ already exists');
   assert.match(ignore, /agent-project-standards \(managed\)/);
   const gov = fs.readFileSync(path.join(project, 'gov.toml'), 'utf8');
+  assert.doesNotMatch(gov, /agent-standards-backup/, '安装残留的事务文件不得进入根目录白名单');
+  // Not whitelisted means it surfaces as a violation instead of being silently legitimized.
+  const staleCheck = spawnSync(process.execPath, [path.join(project, 'scripts/check-governance.cjs')], { encoding: 'utf8' });
+  assert.equal(staleCheck.status, 1, '残留事务文件必须被判为未登记文件');
+  assert.match(staleCheck.stdout, /根目录出现未登记文件/);
+  fs.rmSync(path.join(project, staleArtifact));
   const profile = fs.readFileSync(path.join(project, 'project-profile.toml'), 'utf8');
   assert.match(profile, /status = "needs_review"/);
   assert.match(profile, /detected = \["php", "node"\]/);
