@@ -165,6 +165,9 @@ project-standards/
 │   ├── test-capability-resolver.cjs
 │   ├── test-task-context-resolver.cjs
 │   ├── test-intent-continuity.cjs
+│   ├── test-intent-continuity-simulation.cjs
+│   ├── test-traceability-contract.cjs
+│   ├── test-traceability-governance.cjs
 │   ├── test-policy.cjs
 │   ├── test-v2-spec.cjs
 │   ├── test-client-adapters.cjs

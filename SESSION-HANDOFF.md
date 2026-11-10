@@ -16,8 +16,13 @@
 - 当前稳定模板版本：`template/policy/standards-version.json` = `3.0.0`。
 - 审查基线：`main` commit `02f8dde262455f15029a54694e129b05b70013a4`。
 - 安全迁移修复：Draft PR #3（`fix/3.0-migration-safety` → `main`），尚未合并；不得把其内容描述为 main 已包含。
-- 本轮目标连续性工作分支：`feat/intent-continuity-foundation`，从上述 main commit 建立。
-- PR #3 与本轮分支保持独立；不要自动合并、关闭或改写任一分支。
+- 目标连续性改进采用依赖式 Draft PR 链：#4 → #5 → #6 → #7 → #8；每个 PR 的 base 指向前一阶段分支，不能越级合并。
+- PR #4：`feat/intent-continuity-foundation`，目标基线与追加式变更账本。
+- PR #5：`feat/intent-traceability-chain`，目标到需求/验证证据追踪模型。
+- PR #6：`feat/traceability-governance-checker`，Node/Python 双端机器校验。
+- PR #7：`feat/intent-drift-resistance-protocol`，同一会话意图分类、冲突裁定与恢复点协议。
+- PR #8：`feat/intent-continuity-simulation-tests`，多阶段状态转换模拟测试。
+- PR #3 与上述链保持独立；不要自动合并、关闭或改写任一分支。
 - CI 结论必须按具体 commit SHA 现场查询，不得跨提交转述。
 
 ## 当前设计方向：长期 AI 项目连续性
