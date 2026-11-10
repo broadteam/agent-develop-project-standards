@@ -474,6 +474,39 @@ try {
   assert.equal(JSON.parse(fs.readFileSync(migrateManifestPath, 'utf8')).installed_with_version, '3.0.0',
     '全部受管文件升级成功后，整体版本标记应推进到 3.0.0');
 
+  // A legacy tool edited by the project must survive migration and be reported for manual review.
+  const editedLegacyProject = path.join(tmp, 'edited-legacy-app');
+  fs.mkdirSync(editedLegacyProject);
+  fs.writeFileSync(path.join(editedLegacyProject, 'package.json'), JSON.stringify({ name: 'edited-legacy-app' }));
+  const editedSetup = spawnSync(process.execPath, [path.join(root, 'init.cjs'), editedLegacyProject], { encoding: 'utf8' });
+  assert.equal(editedSetup.status, 0, editedSetup.stdout + editedSetup.stderr);
+  const editedLegacyDir = path.join(editedLegacyProject, 'scripts');
+  fs.mkdirSync(editedLegacyDir);
+  const editedLegacyName = 'check-governance.cjs';
+  const editedCurrentPath = path.join(editedLegacyProject, '.standards', editedLegacyName);
+  const editedLegacyPath = path.join(editedLegacyDir, editedLegacyName);
+  const editedLegacyOriginal = fs.readFileSync(editedCurrentPath, 'utf8');
+  fs.copyFileSync(editedCurrentPath, editedLegacyPath);
+  const editedManifestPath = path.join(editedLegacyProject, '.agent-standards.json');
+  const editedManifest = JSON.parse(fs.readFileSync(editedManifestPath, 'utf8'));
+  editedManifest.installed_with_version = '2.7.1';
+  for (const metadata of Object.values(editedManifest.managed_files)) metadata.template_version = '2.7.1';
+  editedManifest.managed_files['scripts/' + editedLegacyName] = {
+    ...editedManifest.managed_files['.standards/' + editedLegacyName],
+    template_version: '2.7.1',
+  };
+  delete editedManifest.managed_files['.standards/' + editedLegacyName];
+  fs.rmSync(editedCurrentPath);
+  const localLegacyEdit = editedLegacyOriginal + '\n// project customization\n';
+  fs.writeFileSync(editedLegacyPath, localLegacyEdit);
+  fs.writeFileSync(editedManifestPath, JSON.stringify(editedManifest, null, 2));
+  const editedMigration = spawnSync(process.execPath, [path.join(root, 'init.cjs'), editedLegacyProject, '--update'], { encoding: 'utf8' });
+  assert.equal(editedMigration.status, 0, editedMigration.stdout + editedMigration.stderr);
+  assert.equal(fs.readFileSync(editedLegacyPath, 'utf8'), localLegacyEdit, '项目修改过的旧脚本必须原样保留');
+  assert.match(editedMigration.stdout + editedMigration.stderr, /旧位置脚本已被修改/, '保留修改过的旧脚本时必须告警');
+  assert.equal(JSON.parse(fs.readFileSync(editedManifestPath, 'utf8')).installed_with_version, '2.7.1',
+    '仍有未迁移的旧版受管文件时不得推进整体版本号');
+
   // If a later step fails after legacy files were removed, rollback must restore them.
   // The legacy directory must remain until commit; otherwise rollback cannot recreate its file.
   const rollbackMigrationProject = path.join(tmp, 'rollback-migration-app');
