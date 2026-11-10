@@ -27,4 +27,11 @@ assert.match(changelog, /## 1\.2\.0/);
 assert.match(migration, /高风险操作/);
 assert.ok(Buffer.byteLength(agents, 'utf8') <= 12288, 'AGENTS.md must remain within the default 12 KB budget');
 
+// The version in the file and the newest CHANGELOG heading are the same fact stated twice, and
+// they drift the moment someone bumps one without the other. Pin them together.
+const version = JSON.parse(fs.readFileSync(path.join(root, 'template/policy/standards-version.json'), 'utf8')).version;
+const newestHeading = changelog.match(/^## (\d+\.\d+\.\d+)/m);
+assert.ok(newestHeading, 'CHANGELOG.md 缺少版本小节');
+assert.equal(newestHeading[1], version, `CHANGELOG 最新版本（${newestHeading[1]}）与 standards-version.json（${version}）不一致`);
+
 console.log('test-policy: all cases passed');
