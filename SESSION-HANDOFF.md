@@ -58,9 +58,16 @@
 
 - 语法检查：19 个 `.cjs` / `.py` 全部通过。
 - 回归测试：**14 / 14 通过**（含 4 组模板升级测试、parity、init、migration、doc-links）。
-- 本轮提交：见 `git log --oneline 0aa0043..HEAD`（修复、交接重写、`keep_or_archive` 回归、运行时下限）。
+- 本轮提交：见 `git log --oneline 0aa0043..HEAD`（修复、交接重写、`keep_or_archive` 回归、运行时下限、P14 修正）。
 
-**未验证**：本轮提交在 GitHub Actions 双平台 8 个任务上的结果。必须按该 commit 的 push 与 pull_request runs 复核后才能宣称全绿。
+### CI 验证记录（按 commit 绑定）
+
+| commit | 事件 | 结果 |
+|---|---|---|
+| `984e697` | push + pull_request | **8 / 8 任务全绿**（Ubuntu / Windows × Node 22/24 × Python 3.11/3.13） |
+| `4c73d4f` | push + pull_request | **8 / 8 任务全绿** |
+
+后续提交若只改文档，仍应按该 commit 的 checks 复核；若改了代码，必须重新跑完整矩阵，不能沿用上表结论。
 
 ## 已知限制（不得越界声称）
 

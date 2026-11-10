@@ -245,7 +245,7 @@
 - [x] 至少覆盖单栈、多栈、已有项目、空项目、Windows 路径和 POSIX 路径的模拟夹具。→ 单栈与多栈见 `test-init`；已有项目与空项目首次安装见 `test-migration-v2`；Windows 路径由本机实跑覆盖；POSIX 路径由 CI 的 ubuntu job 覆盖。
 - [x] 迁移文档经过从 1.2.x 到 2.0.0 的演练（只用临时 fixture，不接入真实业务项目）。→ `test-migration-v2`。
 - [x] 所有文档内链接和模板引用有效。→ `test-doc-links`，除 inline 链接外还解析 README 目录树与引用式链接定义。
-- [ ] CI 全绿；未覆盖项明确列出。→ 本机 Windows 已 14/14 通过；提交后须以**对应 commit SHA** 的 push 与 pull_request runs 复核。未复核前不得宣称全绿（见 `.memory/PITFALLS.md` P14）。
+- [x] CI 全绿；未覆盖项明确列出。→ 8 任务矩阵（Ubuntu / Windows × Node 22/24 × Python 3.11/3.13）在 PR #2 的提交上全绿；未覆盖项见 §5「已知限制」。每次推送后按**该 commit 的 checks** 复核，不引用历史结论（见 `.memory/PITFALLS.md` P14）。
 - [x] 没有将模拟测试描述为真实项目试点。→ 全仓文档统一口径：只做临时 fixture 演练，未接入任何真实业务项目。
 
 ## 4. 明确不做
