@@ -154,6 +154,8 @@ function resolveTaskContext(input, options = {}) {
 
   const taskDecision = decisions.task_tracking;
   if (taskDecision?.decision === 'auto_selected_for_task' || (taskDecision?.configured === 'on' && taskDecision.matched.length)) {
+    add(requiredRead, '.spec/intent/BASELINE.md', '跟踪任务必须恢复原始目标基线，防止局部工作取代项目目标');
+    add(requiredRead, '.spec/intent/CHANGES.md', '跟踪任务必须核对用户已确认的意图变化与未决事项');
     add(requiredRead, '.spec/tasks/index.md', '当前任务需要跟踪；先读活跃任务索引');
     if (task.task_id) {
       add(requiredRead, '.spec/tasks/' + task.task_id + '/card.md', '当前任务卡的范围与验收');

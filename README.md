@@ -14,6 +14,7 @@
 
 6. **按需治理**：每次会话只读取规则入口与记忆断点；任务卡、宪法细则、踩坑记录和历史按风险与任务类型加载。
 7. **轻量任务不强制建卡**：局部、低风险、验收明确的工作直接处理；跨模块、跨会话或高不确定性工作才进入任务跟踪流程。
+8. **目标连续性**：原始目标与后续意图变化分开记录；局部修复、临时插单和近期对话不得静默覆盖项目目标。
 
 ---
 
@@ -90,6 +91,12 @@ node .standards/task-context-resolver.cjs --input .tmp/task-context.json --forma
 
 解析器根据任务描述和项目能力画像，列出固定基线、必读规范、按需规范、能力判定和已配置验证命令。它只提供上下文建议，不创建任务卡、不修改项目画像、不执行命令，也不授予任何操作权限。输入是任务事实声明，Agent 不得为了得到更少的读取清单而低估风险或影响范围。
 
+### 项目目标连续性
+
+长期或跟踪型项目在开始实施前，应建立 `.spec/intent/BASELINE.md`：记录用户原始问题、目标、约束、Non-goals 与可验证成功判据。基线确认后不直接改写；后续补充、纠正、新增、范围/优先级变化和撤回等事项追加到 `CHANGES.md`。任务卡和里程碑通过 `Gnnn` / `Cnnn` 引用目标与变更，不复制整段需求或聊天记录。
+
+只有影响目标、范围、验收、约束、优先级或关键决策的对话内容才进入变更账本；普通澄清和一次性排障不记录。跟踪任务恢复、里程碑收口和会话交接时必须回顾基线及相关变更。详见模板文件与 `AGENTS.md`。
+
 ### 初始化参数
 
 | 参数 | 行为 |
@@ -153,6 +160,7 @@ project-standards/
 │   ├── test-parity.cjs
 │   ├── test-capability-resolver.cjs
 │   ├── test-task-context-resolver.cjs
+│   ├── test-intent-continuity.cjs
 │   ├── test-policy.cjs
 │   ├── test-v2-spec.cjs
 │   ├── test-client-adapters.cjs
@@ -187,6 +195,9 @@ project-standards/
     │   ├── task-context-resolver.cjs # 按任务事实解析该读哪些规范
     │   └── generate-board.cjs       # BOARD.md 生成器
     ├── .spec/
+    │   ├── intent/
+    │   │   ├── BASELINE.md         # 原始目标基线（确认后不静默改写）
+    │   │   └── CHANGES.md          # 后续意图变化（追加记录）
     │   ├── 00-constitution.md
     │   ├── 01-architecture.md
     │   ├── 02-conventions.md
