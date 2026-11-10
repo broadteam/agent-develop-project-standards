@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "version": "2.0.0-rc.16",
-  "release_channel": "development",
+  "version": "2.0.0",
+  "release_channel": "stable",
   "minimum_node_major": 22,
   "minimum_python": "3.11"
 }

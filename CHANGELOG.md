@@ -1,3 +1,28 @@
+## 2.0.0 - 2026-11-10
+
+首个稳定版。按 `SPEC-v2.0.md` 的七大方向重构，验收标准与逐项证据见其 §3、§5。
+
+### 状态
+
+- 七大方向：**6 个 `done`，1 个 `partial`**（第七方向：自动升级应用器/自动回滚器未实现，按 SPEC §4 明确不做）。
+- 发布门槛 8 项全部满足；14 个测试在 Ubuntu/Windows × Node 22/24 × Python 3.11/3.13 的 8 个任务上全绿。
+- 已在一个真实项目（Vite + TypeScript，自带 git hooks）和一个 Python 项目上完成试铺。
+
+### 发布前最后一轮修正（2.0.0-rc.15 → 2.0.0）
+
+- 换行符不再影响语义：Python 检查器固定 UTF-8 + LF 输出；文档预算与 BOARD 哈希按 LF 归一化。此前 CI 的 Windows 任务绿而真实 Windows 开发机必挂，因为 CI 检出的是 LF。
+- 运行时下限从 Node 18 / Python 3.10 抬到 Node 22 / Python 3.11，并由 CI 矩阵同时覆盖下限与最新。
+- 真实项目试铺暴露并修复 4 个夹具测试漏掉的缺陷：模板内的 `__pycache__` 被复制进项目；兼容扫描把模板自建目录算作"既有目录"；初始化后 `AGENTS.md` 占预算 99%；中断安装残留的事务文件被写进白名单。
+- 新增闸门：README 目录树可解析、模板占位符必须被 init 认识、空项目真实首次安装必须通过治理检查、初始化后 `AGENTS.md` 至少留 1KB 余量、CRLF 检出与 LF 检出结果一致。
+
+### 已知限制（不要读成"全部验证过"）
+
+- 从未启动过真实客户端 CLI（Codex / Claude Code / Gemini / Cursor），兼容性只到入口与导入契约层面。
+- 第七方向为 `partial`：升级的计划、审批、登记、漂移、恢复演练可重复，但"人工应用 → 校验 → 推进基线"仍需维护者手工执行。
+- 初始化的原子性只覆盖可捕获的运行时异常；进程被强杀或断电不在保证内。
+- 只试铺过 Node 前端与 Python 两个栈，其余 5 个预设只有夹具测试。
+- 锚点链接（`#标题`）未纳入文档校验。
+
 ## 2.0.0-rc.16 - 2026-11-10
 
 Real-project trial on an existing Vite/TypeScript project surfaced three defects that every fixture test had missed.
