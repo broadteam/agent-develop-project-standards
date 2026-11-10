@@ -35,9 +35,13 @@
 
 > 阈值必须写来源（实测 / 规范 / 用户给定）。没有来源的标「待校准」，不要当结论用。
 
-## 6. 项目意图标识符
+## 6. 项目意图与交付追踪标识符
 
 | ID 前缀 | 唯一登记位置 | 规则 |
 |---|---|---|
-| `Gnnn` | `.spec/intent/BASELINE.md` | 目标 ID 永不复用；基线确认后不静默改写 |
-| `Cnnn` | `.spec/intent/CHANGES.md` | 变更 ID 永不复用；记录只追加，修正通过新记录完成 |
+| Gnnn | .spec/intent/BASELINE.md | 目标 ID 永不复用；基线确认后不静默改写 |
+| Cnnn | .spec/intent/CHANGES.md | 变更 ID 永不复用；记录只追加，修正通过新记录完成 |
+| Rnnn | .spec/requirements/INDEX.md | 需求 ID 永不复用；需求状态以索引为准 |
+| Mnnn / 现有 M ID | .spec/roadmap/INDEX.md | 里程碑 ID 永不复用；兼容既有命名 |
+| Tnnn / 现有 T ID | .spec/tasks/index.md | 任务 ID 永不复用；兼容既有命名 |
+| Vnnn | .spec/verification/INDEX.md | 验证证据 ID 永不复用；记录只追加 |
