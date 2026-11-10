@@ -1,132 +1,79 @@
 # 会话交接：Agent 项目开发规范 2.0
 
-更新时间：2026-11-09
+更新时间：2026-11-10
 
 ## 项目目标与边界
 
 - 仓库：`broadteam/agent-develop-project-standards`。
 - 目标：建立跨 Agent、跨项目可复用的工程治理模板；规则、项目事实和验证结果各有唯一权威来源。
-- 不把真实 SaaS 项目当作 2.0 的验收试点；先通过可重复的临时 fixture 验证。
+- 不把真实 SaaS 项目当作 2.0 的验收试点；只通过可重复的临时 fixture 验证。
 - 不合并 PR、不修改 `main`，除非用户另行明确授权。
-- 不以文档表述替代可执行验证；未运行或未覆盖的结论必须如实标记。
+- 不以文档表述替代可执行验证；未运行或未覆盖的结论必须标记 `unverified`。
 
 ## 当前 Git 状态
 
 - 工作分支：`feat/standards-v2.0-seven-pillars`，跟踪 `origin/feat/standards-v2.0-seven-pillars`。
-- 当前 HEAD：`ccca8b5a4beb14294f913d259fb0cd1f493cc75f`；该 HEAD 的 Push [42513099806](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42513099806) 与 PR [42513103211](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42513103211) 均通过，Ubuntu / Windows jobs 全绿。当前 PR #2 实时指针为准。
-- 相关 PR：#2（Draft；不要合并）。
+- 2.0 范围与验收标准的唯一权威：`SPEC-v2.0.md`；七大方向状态见其 §5。
+- 版本事实源：`template/policy/standards-version.json` = `2.0.0-rc.15`。
+- 相关 PR：#2（Draft，不要合并）。
+- **CI 状态必须按 commit SHA 现场查询**，不要引用本文件里的历史结论（见 `.memory/PITFALLS.md` P14）。
 
-## 本轮成功升级基线登记加固（2026-11-09）
+## 本轮完成（2026-11-10）
 
-- 远程分支已存在 `tools/record-reviewed-template-upgrade.cjs`，本轮在代码审查后继续加固，而不是重复创建工具。
-- 新增 `tools/template-source-inventory.cjs`：对 `template/` 与 `presets/stacks/` 做确定性完整快照，记录路径/类型/内容 SHA-256/权限或符号链接目标；计划绑定 `source_inventory_sha256`，登记前重新计算。计划生成后任何模板源新增、删除、内容或权限变化都会使旧计划失效。
-- `plan-template-upgrade.cjs` 升级到 `plan_schema: 2`；`validate-template-upgrade-review.cjs` 升级到 `review_schema: 2`。旧 schema 1 的 plan/review 不再可供当前登记器使用，必须重新生成计划和审查记录。
-- 普通文件审批结果绑定 `result_sha256` 与 `result_mode`；登记器同时验证项目实际内容/权限。源快照摘要写入 `manifest.last_upgrade.source_inventory_sha256`，为后续审计保留目标模板来源证据。
-- 当前审批/计划契约为 `plan_schema: 2` / `review_schema: 2`；旧 schema 1 文件不被兼容接受，必须重新生成 plan/review。README 与 MIGRATION 已明确说明，避免维护者手改旧 JSON 字段。
-- `.gitignore` 特殊处理：模板源 `.gitignore.append` 含 `{{IGNORE_ENTRIES}}`，项目内是按 project profile 渲染后的托管区块，不能直接比较源文件原始 SHA 与渲染区块 SHA。登记器验证固定模板前缀/后缀、占位符唯一且已被替换，审批结果只哈希标记包围的区块，不记录整个 `.gitignore` 文件权限；区块外项目自有忽略规则保留。
-- `tests/test-template-upgrade-record.cjs` 增加计划后模板源新增文件拒绝、审批权限结果被篡改拒绝、`.gitignore` 管理区块升级以及区块外项目规则保留的回归；Windows CI 的 Regression tests step 设置 `PYTHONUTF8=1`，避免系统 cp1252 环境下 Python 中文输出造成 `UnicodeEncodeError`。
-- 期间 CI 曾发现并修复真实问题：升级记录 fixture 的 `.gitignore` 换行假设不兼容 Windows、一个修复中括号缺失、Windows Python 控制台编码问题。不要沿用这些失败 SHA 的结果；当前最终 HEAD 的 push/PR 全部通过。
-- 最新 HEAD `18f16abb0bc847bf02c252a8e9f9d8e93c3ba2a3`：Push [42512897301](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42512897301) 和 PR [42512903054](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42512903054) 的 Ubuntu / Windows jobs 均成功。包括 plan/review/recovery/record 的升级全链路测试，以及 doc links 检查。
-- README、MIGRATION-v2.0、SPEC-v2.0、CHANGELOG 与 `UPGRADE-RECORD-TEMPLATE.md` 已同步 schema、source inventory、result_mode 和 `.gitignore` 特殊处理说明。
-- 目前仍无自动升级应用器/自动回滚器；登记器只更新 `.agent-standards.json`，不应用模板文件。PR #2 继续 Open / Draft，未合并；未修改 `main`；未进行真实 SaaS 项目试点。
-## 已完成
+起因：本地把 v2 分支快进到 origin 后跑测试，`test-parity` 与 `test-capability-resolver` 在 Windows 上必挂。排查后确认不是环境问题，是产品与测试的真实缺陷。
 
-- 2.0 七大方向的设计基线在 `SPEC-v2.0.md`；能力画像、治理检查、任务上下文解析器与模板夹具测试已在该分支实现。
-- 多客户端入口维持单一正文：`template/AGENTS.md` 是正文，`CLAUDE.md` 和 `GEMINI.md` 仅导入它；不生成废弃的 `.cursorrules`。
-- 客户端适配测试覆盖模板契约及初始化后的 fixture，不等同于真实 CLI 端到端验证。
-- 当前适配矩阵记录：Codex 的同目录 `AGENTS.override.md` 替代 `AGENTS.md`；Claude Code 导入最多四跳；Cursor 支持根目录和子目录 `AGENTS.md`，更具体的目录优先。自动化测试验证模板契约，不启动真实 CLI。
-- `tests/test-migration-v2.cjs` 已通过临时 fixture 演练了 2.0 迁移的安全路径；CI 已扩展至 Ubuntu 和 Windows。
+### 修复
 
-## 本机验证结果
+| 缺陷 | 根因 | 处理 |
+|---|---|---|
+| Node/Python 输出不等 | Windows 文本模式 stdout 把 `\n` 翻成 `\r\n`，Node 不翻，断言比原始字节 | Python 检查器把 stdout/stderr 固定为 UTF-8 + LF |
+| 字节预算跨平台不等价 | 预算读磁盘原始字节；同一 `AGENTS.md` LF 11814B / CRLF 12029B（预算 12288B → 96% vs 98%） | 按 LF 归一化后计字节，Node 与 Python 同口径 |
+| BOARD 跨平台误判过期 | 源哈希与生成哈希对原始字节取 SHA；Windows 生成的看板在 Linux 必判过期 | 两侧哈希都归一化，`generate-board` 写入也统一 LF |
+| parity 夹具清单非法 | 字面量写成 4 个字符而非合法 JSON；只查存在性所以没暴露 | 改为合法的空对象加换行 |
 
-- 本机通过：`test-migration-v2`、`test-policy`、`test-task-context-resolver`、`test-client-adapters`、`test-v2-spec`。
-- 本机未安装可用 Python，因此没有将 `test-init`、`test-parity`、`test-capability-resolver` 记为本机通过。
-- CI 已在 Ubuntu 与 Windows 的 Python 3.11 环境完整通过；本轮开始前最新 HEAD `f5e90e6a74f5f45744a750b24486864e674372a0` 的 push 与 pull_request runs [42461258625](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42461258625)、[42461262647](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42461262647) 均成功。
+### 新增闸门（都对应已发生过的错误，不是假想风险）
 
-## 本轮记忆与上下文管理改进
+- `test-parity`：CRLF 检出的预算字节必须与 LF 一致；CRLF 的 `BOARD.md` 仍须通过校验。
+- `test-doc-links`：README 目录树必须解析得到真实路径。此前已漂移——漏了 5 个根文档、7 个测试、4 个模板脚本。
+- `test-init`：模板里每个 `{{KEY}}` 都必须是 init 认识的键。`fill()` 会把未知键降级成可见的 `（待填：KEY）` 而不是报错，等于把半填好的文件发给用户。
+- `test-migration-v2`：空项目**真实首次安装**后治理检查必须直接通过。此前只覆盖 `--dry-run`，而那正是用户最常见的第一条路径。
 
-- `template/.memory/MEMORY.md`：断点仅在跟踪任务收口或跨会话暂停时更新；轻量任务不强制写记忆；任务流水保留在任务卡 `log.md`；历史收口记录指向实际存在的 `.memory/log/`。
-- `tests/test-v2-spec.cjs`：增加记忆生命周期、路径存在性和不重复记录任务流水的契约断言。
-- `SPEC-v2.0.md`：补充第三方向验收口径和实现证据；不把记忆体系标记为完成，跨客户端实际恢复效果仍未验证。
-- `CHANGELOG.md`：新增 2.0.0-rc.9 记录。
-- 纠正本文件中历史验证记录过旧的问题；分支最新 HEAD 和 CI 状态仍以 GitHub 实时查询为准。
+### 顺带修正
 
-## 本轮任务与路线图归档完整性改进
+- 升级计划/审批测试改为从真实版本号推导目标版本，升版本不再需要改测试（实测把版本临时改成 rc.16，5 个升级测试全过）。
+- README 目录树按实际仓库重写；`gov.toml [budget]` 补上计量口径说明；`PITFALLS` 新增 P13（换行符使预算与哈希跨平台不等价）、P14（"CI 全绿"不能跨会话转述）。
 
-- 发现原治理检查器只验证活跃任务/里程碑目录，归档目录被排除扫描后，归档索引、目录指针、任务数量及详情文件没有完整性校验。
-- Node 与 Python 治理检查器现在双向核对活跃索引和归档索引；验证归档目录安全路径、任务波次数量、每张归档卡的 `card.md` / `log.md`，以及归档里程碑的 `milestone.md`。
-- `tests/test-parity.cjs` 新增有效归档、任务数量不一致、缺失任务日志、缺失里程碑目录等 fixture，并继续比较 Node/Python 输出和退出码。
-- `SPEC-v2.0.md` 补充第四、第六方向证据；`CHANGELOG.md` 新增 rc.10。
-- 最新完整双平台 CI 对应 HEAD `62dcc9debae3beab514843e79256e7f163f17658`：push [42465012620](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42465012620) 与 pull_request [42465016365](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42465016365) 均成功，Ubuntu / Windows jobs 全绿；新增路径穿越与孤立归档目录用例。当前 HEAD 仍以 PR #2 实时指针为准。
+## 七大方向状态
 
-## 本轮工程治理与初始化机制补强
+`SPEC-v2.0.md` §5 现在是**可判定**的：6 个 `done`、1 个 `partial`（第七方向），每行都给出机器验证入口与已知限制。发布门槛 §3 的 8 项中 7 项已勾选。
 
-- `init.cjs` 校验未知参数和多目标参数；`--replace-hook` 必须与 `--force` 同时使用。
-- 初始化前通过 `lstat` 预检所有受管目标路径；嵌套符号链接、`.gitignore` 符号链接、非目录父路径会在任何模板写入前失败关闭。
-- 已存在的 BOARD 生成区块先以只读模式校验；初始化阶段执行仓库随附的可信生成器并传入 `--root`，不执行项目自有的 `scripts/generate-board.cjs`。
-- 写入使用同目录临时文件；覆盖文件保留备份，跟踪本次创建的目录；捕获运行时错误时按逆序恢复文件、权限并清理新建内容。
-- 回滚边界明确：覆盖可捕获的运行时异常，不保证进程被强制终止、断电或文件系统损坏时的原子性。迁移仍须先备份、dry-run 并审查差异。
-- `tests/test-init.cjs` 覆盖全树 dry-run 零写入、非法参数、目录/文件符号链接、BOARD 预检、项目自有生成器不执行、普通覆盖回滚，以及自有 Hook 替换失败后内容/权限恢复。
-- `README.md`、`MIGRATION-v2.0.md`、`SPEC-v2.0.md` 同步了安全边界与验收证据；`CHANGELOG.md` 新增 2.0.0-rc.11。
-- 最新代码提交：`ead3050647ae93dab80e7b1adcd6818b8d75cf06`。
-- 最新双平台 CI：Push [42474979601](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42474979601) 与 PR [42474984115](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42474984115) 均成功，Ubuntu / Windows jobs 全绿。
-- 第五方向仍为 in_progress：回滚不覆盖断电/强杀；迁移文档要求先备份。不要据此宣称具备完整文件系统事务保证。
+第七方向保持 `partial` 是刻意取舍：计划、审批、登记、漂移、恢复演练都可重复，但"人工应用 → 校验 → 推进基线"仍需维护者手工执行。按 §4 的边界，在真实升级成本有实证前不做自动应用器。
 
-## 本轮模板版本漂移与旧项目基线改进
+## 本机验证结果（2026-11-10）
 
-- 新增 `template/policy/standards-version.json`（2.0.0-rc.12），初始化生成 `.agent-standards.json`；逐文件记录模板源哈希、安装后哈希、安装权限、来源版本，并记录 `.gitignore` 托管区块、派生文件和能力裁剪路径。
-- 新增只读 `tools/check-template-drift.cjs`：区分上游更新、本地修改、双向冲突、文件缺失、新增模板文件和旧项目基线未知；不执行覆盖、合并或初始化。
-- 新增显式 `tools/adopt-template-baseline.cjs`：先 dry-run，再由维护者传入 `--confirm-reviewed`，只更新安装元数据；已审查接受的项目定制在未来发生上游改动时仍会触发冲突。
-- 测试覆盖 clean / partial / legacy baseline、local-only / upstream-only / two-sided conflict、新模板文件、只读保证、显式基线采纳、managed .gitignore 区块外/内修改、POSIX 文件权限漂移，以及项目/模板父目录符号链接拒绝。
-- 漂移与基线采纳工具逐级 `lstat` 路径组件，避免父目录符号链接绕过最终文件检查；托管区块读取也使用同一安全路径函数。
-- 最新已验证双平台 CI 对应 HEAD `c29a15560b30dd54c12ef799ad9a012d2e84feff`：Push [42485787979](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42485787979) 与 PR [42485793239](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42485793239) 均通过，Ubuntu / Windows jobs 全绿；包含父目录符号链接保护和托管区块读取路径修复。
-- 第七方向仍为 in_progress：跨版本真实迁移/回滚演练、支持矩阵与版本兼容策略仍需正式发布前验收。
+环境：Windows 11，Node v22.22.2，Python 3.13.14，`core.autocrlf=true`。
 
-## 本轮模板升级预览与人工审批闭环
+- 语法检查：19 个 `.cjs` / `.py` 全部通过。
+- 回归测试：**14 / 14 通过**（含 4 组模板升级测试、parity、init、migration、doc-links）。
+- 提交：`4667313`（本轮代码与文档），本文件随后单独提交。
 
-- 用户确认按此前建议顺序继续：先做只读升级预览和逐文件候选动作，再建立人工审批校验；本轮未实现自动覆盖或自动合并。
-- 新增 `tools/plan-template-upgrade.cjs`：将漂移分类生成稳定 `plan_id`、源/目标版本、逐文件状态、哈希证据、候选动作、全局阻断项和人工审批契约。只读，不写入/删除/替换/合并项目文件。
-- 预览分类覆盖上游更新、本地定制、双向冲突、上游移除、本地缺失、新增通用模板、项目已安装的技术栈预设、旧项目未知基线和未登记同名文件。
-- 技术栈预设仅在项目安装清单中有登记时参与漂移/升级计划；未选择的 PHP/Java/Python 等预设不应被误报成每个项目都要安装的新增文件。临时 Java 项目 fixture 验证已安装的 Java 预设上游更新会成为替换候选。
-- 安装清单只保存哈希、不保存基线正文。发现冲突只代表项目与上游都相对基线改变；必须从升级前 Git 历史、完整备份或对应旧模板 checkout 恢复共同基线，再人工三方合并。审批记录必须保存 `baseline_ref` 与 `merge_result_ref`；找不到共同基线时不得声称已完成三方合并。
-- 新增 `tools/validate-template-upgrade-review.cjs`：只读校验人工审查 JSON 是否绑定同一个完整计划指纹、每个待审路径是否有且仅有一个合法决策、reviewer/reviewed_at/reason 是否齐全，以及 manual_merge 是否有基线/合并结果来源。审批校验通过不是签名、授权凭证，也不表示变更已应用。
-- `plan_id` 现在对整个计划内容做指纹，包括版本、阻断项、每项建议动作、人工确认要求、理由和哈希证据；修改计划内容后旧审查记录会失效。审批决策采用固定白名单，不信任计划文件自行扩展决策枚举。
-- 新增 `tests/test-template-upgrade-plan.cjs` 与 `tests/test-template-upgrade-review.cjs`，并纳入 `.github/workflows/standards-ci.yml`。覆盖零写入、稳定 plan id、通用模板与已安装技术栈预设、local/upstream/conflict/removal/missing/add/collision 分类、legacy baseline blocker、审批缺失/重复/错误、计划篡改与冲突基线来源。
-- README 与迁移指南已加入 plan 生成、审查 JSON、校验命令和人工恢复流程；SPEC 第七方向加入审批证据与边界；CHANGELOG 记录 2.0.0-rc.13。
-- 最新已验证代码 HEAD `4e45b10c2a26ee9f76ca0e4cde6d842c95dc6398` 的 Push [42492535487](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42492535487) 与 PR [42492540414](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42492540414) 均通过；日志明确显示 `test-template-drift`、`test-template-upgrade-plan`、`test-template-upgrade-review` 在 Ubuntu / Windows 均通过。
-- 当前仍无升级应用器和自动回滚器。下一阶段先用临时 fixture 演练“人工执行一小批已批准变更 → 治理/测试失败 → 从备份恢复 → 重新验证”的操作手册与测试证据；在这条流程可重复前，不开发自动应用器，也不对真实 SaaS 项目试点。
-- PR #2 继续保持 Draft / Open；没有合并，没有修改 `main`。
-## 本轮人工升级失败恢复演练
+**未验证**：本轮提交在 GitHub Actions 的 Ubuntu / Windows 双平台结果。必须按该 commit 的 push 与 pull_request runs 复核后才能宣称全绿。
 
-- 新增 `tests/test-template-upgrade-recovery.cjs`，仅创建系统临时目录中的一次性项目与规范 checkout，不访问真实 SaaS 项目。
-- 演练步骤：初始化临时项目并确认治理通过 → 制作项目外完整备份 → 对目标规范版本生成升级计划 → 对逐项待审决策生成 review JSON 并通过 `validate-template-upgrade-review.cjs` → 手工应用获批小批次（模板规则文件 + `policy/standards-version.json` 项目版本元数据） → 注入未登记根目录使治理检查失败 → 停止升级并恢复整个工作树 → 对比恢复前后文件、目录、符号链接和权限快照 → 重新运行治理检查、漂移检查和升级计划。
-- 恢复验收：恢复后对旧规范仓库的 drift 报告必须 `ok=true`；对目标新版本的升级计划 ID 必须与升级前完全一致，目标文件重新显示 `update_available`；失败注入目录必须不存在。
-- 该演练验证的是人工备份/恢复流程，不是自动升级应用器或自动回滚器；生产项目仍应优先用升级前 Git commit/独立 worktree，并在项目外保存第二份备份。恢复不完整或没有重新验证时必须标记 `unverified`。
-- 成功升级基线推进器已新增：`tools/record-reviewed-template-upgrade.cjs`。它在人工应用模板并验证项目之后校验 plan_id/review、来源版本、逐文件原基线哈希、当前上游源哈希和每个结果 SHA-256；只推进已批准且已执行条目，并在所有计划项解决后更新整体 installed_with_version。它仅写 manifest，不应用文件，也不自动回滚。
-- CI 曾按测试日志发现两个真实假设问题：升级计划不只包含业务规则文件，也会包含项目内版本元数据更新；此外，审查决策应覆盖计划中所有待审项，而实际演练只应用已明确选定的小批次。当前 fixture 已修正为完整审核所有待审项，并手工应用两项替换候选。
-- 最新测试代码 HEAD `02d4337d9e7b12416b0c2069b94aba6e85dd731a` 的 Push [42493895276](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42493895276) 与 PR [42493900304](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42493900304) 全部成功。CI 日志确认 Ubuntu / Windows 的 `test-template-upgrade-recovery: all cases passed`，并且 plan/review/drift/migration 测试通过。
-- 最新文档 HEAD `35fbfac7d23c3a5fb0bd199fe560ff088c8f7791` 的 Push [42493962678](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42493962678) 与 PR [42493967270](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42493967270) 也全部成功；README、迁移指南、SPEC 与 CHANGELOG 已同步恢复演练内容及“审批校验不应用变更”的边界。
-- PR #2 保持 Draft / Open；未合并、未修改 `main`、未进行真实项目试点。
+## 已知限制（不得越界声称）
 
-## 本轮成功升级基线登记与分批延期
+- 未启动任何真实客户端 CLI（Codex / Claude Code / Gemini / Cursor），客户端兼容性只到入口与导入契约层面。
+- 自动升级应用器、自动回滚器、真实跨版本项目迁移均未实现；不得把预览、审批或基线登记描述成自动迁移完成。
+- 初始化的事务边界只覆盖可捕获的运行时异常；进程被强杀或断电不在保证内。
+- 锚点链接（`#标题`）未纳入文档校验，因为当前仓库未使用该形式。
+- 跨客户端的记忆恢复效果未独立验证。
 
-- 新增 tools/record-reviewed-template-upgrade.cjs：在人工应用获批文件并完成项目验证后，只更新 .agent-standards.json；不会复制/删除/合并模板文件。校验计划 plan_id、review 完整性、来源/目标版本、旧 manifest 基线哈希、当前模板源哈希与实际结果 SHA-256。
-- 支持替换、新增、恢复、三方合并、本地定制接受、上游删除（确认删除或明确保留）和已登记同名文件归属确认；人工合并需记录 baseline_ref / merge_result_ref / result_sha256。
-- 登记写入使用同目录临时文件、fsync 和原子 rename；所有校验发生在 manifest 写入前，失败时旧 manifest 保持原样。仍不提供自动升级应用器或自动回滚器。
-- 进一步支持显式 decision=defer：延期条目必须保持计划生成时的文件存在状态、内容 SHA-256 和权限，不推进该路径基线；只要有 defer，整体 installed_with_version 保持 source_version，last_upgrade.status=partial。重新生成计划后继续完成剩余条目，全部处理后才推进整体版本。
-- tests/test-template-upgrade-record.cjs 已覆盖：完整升级登记、替换/新增/本地定制/人工合并/上游删除、dry-run 零写入、结果哈希篡改拒绝、旧计划重放拒绝；另外覆盖延期一个新增文件和一个已有上游更新文件，确认两者原状态/旧逐文件基线保留，再重新计划并完成，最终 drift 清零。
-- 代码 HEAD 6d4dca724b01b99134f6ade26dc439c1d7b40843 的 Push https://github.com/broadteam/agent-develop-project-standards/actions/runs/42497163179 与 PR https://github.com/broadteam/agent-develop-project-standards/actions/runs/42497167640 均通过；Ubuntu / Windows 的 test-template-upgrade-record: all cases passed，drift/plan/review/recovery 测试也均通过。
-- README、MIGRATION-v2.0、SPEC、CHANGELOG、SESSION-HANDOFF 与升级记录模板已同步分批登记语义。功能分支 HEAD `6e199a2c20e1e554e760b136acb83e1f74385f78` 的 Push [42498077916](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42498077916) 与 PR [42498083089](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42498083089) 均通过；Ubuntu / Windows 全绿，`test-doc-links` 检查 37 个 Markdown 文件，plan/review/recovery/record 测试全部通过。
-- PR #2 保持 Draft / Open，未合并；未进行真实 SaaS 项目试点。注意：本轮曾因一次 GitHub create_file 调用漏传 branch，将 `UPGRADE-RECORD-TEMPLATE.md` 短暂提交到默认分支 main（提交 `9111072980fcaac114ed91318f266215cd0e3b35`，该提交只新增此文件）。随后提交删除恢复（`59862672187bcef3b70e6a1fb2adc2425900015f`，只删除此文件）；已核对删除提交的 tree SHA 与误提交前父提交 `e7cb21bad50f9132775a062ee1d7fc6407cd4289` 的 tree SHA 完全一致（`215566cc488e6c90495adf42f83adbded2486fbe`）。因此 main 当前文件树已恢复，但 Git 历史保留新增/删除两条提交；之后所有创建写入均显式传入功能分支。
+## 下一步
 
-- 新增 `UPGRADE-RECORD-TEMPLATE.md`：记录版本和 commit、项目外备份引用、plan/review 与 SHA-256、逐路径决定、defer 批次、测试/构建结果、manifest 登记输出及失败恢复证据；README 和迁移指南已链接该模板。
-## 下一步（按既定优先级）
+1. 推送本分支，按本轮提交的 push / pull_request runs 复核双平台 CI；不绿先修，绿了才把发布门槛第 7 项勾上。
+2. 复核第七方向剩余项：`keep_or_archive`、`accepted_removed`、managed block、`defer` 的长期漂移行为，补最小回归；保持不自动应用文件。
+3. 若要推进第七方向到 `done`，先按 `UPGRADE-RECORD-TEMPLATE.md` 完成一次真实跨版本升级的人工记录。
+4. 门槛全绿后再决定是否把 `2.0.0-rc.15` 标记为 `2.0.0`。
 
-1. 以 `plan_schema: 2` / `review_schema: 2` 为当前审批契约；旧 schema 1 文件必须重新生成，不要手动迁移 JSON。
-2. 对照最初七大方向逐项审查未完成项，重点核对 SPEC 状态表、README 目录树、模板实际文件、测试清单与 CHANGELOG 版本的一致性。
-3. 复核升级登记器中 `keep_or_archive`、`accepted_removed`、managed block、defer 的长期漂移行为，并补最小回归；保持不自动应用文件。
-4. 复核升级记录模板是否足够精简；保留可追溯字段，不要求归档完整备份内容，只保存项目外备份引用与校验结果。
-5. 不开展真实 SaaS 项目试点，不实现自动升级应用器或自动回滚器，除非后续重复人工操作成本和失败风险有真实证据支撑。
 ## 恢复工作的方法
 
-新会话先读取本文件、`SPEC-v2.0.md`、当前 `git status --short --branch` 和相关测试；不要把旧聊天摘要当作仓库事实。遇到客户端行为变更时，先核对该客户端的官方文档，再修改兼容性说明和契约测试。
+新会话先读本文件、`SPEC-v2.0.md` §5、`git status --short --branch`，然后跑 `node tests/*.cjs`（Windows 上需 `PYTHONUTF8=1`）。不要把旧聊天摘要当作仓库事实；遇到客户端行为变更，先核对该客户端官方文档，再改兼容性说明和契约测试。
