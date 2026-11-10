@@ -166,6 +166,7 @@ project-standards/
 │   ├── test-task-context-resolver.cjs
 │   ├── test-intent-continuity.cjs
 │   ├── test-intent-continuity-simulation.cjs
+│   ├── test-intent-alignment-review.cjs
 │   ├── test-traceability-contract.cjs
 │   ├── test-traceability-governance.cjs
 │   ├── test-policy.cjs
@@ -437,6 +438,11 @@ node tools/record-reviewed-template-upgrade.cjs \
 node tests/test-init.cjs
 node tests/test-capability-resolver.cjs
 node tests/test-task-context-resolver.cjs
+node tests/test-intent-continuity.cjs
+node tests/test-intent-continuity-simulation.cjs
+node tests/test-intent-alignment-review.cjs
+node tests/test-traceability-contract.cjs
+node tests/test-traceability-governance.cjs
 node tests/test-parity.cjs
 node tests/test-policy.cjs
 node tests/test-v2-spec.cjs
@@ -461,3 +467,8 @@ node tests/test-doc-links.cjs
 ### 长期意图连续性模拟测试
 
 `tests/test-intent-continuity-simulation.cjs` 使用临时项目状态快照模拟同一会话内的临时插单、Agent pending 建议、用户明确纠正、冲突待裁定、跨会话恢复、任务完成但需求未验证，以及最终证据通过等阶段；每个阶段同时运行 Node/Python 追踪校验并比较结果。它验证状态文件与追踪关系的转换约定，不模拟或保证真实 LLM 的行为，真实 Agent 行为仍需通过实际项目试点观察。
+
+
+### 项目意图对齐审查
+
+跟踪任务在进入 `in_progress` 前填写任务卡的「开工意图对齐」，进入 `review` / `done` 前填写「收口意图对齐」。收口要基于实际 diff、提交 SHA、测试与需求验收证据，区分 `aligned`、`justified_adjustment`、`user_confirmed_change` 和 `unresolved_drift`。未解决漂移不得标记任务 `done`；里程碑关闭前还需逐项对照目标成功判据。机器校验只检查字段完整性、有效引用和状态约束，不声称能自动证明代码在语义上符合用户意图。`tests/test-intent-alignment-review.cjs` 覆盖这些规则及 Node/Python 检查器一致性。

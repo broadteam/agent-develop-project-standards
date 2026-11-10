@@ -34,6 +34,18 @@
 |---|---|---|
 |  |  |  |
 
+## 里程碑意图对齐回顾（状态改为已完成前填写）
+
+- 目标成功判据对照：（逐项说明目标是否达成，不以任务 done 数量代替）
+- 实际交付与依据：（实际交付、关键 diff/commit、测试与运行证据）
+- 需求验收覆盖：（Rnnn 对应的 Vnnn；deferred/withdrawn 必须引用用户确认的 Cnnn）
+- 偏离结论：aligned | justified_adjustment | user_confirmed_change | unresolved_drift
+- 偏离理由及已确认变化：（无偏离写“无”；变化必须引用 accepted Cnnn）
+- 未解决漂移：（无则写“无”；有则不得将里程碑标记已完成）
+- 后续动作：（无则写“无”；否则列出任务/裁定）
+
+> 里程碑关闭前由 Agent 基于实际任务 diff、验收记录和目标成功判据完成语义审查；自动校验器不能替代该判断。
+
 ## 明确不做（本阶段 Non-goals）
 
 -

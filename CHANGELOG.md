@@ -1,5 +1,14 @@
 ## Unreleased
 
+### Added
+- Add task-level intent alignment review: tracked work records its baseline/accepted-change anchors before implementation and compares actual diffs, commits and verification evidence before closeout. Unresolved drift cannot be marked done.
+- Add milestone-level goal-success-criteria review and Node/Python checker enforcement for required task alignment records, accepted change references, closeout classifications and evidence pointers.
+
+### Tests
+- Add positive/negative intent-alignment contract tests for omitted goals/requirements, pending changes, missing closeout, unresolved drift, unjustified adjustments, invalid evidence references and missing commit proof.
+
+## Unreleased
+
 ### Tests
 - Add a multi-stage intent continuity simulation covering bounded interruptions, pending Agent proposals, accepted user corrections, unresolved conflicts, explicit conflict resolution, session resume, task-done/requirement-not-verified separation, and final passing evidence; compare Node/Python results at each state.
 

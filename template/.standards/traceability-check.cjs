@@ -19,7 +19,16 @@ function validateTraceability(root) {
   const taskIndex = read('.spec/tasks/index.md');
   const roadmapIndex = read('.spec/roadmap/INDEX.md');
   const goals = unique(rows(baseline).filter(r => /^G\d+$/.test(r[0]) && !isPlaceholder(r)).map(r => r[0]), 'G');
-  const changes = unique([...changesText.matchAll(/^###\s+(C\d+)\s+—\s+(.+)$/gm)].filter(m => !/简短标题|示例/.test(m[2])).map(m => m[1]), 'C');
+  const changeHeadings = [...changesText.matchAll(/^###\s+(C\d+)\s+—\s+(.+)$/gm)].filter(m => !/简短标题|示例/.test(m[2]));
+  const changes = unique(changeHeadings.map(m => m[1]), 'C');
+  const changeStatuses = new Map();
+  for (const match of changeHeadings) {
+    const start = match.index + match[0].length;
+    const next = changesText.indexOf('\n### ', start);
+    const block = changesText.slice(start, next < 0 ? undefined : next);
+    const status = (block.match(/^- 状态：(.+)$/m) || [,''])[1].trim();
+    changeStatuses.set(match[1], status);
+  }
   const requirements = new Map();
   for (const r of rows(reqText)) {
     if (!/^R\d+$/.test(r[0]) || isPlaceholder(r)) continue;
@@ -53,7 +62,9 @@ function validateTraceability(root) {
     if (!/^V\d+$/.test(r[0]) || isPlaceholder(r)) continue;
     if (!evidenceRecords.has(r[0])) errors.push(`追踪关系：索引中的验证证据 ${r[0]} 缺少详情记录`);
   }
-  const taskIds = rows(taskIndex).filter(r => /^T\d+$/.test(r[0])).map(r => r[0]);
+  const taskRows = rows(taskIndex).filter(r => /^T\d+$/.test(r[0]));
+  const taskIds = taskRows.map(r => r[0]);
+  const taskStatuses = new Map(taskRows.map(r => [r[0], r[2] || '']));
   const taskRefs = new Map();
   for (const id of taskIds) {
     const card = read(`.spec/tasks/${id}/card.md`);
@@ -66,6 +77,56 @@ function validateTraceability(root) {
     for (const x of refs.reqs) if (!requirements.has(x)) errors.push(`追踪关系：任务 ${id} 引用了不存在的需求 ${x}`);
     for (const x of refs.changes) if (!changes.has(x)) errors.push(`追踪关系：任务 ${id} 引用了不存在的变更 ${x}`);
     if (!refs.goals.length && !/supporting:/.test(goalCell) && (goals.size > 0 || requirements.size > 0)) errors.push(`追踪关系：任务 ${id} 必须关联目标或说明 supporting 关系`);
+    const alignmentMode = (card.match(/^- 意图对齐：(.+)$/m) || [,''])[1].trim();
+    const taskStatus = taskStatuses.get(id);
+    if (alignmentMode === 'required' && ['in_progress','review','done'].includes(taskStatus)) {
+      const section = (heading) => {
+        const marker = '## ' + heading;
+        const at = card.indexOf(marker);
+        if (at < 0) return '';
+        const start = card.indexOf('\n', at) + 1;
+        const next = card.indexOf('\n## ', start);
+        return card.slice(start, next < 0 ? undefined : next);
+      };
+      const field = (body, label) => (body.match(new RegExp('^- '+label+'：(.+)$','m')) || [,''])[1].trim();
+      const kickoff = section('开工意图对齐');
+      if (!kickoff) errors.push('意图对齐：任务 ' + id + ' 缺少开工意图对齐记录');
+      const anchorText = field(kickoff, '对齐目标与需求');
+      const kickoffGoals = anchorText.match(/G\d+/g) || [];
+      const kickoffReqs = anchorText.match(/R\d+/g) || [];
+      const kickoffChanges = field(kickoff, '已接受变更').match(/C\d+/g) || [];
+      if (!kickoffGoals.length && !/supporting:/.test(anchorText)) errors.push('意图对齐：任务 ' + id + ' 开工记录缺少目标或 supporting 说明');
+      for (const ref of kickoffGoals) if (!goals.has(ref)) errors.push('意图对齐：任务 ' + id + ' 开工记录引用了不存在的目标 ' + ref);
+      for (const ref of kickoffReqs) if (!requirements.has(ref)) errors.push('意图对齐：任务 ' + id + ' 开工记录引用了不存在的需求 ' + ref);
+      for (const ref of refs.goals) if (!kickoffGoals.includes(ref)) errors.push('意图对齐：任务 ' + id + ' 开工记录遗漏关联目标 ' + ref);
+      for (const ref of refs.reqs) if (!kickoffReqs.includes(ref)) errors.push('意图对齐：任务 ' + id + ' 开工记录遗漏关联需求 ' + ref);
+      for (const ref of kickoffChanges) if (changeStatuses.get(ref) !== 'accepted') errors.push('意图对齐：任务 ' + id + ' 开工记录引用了非 accepted 变更 ' + ref);
+      for (const ref of refs.changes) if (!kickoffChanges.includes(ref) || changeStatuses.get(ref) !== 'accepted') errors.push('意图对齐：任务 ' + id + ' 开工记录未覆盖已关联的 accepted 变更 ' + ref);
+      for (const label of ['预期贡献','保留约束']) {
+        const value = field(kickoff, label);
+        if (!value || /（|\(|待填写|TODO/i.test(value)) errors.push('意图对齐：任务 ' + id + ' 开工记录缺少有效的' + label);
+      }
+      if (['review','done'].includes(taskStatus)) {
+        const closeout = section('收口意图对齐');
+        if (!closeout) errors.push('意图对齐：任务 ' + id + ' 进入 ' + taskStatus + ' 前缺少收口意图对齐记录');
+        const outcome = field(closeout, '结论');
+        const difference = field(closeout, '计划与实际差异');
+        const reason = field(closeout, '偏离理由');
+        const proof = field(closeout, '实现依据');
+        const evidenceRefs = field(closeout, '验证证据').match(/V\d+/g) || [];
+        const confirmedChanges = field(closeout, '对应已确认变更').match(/C\d+/g) || [];
+        const impact = field(closeout, '目标/需求影响');
+        const next = field(closeout, '未解决问题/后续动作');
+        if (!['aligned','justified_adjustment','user_confirmed_change','unresolved_drift'].includes(outcome)) errors.push('意图对齐：任务 ' + id + ' 收口结论非法或缺失');
+        for (const item of [['计划与实际差异',difference],['目标/需求影响',impact],['未解决问题/后续动作',next]]) if (!item[1] || /（|\(|待填写|TODO/i.test(item[1])) errors.push('意图对齐：任务 ' + id + ' 收口记录缺少有效的' + item[0]);
+        if (!/[a-f0-9]{40}/i.test(proof) && !/^no-code[:：]\s*.+/i.test(proof)) errors.push('意图对齐：任务 ' + id + ' 收口记录缺少完整 Commit SHA 或 no-code 原因');
+        for (const ref of evidenceRefs) if (!evidenceRecords.has(ref)) errors.push('意图对齐：任务 ' + id + ' 收口记录引用了不存在的验证证据 ' + ref);
+        if (outcome === 'justified_adjustment' && (!reason || reason === '无' || reason === '—')) errors.push('意图对齐：任务 ' + id + ' 的 justified_adjustment 必须说明偏离理由');
+        if (outcome === 'user_confirmed_change' && !confirmedChanges.length) errors.push('意图对齐：任务 ' + id + ' 的 user_confirmed_change 必须填写对应的 accepted C 记录');
+        for (const ref of confirmedChanges) if (!refs.changes.includes(ref) || changeStatuses.get(ref) !== 'accepted') errors.push('意图对齐：任务 ' + id + ' 的收口变更 ' + ref + ' 未关联到任务或不是 accepted');
+        if (taskStatus === 'done' && outcome === 'unresolved_drift') errors.push('意图对齐：任务 ' + id + ' 存在 unresolved_drift，不能标记 done');
+      }
+    }
   }
   const milestoneIds = rows(roadmapIndex).filter(r => /^M\d+$/.test(r[0])).map(r => r[0]);
   const milestoneRefs = new Map();
