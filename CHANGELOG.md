@@ -1,6 +1,16 @@
 ## Unreleased
 
 ### Added
+- Define the second-stage traceability chain: project goals (G) map to accepted requirements (R), milestones (M) and tasks (T), while verification records (V) bind acceptance evidence to an exact commit.
+- Separate task completion, requirement verification, milestone completion and goal completion; none can be inferred from another.
+- Add lightweight requirements and verification registries, with explicit rules against creating a requirement for every small task.
+
+### Tests
+- Add a traceability contract regression test and include it in the Ubuntu/Windows CI matrix.
+
+## Unreleased
+
+### Added
 - 为长期项目补上目标连续性基础：原始目标基线与后续意图变更分离记录；跟踪任务上下文强制读取两者，任务卡/里程碑通过稳定 ID 追踪目标。明确对话增量分类、计划偏离回顾与局部修复不得替代整体目标验收。
 - 增加目标连续性模板契约测试与任务上下文回归覆盖；不改变 3.0.0 已发布版本号。
 

@@ -97,6 +97,8 @@ node .standards/task-context-resolver.cjs --input .tmp/task-context.json --forma
 
 只有影响目标、范围、验收、约束、优先级或关键决策的对话内容才进入变更账本；普通澄清和一次性排障不记录。跟踪任务恢复、里程碑收口和会话交接时必须回顾基线及相关变更。详见模板文件与 `AGENTS.md`。
 
+目标连续性进一步通过需求与验证证据形成闭环：`.spec/requirements/INDEX.md` 用 `Rnnn` 登记可验收要求，任务卡和里程碑引用需求；`.spec/verification/INDEX.md` 用 `Vnnn` 记录测试、人工检查或 CI 证据，并绑定被验证的 commit SHA。任务 `done`、需求 `verified`、里程碑完成和目标完成是不同状态，不得互相替代。轻量维护任务不必创建需求。
+
 ### 初始化参数
 
 | 参数 | 行为 |
