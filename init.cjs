@@ -733,8 +733,12 @@ if (fs.existsSync(legacyScripts)) {
     // Restrict deletion to the exact legacy tool names. The manifest is project-editable data,
     // so a startsWith("scripts/") check alone would allow path traversal outside the project.
     for (const rel of Object.keys(previousManifest?.managed_files ?? {})) {
+      if (!rel.startsWith('scripts/')) continue;
       const match = /^scripts\/([^/\\]+)$/.exec(rel);
-      if (!match || !legacyToolNames.has(match[1])) continue;
+      if (!match || !legacyToolNames.has(match[1])) {
+        report.warnings.push('安装清单包含非标准旧工具路径，未自动删除：' + rel);
+        continue;
+      }
       const file = path.join(legacyScripts, match[1]);
       let stat;
       try { stat = fs.lstatSync(file); }
