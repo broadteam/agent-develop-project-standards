@@ -17,7 +17,7 @@ function write(rel, content) {
 }
 function pythonErrors() {
   const script = [
-    'import json, sys',
+    'import json, sys; sys.dont_write_bytecode = True',
     'from pathlib import Path',
     `sys.path.insert(0, ${JSON.stringify(path.resolve(__dirname, '../template/.standards'))})`,
     'from traceability_check import validate_traceability',
