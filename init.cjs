@@ -161,6 +161,32 @@ const FORBIDDEN_PATTERNS = (() => {
 // Only markdown: .bak/.orig/.DS_Store are junk to delete, not plans to import.
 const isPlanFile = (name) => name.toLowerCase().endsWith('.md') && FORBIDDEN_PATTERNS.some((re) => re.test(name));
 const planFiles = IMPORT_PLANS ? entries.filter((e) => e.isFile() && isPlanFile(e.name)).map((e) => e.name).sort() : [];
+
+// A project that already wrote its own entry file is the common case, not the exception. If that
+// file is over the template's budget, installing anyway means the very first governance run fails
+// on it — and the project ends up with two rule systems that nobody reconciles. Say so before
+// writing anything, instead of leaving a half-adopted tree behind.
+const TEMPLATE_BUDGET = (() => {
+  const line = fs.readFileSync(path.join(TEMPLATE, 'gov.toml'), 'utf8').split(/\r?\n/).find((entry) => /^\s*agents_bytes\s*=/.test(entry));
+  const value = line ? Number((line.match(/=\s*(\d+)/) || [])[1]) : NaN;
+  return Number.isFinite(value) ? value : null;
+})();
+const entryFile = path.join(TARGET, 'AGENTS.md');
+const entryBytes = (() => {
+  if (!fs.existsSync(entryFile)) return 0;
+  const raw = fs.readFileSync(entryFile);
+  return raw.length - (raw.toString('latin1').split('\r\n').length - 1);
+})();
+if (TEMPLATE_BUDGET && entryBytes > TEMPLATE_BUDGET && !FORCE
+  && !(previousManifest?.managed_files?.['AGENTS.md'])) {
+  console.error(`[init] 目标项目已有自己的 AGENTS.md（${entryBytes}B），是模板预算 ${TEMPLATE_BUDGET}B 的 ${(entryBytes / TEMPLATE_BUDGET).toFixed(1)} 倍。`);
+  console.error('      模板不会改写你的入口文件，但装完之后治理检查会直接判它超预算。三条路，选一条再来：');
+  console.error('      1. 拆分（推荐）：细则搬进 .spec/01-architecture.md、.spec/02-conventions.md，AGENTS.md 只留入口与指针');
+  console.error(`      2. 不接管入口：只想用检查工具的话，先把 gov.toml 的 agents_bytes 调到 ≥${entryBytes}，再用 --force 装`);
+  console.error('      3. 不装：已有成熟规范的项目，装进去只会变成两套并存');
+  console.error('      未写入任何文件。');
+  process.exit(1);
+}
 const BUILD_DIRS = [BUILD_OUTPUT];
 const allowedDirs = [...new Set([...(STRICT_SCAN ? [] : existingDirs), ...TEMPLATE_DIRS, ...BUILD_DIRS])].sort();
 // Plan files are about to be imported out of the root, so they must not enter the whitelist.

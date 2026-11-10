@@ -1,3 +1,8 @@
+## 2.5.1 - 2026-11-10
+
+### Fixed
+- `init` refuses to install into a project whose own `AGENTS.md` exceeds the template budget, and writes nothing. Previously it skipped the file silently and installed the rest, so the very first governance run failed on the project's own entry file while `.spec/` sat there unread — two rule systems, neither authoritative. The refusal names the three real options: split the entry file into `.spec/`, keep the entry unmanaged and raise `agents_bytes`, or do not install at all.
+
 ## 2.5.0 - 2026-11-10
 
 ### Added

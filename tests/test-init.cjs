@@ -371,6 +371,19 @@ try {
     '项目自有同名文件不得被覆盖');
   assert.match(clashRun.stdout + clashRun.stderr, /从未管理过的同名文件/);
 
+  // A project that already wrote its own entry file, oversized, must be told before anything is
+  // written: the first governance run would fail on it and leave two rule systems nobody reconciles.
+  const bigEntry = path.join(tmp, 'big-entry-app');
+  fs.mkdirSync(bigEntry);
+  fs.writeFileSync(path.join(bigEntry, 'package.json'), JSON.stringify({ name: 'big-entry' }));
+  fs.writeFileSync(path.join(bigEntry, 'AGENTS.md'), '# 项目自己的规则\n' + '规则一行\n'.repeat(2000));
+  const bigBefore = JSON.stringify(snapshotTree(bigEntry));
+  const bigRun = spawnSync(process.execPath, [path.join(root, 'init.cjs'), bigEntry], { encoding: 'utf8' });
+  assert.equal(bigRun.status, 1, '入口文件超出预算时必须拒绝安装');
+  assert.match(bigRun.stderr, /是模板预算/);
+  assert.match(bigRun.stderr, /拆分（推荐）/);
+  assert.equal(JSON.stringify(snapshotTree(bigEntry)), bigBefore, '拒绝时不得写入任何文件');
+
   console.log('test-init: all cases passed');
 } finally {
   fs.rmSync(junkDir, { recursive: true, force: true });
