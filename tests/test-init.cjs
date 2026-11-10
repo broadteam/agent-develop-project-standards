@@ -449,11 +449,20 @@ try {
   fs.writeFileSync(oldHookPath, oldHook);
   migrateManifest.managed_files['.githooks/pre-commit'].installed_sha256 =
     require('node:crypto').createHash('sha256').update(oldHook).digest('hex');
+  const externalManifestTarget = path.join(tmp, 'must-not-be-deleted.txt');
+  const externalManifestContent = 'outside the project root';
+  fs.writeFileSync(externalManifestTarget, externalManifestContent);
+  migrateManifest.managed_files['scripts/../../must-not-be-deleted.txt'] = {
+    installed_sha256: require('node:crypto').createHash('sha256').update(externalManifestContent).digest('hex'),
+    template_version: '2.7.1',
+  };
   fs.writeFileSync(migrateManifestPath, JSON.stringify(migrateManifest, null, 2));
 
   const migrateRun = spawnSync(process.execPath, [path.join(root, 'init.cjs'), migrateProject, '--update'], { encoding: 'utf8' });
   assert.equal(migrateRun.status, 0, migrateRun.stdout + migrateRun.stderr);
-  assert.match(migrateRun.stdout, /迁移/, '升级时应在报告里说明迁移了什么');
+  assert.match(migrateRun.stdout + migrateRun.stderr, /迁移/, '升级时应在报告里说明迁移了什么');
+  assert.ok(fs.existsSync(externalManifestTarget), '不可信 manifest 路径不得删除项目根目录之外的文件');
+  assert.match(migrateRun.stdout + migrateRun.stderr, /非标准旧工具路径/, '非标准旧路径应明确告警');
   for (const name of legacyToolNames) {
     assert.ok(!fs.existsSync(path.join(legacyDir, name)), '旧位置的受管脚本应被移除：' + name);
     assert.ok(fs.existsSync(path.join(migrateProject, '.standards', name)), '新位置应存在：' + name);
