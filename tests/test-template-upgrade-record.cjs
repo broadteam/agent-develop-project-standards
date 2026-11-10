@@ -101,8 +101,14 @@ function applyReviewedActions(project, standards, plan, deferPaths = new Set()) 
       const merged = fs.readFileSync(target, 'utf8') + '\n## Reviewed merged resolution\n';
       fs.writeFileSync(target, merged);
     } else if (action.operation === 'review_removal') {
-      assert.equal(decision, 'approve_removal');
-      fs.rmSync(target, { force: true });
+      // Upstream removed the file. If the project also changed it, deleting it would destroy
+      // local work, so the only legal decision is keep_or_archive; otherwise approve_removal.
+      if (action.approval === 'keep_or_archive') {
+        decision = 'keep_or_archive';
+      } else {
+        assert.equal(decision, 'approve_removal');
+        fs.rmSync(target, { force: true });
+      }
     } else if (action.operation === 'ownership_review') {
       decision = 'classify_existing_file';
     } else if (action.status === 'local_customized') {
@@ -452,6 +458,56 @@ try {
     /result_mode 不匹配/
   );
   assert.equal(fs.readFileSync(path.join(modeProject, '.agent-standards.json')).equals(modeManifestBefore), true);
+
+  // Long-term drift after an accepted upstream removal: when the project also diverged from
+  // the baseline, deleting the file would destroy local work. keep_or_archive must retain the
+  // file, advance the baseline, and leave a clean drift report with status accepted_removed.
+  const keepProject = path.join(tmp, 'keep-or-archive-project');
+  fs.mkdirSync(keepProject);
+  const keepInstall = init(keepProject);
+  assert.equal(keepInstall.status, 0, keepInstall.stdout + keepInstall.stderr);
+  const keepTarget = path.join(tmp, 'keep-or-archive-target');
+  cloneStandards(keepTarget);
+  const keepVersionFile = path.join(keepTarget, 'template/policy/standards-version.json');
+  const keepVersion = readJson(keepVersionFile);
+  keepVersion.version = '2.0.0-keep-fixture';
+  writeJson(keepVersionFile, keepVersion);
+  const removedPath = '.spec/03-delivery.md';
+  fs.rmSync(path.join(keepTarget, 'template', removedPath));
+  fs.appendFileSync(path.join(keepProject, removedPath), '\n## Project-only delivery note\n');
+
+  const keepPlan = buildUpgradePlan({ projectRoot: keepProject, standardsRoot: keepTarget });
+  const removalAction = byPath(keepPlan, removedPath);
+  assert.equal(removalAction.status, 'upstream_removed');
+  assert.equal(removalAction.operation, 'review_removal');
+  assert.equal(removalAction.approval, 'keep_or_archive', '本地也改过时不得给出删除候选');
+
+  const keepReview = applyReviewedActions(keepProject, keepTarget, keepPlan);
+  assert.equal(validateReview(keepPlan, keepReview).valid, true);
+  assert.equal(keepReview.decisions.find(item => item.path === removedPath).decision, 'keep_or_archive');
+  assert.ok(fs.existsSync(path.join(keepProject, removedPath)), '审阅阶段不得删除本地已改动的文件');
+
+  const keepPlanFile = path.join(tmp, 'keep-plan.json');
+  const keepReviewFile = path.join(tmp, 'keep-review.json');
+  writeJson(keepPlanFile, keepPlan);
+  writeJson(keepReviewFile, keepReview);
+  const keepRecord = spawnSync(process.execPath, [
+    path.join(root, 'tools/record-reviewed-template-upgrade.cjs'),
+    '--root', keepProject,
+    '--standards-root', keepTarget,
+    '--plan', keepPlanFile,
+    '--review', keepReviewFile,
+    '--confirm-reviewed',
+    '--json'
+  ], { encoding: 'utf8' });
+  assert.equal(keepRecord.status, 0, keepRecord.stdout + keepRecord.stderr);
+
+  const keepManifest = readJson(path.join(keepProject, '.agent-standards.json'));
+  assert.equal(keepManifest.installed_with_version, keepVersion.version);
+  assert.ok(fs.existsSync(path.join(keepProject, removedPath)), 'keep_or_archive 必须保留项目文件');
+  const keepDrift = analyzeDrift({ projectRoot: keepProject, standardsRoot: keepTarget });
+  assert.equal(keepDrift.ok, true, JSON.stringify(keepDrift, null, 2));
+  assert.equal(keepDrift.findings.find(item => item.path === removedPath).status, 'accepted_removed');
 
   console.log('test-template-upgrade-record: all cases passed');
 } finally {
