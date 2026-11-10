@@ -27,6 +27,7 @@ try {
   const root = path.join(tmp, 'project');
   const files = [
     'AGENTS.md', '.memory/MEMORY.md', '.memory/PITFALLS.md', 'project-profile.toml',
+    '.spec/intent/BASELINE.md', '.spec/intent/CHANGES.md',
     'policy/capabilities.json', '.spec/00-constitution.md', '.spec/01-architecture.md',
     '.spec/02-conventions.md', '.spec/03-delivery.md', '.spec/REGISTRY.md',
     '.spec/tasks/index.md', '.spec/tasks/T12/card.md', '.spec/tasks/T12/log.md',
@@ -62,6 +63,8 @@ try {
   assert.ok(complexRequired.includes('.spec/00-constitution.md'));
   assert.ok(complexRequired.includes('.spec/01-architecture.md'));
   assert.ok(complexRequired.includes('.spec/adr/README.md'));
+  assert.ok(complexRequired.includes('.spec/intent/BASELINE.md'));
+  assert.ok(complexRequired.includes('.spec/intent/CHANGES.md'));
   assert.ok(complexRequired.includes('.spec/tasks/index.md'));
   assert.ok(complexRequired.includes('.spec/tasks/T12/card.md'));
   assert.ok(complexRequired.includes('.spec/roadmap/INDEX.md'));
@@ -82,6 +85,8 @@ try {
     uncertainty: 'high', cross_session: true
   }, { root, profile: overriddenProfile, registry });
   const overriddenPaths = overridden.requiredRead.map((x) => x.path);
+  assert.ok(!overriddenPaths.includes('.spec/intent/BASELINE.md'));
+  assert.ok(!overriddenPaths.includes('.spec/intent/CHANGES.md'));
   assert.ok(!overriddenPaths.includes('.spec/tasks/index.md'));
   assert.ok(!overriddenPaths.includes('.spec/adr/README.md'));
   assert.ok(overridden.warnings.some((x) => x.includes('task_tracking')));
