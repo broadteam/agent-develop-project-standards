@@ -10,9 +10,12 @@
 - A `gov.toml` the project had customized is skipped by `--update`, so its `[required].files` kept pointing at the removed `scripts/` paths and the first post-migration check failed with "缺少必需文件". The migration now rewrites those eight paths (and only those) in place, and ensures `.standards` is in `allowed_dirs`.
 - A hook this installer created and nobody edited was protected from `--update`, so a release that moves the checker path would leave it pointing at a file that no longer exists — failing closed on every commit. Unmodified installer-owned hooks now refresh; project-owned ones are still protected.
 - The template's `.githooks/pre-commit` still referenced the old paths: the bulk rewrite skipped extensionless files. Found by running the migration against a real project.
+- Empty `scripts/` was removed before the install transaction committed. If a later manifest write failed, rollback could not restore the last legacy script because its parent directory was already gone. Empty-directory cleanup now runs only after commit.
+- Legacy cleanup now accepts only the eight known tool filenames and regular files under a non-symlink `scripts/` directory. Modified legacy tools are retained with an explicit warning; malformed manifest paths cannot direct deletion outside the project, and project-owned symlinks are never traversed.
+- `DEPLOY.md` no longer recommends broad `git clean -fd` / `git checkout -- .gitignore` rollback commands; it documents scoped Git rollback and cautious manual recovery.
 
 ### Tests
-- `tests/test-init.cjs` covers the migration: our old copy is removed, the project's own `scripts/build.sh` survives, the new location is populated, and the report says what moved.
+- `tests/test-init.cjs` models the 2.7.1 layout (all eight old tool paths, customized `gov.toml`, installer-owned Hook), verifies successful migration, preserves modified legacy tools, rejects symlink traversal and path-traversal manifest entries, and injects a late failure to compare the complete pre/post tree.
 
 ## 2.7.1 - 2026-11-10
 

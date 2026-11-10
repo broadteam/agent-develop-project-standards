@@ -17,7 +17,7 @@ AI 展开后就是三条命令，没有别的步骤：
 ```bash
 node D:/develop/project-standards/init.cjs <目标目录> --dry-run   # 只看，不写盘
 node D:/develop/project-standards/init.cjs <目标目录>             # 正式铺
-node <目标目录>/.standards/check-governance.cjs                      # 验收：应输出「全部通过」
+node <目标目录>/.standards/check-governance.cjs                  # 验收：应输出「全部通过」
 ```
 
 不需要先建目录、不需要改 package.json、不需要装依赖。`init.cjs` 零依赖，Node 22+ 直接跑。
@@ -46,24 +46,25 @@ node <目标目录>/.standards/check-governance.cjs                      # 验�
 
 | 对象 | 行为 |
 |---|---|
-| 40 个规范文件（`AGENTS.md`、`.spec/`、`.memory/`、`scripts/` 等） | **只创建不存在的**。已存在一律跳过，不覆盖 |
+| 规范文件（`AGENTS.md`、`.spec/`、`.memory/`、`.standards/` 等） | **只创建不存在的**。已存在一律跳过，不覆盖 |
 | 你已有的 `.githooks/pre-commit` | **零改动**。它只会在旁边放一个 `pre-commit.local.example` 作参考 |
 | `.gitignore` | 追加一个带 `# >>> agent-project-standards (managed)` 标记的区块；**区块外的规则原样保留** |
 | 根目录的 `TODO.md` / `PLAN.md` / `NOTES.md` / `BACKLOG.md` 等 | **自动导入**到 `.spec/tasks/T1/imported/`，原文逐字保留，根目录那份移除（见 §3） |
 | `gov.toml` 的根目录白名单 | 按当前根目录自动生成，**保证装完就能通过检查**，不会一上来就报你违规 |
 | 业务代码 / 依赖 / 构建配置 / 现有测试 | **完全不碰** |
 
-### `scripts/` 会不会和项目自己的目录打架
+### 治理工具为什么放在 `.standards/`
 
-治理脚本装在 `scripts/` 下（`check-governance.cjs`、`generate-board.cjs` 等）。三种情况：
+从 3.0.0 起，治理工具统一安装到项目根目录的 `.standards/`，与业务自己的 `scripts/` 完全分离：
 
-| 情况 | 行为 |
+| 路径 | 所有权 |
 |---|---|
-| 项目没有 `scripts/` | 新建，无冲突 |
-| 项目已有 `scripts/`，但文件名不重 | 治理脚本**加进去**，你的脚本原样不动。会混在同一个目录里，但不覆盖、不重命名 |
-| 项目已有同名文件（如自己写了 `.standards/generate-board.cjs`） | **保留你的文件并明确告警**。这种情况治理检查跑的会是你的脚本——所以必须人工确认 |
+| `.standards/` | Agent Standards 治理工具，由安装清单记录和升级 |
+| `scripts/` | 项目自己的脚本，初始化器不占用、不清理 |
 
-如果你介意混在一起，可以改 `gov.toml [paths]` 把脚本挪到子目录——但模板里所有引用都是硬编码的 `scripts/`，改起来要连带改钩子和文档。**建议在接入大量项目之前决定**：要么接受混放（简单），要么在下一版统一改成 `scripts/agent-standards/`（干净，但对已铺的项目是破坏性变更）。
+项目已有 `scripts/` 不影响安装；其中的业务脚本不会与治理工具混放。若项目在 `.standards/` 中已有同名文件且安装清单无法证明它由本工具管理，初始化器会保留并报告冲突，不会擅自覆盖。
+
+3.0.0 升级时，旧 `scripts/` 中只有满足「安装清单存在记录，且当前文件哈希与安装时一致」的治理脚本才会被移除。修改过或无法证明归属的文件会保留，交由人工处理。
 
 唯一的强制覆盖开关是 `--force`。它存在的意义是「重新渲染模板」，不是升级手段；日常别用。
 
@@ -137,15 +138,26 @@ node <目标目录>/.standards/check-governance.cjs                      # 验�
 
 ## 6. 怎么退
 
-```bash
-cd <目标目录>
-git checkout -- .gitignore        # 还原 .gitignore
-git clean -fd                     # 删除新增的未跟踪文件
-```
+**不要使用 `git clean -fd` 或 `git checkout -- .gitignore` 作为规范卸载命令。** 前者可能删除项目自己的未跟踪文件；后者会丢弃整个 `.gitignore` 的工作区修改，而不只是规范托管区块。
 
-`git clean -fd` **不会删被 .gitignore 忽略的文件**（`node_modules/`、`dist/`、`.env` 之类都安全）。执行前先跑 `git status --short` 确认未跟踪项只有规范文件。
+### 有 Git 提交记录（推荐）
 
-如果导入过计划文件，原文在 `.spec/tasks/T1/imported/`，退之前先拷回去。
+1. 安装或升级前先提交项目自己的工作，再单独提交规范安装/升级。
+2. 确认该提交只包含本次规范变更后，使用 `git revert <规范安装或升级提交>`。
+3. 检查 `git status --short` 和差异，确认业务文件、项目自有脚本及后续提交均未受影响。
+
+如果规范变更与业务代码混在同一个提交中，不要直接 revert；先人工拆分变更。
+
+### 尚未提交或没有 Git
+
+当前 3.0.0 不提供自动卸载器。请先完整备份，再依据根目录 `.agent-standards.json` 的 `managed_files` 和 `managed_blocks` 逐项检查：
+
+- 仅删除哈希仍与安装清单一致、且确认属于规范的文件。
+- 被项目修改过的文件必须保留并人工处理。
+- `.gitignore` 只移除 `# >>> agent-project-standards (managed)` 与对应结束标记之间的托管区块。
+- 不要递归删除整个 `.standards/`、`.spec/`、`.memory/` 或 `.githooks/`；其中可能包含项目自己的内容。
+
+如果安装时导入过根目录计划文件，原文位于 `.spec/tasks/T1/imported/`。先恢复并核对原文，再处理规范目录。
 
 ---
 

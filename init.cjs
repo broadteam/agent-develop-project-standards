@@ -320,7 +320,7 @@ function trackPreservedPath(targetPath) {
   if (targetPath === '.githooks/pre-commit') return; // project-owned hook is intentionally outside template ownership
   if (!managedFiles[targetPath]) preservedPaths.add(targetPath);
 }
-const transaction = { files: [], directories: [], committed: false };
+const transaction = { files: [], directories: [], postCommitDirectories: [], committed: false };
 let transactionSequence = 0;
 
 function snapshotManagedFile(file) {
@@ -431,6 +431,16 @@ function commitTransaction() {
     }
   }
   transaction.committed = true;
+  // Directory removal is deliberately post-commit: until backups are discarded, rollback
+  // must still be able to recreate every removed file at its original path.
+  for (const dir of transaction.postCommitDirectories) {
+    try { fs.rmdirSync(dir); }
+    catch (error) {
+      if (error.code !== 'ENOTEMPTY' && error.code !== 'ENOENT') {
+        report.warnings.push('安装已完成，但无法清理旧目录：' + path.relative(TARGET, dir) + '（' + error.message + '）');
+      }
+    }
+  }
 }
 // Capability-aware entry file: a project that turned a capability off must not be told to use it.
 // Blocks are marked in the template so the enabled case reads normally and the disabled case is
@@ -710,18 +720,55 @@ if (planFiles.length && capabilityResolution.capabilities.task_tracking?.status 
 // project's own scripts directory. Remove our old copies, but only ones we can prove we installed:
 // the recorded hash must still match, otherwise the project edited it and it is theirs to keep.
 const legacyScripts = path.join(TARGET, 'scripts');
+const legacyToolNames = new Set([
+  'capability-resolver.cjs', 'check-governance.cjs', 'check_governance.py',
+  'generate-board.cjs', 'profile-validator.cjs', 'profile_validator.py',
+  'sync-memory.cjs', 'task-context-resolver.cjs',
+]);
 if (fs.existsSync(legacyScripts)) {
-  for (const rel of Object.keys(previousManifest?.managed_files ?? {}).filter((key) => key.startsWith('scripts/'))) {
-    const file = path.join(TARGET, rel);
-    if (!fs.existsSync(file)) continue;
-    const recorded = previousManifest.managed_files[rel].installed_sha256;
-    if (!recorded || sha256(fs.readFileSync(file)) !== recorded) continue;
-    if (!DRY) removeTransactional(file);
-    delete managedFiles[rel];
-    report.migrated.push(rel);
-  }
-  if (!DRY) {
-    try { if (fs.readdirSync(legacyScripts).length === 0) fs.rmdirSync(legacyScripts); } catch {}
+  const legacyStat = fs.lstatSync(legacyScripts);
+  if (legacyStat.isSymbolicLink() || !legacyStat.isDirectory()) {
+    report.warnings.push('scripts/ 不是普通目录，未自动迁移其中的旧治理脚本；请人工检查。');
+  } else {
+    // Restrict deletion to the exact legacy tool names. The manifest is project-editable data,
+    // so a startsWith("scripts/") check alone would allow path traversal outside the project.
+    for (const rel of Object.keys(previousManifest?.managed_files ?? {})) {
+      if (!rel.startsWith('scripts/')) continue;
+      const match = /^scripts\/([^/\\]+)$/.exec(rel);
+      if (!match || !legacyToolNames.has(match[1])) {
+        report.warnings.push('安装清单包含非标准旧工具路径，未自动删除：' + rel);
+        continue;
+      }
+      const file = path.join(legacyScripts, match[1]);
+      let stat;
+      try { stat = fs.lstatSync(file); }
+      catch (error) { if (error.code === 'ENOENT') continue; throw error; }
+      if (stat.isSymbolicLink() || !stat.isFile()) {
+        report.warnings.push('旧治理脚本不是普通文件，未自动删除：' + rel);
+        continue;
+      }
+      const recorded = previousManifest.managed_files[rel]?.installed_sha256;
+      if (!recorded) {
+        report.warnings.push('旧位置脚本缺少可验证的安装哈希，已保留：' + rel);
+        continue;
+      }
+      if (sha256(fs.readFileSync(file)) !== recorded) {
+        report.warnings.push('旧位置脚本已被修改，未自动删除：' + rel + '；请人工决定是否迁移或清理。');
+        continue;
+      }
+      if (!DRY) removeTransactional(file);
+      delete managedFiles[rel];
+      report.migrated.push(rel);
+    }
+    if (!DRY) {
+      // Do not remove the parent directory while the transaction can still roll back.
+      // A later failure may need to restore a legacy file into this exact directory.
+      try {
+        if (fs.readdirSync(legacyScripts).length === 0) transaction.postCommitDirectories.push(legacyScripts);
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+      }
+    }
   }
 }
 
