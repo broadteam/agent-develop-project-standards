@@ -320,7 +320,7 @@ function trackPreservedPath(targetPath) {
   if (targetPath === '.githooks/pre-commit') return; // project-owned hook is intentionally outside template ownership
   if (!managedFiles[targetPath]) preservedPaths.add(targetPath);
 }
-const transaction = { files: [], directories: [], committed: false };
+const transaction = { files: [], directories: [], postCommitDirectories: [], committed: false };
 let transactionSequence = 0;
 
 function snapshotManagedFile(file) {
@@ -431,6 +431,16 @@ function commitTransaction() {
     }
   }
   transaction.committed = true;
+  // Directory removal is deliberately post-commit: until backups are discarded, rollback
+  // must still be able to recreate every removed file at its original path.
+  for (const dir of transaction.postCommitDirectories) {
+    try { fs.rmdirSync(dir); }
+    catch (error) {
+      if (error.code !== 'ENOTEMPTY' && error.code !== 'ENOENT') {
+        report.warnings.push('安装已完成，但无法清理旧目录：' + path.relative(TARGET, dir) + '（' + error.message + '）');
+      }
+    }
+  }
 }
 // Capability-aware entry file: a project that turned a capability off must not be told to use it.
 // Blocks are marked in the template so the enabled case reads normally and the disabled case is
@@ -721,7 +731,13 @@ if (fs.existsSync(legacyScripts)) {
     report.migrated.push(rel);
   }
   if (!DRY) {
-    try { if (fs.readdirSync(legacyScripts).length === 0) fs.rmdirSync(legacyScripts); } catch {}
+    // Do not remove the parent directory while the transaction can still roll back.
+    // A later failure may need to restore a legacy file into this exact directory.
+    try {
+      if (fs.readdirSync(legacyScripts).length === 0) transaction.postCommitDirectories.push(legacyScripts);
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
   }
 }
 
