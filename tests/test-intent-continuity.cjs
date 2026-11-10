@@ -34,6 +34,19 @@ assert.match(changes, /不得自行升级为用户决定/);
 assert.match(changes, /不复制聊天全文/);
 assert.match(changes, /不等于取消其他目标/);
 assert.match(changes, /当前有效状态以基线加所有适用的 accepted 记录推导/);
+assert.match(changes, /每轮对话的意图检查协议/);
+for (const kind of ['continuation', 'clarification', 'bounded_interruption', 'intent_change', 'conflict_or_ambiguity']) {
+  assert.ok(changes.includes(kind), 'missing conversation intent classification: ' + kind);
+}
+assert.match(changes, /pending 不进入当前有效意图/);
+assert.match(changes, /保护中断现场/);
+assert.match(changes, /只向用户提出一个最关键的澄清问题/);
+assert.match(changes, /恢复与收口做偏离检查/);
+const memory = read('template/.memory/MEMORY.md');
+assert.match(memory, /G\/R\/T ID/);
+assert.match(memory, /pending Cnnn/);
+assert.match(memory, /恢复原断点/);
+
 
 assert.match(agentsText, /CHANGES\.md/);
 assert.match(changes, /局部修复不代表整体目标完成/);

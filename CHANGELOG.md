@@ -1,6 +1,15 @@
 ## Unreleased
 
 ### Added
+- Define a per-turn intent review protocol that distinguishes continuation, clarification, bounded interruption, explicit intent change and unresolved conflict; preserve the original task resume point across interruptions.
+- Extend the cross-session breakpoint template with G/R/T anchors and pending decision references, without adding another current-goal registry.
+
+### Tests
+- Extend intent continuity contract tests for interruption preservation, pending proposals, conflict handling and resume-point recovery.
+
+## Unreleased
+
+### Added
 - Add Node/Python traceability integrity checks to the governance gate: stable-ID references, active goal/requirement coverage, and verified-requirement evidence requirements.
 - Add parity-oriented regression coverage for dangling references, invalid evidence commits, partial evidence, and active requirements without work items.
 
