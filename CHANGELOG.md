@@ -1,3 +1,13 @@
+## 2.3.0 - 2026-11-10
+
+### Added
+- A rule for client-private memory. The template already declared "client private memory must not be authoritative" in three places, but never said what to do with it — so an agent that keeps its own project memory directory (`.workbuddy-ai/`, and each client has its own) would write project state there and go silent on a client switch, while `.memory/MEMORY.md` §0 stayed at 模板默认的「待填」. `AGENTS.md` §0.5 now states the operational rule: read §0 on start, write project-level facts back on close, private memory is a cache and never the only copy. `MEMORY.md`'s header says the same where the agent actually looks.
+- `CLIENTS.md` gains a private-memory column and a section on aligning it with `.memory/`: when to read, when to write back, which wins on conflict, and which private directories should be ignored versus committed.
+
+### Changed
+- `.gitignore.append` no longer presents `.workbuddy-ai/` as an unexplained hardcoded entry. It states the criterion — ignore pure tool data, commit shared config like `.cursor/rules/` and `.claude/commands/` — and invites the project to add its own client's directory under the same test.
+- `CLIENTS.md` §2 retitled: most clients need no *entry-file* adapter, which is not the same as needing no adaptation at all.
+
 ## 2.2.1 - 2026-11-10
 
 ### Fixed
