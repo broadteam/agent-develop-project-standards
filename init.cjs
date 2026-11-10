@@ -507,6 +507,13 @@ if (preexistingDirs.length) {
     : `发现 ${preexistingDirs.length} 个既有根目录，兼容模式下已纳入白名单；请人工审查 gov.toml [dirs]。`);
 }
 if (STACKS.length > 1) report.warnings.push(`检测到多技术栈：${STACKS.join(', ')}。当前默认配置按 ${STACK} 生成，请人工确认 gov.toml [project]。`);
+// Leftovers from an earlier interrupted run. They are deliberately not whitelisted, so the
+// governance gate reports them as unregistered files — which suggests whitelisting them.
+// Say what they actually are before the user "fixes" it the wrong way.
+const staleArtifacts = entries.filter((entry) => isInternalArtifact(entry.name)).map((entry) => entry.name).sort();
+if (staleArtifacts.length) {
+  report.warnings.push(`发现 ${staleArtifacts.length} 个上次安装残留的事务文件（${staleArtifacts.slice(0, 3).join('、')}${staleArtifacts.length > 3 ? ' 等' : ''}）。确认没有安装进程在运行后可直接删除；不要加进 gov.toml [dirs]。`);
+}
 if (!DRY) {
   const preserved = [...preservedPaths].sort();
   const manifest = {

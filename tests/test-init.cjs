@@ -85,6 +85,13 @@ try {
   const staleCheck = spawnSync(process.execPath, [path.join(project, 'scripts/check-governance.cjs')], { encoding: 'utf8' });
   assert.equal(staleCheck.status, 1, '残留事务文件必须被判为未登记文件');
   assert.match(staleCheck.stdout, /根目录出现未登记文件/);
+  // The governance message suggests whitelisting, which is exactly wrong for these files;
+  // init must name them for what they are.
+  const staleRun = spawnSync(process.execPath, [path.join(root, 'init.cjs'), project, '--force'], { encoding: 'utf8' });
+  assert.equal(staleRun.status, 0, staleRun.stdout + staleRun.stderr);
+  // Warnings are written to stderr, like the rest of the report's diagnostics.
+  assert.match(staleRun.stdout + staleRun.stderr, /上次安装残留的事务文件/);
+  assert.match(staleRun.stdout + staleRun.stderr, /不要加进 gov\.toml/);
   fs.rmSync(path.join(project, staleArtifact));
   const profile = fs.readFileSync(path.join(project, 'project-profile.toml'), 'utf8');
   assert.match(profile, /status = "needs_review"/);
