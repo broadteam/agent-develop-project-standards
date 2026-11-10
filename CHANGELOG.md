@@ -1,3 +1,14 @@
+## 2.7.0 - 2026-11-10
+
+### Added
+- Capability-aware entry file. When a project turns a capability off in `project-profile.toml`, `AGENTS.md` used to keep instructing the agent to use it — telling it to create `.spec/tasks/<ID>/card.md` in a project where that directory was never installed. The template now marks capability-dependent blocks, and rendering drops them, adds a banner naming what is off, and leaves an explicit slot in §2.5 for the project to write where its backlog actually lives. A wrong instruction is worse than a missing one: the agent follows it and builds a parallel system.
+
+### Docs
+- `DEPLOY.md` explains the rendering, and states the honest limitation: capabilities must be decided before install, because `init` will not rewrite an existing `AGENTS.md`.
+
+### Tests
+- `tests/test-init.cjs` covers the disabled case: banner present, three-layer table gone, slot present, no markers left, and no `.spec/tasks` directory created.
+
 ## 2.6.1 - 2026-11-10
 
 ### Fixed

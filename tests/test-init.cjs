@@ -386,6 +386,26 @@ try {
   assert.match(bigRun.stderr, /拆分（推荐）/);
   assert.equal(JSON.stringify(snapshotTree(bigEntry)), bigBefore, '拒绝时不得写入任何文件');
 
+  // A project that turned a capability off must not be told to use it. The entry file renders
+  // the capability block away and leaves an explicit slot instead of a stale instruction.
+  const offProject = path.join(tmp, 'cap-off-app');
+  fs.mkdirSync(offProject);
+  fs.writeFileSync(path.join(offProject, 'package.json'), JSON.stringify({ name: 'cap-off' }));
+  const offProfile = fs.readFileSync(path.join(root, 'template/project-profile.toml'), 'utf8')
+    .replace('{{PROJECT_NAME}}', 'Cap Off').replace('{{PROJECT_DESC}}', 'x')
+    .replace('{{LANGUAGE}}', 'node').replace('{{FRAMEWORK}}', 'none').replace('{{PACKAGE_MANAGER}}', 'npm')
+    .replace(/^task_tracking = "auto"$/m, 'task_tracking = "off"')
+    .replace(/^roadmap = "auto"$/m, 'roadmap = "off"');
+  fs.writeFileSync(path.join(offProject, 'project-profile.toml'), offProfile);
+  const offRun = spawnSync(process.execPath, [path.join(root, 'init.cjs'), offProject], { encoding: 'utf8' });
+  assert.equal(offRun.status, 0, offRun.stdout + offRun.stderr);
+  const offAgents = fs.readFileSync(path.join(offProject, 'AGENTS.md'), 'utf8');
+  assert.match(offAgents, /本项目已关闭能力：task_tracking、roadmap/, '关闭能力后入口文件必须明说');
+  assert.doesNotMatch(offAgents, /计划分三层/, '关闭能力后不得再教 agent 用 .spec/tasks/');
+  assert.match(offAgents, /把本项目的待办放在哪写在这里/, '必须留出替代做法的槽位');
+  assert.doesNotMatch(offAgents, /<!--cap/, '渲染后不得残留标记');
+  assert.ok(!fs.existsSync(path.join(offProject, '.spec/tasks')), '能力关闭时不应创建对应目录');
+
   console.log('test-init: all cases passed');
 } finally {
   fs.rmSync(junkDir, { recursive: true, force: true });

@@ -109,6 +109,19 @@ node <目标目录>/scripts/check-governance.cjs                      # 验收�
 
 **默认不会替你启用提交闸门。** `core.hooksPath` 要你自己设（`git config core.hooksPath .githooks`）。这是刻意的：闸门没跑，你只是没享受到保护；闸门跑错，你会被误拦而放弃整套东西。先让它跑通，再上闸门。
 
+### 关掉某个能力，入口文件会跟着变
+
+`project-profile.toml [capabilities]` 里设成 `off` 的能力（比如 `task_tracking`、`roadmap`），`AGENTS.md` 里对应段落会在**安装时**被替换成两样东西：
+
+1. 顶部一句横幅，列清哪些能力已关闭、下文哪些引用不适用
+2. §2.5 里一个待填槽位，让你写清本项目的替代做法
+
+不会出现「入口文件教你用 `.spec/tasks/`，而那个目录根本没装」这种自相矛盾。
+
+**但改能力要在安装前定好。** 装完之后再改 `project-profile.toml`，`init` 不会重写已存在的 `AGENTS.md`（它默认跳过已存在文件），需要你手工改那两处，或者用 `--force` 重写（会连带覆盖其它模板文件，先确认没有定制）。
+
+这条对「已经有自己的待办体系」的项目特别有用：关掉 `task_tracking` 与 `roadmap`，保留你自己的 roadmap 文档，入口文件就不会再提 `.spec/tasks/`。
+
 ---
 
 ## 5. 装完的三件事

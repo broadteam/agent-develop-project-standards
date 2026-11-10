@@ -429,6 +429,33 @@ function commitTransaction() {
   }
   transaction.committed = true;
 }
+// Capability-aware entry file: a project that turned a capability off must not be told to use it.
+// Blocks are marked in the template so the enabled case reads normally and the disabled case is
+// replaced by an explicit slot instead of a stale instruction.
+const CAPABILITY_LABELS = {
+  task_tracking: '.spec/tasks/',
+  roadmap: '.spec/roadmap/',
+  adr: '.spec/adr/',
+  module_boundaries: '模块边界',
+  stack_rules: '.spec/stacks/',
+};
+const capabilityDisabled = (ids) => ids.some((id) => capabilityResolution.capabilities[id]?.status === 'disabled');
+
+function renderCapabilityBlocks(content) {
+  return content
+    .replace(/<!--cap:([a-z0-9_,]+)-->\r?\n?([\s\S]*?)<!--\/cap-->\r?\n?/g,
+      (match, ids, body) => (capabilityDisabled(ids.split(',')) ? '' : body))
+    .replace(/<!--cap-note:([a-z0-9_,]+)-->\r?\n?([\s\S]*?)<!--\/cap-note-->\r?\n?/g,
+      (match, ids, body) => (capabilityDisabled(ids.split(',')) ? body : ''));
+}
+
+function capabilityNotice() {
+  const disabled = Object.keys(CAPABILITY_LABELS).filter((id) => capabilityDisabled([id]));
+  if (!disabled.length) return '';
+  const refs = disabled.map((id) => CAPABILITY_LABELS[id]).join('、');
+  return `> **本项目已关闭能力：${disabled.join('、')}**（见 \`project-profile.toml [capabilities]\`）。下文凡引用 ${refs} 的地方一律不适用，替代做法写在 §2.5。\n\n`;
+}
+
 function walk(dir, rel = '') {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const from = path.join(dir, entry.name);
@@ -460,6 +487,11 @@ function walk(dir, rel = '') {
     if (!DRY) {
       ensureDirectoryTransactional(path.dirname(to));
       let content = fill(fs.readFileSync(from, 'utf8'));
+      if (relPath === 'AGENTS.md') {
+        content = renderCapabilityBlocks(content);
+        const notice = capabilityNotice();
+        if (notice) content = content.replace(/^(#[^\n]*\n)/, `$1\n${notice}`);
+      }
       if (relPath === 'project-profile.toml') {
         const detected = (STACKS.length ? STACKS : ['generic']).map((stack) => JSON.stringify(stack)).join(', ');
         content = content.replace(/^detected = \["generic"\]$/m, `detected = [${detected}]`);
