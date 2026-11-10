@@ -8,7 +8,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
-const ignored = new Set(['.git', 'node_modules']);
+// Tool-side directories hold local state that is not part of the repository, so their
+// Markdown must not affect this gate (otherwise CI and a developer machine disagree).
+const ignored = new Set(['.git', 'node_modules', '.workbuddy-ai', '.tmp']);
 const markdown = [];
 function walk(dir) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
