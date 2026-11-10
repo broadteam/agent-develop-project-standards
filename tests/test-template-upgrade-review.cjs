@@ -25,9 +25,13 @@ function buildFixture() {
   assert.equal(installed.status, 0, installed.stdout + installed.stderr);
   const newer = path.join(tmp, 'newer-standards');
   cloneStandards(newer);
+  // Derive the target version from the real one so release bumps do not break this test.
+  const currentVersion = JSON.parse(fs.readFileSync(path.join(root, 'template/policy/standards-version.json'), 'utf8')).version;
   const versionPath = path.join(newer, 'template/policy/standards-version.json');
   const version = JSON.parse(fs.readFileSync(versionPath, 'utf8'));
-  version.version = '2.0.0-rc.15';
+  version.version = /-rc\.(\d+)$/.test(currentVersion)
+    ? currentVersion.replace(/-rc\.(\d+)$/, (_, n) => `-rc.${Number(n) + 1}`)
+    : `${currentVersion}-next`;
   fs.writeFileSync(versionPath, JSON.stringify(version, null, 2) + '\n');
 
   const conflictPath = '.spec/02-conventions.md';

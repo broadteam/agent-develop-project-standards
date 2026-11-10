@@ -9,6 +9,15 @@ import json
 from pathlib import Path
 from profile_validator import parse_profile, resolve_capabilities
 
+# Windows text-mode stdout translates "\n" into "\r\n", which breaks byte-level
+# parity with check-governance.cjs (tests/test-parity.cjs compares raw stdout).
+# Pin UTF-8 and LF so both checkers emit identical bytes on every platform.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", newline="\n")
+    except (AttributeError, ValueError):
+        pass
+
 ROOT = Path(__file__).resolve().parent.parent
 GOV = ROOT / "gov.toml"
 if not GOV.exists():
@@ -81,10 +90,13 @@ def is_dir(entry: os.DirEntry) -> bool:
     return entry.is_dir(follow_symlinks=False)
 
 def size_of(rel: str) -> int | None:
+    # Budgets are measured on LF-normalized bytes: a CRLF checkout must not consume
+    # more budget than a POSIX one for the same content (gov.toml [budget]).
     try:
-        return (ROOT / rel).stat().st_size
+        raw = (ROOT / rel).read_bytes()
     except OSError:
         return None
+    return len(raw.replace(b"\r\n", b"\n"))
 
 # 1. Root allowlist
 allowed_dirs = set(gov.get("dirs", {}).get("allowed_dirs", []))
@@ -350,10 +362,13 @@ if capability_enabled("roadmap"):
 index_path = ROOT / layout.get("tasks_index", ".spec/tasks/index.md")
 board_path = ROOT / ".spec/tasks/BOARD.md"
 if capability_enabled("task_tracking") and index_path.exists() and board_path.exists():
-    digest = hashlib.sha256(index_path.read_bytes()).hexdigest()
+    # Hashes are LF-normalized for the same reason as size_of: a CRLF checkout must
+    # not look stale against a board generated on a POSIX one.
+    index_bytes = index_path.read_bytes().replace(b"\r\n", b"\n")
+    digest = hashlib.sha256(index_bytes).hexdigest()
     board_text = board_path.read_text(encoding="utf-8")
     generated = re.search(r"<!-- GENERATED-SHA256: ([a-f0-9]+) -->\r?\n([\s\S]*?)<!-- GENERATED:END -->", board_text)
-    body_ok = bool(generated and hashlib.sha256(generated.group(2).encode("utf-8")).hexdigest() == generated.group(1))
+    body_ok = bool(generated and hashlib.sha256(generated.group(2).replace("\r\n", "\n").encode("utf-8")).hexdigest() == generated.group(1))
     if f"<!-- SOURCE-SHA256: {digest} -->" not in board_text or not body_ok:
         errors.append(".spec/tasks/BOARD.md 已过期或被手工修改，请运行 node scripts/generate-board.cjs")
 

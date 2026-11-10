@@ -1,3 +1,22 @@
+## 2.0.0-rc.15 - 2026-11-10
+
+### Fixed
+- Python governance checker pins UTF-8 and LF on stdout/stderr. Windows text-mode stdout translated `\n` into `\r\n`, so Node and Python output diverged byte-for-byte and `tests/test-parity.cjs` could never pass on a real Windows checkout. Parity is now genuine, not CI-only.
+- Document byte budgets are measured on LF-normalized bytes instead of on-disk size. With `core.autocrlf=true` the same `AGENTS.md` measured 12029B (CRLF) instead of 11814B (LF), turning 96% of budget into 98% and making the gate platform-dependent.
+- `BOARD.md` source and generated hashes are LF-normalized in both checkers, and `generate-board.cjs` hashes and writes LF. A board generated on Windows and verified on Linux was reported stale.
+- `tests/test-parity.cjs` wrote `'{}\\n'`, i.e. a four-character literal that is not valid JSON, as the installation manifest fixture. It only passed because the manifest is existence-checked.
+
+### Added
+- `tests/test-parity.cjs` now asserts a CRLF checkout reports the same budget bytes as an LF one, and that a CRLF `BOARD.md` still validates.
+- `tests/test-doc-links.cjs` verifies the README directory tree resolves against the repository. The tree had drifted: five root documents, seven test files and four template scripts were missing.
+- `tests/test-init.cjs` enforces a placeholder contract: every `{{KEY}}` in `template/` must be a key `init.cjs` knows, because `fill()` degrades unknown keys into a visible `（待填：KEY）` marker instead of failing.
+- `tests/test-migration-v2.cjs` performs a real first install on an empty project and requires the governance gate to pass immediately. Previously only `--dry-run` covered the empty-project case.
+- `template/.memory/PITFALLS.md` P13 (line endings make budgets and hashes platform-dependent) and P14 ("CI green" cannot be restated across sessions).
+
+### Changed
+- `template/gov.toml` documents the LF-normalized measurement basis for `[budget]`.
+- README directory tree regenerated from the actual repository contents.
+
 ## 2.0.0-rc.14 - 2026-11-08
 
 ### Added

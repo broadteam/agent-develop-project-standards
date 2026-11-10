@@ -54,12 +54,17 @@ try {
   const cleanPlanAgain = buildUpgradePlan({ projectRoot: project, standardsRoot: root });
   assert.equal(cleanPlanAgain.plan_id, cleanPlan.plan_id, 'identical inputs must produce a stable plan ID');
 
-  // Prepare a simulated rc.13 template checkout.
-  const newerStandards = path.join(tmp, 'standards-rc13');
+  // Prepare a simulated newer template checkout. The target version is derived from the
+  // real one so this test does not need editing on every release bump.
+  const currentVersion = JSON.parse(fs.readFileSync(path.join(root, 'template/policy/standards-version.json'), 'utf8')).version;
+  const newerVersion = /-rc\.(\d+)$/.test(currentVersion)
+    ? currentVersion.replace(/-rc\.(\d+)$/, (_, n) => `-rc.${Number(n) + 1}`)
+    : `${currentVersion}-next`;
+  const newerStandards = path.join(tmp, 'standards-newer');
   cloneStandards(newerStandards);
   const versionFile = path.join(newerStandards, 'template/policy/standards-version.json');
   const version = JSON.parse(fs.readFileSync(versionFile, 'utf8'));
-  version.version = '2.0.0-rc.15';
+  version.version = newerVersion;
   fs.writeFileSync(versionFile, JSON.stringify(version, null, 2) + '\n');
 
   // Both sides changed: a three-way manual merge is mandatory.
@@ -115,8 +120,8 @@ try {
   const plan = buildUpgradePlan({ projectRoot: project, standardsRoot: newerStandards });
   assert.equal(plan.plan_schema, 2);
   assert.match(plan.source_inventory_sha256, /^[a-f0-9]{64}$/);
-  assert.equal(plan.source_version, '2.0.0-rc.14');
-  assert.equal(plan.target_version, '2.0.0-rc.15');
+  assert.equal(plan.source_version, currentVersion);
+  assert.equal(plan.target_version, newerVersion);
   assert.equal(plan.version_label_changed, true);
   assert.equal(plan.can_apply_automatically, false);
   assert.equal(plan.human_review_required, true);

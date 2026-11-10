@@ -35,7 +35,9 @@ const capabilityEnabled = (id) => capabilityResolution.capabilities[id]?.status 
 const sorted=(xs)=>xs.sort((a,b)=>a.localeCompare(b));
 const rootEntries=fs.readdirSync(ROOT,{withFileTypes:true});
 const isDir=(e)=>e.isDirectory(); // Symlinks are consistently treated as file-like entries.
-const size=(rel)=>{const p=path.join(ROOT,rel); try { return fs.statSync(p).size; } catch { return null; }};
+// Budgets are measured on LF-normalized bytes: a CRLF checkout must not consume more
+// budget than a POSIX one for the same content (gov.toml [budget]).
+const size=(rel)=>{const p=path.join(ROOT,rel);try{const b=fs.readFileSync(p);return b.length-(b.toString('latin1').split('\r\n').length-1);}catch{return null;}};
 const toRegex=(list)=> (list??[]).map(p=>{try{const i=p.startsWith('(?i)');return new RegExp(i?p.slice(4):p,i?'i':'');}catch{errors.push(`gov.toml 里的正则写错了：${p}`);return null;}}).filter(Boolean);
 
 // 1. Root allowlist
@@ -176,9 +178,17 @@ function validateRoadmapArchives() {
 if (capabilityEnabled('task_tracking')) validateTaskArchives();
 if (capabilityEnabled('roadmap')) validateRoadmapArchives();
 
-// 6. Generated board freshness
+// 6. Generated board freshness（哈希按 LF 归一化，否则 CRLF 检出会被误判为过期）
 const taskIndex=path.join(ROOT,layout.tasks_index??'.spec/tasks/index.md'), board=path.join(ROOT,'.spec/tasks/BOARD.md');
-if(capabilityEnabled('task_tracking')&&fs.existsSync(taskIndex)&&fs.existsSync(board)){const hash=crypto.createHash('sha256').update(fs.readFileSync(taskIndex)).digest('hex');const b=fs.readFileSync(board,'utf8');const sourceOk=b.includes(`<!-- SOURCE-SHA256: ${hash} -->`);const generated=b.match(/<!-- GENERATED-SHA256: ([a-f0-9]+) -->\r?\n([\s\S]*?)<!-- GENERATED:END -->/);const bodyOk=generated&&crypto.createHash('sha256').update(generated[2]).digest('hex')===generated[1];if(!sourceOk||!bodyOk)errors.push('.spec/tasks/BOARD.md 已过期或被手工修改，请运行 node scripts/generate-board.cjs');}
+if(capabilityEnabled('task_tracking')&&fs.existsSync(taskIndex)&&fs.existsSync(board)){
+  const lf=(text)=>text.replace(/\r\n/g,'\n');
+  const sourceHash=crypto.createHash('sha256').update(lf(fs.readFileSync(taskIndex,'utf8'))).digest('hex');
+  const b=fs.readFileSync(board,'utf8');
+  const sourceOk=b.includes(`<!-- SOURCE-SHA256: ${sourceHash} -->`);
+  const generated=b.match(/<!-- GENERATED-SHA256: ([a-f0-9]+) -->\r?\n([\s\S]*?)<!-- GENERATED:END -->/);
+  const bodyOk=generated&&crypto.createHash('sha256').update(lf(generated[2])).digest('hex')===generated[1];
+  if(!sourceOk||!bodyOk)errors.push('.spec/tasks/BOARD.md 已过期或被手工修改，请运行 node scripts/generate-board.cjs');
+}
 
 const profileValidation = require('./profile-validator.cjs').validateProfile(ROOT);
 for (const warning of profileValidation.warnings) notes.push(warning);

@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 'use strict';
 
-// Validate repository-local Markdown links without making CI depend on the network.
+// Validate repository-local Markdown links and the README directory tree without
+// making CI depend on the network.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -33,7 +34,32 @@ for (const file of markdown) {
     const resolved = path.resolve(path.dirname(file), pathname);
     if (!fs.existsSync(resolved)) failures.push(`${path.relative(root, file)} → ${target}`);
   }
+  // Reference-style definitions (`[label]: path`) point at the same kind of local file.
+  for (const match of text.matchAll(/^\[[^\]]+\]:\s*(\S+)/gm)) {
+    const target = match[1].trim();
+    if (/^(?:https?:|mailto:|tel:|data:)/i.test(target)) continue;
+    const resolved = path.resolve(path.dirname(file), decodeURIComponent(target.split('#', 1)[0]));
+    if (!fs.existsSync(resolved)) failures.push(`${path.relative(root, file)} → [ref] ${target}`);
+  }
 }
 
-assert.deepEqual(failures, [], `broken local Markdown links:\n${failures.join('\n')}`);
-console.log(`test-doc-links: ${markdown.length} Markdown files checked`);
+// The README directory tree is the repository map. It drifted once already, so it is
+// checked instead of trusted: every leaf must resolve to a real path.
+const readme = path.join(root, 'README.md');
+const treeMatch = fs.readFileSync(readme, 'utf8').match(/```text\r?\n(project-standards\/[\s\S]*?)```/);
+assert.ok(treeMatch, 'README.md 缺少 project-standards/ 目录树代码块');
+const stack = [];
+for (const line of treeMatch[1].split(/\r?\n/)) {
+  const entry = line.match(/^((?:(?:│   |    ))*)(?:├── |└── )(.*)$/);
+  if (!entry) continue;
+  const depth = entry[1].length / 4;
+  const name = entry[2].split('#')[0].split(' + ')[0].trim();
+  if (!name) continue;
+  stack.length = depth;
+  stack[depth] = name.replace(/\/$/, '');
+  const rel = stack.slice(0, depth + 1).join('/');
+  if (!fs.existsSync(path.join(root, rel))) failures.push(`README.md 目录树 → ${rel}（实际不存在）`);
+}
+
+assert.deepEqual(failures, [], `broken local Markdown links or tree entries:\n${failures.join('\n')}`);
+console.log(`test-doc-links: ${markdown.length} Markdown files checked, README tree verified`);

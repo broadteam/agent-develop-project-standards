@@ -239,14 +239,14 @@
 
 2.0.0 不因文档写完而自动视为完成。以下全部满足才可标记正式发布：
 
-- [ ] 七大方向均有现状、实现、验收证据和已知限制。
-- [ ] 初始化、治理检查器、模板和适配器在干净夹具中验证。
-- [ ] Node/Python 行为一致，异常输入测试通过。
-- [ ] 至少覆盖单栈、多栈、已有项目、空项目、Windows 路径和 POSIX 路径的模拟夹具。
-- [ ] 迁移文档经过从 1.2.x 到 2.0.0 的演练（只用临时 fixture，不接入真实业务项目）。
-- [ ] 所有文档内链接和模板引用有效。
-- [ ] CI 全绿；未覆盖项明确列出。
-- [ ] 没有将模拟测试描述为真实项目试点。
+- [x] 七大方向均有现状、实现、验收证据和已知限制。→ 见 §5 状态表，逐项给出机器验证入口与已知限制。
+- [x] 初始化、治理检查器、模板和适配器在干净夹具中验证。→ `test-init`、`test-migration-v2`、`test-client-adapters`、`test-capability-resolver`。
+- [x] Node/Python 行为一致，异常输入测试通过。→ `test-parity`；rc.15 起在真实 Windows 检出上逐字节一致，不再只在 CI 成立。
+- [x] 至少覆盖单栈、多栈、已有项目、空项目、Windows 路径和 POSIX 路径的模拟夹具。→ 单栈与多栈见 `test-init`；已有项目与空项目首次安装见 `test-migration-v2`；Windows 路径由本机实跑覆盖；POSIX 路径由 CI 的 ubuntu job 覆盖。
+- [x] 迁移文档经过从 1.2.x 到 2.0.0 的演练（只用临时 fixture，不接入真实业务项目）。→ `test-migration-v2`。
+- [x] 所有文档内链接和模板引用有效。→ `test-doc-links`，除 inline 链接外还解析 README 目录树与引用式链接定义。
+- [ ] CI 全绿；未覆盖项明确列出。→ 本机 Windows 已 14/14 通过；提交后须以**对应 commit SHA** 的 push 与 pull_request runs 复核。未复核前不得宣称全绿（见 `.memory/PITFALLS.md` P14）。
+- [x] 没有将模拟测试描述为真实项目试点。→ 全仓文档统一口径：只做临时 fixture 演练，未接入任何真实业务项目。
 
 ## 4. 明确不做
 
@@ -261,13 +261,19 @@
 
 本文件是 2.0 建设范围和验收标准。具体实现状态以 PR 变更、测试报告和下方七项状态表为准，不允许仅凭文档声明完成。
 
-| 方向 | 状态 | 证据 |
-|---|---|---|
-| 1. 规范体系与目录架构 | in_progress | 模板职责、权威文件地图由 `tests/test-v2-spec.cjs` 覆盖；`tests/test-doc-links.cjs` 检查仓库 Markdown 中可识别的本地 inline 链接；仍需审查模板引用、引用式链接与锚点。 |
-| 2. Agent 多客户端兼容 | in_progress | `tests/test-client-adapters.cjs`（模板契约 + 初始化 fixture）；Codex override、Claude 导入深度、Cursor 嵌套规则语义有契约断言；CI run [42456349544](https://github.com/broadteam/agent-develop-project-standards/actions/runs/42456349544) 通过；客户端 CLI 端到端未验证 |
-| 3. 记忆与上下文管理 | in_progress | `template/.memory/MEMORY.md` 定义断点、稳定事实、决策指针、待验证项和历史指针；断点仅在跟踪任务收口/跨会话暂停时更新，任务流水留在任务卡；`tests/test-v2-spec.cjs` 验证更新触发条件与模板路径存在。跨客户端实际恢复效果仍需独立验证。 |
-| 4. 任务、看板与路线图管理 | in_progress | `tests/test-parity.cjs` 覆盖任务状态、ID、BOARD 新鲜度，以及任务波次/里程碑归档索引双向一致、目录指针、归档数量和详情文件完整性；Node/Python 输出保持一致。真实项目规模下的索引维护体验仍待评估。 |
-| 5. 工程治理与初始化机制 | in_progress | `tests/test-init.cjs` 覆盖全树 dry-run 零写入、参数拒绝、Hook 保护、项目内符号链接 fail-closed、禁止执行项目自有 BOARD 脚本，以及故障注入后的文件/目录回滚；`tests/test-migration-v2.cjs` 覆盖空项目 preview、已有多栈项目、自定义文件、Hook 保护和重复初始化。进程被强制终止/断电后的恢复不在事务保证内。 |
-| 6. 自动化验证与质量门禁 | in_progress | Node/Python parity 覆盖任务归档/路线图归档异常夹具；客户端契约、迁移 fixture、Markdown 本地链接检查均接入 Ubuntu/Windows CI；真实 CLI 集成仍未覆盖。 |
-| 7. 长期演进与版本管理 | in_progress | `policy/standards-version.json` / `.agent-standards.json` 逐文件基线；`check-template-drift.cjs` 只读漂移检测；`adopt-template-baseline.cjs` 显式采纳旧基线；`plan-template-upgrade.cjs` 使用 plan_schema 2 与完整 source inventory；`validate-template-upgrade-review.cjs` 使用 review_schema 2 校验审批、结果 SHA 和普通文件权限；`record-reviewed-template-upgrade.cjs` 重新核验完整源快照与实际结果后，仅推进已审查基线，并支持 defer 分批完成。`test-template-upgrade-plan/review/recovery/record` 在 Ubuntu/Windows 覆盖计划、审批、失败恢复、源快照过期、权限篡改、渲染 .gitignore 区块、成功/部分登记和最终漂移清零。自动应用器/自动回滚器和真实跨版本项目迁移仍未实现，发布前仍需完整验收。 |
+状态取值：`done` = 该方向的验收条目均已满足且有机器证据；`partial` = 核心机制已实现，但存在明确未实现的子项。
+
+| 方向 | 状态 | 机器验证 | 已知限制 |
+|---|---|---|---|
+| 1. 规范体系与目录架构 | done | `test-v2-spec`（权威文件地图、预算、记忆路径）、`test-doc-links`（本地链接 + 引用式链接定义 + README 目录树解析）、`test-init`（占位符契约：模板里每个 `{{KEY}}` 都必须是 init 认识的键） | 锚点（`#标题`）未校验，因为当前仓库未使用；技术栈层只覆盖 `presets/stacks/` 的 7 个预设 |
+| 2. Agent 多客户端兼容 | done | `test-client-adapters`（模板契约 + 初始化 fixture）：指针存在且目标存在、无重复正文、Codex override 与 Claude 导入深度语义 | 不启动真实客户端 CLI，只验证入口与导入契约；支持矩阵依据的官方文档核对日期为 2026-11-08，客户端升级后需重核 |
+| 3. 记忆与上下文管理 | done | `test-v2-spec`（记忆更新触发条件、模板路径存在、不重复记录任务流水）、`test-task-context-resolver`（按任务事实解析应读规范） | 跨客户端的实际上下文恢复效果未独立验证 |
+| 4. 任务、看板与路线图管理 | done | `test-parity`（状态合法、ID 唯一、BOARD 源哈希与生成哈希、归档索引双向一致、路径穿越、CRLF 看板）、`generate-board` | 真实项目规模（>200 张卡）下的索引维护体验未评估 |
+| 5. 工程治理与初始化机制 | done | `test-init`（dry-run 零写入、参数拒绝、Hook 保护、符号链接 fail-closed、故障注入回滚、占位符契约）、`test-migration-v2`（空项目首次安装、已有多栈项目、重复初始化、自定义文件保留） | 进程被强杀或断电不在事务保证内；POSIX 文件模式仅在 CI 覆盖 |
+| 6. 自动化验证与质量门禁 | done | 14 个测试全部接入 Ubuntu + Windows CI；`test-parity` 断言 Node/Python 逐字节一致与退出码一致；检查器缺运行时失败关闭 | 真实 CLI 集成未覆盖；CI 结论必须绑定 commit SHA，不能跨会话转述 |
+| 7. 长期演进与版本管理 | partial | `check-template-drift`（只读漂移）、`adopt-template-baseline`（显式采纳旧基线）、`plan-template-upgrade`（plan_schema 2 + source inventory）、`validate-template-upgrade-review`（review_schema 2）、`record-reviewed-template-upgrade`（登记 + defer 分批），对应 `test-template-*` 四组 | 自动升级应用器、自动回滚器、真实跨版本项目迁移均未实现，按 §4 不作为发布阻断，但任何文档都不得声称已支持自动迁移 |
+
+### 7 的补充说明
+
+第七方向是唯一标 `partial` 的方向。它的计划、审批、登记、漂移、恢复演练都已可重复，但"人工应用 → 校验 → 推进基线"这段仍需维护者手工执行。这是刻意的取舍：在真实升级成本与失败风险有实证之前，不做自动应用器。若要把它推进到 `done`，先积累至少一次真实跨版本升级的人工记录（`UPGRADE-RECORD-TEMPLATE.md`）。
 

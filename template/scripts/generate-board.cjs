@@ -12,7 +12,10 @@ const indexPath = path.join(root, '.spec/tasks/index.md');
 const boardPath = path.join(root, '.spec/tasks/BOARD.md');
 if (!fs.existsSync(indexPath)) { console.error('缺少 .spec/tasks/index.md'); process.exit(1); }
 const source = fs.readFileSync(indexPath, 'utf8');
-const sourceHash = crypto.createHash('sha256').update(source).digest('hex');
+// Hash and compare on LF-normalized text: the board is committed, so a CRLF checkout
+// must not make it look stale against a board generated on a POSIX machine.
+const lf = (text) => text.replace(/\r\n/g, '\n');
+const sourceHash = crypto.createHash('sha256').update(lf(source)).digest('hex');
 const lines = source.split(/\r?\n/);
 const rows = [];
 let inCurrent = false;
@@ -51,9 +54,9 @@ if (args.includes('--validate')) {
 }
 const next = `${current.slice(0, a + start.length)}${body}${current.slice(b)}`;
 if (process.argv.includes('--check')) {
-  if (next !== current) { console.error('BOARD.md 已过期，请运行 node scripts/generate-board.cjs'); process.exit(1); }
+  if (lf(next) !== lf(current)) { console.error('BOARD.md 已过期，请运行 node scripts/generate-board.cjs'); process.exit(1); }
   console.log('BOARD.md 与任务索引一致。');
 } else {
-  fs.writeFileSync(boardPath, next, 'utf8');
+  fs.writeFileSync(boardPath, lf(next), 'utf8');
   console.log(`已生成 BOARD.md（${rows.length} 张任务卡）。`);
 }

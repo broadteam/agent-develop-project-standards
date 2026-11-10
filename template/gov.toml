@@ -22,6 +22,10 @@ build_output = "{{BUILD_OUTPUT}}"
 #   4. 重复内容 -> 只留指针，不复制
 #
 # 这套预算同时是 token 预算：L0 每次会话必读，必须小。
+#
+# 计量口径：按 LF 归一化后的字节数，不是磁盘上的原始大小。
+# 否则同一个文件在 Windows（core.autocrlf=true，CRLF）比 Linux 多出「行数」个字节，
+# 会出现「本地超预算、CI 却通过」的平台分歧。
 agents_bytes = 12288        # AGENTS.md 唯一入口
 memory_bytes = 6144         # .memory/MEMORY.md 状态页
 index_bytes = 8192          # .spec/tasks/index.md 任务索引（唯一状态源）

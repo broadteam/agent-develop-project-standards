@@ -20,6 +20,26 @@ function snapshotTree(dir, rel = '') {
   return entries;
 }
 try {
+  // Placeholder contract: every {{KEY}} used by the template must be a key init knows.
+  // fill() degrades an unknown key to a visible （待填：KEY） marker instead of failing,
+  // so a template/init mismatch would ship a half-filled file to the user.
+  const initSource = fs.readFileSync(path.join(root, 'init.cjs'), 'utf8');
+  const block = initSource.match(/const replacements = \{([\s\S]*?)\n\};/);
+  assert.ok(block, 'init.cjs 缺少 replacements 定义');
+  const knownKeys = new Set([...block[1].matchAll(/(?:^|[\s{,])([A-Z][A-Z0-9_]*)\s*[:,]/g)].map((m) => m[1]));
+  knownKeys.add('IGNORE_ENTRIES'); // rendered separately into the managed .gitignore block
+  const usedKeys = new Set();
+  const collectPlaceholders = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) { collectPlaceholders(full); continue; }
+      for (const match of fs.readFileSync(full, 'utf8').matchAll(/\{\{([A-Z][A-Z0-9_]*)\}\}/g)) usedKeys.add(match[1]);
+    }
+  };
+  collectPlaceholders(path.join(root, 'template'));
+  const unknownKeys = [...usedKeys].filter((key) => !knownKeys.has(key)).sort();
+  assert.deepEqual(unknownKeys, [], `模板使用了 init 不认识的占位符：${unknownKeys.join(', ')}`);
+
   const project = path.join(tmp, 'php-app');
   fs.mkdirSync(project);
   fs.writeFileSync(path.join(project, 'composer.json'), JSON.stringify({ name: 'acme/demo-app', description: 'Demo "PHP" app' }));
@@ -55,6 +75,22 @@ try {
   assert.match(gov, /language = "php"/);
   assert.match(gov, /package_manager = "composer\+npm"/);
   assert.ok(fs.existsSync(path.join(project, 'scripts/generate-board.cjs')));
+  // An unknown placeholder would ship to the user as a literal {{X}} marker: init only
+  // substitutes known keys, so the installed tree is scanned instead of trusted.
+  const leftovers = [];
+  const isTextFile = (name) => /\.(?:md|toml|json|cjs|py|example)$/.test(name) || name === '.gitignore' || name === 'pre-commit';
+  const scanPlaceholders = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) { if (entry.name !== '.git') scanPlaceholders(full); continue; }
+      if (!isTextFile(entry.name)) continue;
+      for (const match of fs.readFileSync(full, 'utf8').matchAll(/\{\{[A-Z_]+\}\}/g)) {
+        leftovers.push(`${path.relative(project, full)} → ${match[0]}`);
+      }
+    }
+  };
+  scanPlaceholders(project);
+  assert.deepEqual(leftovers, [], '初始化后仍残留未替换的占位符');
   const installManifest = JSON.parse(fs.readFileSync(path.join(project, '.agent-standards.json'), 'utf8'));
   assert.equal(installManifest.format_version, 1);
   assert.equal(installManifest.baseline_state, 'complete');

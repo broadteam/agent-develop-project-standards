@@ -24,7 +24,7 @@ try {
   copy(path.join(root, 'template'), fixture);
   fs.mkdirSync(path.join(fixture, 'src'));
   // The governance fixture must satisfy the new installation metadata requirement.
-  fs.writeFileSync(path.join(fixture, '.agent-standards.json'), '{}\\n');
+  fs.writeFileSync(path.join(fixture, '.agent-standards.json'), '{}\n');
   fs.rmSync(path.join(fixture, '.gitignore.append'), { force: true });
   // Make a self-contained fixture and generate its board/hash.
   const rootEntries = fs.readdirSync(fixture, { withFileTypes: true });
@@ -150,6 +150,28 @@ try {
   result = assertParity('manually edited board');
   assert.equal(result.status, 1);
   assert.match(result.stdout, /BOARD.md 已过期或被手工修改/);
+
+  // Line endings must not change semantics. Windows developers commonly have
+  // core.autocrlf=true, so a CRLF checkout has to report the same budget bytes and
+  // the same board freshness as an LF one.
+  run(process.execPath, ['scripts/generate-board.cjs']);
+  const agentsPath = path.join(fixture, 'AGENTS.md');
+  const agentsLf = fs.readFileSync(agentsPath, 'utf8').replace(/\r\n/g, '\n');
+  fs.writeFileSync(agentsPath, agentsLf, 'utf8');
+  const lfRun = assertParity('LF checkout');
+  assert.equal(lfRun.status, 0, lfRun.stdout + lfRun.stderr);
+  const budgetLine = (out) => out.split('\n').find((line) => line.includes('AGENTS.md  '));
+  const lfBudget = budgetLine(lfRun.stdout);
+  assert.ok(lfBudget, '缺少 AGENTS.md 预算行');
+
+  fs.writeFileSync(agentsPath, agentsLf.replace(/\n/g, '\r\n'), 'utf8');
+  const crlfRun = assertParity('CRLF checkout');
+  assert.equal(crlfRun.status, 0, crlfRun.stdout + crlfRun.stderr);
+  assert.equal(budgetLine(crlfRun.stdout), lfBudget, 'CRLF 检出不得改变预算字节数');
+
+  fs.writeFileSync(boardPath, fs.readFileSync(boardPath, 'utf8').replace(/\r\n/g, '\n').replace(/\n/g, '\r\n'), 'utf8');
+  const crlfBoardRun = assertParity('CRLF board');
+  assert.equal(crlfBoardRun.status, 0, crlfBoardRun.stdout + crlfBoardRun.stderr);
 
   console.log('test-parity: all cases passed');
 } finally {

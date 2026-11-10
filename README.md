@@ -113,13 +113,20 @@ node init.cjs /path/to/project --force --replace-hook
 
 ```text
 project-standards/
-├── README.md
+├── README.md                        # 用法与设计说明
+├── SPEC-v2.0.md                     # 2.0 设计基线 + 七大方向状态表
+├── PROJECT-ADAPTATION-v2.0.md       # 母模板 → 项目规范 的适配机制
+├── SESSION-HANDOFF.md               # 跨会话交接：当前状态与下一步
+├── UPGRADE-RECORD-TEMPLATE.md       # 人工升级审计记录模板
 ├── CHANGELOG.md
 ├── MIGRATION-v1.1.md
-├── init.cjs
-├── PROJECT-ADAPTATION-v2.0.md
+├── MIGRATION-v1.2.md
+├── MIGRATION-v2.0.md
+├── init.cjs                         # 初始化器：探测技术栈 → 铺模板 → 生成画像与安装清单
+├── .gitignore
+├── .github/workflows/standards-ci.yml
 ├── presets/
-│   └── stacks/              # 按检测到的技术栈选择性铺设
+│   └── stacks/                      # 按检测到的技术栈选择性铺设
 │       ├── php.md
 │       ├── java.md
 │       ├── node.md
@@ -127,46 +134,59 @@ project-standards/
 │       ├── go.md
 │       ├── rust.md
 │       └── dotnet.md
-├── tools/
+├── tools/                           # 只读检测与人工审批，不自动改项目文件
 │   ├── check-template-drift.cjs
 │   ├── adopt-template-baseline.cjs
 │   ├── plan-template-upgrade.cjs
 │   ├── validate-template-upgrade-review.cjs
 │   ├── record-reviewed-template-upgrade.cjs
 │   └── template-source-inventory.cjs
-├── tests/
+├── tests/                           # 全部纳入 CI（Ubuntu + Windows）
 │   ├── test-init.cjs
 │   ├── test-parity.cjs
+│   ├── test-capability-resolver.cjs
+│   ├── test-task-context-resolver.cjs
+│   ├── test-policy.cjs
+│   ├── test-v2-spec.cjs
+│   ├── test-client-adapters.cjs
+│   ├── test-migration-v2.cjs
+│   ├── test-doc-links.cjs
 │   ├── test-template-drift.cjs
 │   ├── test-template-upgrade-plan.cjs
 │   ├── test-template-upgrade-review.cjs
 │   ├── test-template-upgrade-recovery.cjs
 │   └── test-template-upgrade-record.cjs
-├── .github/workflows/standards-ci.yml
-└── template/
-    ├── AGENTS.md
-    ├── policy/standards-version.json
-    ├── ROUTER.md
-    ├── CLAUDE.md
+└── template/                        # 被复制进项目的规范本体
+    ├── AGENTS.md                    # 唯一入口
+    ├── ROUTER.md                    # 按「要做什么」查权威文件
+    ├── CLAUDE.md                    # 一行指针，只导入 AGENTS.md
     ├── GEMINI.md
-    ├── gov.toml
-    ├── .gitattributes
-    ├── .gitignore.append
+    ├── gov.toml                     # 预算 / 白名单 / 禁用命名 / 布局
+    ├── project-profile.toml         # 项目画像，初始 needs_review
+    ├── policy/
+    │   ├── standards-version.json   # 母模板版本事实源
+    │   └── capabilities.json        # 能力注册表
+    ├── .gitattributes               # shell 脚本锁 LF
+    ├── .gitignore.append            # 追加进项目 .gitignore，含托管区块
     ├── .githooks/
     │   ├── pre-commit
     │   └── pre-commit.local.example
     ├── scripts/
-    │   ├── check-governance.cjs
-    │   ├── check_governance.py
-    │   └── generate-board.cjs
+    │   ├── check-governance.cjs     # 治理检查（Node）
+    │   ├── check_governance.py      # 治理检查（Python，输出与 Node 逐字节一致）
+    │   ├── profile-validator.cjs
+    │   ├── profile_validator.py
+    │   ├── capability-resolver.cjs
+    │   ├── task-context-resolver.cjs # 按任务事实解析该读哪些规范
+    │   └── generate-board.cjs       # BOARD.md 生成器
     ├── .spec/
     │   ├── 00-constitution.md
     │   ├── 01-architecture.md
     │   ├── 02-conventions.md
     │   ├── 03-delivery.md
-    │   ├── stacks/README.md + 当前项目技术栈文件
     │   ├── REGISTRY.md
-    │   ├── adr/
+    │   ├── stacks/README.md         # + 当前项目技术栈文件
+    │   ├── adr/README.md
     │   ├── roadmap/
     │   │   ├── INDEX.md
     │   │   └── archive/INDEX.md
@@ -176,6 +196,9 @@ project-standards/
     │       ├── archive/INDEX.md
     │       └── T1/card.md + log.md
     ├── .memory/
+    │   ├── MEMORY.md
+    │   ├── PITFALLS.md
+    │   └── log/
     └── .tmp/
 ```
 

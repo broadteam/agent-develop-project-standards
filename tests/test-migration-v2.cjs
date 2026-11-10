@@ -21,6 +21,17 @@ try {
   assert.match(preview.stdout, /--dry-run/);
   assert.deepEqual(fs.readdirSync(empty), [], 'dry-run must not write an empty project');
 
+  // A real first install on an empty project must be usable immediately: the governance
+  // gate has to pass without any manual follow-up. This is the most common first-run path.
+  const fresh = path.join(tmp, 'fresh-empty');
+  fs.mkdirSync(fresh);
+  const freshInit = init(fresh);
+  assert.equal(freshInit.status, 0, freshInit.stdout + freshInit.stderr);
+  const freshCheck = spawnSync(process.execPath, [path.join(fresh, 'scripts/check-governance.cjs')], { encoding: 'utf8' });
+  assert.equal(freshCheck.status, 0, `首次安装后治理检查必须直接通过：\n${freshCheck.stdout}${freshCheck.stderr}`);
+  assert.ok(fs.existsSync(path.join(fresh, '.agent-standards.json')), '首次安装必须生成安装清单');
+  assert.match(fs.readFileSync(path.join(fresh, 'project-profile.toml'), 'utf8'), /status = "needs_review"/);
+
   // Model a 1.2.x project with local customizations and multiple detectable stacks.
   const existing = path.join(tmp, 'existing multi stack');
   fs.mkdirSync(existing);
