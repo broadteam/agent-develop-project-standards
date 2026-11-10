@@ -434,6 +434,37 @@ try {
   assert.ok(fs.existsSync(path.join(migrateProject, '.standards', legacyName)), '新位置应存在');
   assert.ok(fs.existsSync(path.join(legacyDir, 'build.sh')), '项目自己的脚本不得被删除');
 
+  // If a later step fails after legacy files were removed, rollback must restore them.
+  // The legacy directory must remain until commit; otherwise rollback cannot recreate its file.
+  const rollbackMigrationProject = path.join(tmp, 'rollback-migration-app');
+  fs.mkdirSync(rollbackMigrationProject);
+  fs.writeFileSync(path.join(rollbackMigrationProject, 'package.json'), JSON.stringify({ name: 'rollback-migration-app' }));
+  const rollbackMigrationSetup = spawnSync(process.execPath, [path.join(root, 'init.cjs'), rollbackMigrationProject], { encoding: 'utf8' });
+  assert.equal(rollbackMigrationSetup.status, 0, rollbackMigrationSetup.stdout + rollbackMigrationSetup.stderr);
+  const rollbackLegacyDir = path.join(rollbackMigrationProject, 'scripts');
+  fs.mkdirSync(rollbackLegacyDir);
+  const rollbackLegacyName = 'check-governance.cjs';
+  const rollbackLegacyRel = 'scripts/' + rollbackLegacyName;
+  const rollbackManifestPath = path.join(rollbackMigrationProject, '.agent-standards.json');
+  const rollbackManifest = JSON.parse(fs.readFileSync(rollbackManifestPath, 'utf8'));
+  rollbackManifest.managed_files[rollbackLegacyRel] = { ...rollbackManifest.managed_files['.standards/' + rollbackLegacyName] };
+  fs.writeFileSync(rollbackManifestPath, JSON.stringify(rollbackManifest, null, 2));
+  fs.copyFileSync(path.join(rollbackMigrationProject, '.standards', rollbackLegacyName), path.join(rollbackLegacyDir, rollbackLegacyName));
+  fs.rmSync(path.join(rollbackMigrationProject, '.standards', rollbackLegacyName));
+  const rollbackMigrationBefore = JSON.stringify(snapshotTree(rollbackMigrationProject));
+  const failedMigration = spawnSync(process.execPath, [
+    path.join(root, 'init.cjs'), rollbackMigrationProject, '--update',
+  ], {
+    encoding: 'utf8',
+    env: { ...process.env, NODE_ENV: 'test', AGENT_STANDARDS_TEST_FAIL_AFTER_PATH: '.agent-standards.json' },
+  });
+  assert.equal(failedMigration.status, 1, failedMigration.stdout + failedMigration.stderr);
+  assert.match(failedMigration.stderr, /已尝试回滚本次写入/);
+  assert.ok(fs.existsSync(path.join(rollbackLegacyDir, rollbackLegacyName)),
+    'failed migration must restore the legacy file into its original directory');
+  assert.equal(JSON.stringify(snapshotTree(rollbackMigrationProject)), rollbackMigrationBefore,
+    'failed migration must restore the complete pre-upgrade tree, including the legacy directory');
+
   console.log('test-init: all cases passed');
 } finally {
   fs.rmSync(junkDir, { recursive: true, force: true });
