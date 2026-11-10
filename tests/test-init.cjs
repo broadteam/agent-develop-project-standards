@@ -410,29 +410,168 @@ try {
   assert.doesNotMatch(offRouter, /\.spec\/roadmap\/INDEX\.md/);
   assert.doesNotMatch(offRouter, /<!--cap/, '路由表渲染后不得残留标记');
 
-  // 3.0.0 moved the tooling from scripts/ to .standards/. An upgrade must remove our old copies
-  // (proven by hash) and must never touch a file the project wrote itself.
+  // Simulate a complete 2.7.1 installation: all governance tools lived in scripts/,
+  // the hook and gov.toml referenced that location, and the manifest records the old baseline.
   const migrateProject = path.join(tmp, 'migrate-app');
   fs.mkdirSync(migrateProject);
   fs.writeFileSync(path.join(migrateProject, 'package.json'), JSON.stringify({ name: 'migrate-app' }));
-  assert.equal(spawnSync(process.execPath, [path.join(root, 'init.cjs'), migrateProject], { encoding: 'utf8' }).status, 0);
+  const initialInstall = spawnSync(process.execPath, [path.join(root, 'init.cjs'), migrateProject], { encoding: 'utf8' });
+  assert.equal(initialInstall.status, 0, initialInstall.stdout + initialInstall.stderr);
   const legacyDir = path.join(migrateProject, 'scripts');
   fs.mkdirSync(legacyDir);
-  const legacyName = 'check-governance.cjs';
-  fs.copyFileSync(path.join(migrateProject, '.standards', legacyName), path.join(legacyDir, legacyName));
   fs.writeFileSync(path.join(legacyDir, 'build.sh'), '#!/bin/sh\necho project-owned\n');
   const migrateManifestPath = path.join(migrateProject, '.agent-standards.json');
   const migrateManifest = JSON.parse(fs.readFileSync(migrateManifestPath, 'utf8'));
-  migrateManifest.managed_files[`scripts/${legacyName}`] = { ...migrateManifest.managed_files[`.standards/${legacyName}`] };
+  migrateManifest.installed_with_version = '2.7.1';
+  for (const metadata of Object.values(migrateManifest.managed_files)) metadata.template_version = '2.7.1';
+  const legacyToolNames = [
+    'capability-resolver.cjs', 'check-governance.cjs', 'check_governance.py',
+    'generate-board.cjs', 'profile-validator.cjs', 'profile_validator.py',
+    'sync-memory.cjs', 'task-context-resolver.cjs',
+  ];
+  for (const name of legacyToolNames) {
+    const currentRel = '.standards/' + name;
+    const legacyRel = 'scripts/' + name;
+    const currentPath = path.join(migrateProject, currentRel);
+    assert.ok(fs.existsSync(currentPath), '3.0 template must contain ' + name);
+    fs.copyFileSync(currentPath, path.join(migrateProject, legacyRel));
+    migrateManifest.managed_files[legacyRel] = { ...migrateManifest.managed_files[currentRel], template_version: '2.7.1' };
+    delete migrateManifest.managed_files[currentRel];
+    fs.rmSync(currentPath);
+  }
+  const oldGovPath = path.join(migrateProject, 'gov.toml');
+  const oldGov = fs.readFileSync(oldGovPath, 'utf8').replaceAll('.standards/', 'scripts/');
+  fs.writeFileSync(oldGovPath, oldGov);
+  migrateManifest.managed_files['gov.toml'].installed_sha256 =
+    require('node:crypto').createHash('sha256').update(oldGov).digest('hex');
+  const oldHookPath = path.join(migrateProject, '.githooks/pre-commit');
+  const oldHook = fs.readFileSync(oldHookPath, 'utf8').replaceAll('.standards/', 'scripts/');
+  fs.writeFileSync(oldHookPath, oldHook);
+  migrateManifest.managed_files['.githooks/pre-commit'].installed_sha256 =
+    require('node:crypto').createHash('sha256').update(oldHook).digest('hex');
+  const externalManifestTarget = path.join(tmp, 'must-not-be-deleted.txt');
+  const externalManifestContent = 'outside the project root';
+  fs.writeFileSync(externalManifestTarget, externalManifestContent);
+  migrateManifest.managed_files['scripts/../../must-not-be-deleted.txt'] = {
+    installed_sha256: require('node:crypto').createHash('sha256').update(externalManifestContent).digest('hex'),
+  };
   fs.writeFileSync(migrateManifestPath, JSON.stringify(migrateManifest, null, 2));
-  fs.rmSync(path.join(migrateProject, '.standards', legacyName));
 
   const migrateRun = spawnSync(process.execPath, [path.join(root, 'init.cjs'), migrateProject, '--update'], { encoding: 'utf8' });
   assert.equal(migrateRun.status, 0, migrateRun.stdout + migrateRun.stderr);
-  assert.match(migrateRun.stdout, /迁移/, '升级时应在报告里说明迁移了什么');
-  assert.ok(!fs.existsSync(path.join(legacyDir, legacyName)), '旧位置的受管脚本应被移除');
-  assert.ok(fs.existsSync(path.join(migrateProject, '.standards', legacyName)), '新位置应存在');
+  assert.match(migrateRun.stdout + migrateRun.stderr, /迁移/, '升级时应在报告里说明迁移了什么');
+  assert.ok(fs.existsSync(externalManifestTarget), '不可信 manifest 路径不得删除项目根目录之外的文件');
+  assert.match(migrateRun.stdout + migrateRun.stderr, /非标准旧工具路径/, '非标准旧路径应明确告警');
+  for (const name of legacyToolNames) {
+    assert.ok(!fs.existsSync(path.join(legacyDir, name)), '旧位置的受管脚本应被移除：' + name);
+    assert.ok(fs.existsSync(path.join(migrateProject, '.standards', name)), '新位置应存在：' + name);
+  }
   assert.ok(fs.existsSync(path.join(legacyDir, 'build.sh')), '项目自己的脚本不得被删除');
+  assert.match(fs.readFileSync(oldGovPath, 'utf8'), /\.standards\/check-governance\.cjs/,
+    'gov.toml 中的旧脚本路径必须迁移');
+  assert.match(fs.readFileSync(oldHookPath, 'utf8'), /\.standards\/check-governance\.cjs/,
+    '由本工具管理的 Hook 必须迁移到新路径');
+  assert.equal(JSON.parse(fs.readFileSync(migrateManifestPath, 'utf8')).installed_with_version, '3.0.0',
+    '全部受管文件升级成功后，整体版本标记应推进到 3.0.0');
+
+  // A legacy tool edited by the project must survive migration and be reported for manual review.
+  const editedLegacyProject = path.join(tmp, 'edited-legacy-app');
+  fs.mkdirSync(editedLegacyProject);
+  fs.writeFileSync(path.join(editedLegacyProject, 'package.json'), JSON.stringify({ name: 'edited-legacy-app' }));
+  const editedSetup = spawnSync(process.execPath, [path.join(root, 'init.cjs'), editedLegacyProject], { encoding: 'utf8' });
+  assert.equal(editedSetup.status, 0, editedSetup.stdout + editedSetup.stderr);
+  const editedLegacyDir = path.join(editedLegacyProject, 'scripts');
+  fs.mkdirSync(editedLegacyDir);
+  const editedLegacyName = 'check-governance.cjs';
+  const editedCurrentPath = path.join(editedLegacyProject, '.standards', editedLegacyName);
+  const editedLegacyPath = path.join(editedLegacyDir, editedLegacyName);
+  const editedLegacyOriginal = fs.readFileSync(editedCurrentPath, 'utf8');
+  fs.copyFileSync(editedCurrentPath, editedLegacyPath);
+  const editedManifestPath = path.join(editedLegacyProject, '.agent-standards.json');
+  const editedManifest = JSON.parse(fs.readFileSync(editedManifestPath, 'utf8'));
+  editedManifest.installed_with_version = '2.7.1';
+  for (const metadata of Object.values(editedManifest.managed_files)) metadata.template_version = '2.7.1';
+  editedManifest.managed_files['scripts/' + editedLegacyName] = {
+    ...editedManifest.managed_files['.standards/' + editedLegacyName],
+    template_version: '2.7.1',
+  };
+  delete editedManifest.managed_files['.standards/' + editedLegacyName];
+  fs.rmSync(editedCurrentPath);
+  const localLegacyEdit = editedLegacyOriginal + '\n// project customization\n';
+  fs.writeFileSync(editedLegacyPath, localLegacyEdit);
+  fs.writeFileSync(editedManifestPath, JSON.stringify(editedManifest, null, 2));
+  const editedMigration = spawnSync(process.execPath, [path.join(root, 'init.cjs'), editedLegacyProject, '--update'], { encoding: 'utf8' });
+  assert.equal(editedMigration.status, 0, editedMigration.stdout + editedMigration.stderr);
+  assert.equal(fs.readFileSync(editedLegacyPath, 'utf8'), localLegacyEdit, '项目修改过的旧脚本必须原样保留');
+  assert.match(editedMigration.stdout + editedMigration.stderr, /旧位置脚本已被修改/, '保留修改过的旧脚本时必须告警');
+  assert.equal(JSON.parse(fs.readFileSync(editedManifestPath, 'utf8')).installed_with_version, '2.7.1',
+    '仍有未迁移的旧版受管文件时不得推进整体版本号');
+
+  // Never follow a project-owned scripts/ symlink while trying to clean legacy tooling.
+  const symlinkLegacyProject = path.join(tmp, 'symlink-legacy-app');
+  const symlinkLegacyExternal = path.join(tmp, 'symlink-legacy-external');
+  fs.mkdirSync(symlinkLegacyProject);
+  fs.mkdirSync(symlinkLegacyExternal);
+  fs.writeFileSync(path.join(symlinkLegacyProject, 'package.json'), JSON.stringify({ name: 'symlink-legacy-app' }));
+  const symlinkLegacySetup = spawnSync(process.execPath, [path.join(root, 'init.cjs'), symlinkLegacyProject], { encoding: 'utf8' });
+  assert.equal(symlinkLegacySetup.status, 0, symlinkLegacySetup.stdout + symlinkLegacySetup.stderr);
+  const symlinkLegacyName = 'check-governance.cjs';
+  const symlinkLegacyExternalFile = path.join(symlinkLegacyExternal, symlinkLegacyName);
+  fs.copyFileSync(path.join(symlinkLegacyProject, '.standards', symlinkLegacyName), symlinkLegacyExternalFile);
+  const symlinkLegacyHash = require('node:crypto').createHash('sha256').update(fs.readFileSync(symlinkLegacyExternalFile)).digest('hex');
+  const symlinkLegacyManifestPath = path.join(symlinkLegacyProject, '.agent-standards.json');
+  const symlinkLegacyManifest = JSON.parse(fs.readFileSync(symlinkLegacyManifestPath, 'utf8'));
+  symlinkLegacyManifest.managed_files['scripts/' + symlinkLegacyName] = {
+    installed_sha256: symlinkLegacyHash,
+    template_version: '2.7.1',
+  };
+  fs.writeFileSync(symlinkLegacyManifestPath, JSON.stringify(symlinkLegacyManifest, null, 2));
+  let legacySymlinkCreated = false;
+  try {
+    fs.symlinkSync(symlinkLegacyExternal, path.join(symlinkLegacyProject, 'scripts'),
+      process.platform === 'win32' ? 'junction' : 'dir');
+    legacySymlinkCreated = true;
+  } catch (error) {
+    if (process.platform !== 'win32' || !['EPERM', 'EACCES', 'UNKNOWN'].includes(error.code)) throw error;
+    console.warn('Skipping Windows legacy-directory symlink fixture: current runner does not permit symlink creation.');
+  }
+  if (legacySymlinkCreated) {
+    const symlinkLegacyRun = spawnSync(process.execPath, [path.join(root, 'init.cjs'), symlinkLegacyProject, '--update'], { encoding: 'utf8' });
+    assert.equal(symlinkLegacyRun.status, 0, symlinkLegacyRun.stdout + symlinkLegacyRun.stderr);
+    assert.equal(fs.existsSync(symlinkLegacyExternalFile), true, 'migration must not delete a file through a project-owned scripts/ symlink');
+    assert.match(symlinkLegacyRun.stdout + symlinkLegacyRun.stderr, /scripts\/ 不是普通目录/);
+  }
+
+  // If a later step fails after legacy files were removed, rollback must restore them.
+  // The legacy directory must remain until commit; otherwise rollback cannot recreate its file.
+  const rollbackMigrationProject = path.join(tmp, 'rollback-migration-app');
+  fs.mkdirSync(rollbackMigrationProject);
+  fs.writeFileSync(path.join(rollbackMigrationProject, 'package.json'), JSON.stringify({ name: 'rollback-migration-app' }));
+  const rollbackMigrationSetup = spawnSync(process.execPath, [path.join(root, 'init.cjs'), rollbackMigrationProject], { encoding: 'utf8' });
+  assert.equal(rollbackMigrationSetup.status, 0, rollbackMigrationSetup.stdout + rollbackMigrationSetup.stderr);
+  const rollbackLegacyDir = path.join(rollbackMigrationProject, 'scripts');
+  fs.mkdirSync(rollbackLegacyDir);
+  const rollbackLegacyName = 'check-governance.cjs';
+  const rollbackLegacyRel = 'scripts/' + rollbackLegacyName;
+  const rollbackManifestPath = path.join(rollbackMigrationProject, '.agent-standards.json');
+  const rollbackManifest = JSON.parse(fs.readFileSync(rollbackManifestPath, 'utf8'));
+  rollbackManifest.managed_files[rollbackLegacyRel] = { ...rollbackManifest.managed_files['.standards/' + rollbackLegacyName] };
+  fs.writeFileSync(rollbackManifestPath, JSON.stringify(rollbackManifest, null, 2));
+  fs.copyFileSync(path.join(rollbackMigrationProject, '.standards', rollbackLegacyName), path.join(rollbackLegacyDir, rollbackLegacyName));
+  fs.rmSync(path.join(rollbackMigrationProject, '.standards', rollbackLegacyName));
+  const rollbackMigrationBefore = JSON.stringify(snapshotTree(rollbackMigrationProject));
+  const failedMigration = spawnSync(process.execPath, [
+    path.join(root, 'init.cjs'), rollbackMigrationProject, '--update',
+  ], {
+    encoding: 'utf8',
+    env: { ...process.env, NODE_ENV: 'test', AGENT_STANDARDS_TEST_FAIL_AFTER_PATH: '.agent-standards.json' },
+  });
+  assert.equal(failedMigration.status, 1, failedMigration.stdout + failedMigration.stderr);
+  assert.match(failedMigration.stderr, /已尝试回滚本次写入/);
+  assert.ok(fs.existsSync(path.join(rollbackLegacyDir, rollbackLegacyName)),
+    'failed migration must restore the legacy file into its original directory');
+  assert.equal(JSON.stringify(snapshotTree(rollbackMigrationProject)), rollbackMigrationBefore,
+    'failed migration must restore the complete pre-upgrade tree, including the legacy directory');
 
   console.log('test-init: all cases passed');
 } finally {
