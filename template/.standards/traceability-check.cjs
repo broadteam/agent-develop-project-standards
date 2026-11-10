@@ -65,7 +65,7 @@ function validateTraceability(root) {
     for (const x of refs.goals) if (!goals.has(x)) errors.push(`追踪关系：任务 ${id} 引用了不存在的目标 ${x}`);
     for (const x of refs.reqs) if (!requirements.has(x)) errors.push(`追踪关系：任务 ${id} 引用了不存在的需求 ${x}`);
     for (const x of refs.changes) if (!changes.has(x)) errors.push(`追踪关系：任务 ${id} 引用了不存在的变更 ${x}`);
-    if (!refs.goals.length && !/supporting:/.test(goalCell)) errors.push(`追踪关系：任务 ${id} 必须关联目标或说明 supporting 关系`);
+    if (!refs.goals.length && !/supporting:/.test(goalCell) && (goals.size > 0 || requirements.size > 0)) errors.push(`追踪关系：任务 ${id} 必须关联目标或说明 supporting 关系`);
   }
   const milestoneIds = rows(roadmapIndex).filter(r => /^M\d+$/.test(r[0])).map(r => r[0]);
   const milestoneRefs = new Map();

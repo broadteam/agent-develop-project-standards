@@ -96,7 +96,7 @@ def validate_traceability(root: Path) -> list[str]:
             if ref not in requirements: errors.append(f"追踪关系：任务 {task_id} 引用了不存在的需求 {ref}")
         for ref in refs["changes"]:
             if ref not in changes: errors.append(f"追踪关系：任务 {task_id} 引用了不存在的变更 {ref}")
-        if not refs["goals"] and "supporting:" not in goal_cell:
+        if not refs["goals"] and "supporting:" not in goal_cell and (goals or requirements):
             errors.append(f"追踪关系：任务 {task_id} 必须关联目标或说明 supporting 关系")
 
     milestone_refs: dict[str, dict] = {}
