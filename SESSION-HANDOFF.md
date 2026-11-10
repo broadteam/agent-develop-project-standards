@@ -46,17 +46,16 @@
 - 已完成里程碑必须有独立对齐回顾；关联需求需 verified 或有 accepted defer/withdrawal 决策，任务须 done/dropped，且不能有未解决漂移。
 - 机器校验状态和引用，不声称证明代码语义；语义判断必须检查实际 diff、验收判据与测试。
 
-## PR #9 当前修复验证
+## PR #9 最终验证
 
-- 最新代码包含独立 `intent-alignment-check.cjs` / `intent_alignment_check.py`，由原有 traceability checker 调用；CI 必须按最新提交 SHA 确认。
-- 已修复先前 CI 的正则语法问题和测试文件模板字符串转义；新增旧任务卡/旧里程碑未 opt-in 的兼容性回归测试。
-
-## PR #9 修复与验证
-
-- 已重构为独立双端校验模块，避免继续膨胀通用追踪校验器。
-- 已修复此前 `Syntax checks` 报出的 Node 正则转义问题，并修复模拟测试中被转义的模板字符串。
-- 新增旧任务卡/旧里程碑无 opt-in 的向后兼容测试。
-- 当前最新 CI 必须以 PR #9 最新 head SHA 现场查询；之前对 `e141b3f` 的语法检查失败不可当作最新提交结果。
+- 最新 head：`4d8c59a64cafd70d0e99a85a4e51f32cf9ae84a0`。
+- GitHub Actions run：`42885360355`，针对该 head 的 8 个 Ubuntu/Windows × Node 22/24 × Python 3.11/3.13 job 全部通过。
+- 意图对齐逻辑采用独立 Node/Python 模块：`intent-alignment-check.cjs` 与 `intent_alignment_check.py`，由既有追踪校验入口调用。
+- 任务开工校验 G/R 锚点、accepted C、预期贡献和约束；收口校验偏离结论、Commit SHA、V 证据覆盖和影响说明。V 必须覆盖任务关联需求，并与收口 SHA 一致。
+- 已完成里程碑要求独立回顾、需求 verified 或有 accepted defer/withdrawal、包含任务 done/dropped，且不存在未解决漂移。
+- 老任务卡/老里程碑未显式 opt-in 时不追溯性阻断；新模板默认 required。纯支撑工作可 not_applicable，但要说明豁免理由且不能有直接 G/R 关联。
+- 自动检查只能证明结构、引用和记录一致，不能替代 Agent 阅读实际 diff、目标成功判据和测试结果的语义审查。
+- 较早的 `e141b3f` CI 语法检查失败已由后续结构调整修复；不得把旧失败当作当前 head 结果。
 
 ## 工程边界
 
