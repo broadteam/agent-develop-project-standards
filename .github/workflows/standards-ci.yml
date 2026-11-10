@@ -42,7 +42,7 @@ jobs:
           node --check template/.standards/capability-resolver.cjs
           node --check template/.standards/task-context-resolver.cjs
           node --check template/.standards/generate-board.cjs
-          python -m py_compile template/.standards/check_governance.py template/.standards/profile_validator.py template/.standards/traceability_check.py
+          python -c "import ast, pathlib; files=['template/.standards/check_governance.py','template/.standards/profile_validator.py','template/.standards/traceability_check.py']; [ast.parse(pathlib.Path(f).read_text(encoding='utf-8'), filename=f) for f in files]"
       - name: Regression tests
         env:
           PYTHONUTF8: '1'
