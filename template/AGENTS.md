@@ -71,8 +71,8 @@
 | `git log` / `git show` | 断点引用了提交、排查回归/历史行为、或当前实现意图不清时；不是每次会话的固定步骤 |
 
 **收口要求**：
-- 跟踪任务：开始前完成开工对齐；进入 review/done 前完成收口对齐。`unresolved_drift` 不得 done（规则见 CHANGES）。
-- 里程碑关闭前核对目标成功判据与 R/V 证据；任务 done 不等于目标完成。交接更新 MEMORY §0。
+- 跟踪任务：`in_progress` 前完成开工对齐；`review` / `done` 前完成收口对齐。`unresolved_drift` 不得 done（详见 CHANGES）。
+- 里程碑完成前核对目标判据与 R/V 证据；任务 done 不等于目标完成。
 - 轻量任务：只有产生了后续会话必须知道的事实、决策或未完成事项时，才更新记忆/日志；不要为了留痕重复抄写代码 diff。
 - 新增的跨会话规则进入 `.memory/MEMORY.md`；可复现的判据级教训进入 `.memory/PITFALLS.md`。
 - **客户端私有记忆只是缓存**（如 `.workbuddy-ai/`、各客户端自己的会话记忆）：项目级事实必须写回 `.memory/`，只留在私有目录等于没记。开工读 `.memory/MEMORY.md` §0，不读私有记忆当权威。
