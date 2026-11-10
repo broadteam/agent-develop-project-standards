@@ -184,10 +184,16 @@ function assertSafeTargetFile(relPath) {
     }
   }
 }
+// Untracked build artifacts can appear under template/ on any machine that ran the Python
+// checker or an editor. They are gitignored, so CI never sees them, but copying them would
+// ship junk into every initialized project.
+const TEMPLATE_JUNK = /(?:^|\/)(?:__pycache__|\.pytest_cache|\.mypy_cache|\.DS_Store|Thumbs\.db)(?:\/|$)|\.(?:pyc|pyo|swp|swo|orig|rej)$|~$/;
+
 function collectTemplateFiles(dir, rel = '', includeExcluded = false) {
   const result = [];
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const relPath = path.posix.join(rel.split(path.sep).join('/'), entry.name);
+    if (TEMPLATE_JUNK.test(relPath)) continue;
     if (!includeExcluded && capabilityResolution.isExcluded(relPath)) continue;
     if (entry.isDirectory()) result.push(...collectTemplateFiles(path.join(dir, entry.name), relPath, includeExcluded));
     else if (entry.name !== '.gitignore.append') result.push(relPath);
@@ -363,6 +369,7 @@ function walk(dir, rel = '') {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const from = path.join(dir, entry.name);
     const relPath = path.posix.join(rel.split(path.sep).join('/'), entry.name);
+    if (TEMPLATE_JUNK.test(relPath)) continue;
     if (capabilityResolution.isExcluded(relPath)) continue;
     if (entry.isDirectory()) { walk(from, relPath); continue; }
     if (entry.name === '.gitignore.append') continue;
@@ -488,10 +495,13 @@ if (!DRY && capabilityResolution.capabilities.task_tracking?.status !== 'disable
   preservedPaths.delete('.spec/tasks/BOARD.md');
   derivedPaths.add('.spec/tasks/BOARD.md');
 }
-if (existingDirs.length) {
+// Directories the template itself creates are not "pre-existing" project structure. Counting
+// them made a repeat run warn about .spec/.memory/scripts, which trains users to ignore warnings.
+const preexistingDirs = existingDirs.filter((name) => !TEMPLATE_DIRS.includes(name));
+if (preexistingDirs.length) {
   report.warnings.push(STRICT_SCAN
-    ? `严格扫描：${existingDirs.length} 个既有根目录不会自动纳入白名单；请人工确认后逐项登记。`
-    : `发现 ${existingDirs.length} 个既有根目录，兼容模式下已纳入白名单；请人工审查 gov.toml [dirs]。`);
+    ? `严格扫描：${preexistingDirs.length} 个既有根目录不会自动纳入白名单；请人工确认后逐项登记。`
+    : `发现 ${preexistingDirs.length} 个既有根目录，兼容模式下已纳入白名单；请人工审查 gov.toml [dirs]。`);
 }
 if (STACKS.length > 1) report.warnings.push(`检测到多技术栈：${STACKS.join(', ')}。当前默认配置按 ${STACK} 生成，请人工确认 gov.toml [project]。`);
 if (!DRY) {

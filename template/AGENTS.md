@@ -100,27 +100,20 @@
 |---|---|
 | `.spec/00-constitution.md` | 红线（不可协商的技术约束） |
 | `.spec/01-architecture.md` | 架构、目录职责、数据位置 |
-| `.spec/02-conventions.md` | 跨语言命名、提交信息、文案纪律 |
-| `.spec/stacks/<stack>.md` | 当前项目技术栈专属约定（按任务按需读取） |
-| `.spec/03-delivery.md` | 构建、打包、产物路径、发布检查 |
-| `.spec/roadmap/INDEX.md` | 里程碑**索引**（≤4KB，只读这个） |
-| `.spec/roadmap/<ID>/milestone.md` | 单个里程碑详情（只在做它时读） |
-| `.spec/REGISTRY.md` | **标识符唯一登记处** |
-| `.spec/tasks/index.md` | 任务卡**索引 + 唯一状态源**（≤8KB） |
-| `.spec/tasks/<ID>/card.md` | 单张卡：背景/范围/验收（≤4KB） |
-| `.spec/tasks/<ID>/log.md` | 单张卡执行流水（只追加，追溯用） |
-| `.spec/tasks/archive/W<n>/` | 已完成波次的完整任务卡归档（**默认不读**） |
+| `.spec/02-conventions.md` | 命名、提交信息、文案纪律 |
+| `.spec/stacks/<stack>.md` | 当前技术栈专属约定（按任务读） |
+| `.spec/03-delivery.md` | 构建、产物路径、发布检查 |
+| `.spec/REGISTRY.md` | 标识符唯一登记处 |
 | `.spec/adr/` | 架构决策记录（推翻既有设计时必写） |
-| `.memory/MEMORY.md` | 跨会话记忆（随 git 走） |
-| `.memory/PITFALLS.md` | 已踩过的坑（只增不改结论） |
-| `.memory/log/` | 每日收口日志 |
+| `.spec/tasks/` | `index.md` 唯一状态源；`<ID>/card.md` 背景/范围/验收，`<ID>/log.md` 流水；`archive/` 默认不读 |
+| `.spec/roadmap/` | `INDEX.md` 里程碑索引；`<ID>/milestone.md` 详情 |
+| `.memory/` | `MEMORY.md` 跨会话记忆；`PITFALLS.md` 判据实证；`log/` 每日收口 |
+
+按「要做什么」定位文件看 `ROUTER.md`；各文件体积上限见 `gov.toml [budget]`。
 
 ---
 
 ## 2.5 计划与待办（唯一家）
-
-Agent 最容易干的事：在根目录建 `TODO.md`、`PLAN.md`、`ROADMAP.md`、`NEXT_STEPS.md`、`progress.md`，
-然后下次没人知道哪个是最新的。**这些文件一律禁止出现在根目录**，由治理检查拦截。
 
 计划分三层，各有唯一的家：
 
@@ -133,17 +126,11 @@ Agent 最容易干的事：在根目录建 `TODO.md`、`PLAN.md`、`ROADMAP.md`�
 **判定口诀**：这件事明天还在吗？
 不在 ⇒ `.tmp/`；在但几天能做完 ⇒ 卡；要拆成好几张卡 ⇒ 里程碑。
 
-**根目录禁止出现**（出现即违规）：
-`TODO.md` `PLAN.md` `ROADMAP.md` `NEXT.md` `NEXT_STEPS.md` `PROGRESS.md` `NOTES.md` `BACKLOG.md` `TASKS.md` `CHECKLIST.md`
-
-**为什么按目录而不是一个大文件**：一张卡一个目录，读一张卡只花一份 token；
-写在同一个文件里，200 张卡就是 200 倍的读取成本，而且改一次要重读全文。
+根目录禁止出现 `TODO.md` / `PLAN.md` / `PROGRESS.md` 这类计划文件。完整清单与判定由 `gov.toml [forbid]` 和治理检查执行，这里不重复枚举——机器能查的规则只留指针。
 
 ---
 
 ## 2.6 分级读取（按需，不是强制清单）
-
-> 目标是减少无效上下文读取，而不是限制 Agent 获取解决问题所需的信息。
 
 | 级 | 内容 | 读取规则 |
 |---|---|---|
@@ -156,10 +143,8 @@ Agent 最容易干的事：在根目录建 `TODO.md`、`PLAN.md`、`ROADMAP.md`�
 
 1. **从当前问题出发**：先确定要解决什么，再读取能回答它的最少文件。
 2. **先索引，后详情**：需要查看任务或里程碑时，先读索引，再读命中的单项。
-3. **不做目录式通读**：禁止为了「熟悉项目」一次性读取全部卡片、日志、ADR 或归档。
-4. **不重复读取**：本次会话已读且未发生变化的文件，不要为了确认而重复读取。
-5. **信息不足时扩展读取**：最少上下文无法解释实现、风险或失败原因时，继续读取相关源码、测试、历史记录；不能为了省 Token 猜测。
-6. **预算是维护信号，不是删减依据**：超预算时优先压缩重复内容、归档过期内容；不得删除仍然影响正确性或安全性的必要事实。
+3. **信息不足时扩展读取**：最少上下文无法解释实现、风险或失败原因时，继续读取相关源码、测试、历史记录；不能为了省 Token 猜测。
+4. **超预算先压缩，不删事实**：优先去重、归档过期内容；不得删除仍影响正确性或安全性的必要事实。
 
 ## 3. 临时产物（脚本/探针/一次性数据）
 
@@ -178,12 +163,7 @@ Agent 最容易干的事：在根目录建 `TODO.md`、`PLAN.md`、`ROADMAP.md`�
 
 ## 4. 目录白名单（机器可测）
 
-`npm run gov`（或 `node scripts/check-governance.cjs`）会检查根目录。允许的项见 `gov.toml [dirs]`：
-
-```
-目录：{{ALLOWED_DIRS}}
-文件：{{ALLOWED_FILES}}
-```
+`node scripts/check-governance.cjs` 检查根目录。允许的目录与文件以 `gov.toml [dirs]` 为**唯一来源**，本文件不重复列举——重复的清单会随每次重跑变长，且两处必然走样。
 
 新增根级目录/文件 ⇒ 先改 `gov.toml [dirs]`，再跑检查确认通过。
 

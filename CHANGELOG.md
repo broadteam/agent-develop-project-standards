@@ -1,3 +1,19 @@
+## 2.0.0-rc.16 - 2026-11-10
+
+Real-project trial on an existing Vite/TypeScript project surfaced three defects that every fixture test had missed.
+
+### Fixed
+- `init.cjs` copied untracked build artifacts from `template/` into the target project. Running the Python checker creates `template/scripts/__pycache__`, which is gitignored, so CI never saw it — but every initialized project received a `.pyc`. Template walking now filters `__pycache__`, `*.pyc`, editor temp files and `.DS_Store`.
+- The compatibility scan counted directories the template itself had just created (`.spec`, `.memory`, `.tmp`, `scripts`, `policy`), so a repeat `init` warned that there were "14 pre-existing root directories to review". A warning that fires on the template's own output teaches users to ignore warnings. Only genuinely pre-existing directories are reported now, and the count is stable across runs.
+- A freshly initialized `AGENTS.md` consumed **99% of its own budget** (12201/12288B, 87 bytes left), while the README instructs the user to add project-specific wording to it — the first edit would have been blocked by the governance gate. `AGENTS.md` §4 also duplicated the `gov.toml [dirs]` whitelist, so every `--force` rerun appended more file names and grew the entry file further.
+
+### Changed
+- `template/AGENTS.md` trimmed from 11814B to 10792B by removing duplicated and machine-enforced content: the file map collapsed to one row per directory, the forbidden-filename list replaced by a pointer to `gov.toml [forbid]`, two reading rules that `§0.5` already states, and the whitelist dump replaced by a pointer. Initialized size is now 10814B (88%), leaving 1474B for project rules, and repeat runs are idempotent.
+- `template/.memory/PITFALLS.md` P15: a template that fills its own budget locks its users out.
+
+### Tests
+- `tests/test-init.cjs` asserts an initialized `AGENTS.md` leaves at least 1024B of budget headroom, and that a `__pycache__` probe planted under `template/` never reaches the installed project.
+
 ## 2.0.0-rc.15 - 2026-11-10
 
 ### Fixed

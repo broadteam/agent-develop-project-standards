@@ -7,6 +7,9 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const root = path.resolve(__dirname, '..');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-standards-init-'));
+// Created inside the test and removed in finally: proves untracked artifacts under
+// template/ are filtered out of the install.
+const junkDir = path.join(root, 'template/scripts/__pycache__');
 function snapshotTree(dir, rel = '') {
   const entries = [];
   for (const name of fs.readdirSync(dir).sort()) {
@@ -39,6 +42,11 @@ try {
   collectPlaceholders(path.join(root, 'template'));
   const unknownKeys = [...usedKeys].filter((key) => !knownKeys.has(key)).sort();
   assert.deepEqual(unknownKeys, [], `模板使用了 init 不认识的占位符：${unknownKeys.join(', ')}`);
+
+  // Untracked build artifacts under template/ (created by running the Python checker or an
+  // editor) are gitignored, so CI never sees them, but they must not reach the project.
+  fs.mkdirSync(junkDir, { recursive: true });
+  fs.writeFileSync(path.join(junkDir, 'probe.cpython-313.pyc'), 'junk');
 
   const project = path.join(tmp, 'php-app');
   fs.mkdirSync(project);
@@ -75,6 +83,17 @@ try {
   assert.match(gov, /language = "php"/);
   assert.match(gov, /package_manager = "composer\+npm"/);
   assert.ok(fs.existsSync(path.join(project, 'scripts/generate-board.cjs')));
+  assert.ok(!fs.existsSync(path.join(project, 'scripts/__pycache__')), '模板里的编译缓存不得复制进项目');
+  assert.ok(!fs.existsSync(path.join(project, 'scripts/probe.cpython-313.pyc')), '模板里的 .pyc 不得复制进项目');
+  // The README tells the user to add project-specific wording to AGENTS.md. Shipping an entry
+  // file at 99% of its own budget makes the governance gate block exactly that edit.
+  const installedGov = fs.readFileSync(path.join(project, 'gov.toml'), 'utf8');
+  const agentsBudget = Number(installedGov.match(/^agents_bytes\s*=\s*(\d+)/m)[1]);
+  const installedAgents = Buffer.byteLength(
+    fs.readFileSync(path.join(project, 'AGENTS.md'), 'utf8').replace(/\r\n/g, '\n'), 'utf8');
+  assert.ok(
+    agentsBudget - installedAgents >= 1024,
+    `初始化后的 AGENTS.md 只留 ${agentsBudget - installedAgents}B 余量（${installedAgents}/${agentsBudget}B），至少要留 1024B 给项目自有规则`);
   // An unknown placeholder would ship to the user as a literal {{X}} marker: init only
   // substitutes known keys, so the installed tree is scanned instead of trusted.
   const leftovers = [];
@@ -252,5 +271,6 @@ try {
   assert.match(strictCheck.stdout, /legacy-folder\//);
   console.log('test-init: all cases passed');
 } finally {
+  fs.rmSync(junkDir, { recursive: true, force: true });
   fs.rmSync(tmp, { recursive: true, force: true });
 }
