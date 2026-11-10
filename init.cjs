@@ -748,7 +748,14 @@ if (fs.existsSync(legacyScripts)) {
         continue;
       }
       const recorded = previousManifest.managed_files[rel]?.installed_sha256;
-      if (!recorded || sha256(fs.readFileSync(file)) !== recorded) continue;
+      if (!recorded) {
+        report.warnings.push('旧位置脚本缺少可验证的安装哈希，已保留：' + rel);
+        continue;
+      }
+      if (sha256(fs.readFileSync(file)) !== recorded) {
+        report.warnings.push('旧位置脚本已被修改，未自动删除：' + rel + '；请人工决定是否迁移或清理。');
+        continue;
+      }
       if (!DRY) removeTransactional(file);
       delete managedFiles[rel];
       report.migrated.push(rel);
