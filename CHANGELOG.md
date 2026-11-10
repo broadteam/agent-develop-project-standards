@@ -15,6 +15,8 @@
 - `template/.memory/PITFALLS.md` P13 (line endings make budgets and hashes platform-dependent) and P14 ("CI green" cannot be restated across sessions).
 
 ### Changed
+- Raise the declared runtime floor to Node 22 / Python 3.11 and state it in `policy/standards-version.json` (`minimum_node_major`, `minimum_python`). The previous floor (Node 18 / Python 3.10) was past end-of-life and was never exercised by CI, so "supported" was an untested promise.
+- CI now runs a matrix of the declared floor and the current release: Node 22/24 × Python 3.11/3.13 × Ubuntu/Windows, eight jobs total.
 - `template/gov.toml` documents the LF-normalized measurement basis for `[budget]`.
 - README directory tree regenerated from the actual repository contents.
 

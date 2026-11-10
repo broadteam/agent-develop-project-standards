@@ -17,9 +17,11 @@
 
 ## 环境要求
 
-- Node.js 18+（初始化、Node 治理检查、看板生成与测试）。
-- Python 3.10+（需要使用 Python 版治理检查时）。
+- Node.js 22+（初始化、Node 治理检查、看板生成与测试）。
+- Python 3.11+（需要使用 Python 版治理检查时）。
 - Git（启用提交钩子时）。
+
+机器可读的版本下限在 `template/policy/standards-version.json`；CI 矩阵同时覆盖下限与最新（Node 22 / 24，Python 3.11 / 3.13）。低于下限的运行时不做承诺——这里只声明在维护期内、且被 CI 实际跑过的版本。
 
 ## 快速开始
 

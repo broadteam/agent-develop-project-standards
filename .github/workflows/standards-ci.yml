@@ -13,15 +13,20 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
+        # Cover the declared minimum and the current release, on both platforms.
+        # Declaring a floor that CI never runs is how "supported" quietly becomes a guess.
+        node: [22, 24]
+        python: ['3.11', '3.13']
+    name: ${{ matrix.os }} · node ${{ matrix.node }} · python ${{ matrix.python }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ matrix.node }}
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ matrix.python }}
       - name: Syntax checks
         run: |
           node --check init.cjs

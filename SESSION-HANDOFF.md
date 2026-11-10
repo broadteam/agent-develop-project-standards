@@ -41,6 +41,7 @@
 ### 顺带修正
 
 - 升级计划/审批测试改为从真实版本号推导目标版本，升版本不再需要改测试（实测把版本临时改成 rc.16，5 个升级测试全过）。
+- 运行时下限从 Node 18 / Python 3.10 抬到 **Node 22 / Python 3.11**，并写进 `policy/standards-version.json`。原下限既已过维护期，又从未被 CI 跑过——"支持"当时只是未经验证的承诺。CI 矩阵改为 Node 22/24 × Python 3.11/3.13 × Ubuntu/Windows，共 8 个任务，下限与最新都在覆盖内。
 - README 目录树按实际仓库重写；`gov.toml [budget]` 补上计量口径说明；`PITFALLS` 新增 P13（换行符使预算与哈希跨平台不等价）、P14（"CI 全绿"不能跨会话转述）。
 
 ## 七大方向状态
@@ -55,9 +56,9 @@
 
 - 语法检查：19 个 `.cjs` / `.py` 全部通过。
 - 回归测试：**14 / 14 通过**（含 4 组模板升级测试、parity、init、migration、doc-links）。
-- 提交：`4667313`（本轮代码与文档），本文件随后单独提交。
+- 本轮提交：见 `git log --oneline 0aa0043..HEAD`（修复、交接重写、`keep_or_archive` 回归、运行时下限）。
 
-**未验证**：本轮提交在 GitHub Actions 的 Ubuntu / Windows 双平台结果。必须按该 commit 的 push 与 pull_request runs 复核后才能宣称全绿。
+**未验证**：本轮提交在 GitHub Actions 双平台 8 个任务上的结果。必须按该 commit 的 push 与 pull_request runs 复核后才能宣称全绿。
 
 ## 已知限制（不得越界声称）
 

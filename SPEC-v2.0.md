@@ -171,7 +171,7 @@
 - 每条机器规则至少有一个正例和一个反例测试。
 - Node/Python parity 有专门回归用例。
 - CI 失败原因可定位；没有“检查器没运行但仍通过”的路径。
-- 支持的 Node/Python 版本有明确声明和 CI 覆盖。
+- 支持的 Node/Python 版本有明确声明和 CI 覆盖。声明在 `template/policy/standards-version.json`（`minimum_node_major` / `minimum_python`）；CI 矩阵同时跑下限与最新（Node 22 / 24，Python 3.11 / 3.13），双平台共 8 个任务。只声明不覆盖的版本不算支持。
 
 ### 1.7 长期演进与版本管理
 
@@ -270,7 +270,7 @@
 | 3. 记忆与上下文管理 | done | `test-v2-spec`（记忆更新触发条件、模板路径存在、不重复记录任务流水）、`test-task-context-resolver`（按任务事实解析应读规范） | 跨客户端的实际上下文恢复效果未独立验证 |
 | 4. 任务、看板与路线图管理 | done | `test-parity`（状态合法、ID 唯一、BOARD 源哈希与生成哈希、归档索引双向一致、路径穿越、CRLF 看板）、`generate-board` | 真实项目规模（>200 张卡）下的索引维护体验未评估 |
 | 5. 工程治理与初始化机制 | done | `test-init`（dry-run 零写入、参数拒绝、Hook 保护、符号链接 fail-closed、故障注入回滚、占位符契约）、`test-migration-v2`（空项目首次安装、已有多栈项目、重复初始化、自定义文件保留） | 进程被强杀或断电不在事务保证内；POSIX 文件模式仅在 CI 覆盖 |
-| 6. 自动化验证与质量门禁 | done | 14 个测试全部接入 Ubuntu + Windows CI；`test-parity` 断言 Node/Python 逐字节一致与退出码一致；检查器缺运行时失败关闭 | 真实 CLI 集成未覆盖；CI 结论必须绑定 commit SHA，不能跨会话转述 |
+| 6. 自动化验证与质量门禁 | done | 14 个测试全部接入 CI 矩阵（Ubuntu + Windows × Node 22/24 × Python 3.11/3.13）；`test-parity` 断言 Node/Python 逐字节一致与退出码一致；检查器缺运行时失败关闭 | 真实 CLI 集成未覆盖；CI 结论必须绑定 commit SHA，不能跨会话转述 |
 | 7. 长期演进与版本管理 | partial | `check-template-drift`（只读漂移）、`adopt-template-baseline`（显式采纳旧基线）、`plan-template-upgrade`（plan_schema 2 + source inventory）、`validate-template-upgrade-review`（review_schema 2）、`record-reviewed-template-upgrade`（登记 + defer 分批），对应 `test-template-*` 四组 | 自动升级应用器、自动回滚器、真实跨版本项目迁移均未实现，按 §4 不作为发布阻断，但任何文档都不得声称已支持自动迁移 |
 
 ### 7 的补充说明
