@@ -204,7 +204,7 @@ try {
   // A closeout V record must cover at least one of this task's requirements
   // and must have been run against the exact implementation commit being reviewed.
   base('done');
-  write('.spec/verification/INDEX.md', \`# Verification
+  write('.spec/verification/INDEX.md', `# Verification
 
 | ID | 覆盖需求 | 验证类型 | 结果 | 证据位置 |
 |---|---|---|---|---|
@@ -216,28 +216,28 @@ try {
 - 覆盖需求：R002
 - 验证类型：CI
 - 结果：pass
-- Commit：\${commit}
+- Commit：${commit}
 - 执行环境：Ubuntu
 - 命令/步骤：npm test
 - 证据：https://github.com/example/run/1
 - 判定：R002 passed
 - 限制：无
-\`);
-  write('.spec/tasks/T1/card.md', read('.spec/tasks/T1/card.md') + \`
+`);
+  write('.spec/tasks/T1/card.md', read('.spec/tasks/T1/card.md') + `
 ## 收口意图对齐
 
 - 结论：aligned
 - 计划与实际差异：无实质偏离
 - 偏离理由：无
-- 实现依据：\${commit}
+- 实现依据：${commit}
 - 验证证据：V001
 - 目标/需求影响：G001 / R001 保持一致
 - 未解决问题/后续动作：无
-\`);
+`);
   assertParity('task evidence must cover a linked requirement', ['未覆盖该任务关联需求']);
 
   base('done');
-  write('.spec/verification/INDEX.md', \`# Verification
+  write('.spec/verification/INDEX.md', `# Verification
 
 | ID | 覆盖需求 | 验证类型 | 结果 | 证据位置 |
 |---|---|---|---|---|
@@ -249,31 +249,31 @@ try {
 - 覆盖需求：R001
 - 验证类型：CI
 - 结果：pass
-- Commit：\${'d'.repeat(40)}
+- Commit：${'d'.repeat(40)}
 - 执行环境：Ubuntu
 - 命令/步骤：npm test
 - 证据：https://github.com/example/run/1
 - 判定：R001 passed
 - 限制：无
-\`);
-  write('.spec/tasks/T1/card.md', read('.spec/tasks/T1/card.md') + \`
+`);
+  write('.spec/tasks/T1/card.md', read('.spec/tasks/T1/card.md') + `
 ## 收口意图对齐
 
 - 结论：aligned
 - 计划与实际差异：无实质偏离
 - 偏离理由：无
-- 实现依据：\${commit}
+- 实现依据：${commit}
 - 验证证据：V001
 - 目标/需求影响：G001 / R001 保持一致
 - 未解决问题/后续动作：无
-\`);
+`);
   assertParity('task evidence must match implementation commit', ['与收口 Commit SHA 不一致']);
 
   // A completed milestone must have its own review; task-level review is not enough.
   function completedMilestone() {
     base('done');
     write('.spec/requirements/INDEX.md', read('.spec/requirements/INDEX.md').replace('| accepted | user_confirmed / C001 | — |', '| verified | user_confirmed / C001 | V001 |'));
-    write('.spec/verification/INDEX.md', \`# Verification
+    write('.spec/verification/INDEX.md', `# Verification
 
 | ID | 覆盖需求 | 验证类型 | 结果 | 证据位置 |
 |---|---|---|---|---|
@@ -285,33 +285,33 @@ try {
 - 覆盖需求：R001
 - 验证类型：CI
 - 结果：pass
-- Commit：\${commit}
+- Commit：${commit}
 - 执行环境：Ubuntu
 - 命令/步骤：npm test
 - 证据：https://github.com/example/run/2
 - 判定：R001 acceptance passed
 - 限制：无
-\`);
-    write('.spec/tasks/T1/card.md', read('.spec/tasks/T1/card.md') + \`
+`);
+    write('.spec/tasks/T1/card.md', read('.spec/tasks/T1/card.md') + `
 ## 收口意图对齐
 
 - 结论：aligned
 - 计划与实际差异：无实质偏离
 - 偏离理由：无
-- 实现依据：\${commit}
+- 实现依据：${commit}
 - 验证证据：V001
 - 目标/需求影响：G001 / R001 达成
 - 未解决问题/后续动作：无
-\`);
-    write('.spec/roadmap/INDEX.md', \`# Roadmap
+`);
+    write('.spec/roadmap/INDEX.md', `# Roadmap
 
 ## 里程碑
 
 | ID | 里程碑 | 依赖 | 状态 | 包含卡 |
 |---|---|---|---|---|
 | M1 | 设备接入 | — | 已完成 | T1 |
-\`);
-    write('.spec/roadmap/M1/milestone.md', \`# M1 Device onboarding
+`);
+    write('.spec/roadmap/M1/milestone.md', `# M1 Device onboarding
 
 - 意图对齐：required
 - 目标：G001
@@ -326,13 +326,13 @@ try {
 ## 里程碑意图对齐回顾
 
 - 目标成功判据对照：注册设备后可通过 API 查询，已满足
-- 实际交付与依据：commit \${commit}；实现设备创建与查询
+- 实际交付与依据：commit ${commit}；实现设备创建与查询
 - 需求验收覆盖：R001 -> V001
 - 偏离结论：aligned
 - 偏离理由及已确认变化：无
 - 未解决漂移：无
 - 后续动作：无
-\`);
+`);
   }
   completedMilestone();
   assertParity('completed milestone with valid alignment review');
@@ -352,6 +352,21 @@ try {
   completedMilestone();
   write('.spec/requirements/INDEX.md', read('.spec/requirements/INDEX.md').replace('| verified | user_confirmed / C001 | V001 |', '| accepted | user_confirmed / C001 | — |'));
   assertParity('completed milestone cannot hide unfinished requirement', ['需求 R001 尚未 verified 或经用户确认暂缓/撤回']);
+
+
+  // Legacy task cards without an explicit opt-in stay backward compatible.
+  base('done');
+  write('.spec/tasks/T1/card.md', read('.spec/tasks/T1/card.md')
+    .replace('- 意图对齐：required\n', '')
+    .replace(/\n## 开工意图对齐[\s\S]*$/, '\n'));
+  assertParity('legacy task card without explicit alignment mode');
+
+  // Legacy completed milestones without an explicit opt-in are not retroactively blocked.
+  completedMilestone();
+  write('.spec/roadmap/M1/milestone.md', read('.spec/roadmap/M1/milestone.md')
+    .replace('- 意图对齐：required\n', '')
+    .replace(/\n## 里程碑意图对齐回顾[\s\S]*$/, '\n'));
+  assertParity('legacy completed milestone without explicit alignment mode');
 
   console.log('test-intent-alignment-review: all cases passed');
 } finally {

@@ -38,11 +38,12 @@ jobs:
           node --check tools/template-source-inventory.cjs
           node --check template/.standards/check-governance.cjs
           node --check template/.standards/traceability-check.cjs
+          node --check template/.standards/intent-alignment-check.cjs
           node --check template/.standards/profile-validator.cjs
           node --check template/.standards/capability-resolver.cjs
           node --check template/.standards/task-context-resolver.cjs
           node --check template/.standards/generate-board.cjs
-          python -c "import ast, pathlib; files=['template/.standards/check_governance.py','template/.standards/profile_validator.py','template/.standards/traceability_check.py']; [ast.parse(pathlib.Path(f).read_text(encoding='utf-8'), filename=f) for f in files]"
+          python -c "import ast, pathlib; files=['template/.standards/check_governance.py','template/.standards/profile_validator.py','template/.standards/traceability_check.py','template/.standards/intent_alignment_check.py']; [ast.parse(pathlib.Path(f).read_text(encoding='utf-8'), filename=f) for f in files]"
       - name: Regression tests
         env:
           PYTHONUTF8: '1'

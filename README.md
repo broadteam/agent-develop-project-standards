@@ -101,6 +101,12 @@ node .standards/task-context-resolver.cjs --input .tmp/task-context.json --forma
 
 目标连续性进一步通过需求与验证证据形成闭环：`.spec/requirements/INDEX.md` 用 `Rnnn` 登记可验收要求，任务卡和里程碑引用需求；`.spec/verification/INDEX.md` 用 `Vnnn` 记录测试、人工检查或 CI 证据，并绑定被验证的 commit SHA。任务 `done`、需求 `verified`、里程碑完成和目标完成是不同状态，不得互相替代。轻量维护任务不必创建需求。
 
+### 意图对齐审查
+
+跟踪任务卡使用 `意图对齐：required` 启用开工/收口审查：开工时记录 G/R、当前 accepted C、预期贡献与必须保留的约束；收口时对照实际 diff、完整 Commit SHA、V 证据和目标/需求影响，结论为 `aligned`、`justified_adjustment`、`user_confirmed_change` 或 `unresolved_drift`。未解决漂移不能将任务标记为 `done`。纯支撑任务可使用 `not_applicable`，但必须说明原因且不能有直接 G/R 关联。
+
+里程碑也有独立的关闭审查：状态改为「已完成」前，必须逐项对照目标成功判据、需求状态与验证证据；未解决漂移、未完成需求或未完成的包含任务会阻止关闭。旧任务卡/旧里程碑未显式启用审查时不被追溯性阻断。机器检查只验证结构、状态和证据指针，不替代 Agent 对实际代码的语义审查。
+
 ### 初始化参数
 
 | 参数 | 行为 |
@@ -197,6 +203,10 @@ project-standards/
     ├── .standards/
     │   ├── check-governance.cjs     # 治理检查（Node）
     │   ├── check_governance.py      # 治理检查（Python，输出与 Node 逐字节一致）
+    │   ├── traceability-check.cjs   # 目标/需求/任务/验证追踪校验（Node）
+    │   ├── traceability_check.py    # 追踪校验（Python）
+    │   ├── intent-alignment-check.cjs # 任务/里程碑意图对齐审查（Node）
+    │   ├── intent_alignment_check.py # 对齐审查（Python）
     │   ├── profile-validator.cjs
     │   ├── profile_validator.py
     │   ├── capability-resolver.cjs
@@ -471,4 +481,4 @@ node tests/test-doc-links.cjs
 
 ### 项目意图对齐审查
 
-跟踪任务在进入 `in_progress` 前填写任务卡的「开工意图对齐」，进入 `review` / `done` 前填写「收口意图对齐」。收口要基于实际 diff、提交 SHA、测试与需求验收证据，区分 `aligned`、`justified_adjustment`、`user_confirmed_change` 和 `unresolved_drift`。未解决漂移不得标记任务 `done`；里程碑关闭前还需逐项对照目标成功判据。机器校验只检查字段完整性、有效引用和状态约束，不声称能自动证明代码在语义上符合用户意图。`tests/test-intent-alignment-review.cjs` 覆盖这些规则及 Node/Python 检查器一致性。
+跟踪任务在进入 `in_progress` 前填写任务卡的「开工意图对齐」，进入 `review` / `done` 前填写「收口意图对齐」。收口要基于实际 diff、提交 SHA、测试与需求验收证据，区分 `aligned`、`justified_adjustment`、`user_confirmed_change` 和 `unresolved_drift`。未解决漂移不得标记任务 `done`；里程碑关闭前还需逐项对照目标成功判据、需求验收证据、包含任务状态与未解决漂移。旧任务卡/旧里程碑未显式 opt-in 时保持兼容；新模板默认 required。机器校验只检查字段完整性、有效引用和状态约束，不声称能自动证明代码在语义上符合用户意图。`tests/test-intent-alignment-review.cjs` 覆盖这些规则及 Node/Python 检查器一致性。
