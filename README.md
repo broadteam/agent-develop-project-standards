@@ -119,6 +119,7 @@ node init.cjs /path/to/project --force --replace-hook
 project-standards/
 ├── README.md                        # 用法与设计说明
 ├── DEPLOY.md                        # 铺到项目的步骤、影响面与回滚
+├── CLIENTS.md                       # 各 Agent 客户端入口与验证程度
 ├── SPEC-v2.0.md                     # 2.0 设计基线 + 七大方向状态表
 ├── PROJECT-ADAPTATION-v2.0.md       # 母模板 → 项目规范 的适配机制
 ├── SESSION-HANDOFF.md               # 跨会话交接：当前状态与下一步

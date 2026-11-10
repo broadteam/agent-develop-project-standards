@@ -9,7 +9,7 @@ const { spawnSync } = require('node:child_process');
 
 const TEMPLATE = path.join(__dirname, 'template');
 const argv = process.argv.slice(2);
-const VALID_FLAGS = new Set(['--force', '--dry-run', '--replace-hook', '--strict-scan', '--no-import-plans']);
+const VALID_FLAGS = new Set(['--force', '--dry-run', '--replace-hook', '--strict-scan', '--no-import-plans', '--update']);
 const flags = new Set(argv.filter((a) => a.startsWith('--')));
 const positional = argv.filter((a) => !a.startsWith('--'));
 const unknownFlags = [...flags].filter((flag) => !VALID_FLAGS.has(flag));
@@ -24,6 +24,10 @@ const DRY = flags.has('--dry-run');
 const REPLACE_HOOK = flags.has('--replace-hook');
 const STRICT_SCAN = flags.has('--strict-scan');
 const IMPORT_PLANS = !flags.has('--no-import-plans');
+// Refresh only files that are still byte-identical to what a previous run installed. Anything
+// the project edited is left alone and reported. This is the "upgrade" path; --force overwrites
+// everything and is not an upgrade mechanism.
+const UPDATE = flags.has('--update');
 if (REPLACE_HOOK && !FORCE) {
   console.error('--replace-hook 必须与 --force 一起使用，避免产生不明确的覆盖意图。');
   process.exit(2);
@@ -259,7 +263,7 @@ function fill(s) {
   return out.replace(/\{\{([A-Z_]+)\}\}/g, (_, k) => `（待填：${k}）`);
 }
 
-const report = { created: [], skipped: [], forced: [], protected: [], warnings: [], imported: [] };
+const report = { created: [], skipped: [], forced: [], protected: [], warnings: [], imported: [], updated: [], conflicts: [] };
 const managedFiles = { ...(previousManifest?.managed_files ?? {}) };
 const preservedPaths = new Set(previousManifest?.preserved_paths ?? []);
 const managedBlocks = { ...(previousManifest?.managed_blocks ?? {}) };
@@ -406,7 +410,20 @@ function walk(dir, rel = '') {
     if (relPath === '.githooks/pre-commit' && exists && !REPLACE_HOOK) {
       report.protected.push(relPath); trackPreservedPath(relPath); continue;
     }
-    if (exists && !FORCE) { report.skipped.push(relPath); trackPreservedPath(relPath); continue; }
+    if (exists && !FORCE) {
+      const installedSha = managedFiles[relPath]?.installed_sha256;
+      const pristine = installedSha && sha256(fs.readFileSync(to)) === installedSha;
+      if (!(UPDATE && pristine)) {
+        report.skipped.push(relPath);
+        trackPreservedPath(relPath);
+        // A same-named file that this installer has never managed is the project's own. Skipping
+        // it silently would leave the project running a foreign script under our path.
+        // Derived files (BOARD.md) and capability-pruned paths are expected to be unmanaged.
+        if (!installedSha && !derivedPaths.has(relPath)) report.conflicts.push(relPath);
+        continue;
+      }
+      report.updated.push(relPath);
+    }
     if (!DRY) {
       ensureDirectoryTransactional(path.dirname(to));
       let content = fill(fs.readFileSync(from, 'utf8'));
@@ -559,7 +576,10 @@ if (planFiles.length && capabilityResolution.capabilities.task_tracking?.status 
     }
     const card = buildImportCard(planFiles, importedRel);
     writeTransactional(cardPath, card, 'utf8');
-    if (managedFiles[cardRel]) managedFiles[cardRel].installed_sha256 = sha256(card);
+    // The card and the index row are now project state, not template content. Keep them out of
+    // managed_files so a later --update cannot revert them to the template's example card.
+    delete managedFiles[cardRel];
+    derivedPaths.add(cardRel);
 
     const indexPath = path.join(TARGET, '.spec/tasks/index.md');
     if (fs.existsSync(indexPath)) {
@@ -568,7 +588,8 @@ if (planFiles.length && capabilityResolution.capabilities.task_tracking?.status 
       const nextIndex = indexText.replace(/^\| T1 \|.*$/m, `| T1 | ${title} | planned | \`${importedRel}/\` |`);
       if (nextIndex !== indexText) {
         writeTransactional(indexPath, nextIndex, 'utf8');
-        if (managedFiles['.spec/tasks/index.md']) managedFiles['.spec/tasks/index.md'].installed_sha256 = sha256(nextIndex);
+        delete managedFiles['.spec/tasks/index.md'];
+        derivedPaths.add('.spec/tasks/index.md');
       }
     }
   }
@@ -603,6 +624,16 @@ if (preexistingDirs.length) {
     : `发现 ${preexistingDirs.length} 个既有根目录，兼容模式下已纳入白名单；请人工审查 gov.toml [dirs]。`);
 }
 if (STACKS.length > 1) report.warnings.push(`检测到多技术栈：${STACKS.join(', ')}。当前默认配置按 ${STACK} 生成，请人工确认 gov.toml [project]。`);
+if (report.conflicts.length) {
+  report.warnings.push(`有 ${report.conflicts.length} 个路径上已存在本工具从未管理过的同名文件（${report.conflicts.slice(0, 3).join('、')}${report.conflicts.length > 3 ? ' 等' : ''}），已原样保留、未覆盖。如果它们不是你的定制，而是残留或同名误放，请人工确认后再删——否则治理检查跑的可能是别人的脚本。`);
+}
+if (!DRY) {
+  const staleAfter = Object.keys(managedFiles).filter((rel) => managedFiles[rel].template_version
+    && managedFiles[rel].template_version !== TEMPLATE_VERSION);
+  if (staleAfter.length) {
+    report.warnings.push(`有 ${staleAfter.length} 个受管文件仍是旧版本内容（已存在，未更新），整体版本标记保持 ${previousManifest?.installed_with_version ?? '未登记'}。要刷新请用 --update（只更新未被改动过的文件），或按 DEPLOY.md 的升级流程人工处理。`);
+  }
+}
 // Leftovers from an earlier interrupted run. They are deliberately not whitelisted, so the
 // governance gate reports them as unregistered files — which suggests whitelisting them.
 // Say what they actually are before the user "fixes" it the wrong way.
@@ -612,9 +643,14 @@ if (staleArtifacts.length) {
 }
 if (!DRY) {
   const preserved = [...preservedPaths].sort();
+  // Never claim a version the files do not actually carry. Files that were skipped keep their
+  // recorded template_version, so the overall marker only advances when everything matches.
+  const stale = Object.keys(managedFiles).filter((rel) => managedFiles[rel].template_version
+    && managedFiles[rel].template_version !== TEMPLATE_VERSION);
+  const installedVersion = stale.length ? (previousManifest?.installed_with_version ?? TEMPLATE_VERSION) : TEMPLATE_VERSION;
   const manifest = {
     format_version: 1,
-    installed_with_version: TEMPLATE_VERSION,
+    installed_with_version: installedVersion,
     baseline_state: preserved.length ? 'partial_unknown' : 'complete',
     managed_files: Object.fromEntries(Object.entries(managedFiles).sort(([a], [b]) => a.localeCompare(b))),
     managed_blocks: managedBlocks,
@@ -640,7 +676,7 @@ console.log('  能力解析  ' + Object.entries(capabilityResolution.capabilitie
 console.log(`  项目名    ${PROJECT_NAME}`);
 console.log(`  源码目录  ${SRC_DIR}`);
 console.log(`  产物目录  ${BUILD_OUTPUT}`);
-for (const [label, list] of [['新建', report.created], ['覆盖', report.forced], ['跳过', report.skipped], ['保护', report.protected], ['导入', report.imported]]) {
+for (const [label, list] of [['新建', report.created], ['更新', report.updated], ['覆盖', report.forced], ['跳过', report.skipped], ['保护', report.protected], ['导入', report.imported]]) {
   if (list.length) console.log(`\n  ${label} ${list.length} 项：\n${list.map(x => `    ${x}`).join('\n')}`);
 }
 for (const warning of report.warnings) console.warn(`\n  ⚠ ${warning}`);

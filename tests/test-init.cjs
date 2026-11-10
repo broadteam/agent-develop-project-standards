@@ -308,6 +308,12 @@ try {
     /\| T1 \| 导入：根目录计划文件（NOTES\.md、TODO\.md） \| planned \|/);
   const planCheck = spawnSync(process.execPath, [path.join(planProject, 'scripts/check-governance.cjs')], { encoding: 'utf8' });
   assert.equal(planCheck.status, 0, `导入后治理检查必须直接通过：\n${planCheck.stdout}${planCheck.stderr}`);
+  // The import card is project state now; --update must not revert it to the template example.
+  const planUpdate = spawnSync(process.execPath, [path.join(root, 'init.cjs'), planProject, '--update'], { encoding: 'utf8' });
+  assert.equal(planUpdate.status, 0, planUpdate.stdout + planUpdate.stderr);
+  assert.match(fs.readFileSync(path.join(planProject, '.spec/tasks/T1/card.md'), 'utf8'), /^# T1 导入：/,
+    '--update 不得把导入卡冲回示例卡');
+  assert.match(fs.readFileSync(path.join(planProject, '.spec/tasks/index.md'), 'utf8'), /导入：根目录计划文件/);
 
   // Opting out must leave the files alone — and then the gate is expected to fail.
   const keepProject = path.join(tmp, 'keep-plans-app');
@@ -319,6 +325,48 @@ try {
   assert.ok(fs.existsSync(path.join(keepProject, 'TODO.md')), '--no-import-plans 不得移动文件');
   const keepCheck = spawnSync(process.execPath, [path.join(keepProject, 'scripts/check-governance.cjs')], { encoding: 'utf8' });
   assert.equal(keepCheck.status, 1, '选择不导入时，根目录计划文件必须被判违规');
+
+  // Re-running must not claim a version the files do not carry, and --update must refresh only
+  // files the project has not edited.
+  const upProject = path.join(tmp, 'update-app');
+  fs.mkdirSync(upProject);
+  fs.writeFileSync(path.join(upProject, 'package.json'), JSON.stringify({ name: 'update-app' }));
+  const firstInstall = spawnSync(process.execPath, [path.join(root, 'init.cjs'), upProject], { encoding: 'utf8' });
+  assert.equal(firstInstall.status, 0, firstInstall.stdout + firstInstall.stderr);
+  const manifestPath = path.join(upProject, '.agent-standards.json');
+  const baseline = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  const currentVersion = baseline.installed_with_version;
+  baseline.installed_with_version = '0.0.0-older';
+  baseline.managed_files['ROUTER.md'].template_version = '0.0.0-older';
+  fs.writeFileSync(manifestPath, JSON.stringify(baseline, null, 2));
+
+  const plainRerun = spawnSync(process.execPath, [path.join(root, 'init.cjs'), upProject], { encoding: 'utf8' });
+  assert.equal(plainRerun.status, 0, plainRerun.stdout + plainRerun.stderr);
+  assert.equal(JSON.parse(fs.readFileSync(manifestPath, 'utf8')).installed_with_version, '0.0.0-older',
+    '仍有旧版本文件时不得推进整体版本标记');
+  assert.match(plainRerun.stdout + plainRerun.stderr, /仍是旧版本内容/);
+
+  const agentsPath = path.join(upProject, 'AGENTS.md');
+  const edited = fs.readFileSync(agentsPath, 'utf8') + '\n<!-- project rule -->\n';
+  fs.writeFileSync(agentsPath, edited);
+  const updatedRun = spawnSync(process.execPath, [path.join(root, 'init.cjs'), upProject, '--update'], { encoding: 'utf8' });
+  assert.equal(updatedRun.status, 0, updatedRun.stdout + updatedRun.stderr);
+  assert.equal(fs.readFileSync(agentsPath, 'utf8'), edited, '--update 不得覆盖项目改过的文件');
+  const afterUpdate = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  assert.equal(afterUpdate.installed_with_version, currentVersion, '--update 后版本标记应推进到当前模板版本');
+  assert.equal(afterUpdate.managed_files['ROUTER.md'].template_version, currentVersion);
+
+  // A same-named file this installer never managed must be preserved AND reported: silently
+  // keeping it would leave the project running a foreign script under our path.
+  const clashProject = path.join(tmp, 'clash-app');
+  fs.mkdirSync(path.join(clashProject, 'scripts'), { recursive: true });
+  fs.writeFileSync(path.join(clashProject, 'package.json'), JSON.stringify({ name: 'clash-app' }));
+  fs.writeFileSync(path.join(clashProject, 'scripts/generate-board.cjs'), '// project-owned\n');
+  const clashRun = spawnSync(process.execPath, [path.join(root, 'init.cjs'), clashProject], { encoding: 'utf8' });
+  assert.equal(clashRun.status, 0, clashRun.stdout + clashRun.stderr);
+  assert.equal(fs.readFileSync(path.join(clashProject, 'scripts/generate-board.cjs'), 'utf8'), '// project-owned\n',
+    '项目自有同名文件不得被覆盖');
+  assert.match(clashRun.stdout + clashRun.stderr, /从未管理过的同名文件/);
 
   console.log('test-init: all cases passed');
 } finally {

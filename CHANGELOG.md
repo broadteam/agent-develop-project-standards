@@ -1,3 +1,18 @@
+## 2.2.0 - 2026-11-10
+
+### Added
+- `init.cjs --update`: refreshes only files whose current content is byte-identical to what a previous run installed. Files the project edited are left untouched and reported. This is the upgrade path that was missing — `--force` overwrites everything including the project's own `AGENTS.md`, and a plain re-run updates nothing.
+- `init.cjs` warns when a same-named file exists that it has never managed. Silently skipping such a file means the project runs its own `scripts/generate-board.cjs` while believing governance installed one.
+- `CLIENTS.md`: the adapter matrix (Codex, Claude Code, Gemini CLI, Cursor, OpenCode, WorkBuddy/CodeBuddy, and CatPaw/ZCode marked unverified), how to add an adapter in three steps, and an explicit note that no real client CLI has ever been exercised.
+- `DEPLOY.md` gains an upgrade section: how to read `.agent-standards.json`, one-sentence upgrade, why not `--force`, what happens to a conflicted file.
+
+### Fixed
+- A re-run advanced `installed_with_version` to the template version even though every existing file was skipped, so the manifest claimed an upgrade that never happened. The marker now advances only when every managed file actually carries the current version; otherwise it stays put and warns.
+- Imported plan cards and the index row they register were recorded as managed files, so a later `--update` would have reverted them to the template's example card. They are now derived, like `BOARD.md`.
+
+### Tests
+- `tests/test-init.cjs` covers: a stale managed file blocks the version advance; `--update` refreshes pristine files but preserves an edited one and then advances the version; a project-owned same-named script is preserved and reported; `--update` does not revert an imported card.
+
 ## 2.1.0 - 2026-11-10
 
 ### Added
