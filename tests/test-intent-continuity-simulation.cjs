@@ -230,6 +230,7 @@ ${change('C001', '明确注册成功判据', 'clarification', 'user_explicit', '
   // S7: a passing record that covers the full acceptance criteria can verify R001.
   write('.spec/verification/INDEX.md', read('.spec/verification/INDEX.md')
     .replace('| partial |', '| pass |')
+    .replace('结果：partial', '结果：pass')
     .replace('唯一性验收未完成', '设备编号唯一性与查询验收全部通过')
     .replace('设备编号唯一性场景尚未覆盖', '设备编号唯一性与查询验收全部通过'));
   write('.spec/requirements/INDEX.md', read('.spec/requirements/INDEX.md')
