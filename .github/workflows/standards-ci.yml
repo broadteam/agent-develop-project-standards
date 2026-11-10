@@ -51,6 +51,7 @@ jobs:
           node tests/test-capability-resolver.cjs
           node tests/test-task-context-resolver.cjs
           node tests/test-intent-continuity.cjs
+          node tests/test-intent-continuity-simulation.cjs
           node tests/test-traceability-contract.cjs
           node tests/test-traceability-governance.cjs
           node tests/test-parity.cjs

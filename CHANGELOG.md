@@ -1,5 +1,10 @@
 ## Unreleased
 
+### Tests
+- Add a multi-stage intent continuity simulation covering bounded interruptions, pending Agent proposals, accepted user corrections, unresolved conflicts, explicit conflict resolution, session resume, task-done/requirement-not-verified separation, and final passing evidence; compare Node/Python results at each state.
+
+## Unreleased
+
 ### Added
 - Define a per-turn intent review protocol that distinguishes continuation, clarification, bounded interruption, explicit intent change and unresolved conflict; preserve the original task resume point across interruptions.
 - Extend the cross-session breakpoint template with G/R/T anchors and pending decision references, without adding another current-goal registry.
