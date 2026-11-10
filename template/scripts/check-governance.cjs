@@ -208,6 +208,22 @@ if(memoryMirrors.length){
   }
 }
 
+// 7. Topic-split pitfall files: the index and the files on disk must agree, and each stays in budget.
+const memoryDir=path.join(ROOT,gov.paths?.memory??'.memory');
+const pitfallIndex=path.join(memoryDir,'PITFALLS.md');
+if(fs.existsSync(pitfallIndex)&&fs.existsSync(memoryDir)){
+  const topicFiles=fs.readdirSync(memoryDir).filter((name)=>/^PITFALLS-.+\.md$/.test(name)).sort();
+  const referenced=new Set([...fs.readFileSync(pitfallIndex,'utf8').matchAll(/PITFALLS-[A-Za-z0-9_-]+\.md/g)].map((m)=>m[0]));
+  for(const rel of referenced){
+    if(!fs.existsSync(path.join(memoryDir,rel)))errors.push(`.memory/PITFALLS.md 引用了不存在的主题文件：${rel}`);
+  }
+  for(const rel of topicFiles){
+    if(!referenced.has(rel))errors.push(`.memory/${rel} 未在 PITFALLS.md 主题表登记（存在但没人知道什么时候读）`);
+    const bytes=size(path.join(gov.paths?.memory??'.memory',rel).split(path.sep).join('/'));
+    if(bytes!==null&&budget.pitfalls_bytes&&bytes>budget.pitfalls_bytes)errors.push(`.memory/${rel} 超出预算：${bytes}/${budget.pitfalls_bytes}B（按主题再拆，不要删结论）`);
+  }
+}
+
 const profileValidation = require('./profile-validator.cjs').validateProfile(ROOT);
 for (const warning of profileValidation.warnings) notes.push(warning);
 for (const error of profileValidation.errors) errors.push(error);

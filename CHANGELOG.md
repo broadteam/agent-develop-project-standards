@@ -1,3 +1,12 @@
+## 2.6.0 - 2026-11-10
+
+### Added
+- Topic-split pitfall library. Lessons only accumulate, so a single `PITFALLS.md` eventually exceeds any budget — and the previous advice ("split by topic") had no mechanism behind it. `.memory/PITFALLS-<topic>.md` is now a supported shape: the index keeps a topic table, and both governance checkers verify that every registered file exists, every existing file is registered, and each topic file stays within `pitfalls_bytes`. Splitting no longer means deleting conclusions.
+- `tests/test-pitfalls-split.cjs` covers the unregistered file, the dangling reference, the per-file budget, and byte-identical output from both checkers.
+
+### Docs
+- `template/.memory/PITFALLS.md` documents the split procedure and ships the topic table with a placeholder row.
+
 ## 2.5.1 - 2026-11-10
 
 ### Fixed

@@ -393,6 +393,23 @@ if memory_mirrors:
             if section and section not in mirror_text:
                 errors.append(f"客户端私有记忆断点未同步：{mirror_rel}（运行 node scripts/sync-memory.cjs）")
 
+# 7. Topic-split pitfall files: the index and the files on disk must agree, and each stays in budget.
+memory_dir = ROOT / gov.get("paths", {}).get("memory", ".memory")
+pitfall_index = memory_dir / "PITFALLS.md"
+if pitfall_index.exists() and memory_dir.exists():
+    topic_files = sorted(p.name for p in memory_dir.iterdir() if p.is_file() and re.match(r"^PITFALLS-.+\.md$", p.name))
+    referenced = set(re.findall(r"PITFALLS-[A-Za-z0-9_-]+\.md", pitfall_index.read_text(encoding="utf-8")))
+    for rel in referenced:
+        if not (memory_dir / rel).exists():
+            errors.append(f".memory/PITFALLS.md 引用了不存在的主题文件：{rel}")
+    for rel in topic_files:
+        if rel not in referenced:
+            errors.append(f".memory/{rel} 未在 PITFALLS.md 主题表登记（存在但没人知道什么时候读）")
+        pitfall_budget = budget.get("pitfalls_bytes")
+        measured = size_of(f"{gov.get('paths', {}).get('memory', '.memory')}/{rel}")
+        if measured is not None and pitfall_budget and measured > pitfall_budget:
+            errors.append(f".memory/{rel} 超出预算：{measured}/{pitfall_budget}B（按主题再拆，不要删结论）")
+
 from profile_validator import validate_profile
 profile_errors, profile_warnings = validate_profile(ROOT)
 errors.extend(profile_errors)
