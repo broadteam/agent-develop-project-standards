@@ -453,3 +453,8 @@ node tests/test-doc-links.cjs
 ### 自动追踪完整性检查
 
 长期/跨会话项目的追踪链由 `.standards/traceability-check.cjs` 与 `.standards/traceability_check.py` 校验，并集成到 Node/Python 治理入口。检查目标、需求、变更、任务、里程碑和验证证据的引用完整性；活跃目标/需求的工作承接；以及 `verified` 需求是否指向覆盖自身的有效 `pass` 证据（完整 Commit SHA 和具体证据位置）。模板中的示例占位行会被忽略。轻量维护工作可通过 `supporting:` 说明支撑关系，不需要机械创建需求。
+
+
+### 长期意图连续性模拟测试
+
+`tests/test-intent-continuity-simulation.cjs` 使用临时项目状态快照模拟同一会话内的临时插单、Agent pending 建议、用户明确纠正、冲突待裁定、跨会话恢复、任务完成但需求未验证，以及最终证据通过等阶段；每个阶段同时运行 Node/Python 追踪校验并比较结果。它验证状态文件与追踪关系的转换约定，不模拟或保证真实 LLM 的行为，真实 Agent 行为仍需通过实际项目试点观察。
