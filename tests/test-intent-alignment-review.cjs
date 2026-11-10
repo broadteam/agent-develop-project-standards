@@ -184,7 +184,7 @@ try {
 - 目标/需求影响：需求验收结构发生变化
 - 未解决问题/后续动作：更新需求与变更记录
 `);
-  assertParity('user change without accepted C', ['user_confirmed_change 必须关联 accepted C 记录']);
+  assertParity('user change without accepted C', ['user_confirmed_change 必须填写对应的 accepted C 记录']);
 
   base('done');
   write('.spec/tasks/T1/card.md', read('.spec/tasks/T1/card.md') + `
@@ -199,6 +199,159 @@ try {
 - 未解决问题/后续动作：无
 `);
   assertParity('aligned closeout with commit evidence');
+
+
+  // A closeout V record must cover at least one of this task's requirements
+  // and must have been run against the exact implementation commit being reviewed.
+  base('done');
+  write('.spec/verification/INDEX.md', \`# Verification
+
+| ID | 覆盖需求 | 验证类型 | 结果 | 证据位置 |
+|---|---|---|---|---|
+| V001 | R002 | CI | pass | https://github.com/example/run/1 |
+
+### V001 — unrelated requirement evidence
+
+- 日期：2026-11-11
+- 覆盖需求：R002
+- 验证类型：CI
+- 结果：pass
+- Commit：\${commit}
+- 执行环境：Ubuntu
+- 命令/步骤：npm test
+- 证据：https://github.com/example/run/1
+- 判定：R002 passed
+- 限制：无
+\`);
+  write('.spec/tasks/T1/card.md', read('.spec/tasks/T1/card.md') + \`
+## 收口意图对齐
+
+- 结论：aligned
+- 计划与实际差异：无实质偏离
+- 偏离理由：无
+- 实现依据：\${commit}
+- 验证证据：V001
+- 目标/需求影响：G001 / R001 保持一致
+- 未解决问题/后续动作：无
+\`);
+  assertParity('task evidence must cover a linked requirement', ['未覆盖该任务关联需求']);
+
+  base('done');
+  write('.spec/verification/INDEX.md', \`# Verification
+
+| ID | 覆盖需求 | 验证类型 | 结果 | 证据位置 |
+|---|---|---|---|---|
+| V001 | R001 | CI | pass | https://github.com/example/run/1 |
+
+### V001 — correct requirement evidence
+
+- 日期：2026-11-11
+- 覆盖需求：R001
+- 验证类型：CI
+- 结果：pass
+- Commit：\${'d'.repeat(40)}
+- 执行环境：Ubuntu
+- 命令/步骤：npm test
+- 证据：https://github.com/example/run/1
+- 判定：R001 passed
+- 限制：无
+\`);
+  write('.spec/tasks/T1/card.md', read('.spec/tasks/T1/card.md') + \`
+## 收口意图对齐
+
+- 结论：aligned
+- 计划与实际差异：无实质偏离
+- 偏离理由：无
+- 实现依据：\${commit}
+- 验证证据：V001
+- 目标/需求影响：G001 / R001 保持一致
+- 未解决问题/后续动作：无
+\`);
+  assertParity('task evidence must match implementation commit', ['与收口 Commit SHA 不一致']);
+
+  // A completed milestone must have its own review; task-level review is not enough.
+  function completedMilestone() {
+    base('done');
+    write('.spec/requirements/INDEX.md', read('.spec/requirements/INDEX.md').replace('| accepted | user_confirmed / C001 | — |', '| verified | user_confirmed / C001 | V001 |'));
+    write('.spec/verification/INDEX.md', \`# Verification
+
+| ID | 覆盖需求 | 验证类型 | 结果 | 证据位置 |
+|---|---|---|---|---|
+| V001 | R001 | CI | pass | https://github.com/example/run/2 |
+
+### V001 — requirement acceptance
+
+- 日期：2026-11-11
+- 覆盖需求：R001
+- 验证类型：CI
+- 结果：pass
+- Commit：\${commit}
+- 执行环境：Ubuntu
+- 命令/步骤：npm test
+- 证据：https://github.com/example/run/2
+- 判定：R001 acceptance passed
+- 限制：无
+\`);
+    write('.spec/tasks/T1/card.md', read('.spec/tasks/T1/card.md') + \`
+## 收口意图对齐
+
+- 结论：aligned
+- 计划与实际差异：无实质偏离
+- 偏离理由：无
+- 实现依据：\${commit}
+- 验证证据：V001
+- 目标/需求影响：G001 / R001 达成
+- 未解决问题/后续动作：无
+\`);
+    write('.spec/roadmap/INDEX.md', \`# Roadmap
+
+## 里程碑
+
+| ID | 里程碑 | 依赖 | 状态 | 包含卡 |
+|---|---|---|---|---|
+| M1 | 设备接入 | — | 已完成 | T1 |
+\`);
+    write('.spec/roadmap/M1/milestone.md', \`# M1 Device onboarding
+
+- 意图对齐：required
+- 目标：G001
+- 需求：R001
+
+## 包含的卡
+
+| 卡 | 说明 |
+|---|---|
+| T1 | 设备接入 |
+
+## 里程碑意图对齐回顾
+
+- 目标成功判据对照：注册设备后可通过 API 查询，已满足
+- 实际交付与依据：commit \${commit}；实现设备创建与查询
+- 需求验收覆盖：R001 -> V001
+- 偏离结论：aligned
+- 偏离理由及已确认变化：无
+- 未解决漂移：无
+- 后续动作：无
+\`);
+  }
+  completedMilestone();
+  assertParity('completed milestone with valid alignment review');
+
+  completedMilestone();
+  write('.spec/roadmap/M1/milestone.md', read('.spec/roadmap/M1/milestone.md').replace('## 里程碑意图对齐回顾', '## 里程碑回顾'));
+  assertParity('completed milestone without review', ['已完成里程碑 M1 缺少意图对齐回顾']);
+
+  completedMilestone();
+  write('.spec/roadmap/M1/milestone.md', read('.spec/roadmap/M1/milestone.md').replace('偏离结论：aligned', '偏离结论：unresolved_drift').replace('未解决漂移：无', '未解决漂移：租户隔离要求是否可以撤销仍待确认'));
+  assertParity('unresolved milestone drift cannot close', ['仍有未解决漂移，不能标记已完成']);
+
+  completedMilestone();
+  write('.spec/roadmap/M1/milestone.md', read('.spec/roadmap/M1/milestone.md').replace('偏离结论：aligned', '偏离结论：justified_adjustment').replace('偏离理由及已确认变化：无', '偏离理由及已确认变化：无'));
+  assertParity('milestone justified adjustment requires reason', ['justified_adjustment 必须说明理由']);
+
+  completedMilestone();
+  write('.spec/requirements/INDEX.md', read('.spec/requirements/INDEX.md').replace('| verified | user_confirmed / C001 | V001 |', '| accepted | user_confirmed / C001 | — |'));
+  assertParity('completed milestone cannot hide unfinished requirement', ['需求 R001 尚未 verified 或经用户确认暂缓/撤回']);
 
   console.log('test-intent-alignment-review: all cases passed');
 } finally {

@@ -111,7 +111,16 @@ def validate_traceability(root: Path) -> list[str]:
         alignment_match = re.search(r"^- 意图对齐：(.+)$", card, re.M)
         alignment_mode = alignment_match.group(1).strip() if alignment_match else ""
         task_status = task_statuses.get(task_id, "")
-        if alignment_mode == "required" and task_status in {"in_progress", "review", "done"}:
+        if alignment_mode and alignment_mode not in {"required", "not_applicable"}:
+            errors.append(f"意图对齐：任务 {task_id} 的意图对齐模式非法：{alignment_mode}")
+        if alignment_mode == "not_applicable" and task_status in {"in_progress", "blocked", "review", "done"}:
+            waiver_match = re.search(r"^- 意图对齐豁免原因：(.+)$", card, re.M)
+            waiver = waiver_match.group(1).strip() if waiver_match else ""
+            if not waiver or re.search(r"（|\\(|待填写|TODO", waiver, re.I):
+                errors.append(f"意图对齐：任务 {task_id} 标记 not_applicable 时必须说明豁免原因")
+            if refs["goals"] or refs["reqs"]:
+                errors.append(f"意图对齐：任务 {task_id} 有目标/需求关联时不能标记 not_applicable")
+        if alignment_mode == "required" and task_status in {"in_progress", "blocked", "review", "done"}:
             def section(heading: str) -> str:
                 marker = "## " + heading
                 at = card.find(marker)
@@ -140,10 +149,13 @@ def validate_traceability(root: Path) -> list[str]:
             for ref in refs["reqs"]:
                 if ref not in kickoff_reqs: errors.append(f"意图对齐：任务 {task_id} 开工记录遗漏关联需求 {ref}")
             for ref in kickoff_changes:
-                if change_statuses.get(ref) != "accepted": errors.append(f"意图对齐：任务 {task_id} 开工记录引用了非 accepted 变更 {ref}")
+                if ref not in refs["changes"]:
+                    errors.append(f"意图对齐：任务 {task_id} 开工记录的变更 {ref} 未关联到任务")
+                if change_statuses.get(ref) != "accepted":
+                    errors.append(f"意图对齐：任务 {task_id} 开工记录引用了非 accepted 变更 {ref}")
             for ref in refs["changes"]:
-                if ref not in kickoff_changes or change_statuses.get(ref) != "accepted":
-                    errors.append(f"意图对齐：任务 {task_id} 开工记录未覆盖已关联的 accepted 变更 {ref}")
+                if change_statuses.get(ref) == "accepted" and ref not in kickoff_changes:
+                    errors.append(f"意图对齐：任务 {task_id} 开工记录未覆盖当前 accepted 变更 {ref}")
             for label in ["预期贡献", "保留约束"]:
                 value = alignment_field(kickoff, label)
                 if not value or re.search(r"（|\(|待填写|TODO", value, re.I):
@@ -181,7 +193,9 @@ def validate_traceability(root: Path) -> list[str]:
                     errors.append(f"意图对齐：任务 {task_id} 存在 unresolved_drift，不能标记 done")
 
     milestone_refs: dict[str, dict] = {}
-    for row in rows(roadmap_index):
+    milestone_rows = [row for row in rows(roadmap_index) if re.fullmatch(r\"M\\d+\", row[0])]
+    milestone_statuses = {row[0]: (row[3] if len(row) > 3 else \"\") for row in milestone_rows}
+    for row in milestone_rows:
         milestone_id = row[0]
         if not re.fullmatch(r"M\d+", milestone_id):
             continue
@@ -197,6 +211,96 @@ def validate_traceability(root: Path) -> list[str]:
             if ref not in goals: errors.append(f"追踪关系：里程碑 {milestone_id} 引用了不存在的目标 {ref}")
         for ref in reqs_in:
             if ref not in requirements: errors.append(f"追踪关系：里程碑 {milestone_id} 引用了不存在的需求 {ref}")
+
+
+    for milestone_id, milestone_status in milestone_statuses.items():
+        if milestone_status != "已完成":
+            continue
+        detail = read(f".spec/roadmap/{milestone_id}/milestone.md")
+        if not detail or "示例里程碑" in detail.split("\n")[0]:
+            continue
+        mode_match = re.search(r"^- 意图对齐：(.+)$", detail, re.M)
+        mode = mode_match.group(1).strip() if mode_match else ""
+        if mode != "required":
+            if mode == "not_applicable":
+                waiver_match = re.search(r"^- 意图对齐豁免原因：(.+)$", detail, re.M)
+                waiver = waiver_match.group(1).strip() if waiver_match else ""
+                if not waiver or re.search(r"（|\(|待填写|TODO", waiver, re.I):
+                    errors.append(f"意图对齐：已完成里程碑 {milestone_id} 的 not_applicable 必须说明原因")
+            else:
+                errors.append(f"意图对齐：已完成里程碑 {milestone_id} 必须显式启用意图对齐审查")
+            continue
+        def milestone_section(heading: str) -> str:
+            marker = "## " + heading
+            at = detail.find(marker)
+            if at < 0:
+                return ""
+            start = detail.find("\n", at) + 1
+            next_heading = detail.find("\n## ", start)
+            return detail[start:] if next_heading < 0 else detail[start:next_heading]
+        def milestone_field(body: str, label: str) -> str:
+            found = re.search(r"^- " + re.escape(label) + r"：(.+)$", body, re.M)
+            return found.group(1).strip() if found else ""
+        review = milestone_section("里程碑意图对齐回顾")
+        if not review:
+            errors.append(f"意图对齐：已完成里程碑 {milestone_id} 缺少意图对齐回顾")
+        goal_proof = milestone_field(review, "目标成功判据对照")
+        delivery_proof = milestone_field(review, "实际交付与依据")
+        coverage = milestone_field(review, "需求验收覆盖")
+        outcome = milestone_field(review, "偏离结论")
+        reason = milestone_field(review, "偏离理由及已确认变化")
+        unresolved = milestone_field(review, "未解决漂移")
+        next_action = milestone_field(review, "后续动作")
+        for label, value in [("目标成功判据对照", goal_proof), ("实际交付与依据", delivery_proof), ("需求验收覆盖", coverage), ("未解决漂移", unresolved), ("后续动作", next_action)]:
+            if not value or re.search(r"（|\(|待填写|TODO", value, re.I):
+                errors.append(f"意图对齐：已完成里程碑 {milestone_id} 缺少有效的{label}")
+        if outcome not in {"aligned", "justified_adjustment", "user_confirmed_change"}:
+            errors.append(f"意图对齐：已完成里程碑 {milestone_id} 的偏离结论非法或仍有 unresolved_drift")
+        if outcome == "justified_adjustment" and (not reason or reason in {"无", "—"}):
+            errors.append(f"意图对齐：里程碑 {milestone_id} 的 justified_adjustment 必须说明理由")
+        if outcome == "user_confirmed_change":
+            confirmed = re.findall(r"C\d+", reason)
+            if not confirmed or any(change_statuses.get(ref) != "accepted" for ref in confirmed):
+                errors.append(f"意图对齐：里程碑 {milestone_id} 的 user_confirmed_change 必须引用 accepted C 记录")
+        if unresolved and unresolved.lower() not in {"无", "—", "none"}:
+            errors.append(f"意图对齐：里程碑 {milestone_id} 仍有未解决漂移，不能标记已完成")
+        delivery_sha_match = re.search(r"\b[a-f0-9]{40}\b", delivery_proof, re.I)
+        if not delivery_sha_match and not re.match(r"no-code[:：]\s*.+", delivery_proof, re.I):
+            errors.append(f"意图对齐：已完成里程碑 {milestone_id} 的实际交付与依据必须包含完整 Commit SHA 或 no-code 原因")
+        coverage_vs, coverage_cs = re.findall(r"V\d+", coverage), re.findall(r"C\d+", coverage)
+        for ref in coverage_vs:
+            if ref not in evidence_records:
+                errors.append(f"意图对齐：里程碑 {milestone_id} 引用了不存在的验证证据 {ref}")
+        for ref in coverage_cs:
+            if change_statuses.get(ref) != "accepted":
+                errors.append(f"意图对齐：里程碑 {milestone_id} 引用了非 accepted 变更 {ref}")
+        refs = milestone_refs.get(milestone_id, {"goals": [], "reqs": []})
+        for req_id in refs["reqs"]:
+            req = requirements.get(req_id)
+            if not req:
+                continue
+            if req["status"] == "verified":
+                covered = any(ref in evidence_records and evidence_records[ref]["result"] == "pass" and req_id in evidence_records[ref]["covers"] for ref in coverage_vs)
+                if not covered:
+                    errors.append(f"意图对齐：已完成里程碑 {milestone_id} 缺少需求 {req_id} 的 pass 验收证据")
+            elif req["status"] in {"deferred", "withdrawn"}:
+                decisions = [ref for ref in re.findall(r"C\d+", req.get("source", "")) if change_statuses.get(ref) == "accepted"]
+                if not decisions or not any(ref in coverage_cs for ref in decisions):
+                    errors.append(f"意图对齐：已完成里程碑 {milestone_id} 的需求 {req_id} 缺少 accepted defer/withdrawal 决策")
+            else:
+                errors.append(f"意图对齐：已完成里程碑 {milestone_id} 的需求 {req_id} 尚未 verified 或经用户确认暂缓/撤回")
+        task_section = milestone_section("包含的卡")
+        included_tasks = re.findall(r"^\|\s*(T\d+)\s*\|", task_section, re.M)
+        for task_id in included_tasks:
+            task_status = task_statuses.get(task_id, "")
+            if not task_status:
+                errors.append(f"意图对齐：已完成里程碑 {milestone_id} 引用了不存在的任务 {task_id}")
+            elif task_status not in {"done", "dropped"}:
+                errors.append(f"意图对齐：已完成里程碑 {milestone_id} 的任务 {task_id} 尚未 done/dropped")
+            if task_status == "dropped":
+                refs = task_refs.get(task_id, {})
+                if not any(change_statuses.get(ref) == "accepted" for ref in refs.get("changes", [])):
+                    errors.append(f"意图对齐：已完成里程碑 {milestone_id} 的 dropped 任务 {task_id} 缺少 accepted C 记录")
 
     for req_id, req in requirements.items():
         if req["status"] in {"accepted","in_progress","implemented","verified"}:
