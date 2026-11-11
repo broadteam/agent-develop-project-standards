@@ -272,7 +272,7 @@
 - 增补 Schema 状态不变量：running 验证必须有 actor/run_id；blocked 必须有 blocked_reason；observed_dirty 必须列出未提交路径；observed_clean 不允许列出未提交路径；HEAD 不可观察时 worktree_state 必须为 unknown；并发 coordination 若声明隔离则必须给出 owner 与 write_scope。
 - `code.observed_at` 与每条 `provenance.source_revisions[].observed_at` 均为必填 RFC 3339 时间；`source_revisions` 至少一条。
 - Schema 严格拒绝核心对象未知字段，因此任何核心字段新增（即使 optional）也必须升级 schema_version；仅 producer-specific 扩展放入 namespaced `extensions`。
-- Schema 条件约束：`packet_kind=handoff` 时必须提供 handoff；验证状态 passed/failed 或审查状态 reviewed/changes_requested 时必须提供至少一条 evidence_refs。
+- Schema 条件约束：`packet_kind=handoff` 时必须提供 handoff；验证状态 passed/failed/stale 或审查状态 reviewed/changes_requested/stale 时必须提供至少一条 evidence_refs。
 - 决策以 `decisions[]` 表达多个独立事项，每项有 decision_id、status、decision_maker 和 source_ref；单项确认不构成泛化授权。
 - SCP 0.1 不含 lease_ref 或 lease service；协调信息只表达 owner、write_scope 和 isolation。
 - Core 对象拒绝未知字段；扩展数据只能放在 namespaced `extensions` 中，不得重定义核心语义。
