@@ -334,3 +334,29 @@
 ### 下一步（唯一首选）
 
 对 D2 §13 做独立边界审查，重点检查：Bootstrap 顺序是否会过度读取、权威来源矩阵是否与现有规范一致、current/stale/conflict/unknown 是否可判定、只读模式是否存在隐式副作用、受限继续与停止条件是否足够精确。修订后再向用户提交 D2 设计审查结论；D1 是否冻结仍由用户明确决定。
+
+### D2 第一轮内部边界审查（2026-11-12）
+
+已将 D2 §13 与仓库现行规则入口和权威来源进行交叉核对：
+
+- AGENTS.md 的每会话最小动作是读取 AGENTS.md 与 MEMORY §0；其余宪法、intent、requirements、verification、任务/路线图/ADR 按任务级别和能力开关读取。D2 的 B1–B3 采用同样的按需读取原则，没有把所有领域文件变成每轮固定读取项。
+- AGENTS.md / Constitution 明确 intent、requirements、verification 为始终启用的权威源；task_tracking、roadmap、adr 是可选能力。D2 来源矩阵与该职责边界一致，不会要求关闭能力后创建替代目录。
+- MEMORY §0 是跨会话断点，不是任务/需求/意图/验证总账。D2 将 MEMORY、handoff、Packet 定位为恢复导航和 last-known 线索，没有建立第二套事实源。
+- Constitution 的权限表允许只读查询自主执行，但高风险、外部可见、不可逆操作仍需用户明确授权。D2 明确 Bootstrap 不授予后续写权限，符合现有权限模型。
+- Verification 索引要求 V 绑定 Commit SHA，并规定旧提交 CI 绿灯不能移植到新提交；D2 将 CI run/head SHA 与 Evidence revision 纳入 freshness 检查，保持一致。
+- 发现并修正一处边界表述：D2 的 read-only 不能误伤 AGENTS 允许的标准依赖缓存/系统临时数据。现已明确这类自动缓存仅在项目规则允许时例外；项目文件、Git 状态、数据库和远端资源仍不得由 Bootstrap 主动写入。
+
+**审查结论：** D2 第一轮未发现与现有权威来源模型或权限模型直接冲突的阻断问题。仍需在下一轮重点审查：外部来源缺少稳定 revision 时必须落到 unknown；dirty/untracked worktree 不能被 Git tree SHA 误判为完整快照；“受限继续”必须严格限制为不依赖未知/冲突事实的低风险只读分析。
+
+### 最新 PR 状态（本轮最终设计提交前）
+
+- PR #11：Open + Draft，Base feat/governance-consistency-audit，Head design/session-continuity-protocol。
+- D2 设计修订 Head：af770416d6352a0ab0c3e952a4229f72b5d71963。
+- 该 SHA 对应两个 Check Suite，共 16 个 check；现场查询时两个 suite 均 queued，尚无完成结论。不能声称通过。
+- PR #10：仍 Open + Draft，未修改。
+- main：02f8dde262455f15029a54694e129b05b70013a4，未修改。
+- 本轮没有合并 PR、关闭 PR、修改版本或创建 tag。
+
+### 下一步（唯一首选）
+
+继续第二轮 D2 语义审查，重点检查失败降级是否过度宽松、来源 revision 是否可实际判定、只读恢复的边界是否有遗漏；之后再决定是否进入 D2 设计冻结审查。D1 Schema 0.1.0 是否冻结仍需用户明确批准，不得因 D2 推进而默认冻结。
