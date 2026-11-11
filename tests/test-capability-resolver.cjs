@@ -10,7 +10,7 @@ const { resolveCapabilities } = require('../template/.standards/capability-resol
 function assertResolverParity(label, profile) {
   const node = resolveCapabilities(profile, registry);
   const script = [
-    'import json, sys',
+    'import json, sys; sys.dont_write_bytecode = True',
     `sys.path.insert(0, ${JSON.stringify(path.join(root, 'template/.standards'))})`,
     'from profile_validator import resolve_capabilities',
     'print(json.dumps(resolve_capabilities(json.loads(sys.argv[1]), json.loads(sys.argv[2])), ensure_ascii=False))'
