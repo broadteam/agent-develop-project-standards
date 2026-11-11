@@ -425,3 +425,44 @@
 ### 下一步（唯一首选）
 
 在本设计范围内做最后一轮 D2 审查：检查 18 个场景是否存在状态判定歧义、恢复模式是否可由依赖范围稳定计算、规范化输出是否足以让两个独立客户端互操作。通过后向用户提交 D2 设计冻结审查请求；D1 Schema 0.1.0 仍需用户单独明确批准冻结。
+
+## D2 场景契约矩阵与状态转移完成（2026-11-12）
+
+### 本轮交付
+
+- SESSION-CONTINUITY-PROTOCOL-DESIGN.md §13.11：记录第二轮状态轴与工作区边界审查。
+- §13.12：新增 18 个 Bootstrap/Freshness 场景契约，覆盖正常恢复、来源变化、远端不可用、dirty/untracked worktree、PR/CI 变化、Evidence 失效、Schema 不兼容、权威来源冲突、可选能力关闭、副作用命令、意图变化和权限不足。
+- §13.12.2：定义跨客户端规范化结果字段，避免以自然语言摘要作为互操作比较标准。
+- §13.12.3：定义 normal / restricted / blocked 恢复模式，按当前操作依赖的来源范围计算；局部阻断不自动扩大为全仓库阻断。
+- §13.12.4：明确后续独立实现提案需要把场景转为机器可读 Fixture；本轮未创建 Fixture、Runner 或 CI Gate。
+- §13.13：新增规范化状态转移顺序，明确项目身份、规则入口、Packet 定位、协议兼容性、权威来源、现场观察、逐声明 freshness、恢复模式、权限门和恢复摘要的先后关系。
+
+### 内部审查结论
+
+- 18 个场景与 §13.1–§13.10 的权威来源、freshness、失败降级和只读边界保持一致。
+- 明确 unknown/stale/conflict/unsupported/queued/in_progress 均不能提升为 current/passed/authorized。
+- 明确 Packet、handoff、MEMORY 是恢复导航/last-known 信息，不成为新的领域事实账本。
+- 明确 normal 只表示恢复上下文可用，不表示任务完成、验证通过或获得写权限。
+- 明确 Fixture 契约测试与真实 CLI E2E 的证明范围不同。
+- 调整了 §13.11–§13.13 的章节顺序，保证审查记录、场景矩阵和状态转移的编号连续。
+
+未发现需要修改 D0 已确认语义或 D1 Schema 的阻断问题。该结论是设计文档内部审查，不是正式 Schema Validator、Fixture Runner 或真实客户端 E2E 的执行结果；D2 仍未冻结。
+
+### 本轮边界
+
+- 未修改 D1 Schema、COMPATIBILITY.md 或 JSON example。
+- D1 Schema 0.1.0 仍待用户单独明确批准冻结。
+- 未实现 Validator、Semantic Validator、Fixture Runner、Packet Writer 或 CI Gate。
+- 未修改 PR #10、main、项目版本或 tags；未合并或关闭 PR。
+
+### 本轮提交与 CI
+
+- D2 状态转移提交：0a94f7bf0589508429a587687dbcf0f84888db66。
+- D2 章节顺序修订提交：1a80e0cee5b805d58e504615e492765c608f3944。
+- 在本 Handoff 更新前，PR #11 Head 为 1a80e0cee5b805d58e504615e492765c608f3944；该 SHA 对应 2 个 Check Suite、16 项 check，现场查询时全部 queued，0 completed。不能声称 CI 通过。
+- 更新本 Handoff 会产生新 Head；必须重新核验新 SHA 的 CI。
+- PR #11 保持 Open + Draft；PR #10 保持 Open + Draft；main SHA 仍为 02f8dde262455f15029a54694e129b05b70013a4。
+
+### 下一步（唯一首选）
+
+完成 D2 最后一轮设计审查，集中检查场景判定是否存在边界歧义、recovery_mode 是否可按操作依赖范围稳定计算、规范化输出是否足以支撑两个独立客户端。若审查通过，再向用户提交 D2 设计冻结请求。D1 Schema 0.1.0 的冻结仍是独立用户决策。
