@@ -265,7 +265,7 @@ project-standards/
 
 ## 能力注册表与画像校验
 
-能力元数据集中维护在 `template/policy/capabilities.json`，项目初始化后位于 `policy/capabilities.json`。项目画像只选择能力，不重复定义能力语义。Node/Python 双校验器会检查画像字段、枚举、schema 版本和能力依赖；`needs_review` 仅告警，不阻断初始化。详见 [PROJECT-ADAPTATION-v2.0.md](PROJECT-ADAPTATION-v2.0.md)。
+能力元数据集中维护在 `template/policy/capabilities.json`，项目初始化后位于 `policy/capabilities.json`。项目画像只选择能力，不重复定义能力语义。Node/Python 双校验器会检查画像字段、枚举、schema 版本和能力依赖；`needs_review` 仅告警，不阻断初始化。另有一条能力启用约束：`stack_rules=on` 必须同时满足 `profile.status = "confirmed"`，且 `stack.detected` 至少包含一个非 `generic` 技术栈；探测候选本身不能作为确认依据。详见 [PROJECT-ADAPTATION-v2.0.md](PROJECT-ADAPTATION-v2.0.md)。
 
 ## 任务与归档规则
 

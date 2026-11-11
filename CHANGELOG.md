@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Changed
+- Align capability enablement with confirmed facts: `stack_rules=on` now requires `profile.status=confirmed` and at least one non-generic detected stack; Node/Python resolver parity tests cover deferred dependencies and stack requirements.
+
+
 - Clarify domain-specific sources of truth: MEMORY is a compact cross-session breakpoint, not a global state registry.
 - Harden intent alignment: new task/milestone records carry creation dates so omission of the alignment mode cannot silently bypass review; completed tasks require passing V evidence, and milestone V records must match the declared delivery commit.
 - Keep project-profile details out of the unconditional task-context read set.

@@ -58,6 +58,10 @@ const invalid = resolveCapabilities({ capabilities: { roadmap: 'on', task_tracki
 assert.ok(invalid.errors.some((error) => error.includes('能力依赖冲突')));
 const invalidStack = resolveCapabilities({stack:{detected:['generic']},capabilities:{stack_rules:'on'}}, registry);
 assert.ok(invalidStack.errors.some((error) => error.includes('stack_rules=on')));
+assert.match(registry.capabilities.stack_rules.validation.join(' '), /profile\.status=confirmed/);
+assert.match(readme, /`stack_rules=on` 必须同时满足 `profile\.status = "confirmed"`/);
+assert.match(spec, /`stack_rules` 为 `on` 时，画像必须为 `confirmed`/);
+assert.match(fs.readFileSync(path.join(root, 'PROJECT-ADAPTATION-v2.0.md'), 'utf8'), /`stack_rules=on` 还要求 `profile\.status=confirmed`/);
 const unconfirmedStack = resolveCapabilities({profile:{status:'needs_review'},stack:{detected:['php']},capabilities:{stack_rules:'on'}}, registry);
 assert.ok(unconfirmedStack.errors.some((error) => error.includes('stack_rules=on')), 'a detected but unconfirmed stack must not satisfy stack_rules=on');
 const confirmedStack = resolveCapabilities({profile:{status:'confirmed'},stack:{detected:['php']},capabilities:{stack_rules:'on'}}, registry);

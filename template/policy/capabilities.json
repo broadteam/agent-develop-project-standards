@@ -174,7 +174,7 @@
         ".spec/stacks/README.md"
       ],
       "validation": [
-        "on 时至少有一个已确认的非 generic 技术栈"
+        "on 时要求 profile.status=confirmed，且 stack.detected 至少包含一个非 generic 技术栈"
       ],
       "artifacts": [
         ".spec/stacks/"

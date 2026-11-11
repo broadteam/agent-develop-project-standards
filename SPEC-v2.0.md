@@ -21,7 +21,7 @@
 - 标准层维护完整规则与能力目录；项目层通过 project-profile.toml 记录画像和能力选择；会话层按任务加载必要上下文。
 - 规则分为 core、capability、stack、project、advisory。core 不可关闭；其他类别按适用范围启用。
 - 初始化器只自动填写可可靠探测的技术栈事实；规模、风险、架构、团队协作方式必须由维护者确认。
-- 项目画像初始状态为 needs_review。未确认的候选信息不得被 Agent 当成事实。
+- 项目画像初始状态为 needs_review。未确认的候选信息不得被 Agent 当成事实；启用 `stack_rules` 为 `on` 时，画像必须为 `confirmed` 且至少包含一个非 `generic` 技术栈。
 - 推荐 lean、balanced、rigorous 三种起步档位，但档位只是建议，不是强制套餐。
 - 画像开关不能覆盖宪法红线、用户当次指令或操作授权边界。
 - 新增能力默认关闭或 auto；关闭能力不删除其历史数据。

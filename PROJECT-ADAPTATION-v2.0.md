@@ -95,6 +95,7 @@ project-profile.toml 由初始化器/任务上下文解析器读取以计算能�
 - `.standards/profile-validator.cjs` 与 `.standards/profile_validator.py` 使用标准库实现，保持相同诊断语义，不引入运行时第三方依赖。
 - 校验器检查 TOML 子集语法、重复 section/key、未知 section/key、必需字段、枚举值、schema 版本和能力依赖。
 - `needs_review` 是警告，不阻断初始化；`confirmed` 时项目类型、规模、风险、架构不得仍为 `unknown`。
+- `stack_rules=on` 还要求 `profile.status=confirmed` 且 `stack.detected` 至少包含一个非 `generic` 技术栈；仅探测到技术栈但画像仍为 `needs_review` 时，不能启用该能力。
 - `auto` 表示运行时按任务上下文判断，不在画像静态校验阶段被擅自解析成 `on` 或 `off`。
 - core 能力由注册表声明为 always enabled，项目画像不存在关闭 core 的入口。
 
