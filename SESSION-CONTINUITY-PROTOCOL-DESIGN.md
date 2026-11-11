@@ -48,13 +48,13 @@ SCP 的目标不是再造任务系统或记忆系统，而是定义一套**恢�
 
 一次会话恢复或交接所需的最小数据包。它可以由权威文件与 Git/CI 现场状态动态组装，不要求每次都生成并提交新文件。
 
-Packet 必须区分：
+Packet 必须在语义上区分：
 
-- `authoritative_ref`：权威记录的路径与 ID；可选能力关闭或记录不存在时，明确标记 `not_applicable` / `not_configured`，不得虚构路径。
-- `observed_state`：本次现场读取到的状态，并注明观察来源及版本。
-- `last_known_state`：上次断点保存的状态，只能作为比较基线。
-- `inference`：Agent 推断，不能作为已确认事实。
-- `pending_confirmation`：必须由用户或指定责任人决定的事项。
+- **权威来源引用**：由 `intent`、`work`、`evidence_refs` 等字段指向既有权威记录；可选能力关闭或记录不存在时，不得虚构路径。
+- **生成时观察状态**：由 `code`、`checkpoint` 等字段记录生产者实际观察到的状态，并通过 `provenance.source_revisions` 绑定来源版本、观察时间和 freshness。
+- **last-known 状态**：Packet 被后续会话消费时，生成时的观察值自然降为 last-known；接收方必须现场 Bootstrap 并比较，不能将 Packet 值冒充当前事实，也不复制一份重复的 last-known 数据。
+- **Agent 推断**：单独放在 `inferences[]`，包含推断摘要、依据引用和置信度；不得写入观察状态或权威记录字段。
+- **待确认事项**：放在 `checkpoint.decisions[]`，每项独立记录 ID、状态、裁定主体和来源；单项确认不构成泛化授权。
 
 Packet 中的领域状态原则上只保存引用和恢复所需的最小摘要；除非权威来源本身就是该断点文件，否则不得复制完整需求、任务卡、意图变更或验证记录。
 
