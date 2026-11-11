@@ -27,7 +27,7 @@ try {
   const root = path.join(tmp, 'project');
   const files = [
     'AGENTS.md', '.memory/MEMORY.md', '.memory/PITFALLS.md', 'project-profile.toml',
-    '.spec/intent/BASELINE.md', '.spec/intent/CHANGES.md',
+    '.spec/intent/BASELINE.md', '.spec/intent/CHANGES.md', '.spec/requirements/INDEX.md', '.spec/verification/INDEX.md',
     'policy/capabilities.json', '.spec/00-constitution.md', '.spec/01-architecture.md',
     '.spec/02-conventions.md', '.spec/03-delivery.md', '.spec/REGISTRY.md',
     '.spec/tasks/index.md', '.spec/tasks/T12/card.md', '.spec/tasks/T12/log.md',
