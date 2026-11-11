@@ -11,7 +11,9 @@
 | 恢复项目最初目标、检查后续需求变化 | 原始目标基线与变更账本 | `.spec/intent/BASELINE.md`、`CHANGES.md` |
 | 检查跟踪任务是否偏离目标 | 任务卡开工/收口对齐区块与目标变更账本 | `.spec/tasks/<ID>/card.md`、`.spec/intent/CHANGES.md` |
 | 决定跨语言命名、提交信息、文案怎么写 | 通用约定 | `.spec/02-conventions.md` |
+<!--cap:stack_rules-->
 | 查当前语言/框架的具体约束 | 技术栈规范 | `.spec/stacks/<stack>.md` |
+<!--/cap-->
 | 打包、发版、产物放哪 | 构建命令、发布检查单 | `.spec/03-delivery.md` |
 <!--cap:task_tracking-->
 | 知道现在该做什么（几天内） | 任务卡索引（唯一状态源） | `.spec/tasks/index.md` |
@@ -22,6 +24,8 @@
 | 想写 TODO / 计划 / 待办清单 | 先看计划该放哪 | `AGENTS.md` §2.5 |
 | 担心读太多费 token | 分级读取规则 | `AGENTS.md` §2.6 |
 | 判断当前任务需要加载哪些规范 | 任务上下文解析器（复杂/高影响任务可选） | `node .standards/task-context-resolver.cjs` |
+<!--cap:adr-->
 | 推翻一个既有设计 | ADR 模板与已有决策 | `.spec/adr/README.md` |
+<!--/cap-->
 | 查踩过的坑 | 判据与实证 | `.memory/PITFALLS.md` |
 | 交接 / 换 agent | 断点与关键事实 | `.memory/MEMORY.md` |

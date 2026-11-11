@@ -13,7 +13,7 @@
 2. **根目录白名单**。根目录只允许 `gov.toml [dirs]` 列出的目录/文件；临时产物只能进 `.tmp/<任务ID>/`，构建产物只能进 `{{BUILD_OUTPUT}}/`。
    **禁止** `out2` `test1` `tmp` `新建文件夹` 这类序号/随手目录。
 3. **单一规则入口 + 分域事实源**。规则入口看本文件；`.memory/MEMORY.md` 只保存跨会话断点与稳定项目事实，不是所有领域状态的总账。
-   任务状态以 `.spec/tasks/index.md` 为准，项目意图以 `.spec/intent/` 为准，需求以 `.spec/requirements/INDEX.md` 为准，验证以 `.spec/verification/INDEX.md` 为准，架构决策以 `.spec/adr/` 为准。客户端私有 memory 只能作缓存，不得成为任何领域事实的权威来源。
+   项目意图以 `.spec/intent/` 为准，需求以 `.spec/requirements/INDEX.md` 为准，验证以 `.spec/verification/INDEX.md` 为准；启用 `task_tracking` 时任务状态以 `.spec/tasks/index.md` 为准，启用 `adr` 时架构决策以 `.spec/adr/` 为准。关闭可选能力不删除历史记录，也不要求新建对应记录。客户端私有 memory 只能作缓存，不得成为任何领域事实的权威来源。
 4. **一次改动一次提交**。提交信息写清"动了什么 + 为什么"。
 
 ---
@@ -28,9 +28,9 @@
 |---|---|---|
 | 1 | 本文件 §0 四条 + 用户当次指令 | 什么绝对不能做 |
 | 2 | `.spec/00-constitution.md` 红线 | 宪法级约束 |
-| 3 | `.spec/01-architecture.md` + `.spec/adr/` | 应该怎么实现 |
+| 3 | `.spec/01-architecture.md`；启用 `adr` 时参考 `.spec/adr/` | 应该怎么实现 |
 | 4 | `.spec/02-conventions.md` | 命名/代码/提交 |
-| 5 | `.spec/tasks/<ID>/card.md` 的 scope | 这一次允许改什么 |
+| 5 | 启用 `task_tracking` 时，以任务卡 scope 为修改范围；未启用时以用户当次授权为准 | 这一次允许改什么 |
 | 6 | 你自己的默认习惯 | 上面都没规定时 |
 
 - 1~3 级矛盾 ⇒ **停下问用户**，不要自行裁决。
@@ -63,17 +63,38 @@
 | 材料 | 读取时机 |
 |---|---|
 | `.spec/00-constitution.md` | 涉及权限、数据、安全、架构红线或高风险操作时；不要求每个轻量任务重复通读 |
+<!--cap:task_tracking-->
 | `.spec/tasks/index.md` + 对应 `card.md` | 跟踪任务；轻量任务无需强制建卡 |
+<!--/cap-->
 | `.spec/intent/BASELINE.md` + `CHANGES.md` | 跟踪任务、跨会话恢复、需求/计划变更或阶段回顾时 |
+<!--cap:roadmap-->
 | `.spec/roadmap/INDEX.md` + 里程碑详情 | 任务属于某个里程碑，或需要调整阶段计划时 |
+<!--/cap-->
 | `.memory/PITFALLS.md` | 当前问题涉及其中某个领域，或正在排查已知故障模式时；按主题定位，不要求每次通读 |
+<!--cap:stack_rules-->
+| `.spec/stacks/<stack>.md` | 启用 `stack_rules` 且本次任务涉及该技术栈时 |
+<!--/cap-->
+<!--cap:adr-->
 | `.spec/adr/` | 需要理解或挑战相关架构决策时；只读相关 ADR |
+<!--/cap-->
 | `git log` / `git show` | 断点引用了提交、排查回归/历史行为、或当前实现意图不清时；不是每次会话的固定步骤 |
 
+<!--cap:multi_agent-->
+### 多 Agent 协作（仅启用时）
+
+- 开始协作前，每个 Agent 明确自己的分支/工作区、负责范围和允许写入的文件集合；避免两个 Agent 同时拥有同一文件的写权限。
+- 共享状态文件采用单写者：任务索引、同一任务卡、需求/验证索引、ADR 和 MEMORY 同一时刻只允许一个 Agent 修改；需要改同一文件时按顺序交接，不采用最后写入覆盖。
+- 写入前重新读取目标分支最新 Commit 与文件内容；若基线已变化，先重新审查差异再写入。提交时保留可追溯的 Commit，不覆盖其他 Agent 的未提交工作。
+- 交接必须说明已提交/未提交、已验证/未验证、当前分支与 Commit；未完成工作不得标记 done。
+
+<!--/cap-->
+
 **收口要求**：
-- 跟踪任务按卡片完成开工/收口对齐；`unresolved_drift` 不得 done。已完成里程碑必须完成意图对齐回顾，不得带未解决漂移关闭（详见 CHANGES）。
+- 启用 `task_tracking` 时，跟踪任务按卡片完成开工/收口意图对齐；`unresolved_drift` 不得 done。
+- 启用 `roadmap` 时，已完成里程碑必须完成意图对齐回顾，不得带未解决漂移关闭。
+- 意图对齐是对应跟踪记录的校验约束，不是独立的全局开关；关闭任务跟踪/路线图时，不扫描其保留的历史记录。
 - 轻量任务：只有产生了后续会话必须知道的事实、决策或未完成事项时，才更新记忆/日志；不要为了留痕重复抄写代码 diff。
-- 稳定项目事实与跨会话执行断点进入 `.memory/MEMORY.md`；目标/范围变化进入 `.spec/intent/CHANGES.md`，任务状态进入 `.spec/tasks/index.md`，需求状态进入 `.spec/requirements/INDEX.md`，验证证据进入 `.spec/verification/INDEX.md`，架构决策进入 `.spec/adr/`。不要把同一事实复制到多个权威文件。
+- 稳定项目事实与跨会话执行断点进入 `.memory/MEMORY.md`；目标/范围变化进入 `.spec/intent/CHANGES.md`，需求状态进入 `.spec/requirements/INDEX.md`，验证证据进入 `.spec/verification/INDEX.md`；启用 `task_tracking` 时任务状态进入 `.spec/tasks/index.md`，启用 `adr` 时架构决策进入 `.spec/adr/`。不要把同一事实复制到多个权威文件。
 - 可复现的判据级教训进入 `.memory/PITFALLS.md`。
 - **客户端私有记忆只是缓存**（如 `.workbuddy-ai/`、各客户端自己的会话记忆）：项目级事实必须写回对应领域的权威文件；开工读 `.memory/MEMORY.md` §0 恢复断点，不读私有记忆当权威。
 - 任何验证都如实记录：未执行标记 `unverified`，不得写成通过。
@@ -89,7 +110,9 @@
 | `AGENTS.md` / `gov.toml` / `.spec/00-constitution.md` | 仅用户确认后 |
 | `.spec/**` | 先改文档再改代码 |
 | `.spec/REGISTRY.md` | 新增标识符时同步登记（唯一事实源） |
+<!--cap:task_tracking-->
 | `.spec/tasks/index.md` | 改状态；卡详情改各自的 `card.md` |
+<!--/cap-->
 | `{{SRC_DIR}}/**` | 按任务卡范围 |
 | `.memory/log/**` | 只追加 |
 | `.memory/MEMORY.md` | 只更新稳定事实/决策指针或覆盖 §0；领域状态写回各自权威文件 |
@@ -105,25 +128,25 @@
 
 ## 2.5 计划与待办（唯一家）
 
-<!--cap-note:task_tracking,roadmap-->
-> **本项目的 `.spec/tasks/` 与 `.spec/roadmap/` 能力已关闭。** 把本项目的待办放在哪写在这里——
-> 哪个文件、用什么编号、开工先读哪一个。留空等于下次开工没人知道去哪找待办。
+<!--cap-note:task_tracking-->
+> **本项目已关闭 `task_tracking`。** 不创建新的规范任务卡；持续任务沿用项目已有的待办/协作入口。若没有既有入口，不为单次工作另建长期任务系统。
 <!--/cap-note-->
 
-<!--cap:task_tracking,roadmap-->
-计划分三层，各有唯一的家：
+<!--cap-note:roadmap-->
+> **本项目已关闭 `roadmap`。** 不创建规范里程碑；阶段计划沿用项目已有规划入口，不以临时文档替代长期治理状态。
+<!--/cap-note-->
 
-| 时间尺度 | 放哪 | 怎么读 |
-|---|---|---|
-| 一次任务内的多步执行 | 不落盘；要落就 `.tmp/<任务ID>/plan.md`，做完即删 | 随用随建 |
-| 几天的具体动作 | `.spec/tasks/<ID>/`：`card.md`（背景/范围/验收）+ `log.md`（流水） | 先读 `index.md`，再读命中的那张 |
-| 几周~几个月 | `.spec/roadmap/<ID>/milestone.md` | 先读 `roadmap/INDEX.md`，再读命中的那个 |
+一次任务内的多步执行不落盘；确需临时记录时放在 `.tmp/<任务ID>/plan.md`，任务结束后清理。
 
-**判定口诀**：这件事明天还在吗？
-不在 ⇒ `.tmp/`；在但几天能做完 ⇒ 卡；要拆成好几张卡 ⇒ 里程碑。
+<!--cap:task_tracking-->
+几天内的持续工作使用 `.spec/tasks/<ID>/`：`card.md`（背景/范围/验收）+ `log.md`（流水）；先读 `index.md`，再读命中的任务卡。
 <!--/cap-->
 
-根目录禁止出现 `TODO.md` / `PLAN.md` / `PROGRESS.md` 这类计划文件。完整清单与判定由 `gov.toml [forbid]` 和治理检查执行，这里不重复枚举——机器能查的规则只留指针。
+<!--cap:roadmap-->
+几周至几个月、需要多个任务协同的阶段计划使用 `.spec/roadmap/<ID>/milestone.md`；先读 `roadmap/INDEX.md`，再读命中的里程碑。
+<!--/cap-->
+
+根目录仍禁止散落 `TODO.md` / `PLAN.md` / `PROGRESS.md`。启用相关能力时使用上述权威入口；关闭时沿用项目已有规划方式，不要把计划文件改名后散落在根目录。完整清单由 `gov.toml [forbid]` 和治理检查执行。
 
 ---
 
@@ -132,8 +155,13 @@
 | 级 | 内容 | 读取规则 |
 |---|---|---|
 | **L0 会话基线** | `AGENTS.md` + `.memory/MEMORY.md` §0 | 每次会话读取；只读断点，不要求加载整份记忆 |
-| **L1 任务索引** | `.spec/tasks/index.md`、`.spec/roadmap/INDEX.md` | 仅跟踪任务或阶段规划需要时读取 |
-| **L2 单点详情** | 命中的 `card.md` / `milestone.md` / ADR / 技术栈文件 | 只读当前任务相关条目 |
+<!--cap:task_tracking-->
+| **L1 任务索引** | `.spec/tasks/index.md` | 仅跟踪任务需要时读取 |
+<!--/cap-->
+<!--cap:roadmap-->
+| **L1 里程碑索引** | `.spec/roadmap/INDEX.md` | 仅阶段规划需要时读取 |
+<!--/cap-->
+| **L2 单点详情** | 命中的 `card.md` / `milestone.md` / ADR / 技术栈文件 | 只读当前任务相关条目；关闭的可选能力不要求读取其历史目录 |
 | **L3 历史归档** | `archive/`、历史日志、旧方案 | 默认不读；只有追溯问题或核实历史决策时按需读取 |
 
 ### 使用规则

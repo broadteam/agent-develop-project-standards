@@ -153,9 +153,16 @@ function resolveTaskContext(input, options = {}) {
   }
 
   const taskDecision = decisions.task_tracking;
-  if (taskDecision?.decision === 'auto_selected_for_task' || (taskDecision?.configured === 'on' && taskDecision.matched.length)) {
-    add(requiredRead, '.spec/intent/BASELINE.md', '跟踪任务必须恢复原始目标基线，防止局部工作取代项目目标');
-    add(requiredRead, '.spec/intent/CHANGES.md', '跟踪任务必须核对用户已确认的意图变化与未决事项');
+  const taskTrackingSelected = taskDecision?.decision === 'auto_selected_for_task'
+    || (taskDecision?.configured === 'on' && taskDecision.matched.length);
+  const intentContextNeeded = task.cross_session || task.uncertainty === 'high'
+    || ['impact_cross_module', 'impact_public_contract', 'impact_data', 'impact_security', 'impact_production'].some((signal) => signals.has(signal))
+    || ['kind_architecture_change', 'kind_database_change', 'kind_security_change', 'kind_dependency_change', 'kind_incident', 'kind_release'].some((signal) => signals.has(signal));
+  if (intentContextNeeded || taskTrackingSelected) {
+    add(requiredRead, '.spec/intent/BASELINE.md', '跨会话或高影响工作必须恢复原始目标基线，防止局部工作取代项目目标');
+    add(requiredRead, '.spec/intent/CHANGES.md', '核对用户已确认的意图变化与未决事项');
+  }
+  if (taskTrackingSelected) {
     add(requiredRead, '.spec/tasks/index.md', '当前任务需要跟踪；先读活跃任务索引');
     if (task.task_id) {
       add(requiredRead, '.spec/tasks/' + task.task_id + '/card.md', '当前任务卡的范围与验收');
@@ -166,7 +173,15 @@ function resolveTaskContext(input, options = {}) {
   }
 
   const roadmapDecision = decisions.roadmap;
-  if (roadmapDecision?.decision === 'auto_selected_for_task' || (roadmapDecision?.configured === 'on' && roadmapDecision.matched.length)) {
+  let roadmapSelected = roadmapDecision?.decision === 'auto_selected_for_task'
+    || (roadmapDecision?.configured === 'on' && roadmapDecision.matched.length);
+  if (roadmapSelected && taskDecision?.decision === 'disabled_by_project') {
+    roadmapSelected = false;
+    roadmapDecision.effective = 'off';
+    roadmapDecision.decision = 'disabled_by_dependency';
+    warnings.push('任务触发了 roadmap，但 task_tracking 已关闭；不会单独启用里程碑跟踪。');
+  }
+  if (roadmapSelected) {
     add(requiredRead, '.spec/roadmap/INDEX.md', '当前工作属于里程碑规划');
     if (task.milestone_id) add(requiredRead, '.spec/roadmap/' + task.milestone_id + '/milestone.md', '当前里程碑详情');
   }
@@ -226,6 +241,8 @@ function resolveTaskContext(input, options = {}) {
   }
   if (task.multiple_agents && decisions.multi_agent?.decision === 'disabled_by_project') {
     nextActions.push('当前任务声明使用多个 Agent，但项目未启用 multi_agent 能力；先明确共享文件、任务认领与并发写入协调方式。');
+  } else if (task.multiple_agents && decisions.multi_agent?.decision === 'load_for_task') {
+    nextActions.push('按 AGENTS.md 多 Agent 协作约定认领独立写入范围；共享文件采用单写者，并在写入前刷新版本。');
   }
   if (profileStatus !== 'confirmed') warnings.push('项目画像状态为 ' + profileStatus + '；只把任务显式给出的 stacks 和画像中已确认的内容当作事实。');
 

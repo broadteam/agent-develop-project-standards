@@ -77,7 +77,6 @@ layout = gov.get("layout", {})
 profile_data = parse_profile((ROOT / "project-profile.toml").read_text(encoding="utf-8"))
 registry_data = json.loads((ROOT / "policy/capabilities.json").read_text(encoding="utf-8"))
 capability_resolution = resolve_capabilities(profile_data, registry_data)
-errors.extend(capability_resolution["errors"])
 def capability_enabled(name: str) -> bool:
     return capability_resolution["capabilities"].get(name, {}).get("status") != "disabled"
 def capability_excluded(rel: str) -> bool:
@@ -411,7 +410,11 @@ if pitfall_index.exists() and memory_dir.exists():
         if measured is not None and pitfall_budget and measured > pitfall_budget:
             errors.append(f".memory/{rel} 超出预算：{measured}/{pitfall_budget}B（按主题再拆，不要删结论）")
 
-errors.extend(validate_traceability(ROOT))
+errors.extend(validate_traceability(
+    ROOT,
+    task_tracking=capability_enabled("task_tracking"),
+    roadmap=capability_enabled("roadmap"),
+))
 
 from profile_validator import validate_profile
 profile_errors, profile_warnings = validate_profile(ROOT)

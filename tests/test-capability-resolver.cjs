@@ -36,6 +36,8 @@ assert.equal(defaults.isExcluded('.spec/tasks/index.md'), false, 'auto must not 
 
 const invalid = resolveCapabilities({ capabilities: { roadmap: 'on', task_tracking: 'off' } }, registry);
 assert.ok(invalid.errors.some((error) => error.includes('能力依赖冲突')));
+const invalidAutoRoadmap = resolveCapabilities({capabilities:{task_tracking:'off',roadmap:'auto'}}, registry);
+assert.ok(invalidAutoRoadmap.errors.some((error) => error.includes('roadmap=auto') && error.includes('task_tracking')));
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-capability-resolver-'));
 try {

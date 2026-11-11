@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 
-def validate_intent_alignment(root: Path) -> list[str]:
+def validate_intent_alignment(root: Path, *, task_tracking: bool = True, roadmap: bool = True) -> list[str]:
     errors: list[str] = []
 
     def read(rel: str) -> str:
@@ -43,8 +43,8 @@ def validate_intent_alignment(root: Path) -> list[str]:
     changes_text = read(".spec/intent/CHANGES.md")
     requirements_text = read(".spec/requirements/INDEX.md")
     verification_text = read(".spec/verification/INDEX.md")
-    task_index = read(".spec/tasks/index.md")
-    roadmap_index = read(".spec/roadmap/INDEX.md")
+    task_index = read(".spec/tasks/index.md") if task_tracking else ""
+    roadmap_index = read(".spec/roadmap/INDEX.md") if roadmap else ""
 
     goals = {
         row[0] for row in rows(baseline)
@@ -92,7 +92,7 @@ def validate_intent_alignment(root: Path) -> list[str]:
 
     task_statuses: dict[str, str] = {}
     task_refs: dict[str, dict] = {}
-    for row in rows(task_index):
+    for row in (rows(task_index) if task_tracking else []):
         task_id = row[0]
         if not re.fullmatch(r"T\d+", task_id):
             continue
@@ -209,7 +209,7 @@ def validate_intent_alignment(root: Path) -> list[str]:
         if status == "done" and outcome == "unresolved_drift":
             errors.append(f"意图对齐：任务 {task_id} 存在 unresolved_drift，不能标记 done")
 
-    milestone_rows = [row for row in rows(roadmap_index) if re.fullmatch(r"M\d+", row[0])]
+    milestone_rows = [row for row in rows(roadmap_index) if re.fullmatch(r"M\d+", row[0])] if roadmap else []
     milestone_statuses = {row[0]: (row[3] if len(row) > 3 else "") for row in milestone_rows}
     milestone_refs: dict[str, dict] = {}
     for row in milestone_rows:

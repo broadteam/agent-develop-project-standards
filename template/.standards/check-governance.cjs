@@ -30,7 +30,6 @@ function readGov(file) {
 const gov=readGov(GOV), errors=[], notes=[];
 const projectName=gov.project?.name ?? path.basename(ROOT);
 const capabilityResolution = require('./capability-resolver.cjs').loadCapabilityResolution(ROOT, ROOT);
-for (const error of capabilityResolution.errors) errors.push(error);
 const capabilityEnabled = (id) => capabilityResolution.capabilities[id]?.status !== 'disabled';
 const sorted=(xs)=>xs.sort((a,b)=>a.localeCompare(b));
 const rootEntries=fs.readdirSync(ROOT,{withFileTypes:true});
@@ -224,7 +223,10 @@ if(fs.existsSync(pitfallIndex)&&fs.existsSync(memoryDir)){
   }
 }
 
-errors.push(...require('./traceability-check.cjs').validateTraceability(ROOT));
+errors.push(...require('./traceability-check.cjs').validateTraceability(ROOT, {
+  taskTracking: capabilityEnabled('task_tracking'),
+  roadmap: capabilityEnabled('roadmap')
+}));
 
 const profileValidation = require('./profile-validator.cjs').validateProfile(ROOT);
 for (const warning of profileValidation.warnings) notes.push(warning);

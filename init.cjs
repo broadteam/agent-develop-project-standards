@@ -455,7 +455,6 @@ function renderCapabilityBlocks(content) {
 function capabilityNotice() {
   const disabled = Object.keys(CAPABILITY_LABELS).filter((id) => capabilityDisabled([id]));
   if (!disabled.length) return '';
-  const refs = disabled.map((id) => CAPABILITY_LABELS[id]).join('、');
   return `> **本项目已关闭能力：${disabled.join('、')}**（见 \`project-profile.toml [capabilities]\`）。下文凡引用 ${refs} 的地方一律不适用，替代做法写在 §2.5。\n\n`;
 }
 

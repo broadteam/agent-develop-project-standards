@@ -2,10 +2,14 @@
   "schema_version": 1,
   "core": {
     "always_enabled": true,
-    "description": "不可关闭的安全、授权、事实来源与验证诚信底线",
+    "description": "不可关闭的安全、授权、原始意图、需求/验证证据与事实来源底线",
     "rules": [
       ".spec/00-constitution.md",
-      "AGENTS.md"
+      "AGENTS.md",
+      ".spec/intent/BASELINE.md",
+      ".spec/intent/CHANGES.md",
+      ".spec/requirements/INDEX.md",
+      ".spec/verification/INDEX.md"
     ]
   },
   "capabilities": {
@@ -21,7 +25,8 @@
         ".spec/tasks/index.md"
       ],
       "validation": [
-        "on 时必须保留任务索引与卡片目录结构"
+        "on 时必须保留任务索引与卡片目录结构",
+        "新建跟踪任务必须显式选择意图对齐模式；启用时对跟踪任务执行开工/收口对齐校验"
       ],
       "artifacts": [
         ".spec/tasks/"
@@ -37,7 +42,8 @@
           "impact_security",
           "impact_production",
           "kind_incident",
-          "task_id_present"
+          "task_id_present",
+          "milestone_planning"
         ]
       }
     },
@@ -58,7 +64,8 @@
         ".spec/roadmap/INDEX.md"
       ],
       "validation": [
-        "on 时必须保留里程碑索引与详情目录"
+        "on 时必须保留里程碑索引与详情目录",
+        "启用时对新建里程碑执行意图对齐校验；关闭时保留历史记录但不执行该能力门禁"
       ],
       "artifacts": [
         ".spec/roadmap/"
@@ -176,6 +183,10 @@
         "when_any": [
           "stack_involved"
         ]
+      },
+      "requires_stack": {
+        "when": "on",
+        "non_generic": true
       }
     },
     "quality_gates": {
@@ -221,6 +232,11 @@
           "kind_release",
           "impact_production"
         ]
+      },
+      "requires": {
+        "when": "strict",
+        "capability": "quality_gates",
+        "not": "baseline"
       }
     }
   }

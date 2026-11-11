@@ -2,7 +2,9 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-function validateIntentAlignment(root) {
+function validateIntentAlignment(root, options = {}) {
+  const taskTracking = options.taskTracking !== false;
+  const roadmap = options.roadmap !== false;
   const errors = [];
   const read = (rel) => {
     const file = path.join(root, rel);
@@ -30,8 +32,8 @@ function validateIntentAlignment(root) {
   const changesText = read('.spec/intent/CHANGES.md');
   const requirementsText = read('.spec/requirements/INDEX.md');
   const verificationText = read('.spec/verification/INDEX.md');
-  const taskIndex = read('.spec/tasks/index.md');
-  const roadmapIndex = read('.spec/roadmap/INDEX.md');
+  const taskIndex = taskTracking ? read('.spec/tasks/index.md') : '';
+  const roadmapIndex = roadmap ? read('.spec/roadmap/INDEX.md') : '';
 
   const goals = new Set(rows(baseline)
     .filter(row => /^G\d+$/.test(row[0]) && !row.some(placeholder))
@@ -68,7 +70,7 @@ function validateIntentAlignment(root) {
     });
   }
 
-  const taskRows = rows(taskIndex).filter(row => /^T\d+$/.test(row[0]));
+  const taskRows = taskTracking ? rows(taskIndex).filter(row => /^T\d+$/.test(row[0])) : [];
   const taskStatuses = new Map(taskRows.map(row => [row[0], row[2] || '']));
   const taskRefs = new Map();
 
@@ -209,7 +211,7 @@ function validateIntentAlignment(root) {
     }
   }
 
-  const milestoneRows = rows(roadmapIndex).filter(row => /^M\d+$/.test(row[0]));
+  const milestoneRows = roadmap ? rows(roadmapIndex).filter(row => /^M\d+$/.test(row[0])) : [];
   const milestoneStatuses = new Map(milestoneRows.map(row => [row[0], row[3] || '']));
   const milestoneRefs = new Map();
   for (const row of milestoneRows) {

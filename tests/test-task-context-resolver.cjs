@@ -87,12 +87,30 @@ try {
     uncertainty: 'high', cross_session: true
   }, { root, profile: overriddenProfile, registry });
   const overriddenPaths = overridden.requiredRead.map((x) => x.path);
-  assert.ok(!overriddenPaths.includes('.spec/intent/BASELINE.md'));
-  assert.ok(!overriddenPaths.includes('.spec/intent/CHANGES.md'));
+  assert.ok(overriddenPaths.includes('.spec/intent/BASELINE.md'), 'cross-session intent context remains required when task_tracking is off');
+  assert.ok(overriddenPaths.includes('.spec/intent/CHANGES.md'), 'accepted intent changes remain visible when task_tracking is off');
   assert.ok(!overriddenPaths.includes('.spec/tasks/index.md'));
   assert.ok(!overriddenPaths.includes('.spec/adr/README.md'));
   assert.ok(overridden.warnings.some((x) => x.includes('task_tracking')));
   assert.ok(overridden.warnings.some((x) => x.includes('adr')));
+
+  const milestoneOnly = resolveTaskContext({
+    kind: 'code_change', risk: 'low', impact: 'local', uncertainty: 'low', milestone_id: 'M1'
+  }, { root, profile, registry });
+  const milestonePaths = milestoneOnly.requiredRead.map((x) => x.path);
+  assert.ok(milestonePaths.includes('.spec/tasks/index.md'), 'milestone planning must also activate auto task tracking');
+  assert.ok(milestonePaths.includes('.spec/roadmap/INDEX.md'));
+  assert.equal(milestoneOnly.capabilityDecisions.task_tracking.effective, 'on');
+
+  const noTaskTrackingProfile = parseProfile(profileText);
+  noTaskTrackingProfile.capabilities.task_tracking = 'off';
+  noTaskTrackingProfile.capabilities.roadmap = 'auto';
+  const blockedRoadmap = resolveTaskContext({
+    kind: 'code_change', risk: 'low', impact: 'local', uncertainty: 'low', milestone_id: 'M1'
+  }, { root, profile: noTaskTrackingProfile, registry });
+  assert.equal(blockedRoadmap.capabilityDecisions.roadmap.decision, 'disabled_by_dependency');
+  assert.ok(blockedRoadmap.warnings.some((x) => x.includes('task_tracking')));
+  assert.ok(!blockedRoadmap.requiredRead.some((x) => x.path === '.spec/roadmap/INDEX.md'));
 
   const productionRelease = resolveTaskContext({
     kind: 'code_change', risk: 'medium', impact: 'local', release_target: 'production'

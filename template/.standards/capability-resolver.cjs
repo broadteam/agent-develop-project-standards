@@ -26,7 +26,7 @@ function resolveCapabilities(profile, registry) {
     const item = resolved[id];
     if (!item || item.status === 'disabled') continue;
     const dependency = definition.requires;
-    if (!dependency || item.configured !== dependency.when) continue;
+    if (!dependency || (item.configured !== dependency.when && item.status !== 'deferred')) continue;
     const target = resolved[dependency.capability];
     if (!target || target.configured === dependency.not) {
       errors.push('能力依赖冲突：' + id + '=' + item.configured + ' 要求 ' + dependency.capability + ' 不得为 ' + dependency.not);

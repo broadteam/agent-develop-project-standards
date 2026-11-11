@@ -108,12 +108,10 @@ def validate_profile(root: Path) -> tuple[list[str], list[str]]:
             value = capabilities.get(name)
             if value is not None and value not in definition.get("values", []):
                 errors.append(f"非法能力配置：capabilities.{name} = {value}（允许：{', '.join(definition.get('values', []))}）")
-        if capabilities.get("roadmap") == "on" and capabilities.get("task_tracking") == "off":
-            errors.append("能力依赖冲突：roadmap=on 要求 task_tracking 不得为 off")
-        if capabilities.get("stack_rules") == "on" and all(v == "generic" for v in profile.get("stack", {}).get("detected", [])):
-            errors.append("stack_rules=on 要求至少一个已确认的非 generic 技术栈")
-        if capabilities.get("release_governance") == "strict" and capabilities.get("quality_gates") == "baseline":
-            errors.append("release_governance=strict 要求 quality_gates 为 standard 或 strict")
+        resolution = resolve_capabilities(profile, registry)
+        for error in resolution["errors"]:
+            if error not in errors:
+                errors.append(error)
         verification = profile.get("verification", {})
         if capabilities.get("quality_gates") == "strict" and not any(isinstance(verification.get(k), str) and verification[k].strip() for k in ["lint", "test", "build"]):
             errors.append("quality_gates=strict 至少需要配置 lint、test、build 中一项适用的验证命令")
