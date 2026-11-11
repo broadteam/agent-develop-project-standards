@@ -181,7 +181,7 @@ function validateIntentAlignment(root, options = {}) {
         errors.push('意图对齐：任务 ' + taskId + ' 必须引用 Vnnn，或填写可复现验证步骤及结果');
       }
     }
-    if (status === 'done' && !evidenceRefs.length && !/(?:结果|判定)[:：]?\s*(?:通过|成功|pass(?:ed)?\b)/i.test(verificationText)) {
+    if (status === 'done' && !evidenceRefs.length && !/(?:结果|判定)[:：]?\s*(?:通过|成功|pass(?:ed)?\b)(?![\p{L}\p{N}_])/iu.test(verificationText)) {
       errors.push('意图对齐：任务 ' + taskId + ' 没有 V 证据却标记 done；可复现验证结果必须明确为 pass/通过');
     }
     for (const ref of evidenceRefs) {
