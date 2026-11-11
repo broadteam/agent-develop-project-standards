@@ -78,6 +78,7 @@ try {
   assert.ok(complexRequired.includes('.spec/adr/README.md'));
   assert.ok(complexRequired.includes('.spec/intent/BASELINE.md'));
   assert.ok(complexRequired.includes('.spec/intent/CHANGES.md'));
+  assert.match(complex.requiredRead.find((x) => x.path === '.spec/intent/CHANGES.md').section, /按 G\/R\/C ID 定位/);
   assert.ok(complexRequired.includes('.spec/requirements/INDEX.md'));
   assert.ok(complexRequired.includes('.spec/verification/INDEX.md'));
   assert.ok(complexRequired.includes('.spec/tasks/index.md'));

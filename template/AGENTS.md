@@ -70,7 +70,7 @@
 <!--cap:task_tracking-->
 | `.spec/tasks/index.md` + 对应 `card.md` | 跟踪任务；轻量任务无需强制建卡 |
 <!--/cap-->
-| `.spec/intent/BASELINE.md` + `CHANGES.md` | 跟踪任务、跨会话恢复、需求/计划变更或阶段回顾时 |
+| `.spec/intent/BASELINE.md` + `CHANGES.md` | 跟踪任务、跨会话恢复、需求/计划变更时；CHANGES 只读相关 G/R/C 条目 |
 | `.spec/requirements/INDEX.md` | 跟踪任务必读；核对 R ID / 需求状态时读取 |
 | `.spec/verification/INDEX.md` | 有 V 引用、验收收口或核对 verified 状态时读取 |
 <!--cap:roadmap-->

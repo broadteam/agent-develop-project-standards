@@ -160,7 +160,7 @@ function resolveTaskContext(input, options = {}) {
     || ['kind_architecture_change', 'kind_database_change', 'kind_security_change', 'kind_dependency_change', 'kind_incident', 'kind_release'].some((signal) => signals.has(signal));
   if (intentContextNeeded || taskTrackingSelected) {
     add(requiredRead, '.spec/intent/BASELINE.md', '跨会话或高影响工作必须恢复原始目标基线，防止局部工作取代项目目标');
-    add(requiredRead, '.spec/intent/CHANGES.md', '核对用户已确认的意图变化与未决事项');
+    add(requiredRead, '.spec/intent/CHANGES.md', '按任务相关 G/R/C 锚点检索已确认变化及后续状态；不通读全部历史', '仅相关 Cnnn 条目及后续状态（按 G/R/C ID 定位）');
     add(requiredRead, '.spec/requirements/INDEX.md', '跟踪/连续性工作需要核对关联 R ID、当前需求状态与验收判据');
     const verificationRequired = ['high', 'critical'].includes(task.risk)
       || HIGH_IMPACTS.has(task.impact) || ['public_contract', 'system'].includes(task.impact)
