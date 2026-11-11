@@ -377,3 +377,51 @@
 - PR #10：Open + Draft，未修改。
 - main：02f8dde262455f15029a54694e129b05b70013a4，未修改。
 - 更新本 Handoff 会产生新的 PR #11 Head；新会话必须现场读取 PR head 与对应 CI，不沿用本节旧 SHA 的 CI 状态。
+
+## SCP D2 场景契约矩阵推进（2026-11-12）
+
+### 本轮工作
+
+用户确认按建议继续。本轮将 D2 从原则设计推进为跨客户端可验证的场景契约，仍严格限定为设计工作。
+
+已在 SESSION-CONTINUITY-PROTOCOL-DESIGN.md 新增：
+
+- §13.12「D2 场景契约矩阵」：定义 18 个场景，覆盖 Packet 缺失/有效、权威记录更新、无关文件变化、远端 API 不可用、tracked dirty、untracked 内容摘要缺失、dirty owner 不明、PR head 变化、CI queued、CI SHA 不匹配、Evidence revision mismatch、未知 Schema、权威来源冲突、可选能力关闭、检查命令副作用、当前指令与历史意图不同、只读权限不足等。
+- §13.12.2：定义跨客户端规范化输出字段，要求比较协议兼容性、逐来源 freshness、观察状态、Evidence 适用性、恢复模式、允许/禁止行为和待用户决定，而不是比较自然语言摘要。
+- §13.12.3：定义 normal / restricted / blocked 恢复模式；局部冲突只阻断依赖该事实/范围的动作，不扩大为全仓库阻断；normal 不代表验证通过或获得写权限。
+- §13.12.4：规定后续 Fixture 的输入、预期状态、允许/禁止行为和 unknown 预期；明确当前没有创建 Fixture、Runner 或 CI Gate。
+- §13.13：定义 B0–B7 的规范化状态转移与判定顺序，包括身份检查先于 Packet 消费、兼容性先于字段解释、权威识别先于新旧比较、范围匹配先于 Evidence 适用性结论、现场观察先于动态状态结论、授权检查独立于恢复状态。
+
+### 本轮设计审查结论
+
+已对 18 个场景和状态转移说明做内部一致性检查：
+
+- 未把 Packet 缺失当作错误；保留旧项目从既有入口恢复的路径。
+- 协议兼容性与 freshness 分轴，未知核心语义不允许“忽略后继续”。
+- HEAD、tracked 工作区文件、untracked 文件分别判断，不把 Git tree/commit SHA 误当成完整 dirty worktree 快照。
+- CI 状态 queued/in_progress 不等于 passed；CI 成功但 head SHA 不匹配时不覆盖当前版本。
+- Evidence 必须同时满足 subject、revision、scope 适用性，旧证据保留但不能冒充当前通过。
+- 权威来源冲突不按时间戳或 Agent 偏好选边；unknown 不解释成不存在或无变化。
+- normal/restricted/blocked 是恢复范围状态，不是用户授权等级；所有后续写入仍需独立权限检查。
+- 只读命令若会产生项目状态副作用则跳过，不能为完成 Bootstrap 而破坏只读边界。
+- 跨客户端比较采用规范化结果；Fixture 通过不能替代真实 CLI E2E。
+
+当前未发现需要改变 D0 决策或修改 D1 Schema 的阻断问题。该结论属于文档内部审查，不是正式 Validator/Fixture 执行结果，也不代表 D2 已冻结。
+
+### 本轮未做事项
+
+- 未修改 D1 Schema、COMPATIBILITY.md 或 JSON example。
+- 未批准/标记 D1 Schema 0.1.0 冻结。
+- 未实现 Validator、Semantic Validator、Fixture Runner、Packet Writer 或 CI Gate。
+- 未修改 PR #10、main、项目版本或 tags；未合并或关闭任何 PR。
+
+### PR #11 当前提交链
+
+- 场景契约矩阵提交：ac6b88f34b1bd2ab38028a7ae852846ace7024c3。
+- 状态转移语义提交：0a94f7bf0589508429a587687dbcf0f84888db66。
+- 更新本 Handoff 会再产生一个新 Head；新会话必须重新读取 PR #11 head 和对应 CI，不得沿用以上 SHA 的检查状态。
+- PR #11 保持 Open + Draft；PR #10 保持 Open + Draft；main 未修改。
+
+### 下一步（唯一首选）
+
+在本设计范围内做最后一轮 D2 审查：检查 18 个场景是否存在状态判定歧义、恢复模式是否可由依赖范围稳定计算、规范化输出是否足以让两个独立客户端互操作。通过后向用户提交 D2 设计冻结审查请求；D1 Schema 0.1.0 仍需用户单独明确批准冻结。
