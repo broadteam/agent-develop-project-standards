@@ -74,8 +74,8 @@ Packet 中的领域状态原则上只保存引用和恢复所需的最小摘要�
 恢复顺序：
 
 1. 识别仓库根目录、项目身份和协议版本。
-2. 读取 `AGENTS.md` 规则入口与 `SESSION-HANDOFF.md` 导航入口。
-3. 读取 handoff 指向的领域权威来源：意图基线/变更、相关需求、任务/里程碑、ADR、验证证据。
+2. 读取 `AGENTS.md` 规则入口；若存在 `SESSION-HANDOFF.md`，将其作为导航/交接材料读取，不将其视为所有项目都必须创建的文件。若不存在，按 `AGENTS.md` 指向的 `.memory/MEMORY.md §0` 或项目既有断点入口恢复。
+3. 从可用断点/交接材料定位领域权威来源：意图基线/变更、相关需求、任务/里程碑、ADR、验证证据；可选能力关闭或文件不存在时按项目配置处理，不强制补建。
 4. 现场核对 Git：当前分支、HEAD、upstream、worktree dirty 状态、未跟踪文件、相关 PR/CI。
 5. 对照上次 checkpoint，标注差异和过期信息。
 6. 汇总当前目标、任务、约束、未决事项和唯一下一步；必要时向用户提出一个最关键的澄清问题。
@@ -128,10 +128,10 @@ Checkpoint 不采用单一“完成度”字段，而应分别描述以下维度
 | 维度 | 状态示例 | 含义 |
 |---|---|---|
 | 工作内容 | not_started / in_progress / blocked / locally_complete | 工作本身进度；`locally_complete` 仅表示当前执行者认为本轮实现已完成，不等同任务 `done`、需求 `verified` 或里程碑完成 |
-| 持久化 | unsaved / saved / committed | 文件是否保存、是否进入 Git commit |
+| 工作区可观察状态 | unknown / observed_clean / observed_dirty | 基于当前工具可见的文件系统与 Git 状态描述工作区；不得推断编辑器内未落盘缓冲区状态 |
 | 验证 | not_run / running / passed / failed / stale / unknown | 本次工作区/提交上的验证状态；`passed` 必须关联 Evidence，旧证据对新版本为 `stale`，无法读取证据为 `unknown` |
-| 审查 | not_reviewed / reviewed / changes_requested | 是否完成代码/语义审查 |
-| 决策 | not_required / pending / confirmed / rejected | 是否存在待裁定事项及其结果；`confirmed` / `rejected` 必须关联具体决策 ID、裁定主体和来源，不能作为泛化的用户授权标记 |
+| 审查 | not_reviewed / reviewed / changes_requested / stale / unknown | 审查结论必须绑定被审查 revision、审查范围和审查者；revision 变化后重新判断是否 stale |
+| 决策 | 以 `pending_decisions[]` / `decision_refs[]` 表达多个独立事项 | 不用一个全局枚举代表多个决策；每项必须关联具体决策 ID、裁定主体和来源，不能作为泛化的用户授权标记 |
 
 Checkpoint 最小字段：
 
@@ -141,14 +141,16 @@ Checkpoint 最小字段：
 - 当前工作主题与 G/R/T/M 引用（适用时）。
 - 已完成、未完成、阻塞、待决策。
 - 验证命令、结果、绑定 revision 和 Evidence 引用；没有运行必须写 `not_run`。`running` 还需记录执行者与运行标识，无法确认状态时写 `unknown`。
+- 待裁定事项列表及其权威来源引用；多个决策不能压缩成单一 decision 状态。
 - 下一步和禁止操作。
 
 规则：
 
-- 保存文件不等于提交；提交不等于验证；验证通过不等于用户验收。
-- 若工作树 dirty，必须明确交接未提交变更的保存位置与处理方式。
+- 文件系统中可观察到的改动不等于已提交；提交不等于验证；验证通过不等于用户验收。
+- 通用 Agent 通常无法观察 IDE/编辑器内尚未写入文件系统的缓冲区；除非客户端提供可验证的编辑器状态接口，否则该部分必须标为不可观察/unknown，不得声称已保存或未保存。
+- 若工作树 dirty，必须明确交接可观察到的未提交变更路径、归属与处理方式。
 - 不自动 stash、commit、reset 或清理未跟踪文件。
-- 新 commit 或相关文件变更会使旧验证证据变为 stale，除非证据明确覆盖新版本。
+- 新 commit 或相关文件变更会使旧验证/审查证据重新评估 freshness，相关 subject 已变化时标为 stale，除非证据明确覆盖新版本。
 
 ### 4.5 Concurrency Control — 并发控制
 
@@ -198,7 +200,7 @@ Checkpoint 最小字段：
 - subject：被验证的需求、任务、文件或发布对象。
 - type：test / lint / build / CI / manual_review / user_acceptance / static_analysis。
 - source：命令、CI run URL、审查记录或用户确认来源。
-- subject revision：优先使用 commit SHA；未提交工作区必须描述 HEAD SHA、dirty 状态及被纳入验证的文件/差异范围。单独一个 Git tree SHA 不包含未跟踪文件，不能被误称为完整工作区快照。
+- subject revision：优先使用 commit SHA；未提交工作区必须描述 HEAD SHA、dirty 状态及被纳入验证的文件/差异范围。若使用文件摘要清单，需明确纳入的 tracked/untracked 路径和摘要算法；单独一个 Git tree SHA 不包含未跟踪文件，不能被误称为完整工作区快照。
 - environment：OS、runtime、关键版本（适用时）。
 - result：pass / fail / inconclusive / not_run。
 - observed_at、actor、scope/limitations。
@@ -240,10 +242,10 @@ code:
   uncommitted_paths: []
 checkpoint:
   work_state: in_progress
-  persistence_state: saved
+  workspace_state: observed_dirty
   verification_state: not_run
   review_state: not_reviewed
-  decision_state: pending_user
+  pending_decisions: []
 evidence_refs: []
 coordination:
   owner: agent-a
@@ -278,7 +280,7 @@ START
   -> Scope / Ownership Check
   -> Execute
   -> Checkpoint (as needed)
-  -> Evidence Capture
+  -> Evidence Capture (when acceptance / review / closeout requires it)
   -> Handoff or Closeout
   -> END
 ```
@@ -389,3 +391,16 @@ SCP 必须作为现有会话协议的跨客户端互操作层，而不是替换�
 - Lease：首版仅采用 branch/worktree + owner 声明（推荐）；仅在后续出现可复现的共享写冲突时，再评估 lease 存储。外部锁服务不属于当前 MVP。
 
 在这些决策获得用户明确裁定前，D0 保持 `review_pending`；不得开始 D1 Schema 冻结或实现 validator。
+
+### 11.4 第二轮边界检查
+
+进一步审查发现以下语义必须在 D0 进入冻结前明确：
+
+1. **编辑器缓冲区不可观测**：跨客户端通用协议不能假定能读取 IDE 尚未写入文件系统的内容。Checkpoint 只能声明工具实际观察到的文件系统/Git 状态；不可观察的编辑器缓冲区必须是 unknown，不能使用 saved / unsaved 做未经证实的承诺。
+2. **多个待决策事项不能压成一个枚举**：一个会话可能同时有多项独立待用户裁定事项。应使用带 ID 和来源的待决策列表；用户确认必须关联具体事项，不能将一个 confirmed 状态误读为对整个 Packet 或后续操作的授权。
+3. **审查证据也有版本有效性**：代码审查必须绑定被审查 revision、范围和审查者；提交变化后需重新判断审查是否 stale，不能只对测试证据执行 freshness。
+4. **断点入口必须适配项目现状**：SESSION-HANDOFF.md 是可选交接入口，不应成为所有项目的必需文件。没有该文件时，应沿用 AGENTS.md 指向的 MEMORY §0 或项目既有断点入口。
+5. **Evidence 记录按验收需求触发**：普通局部测试不应被强制转成 V 记录；只在需求验收、重要审查、里程碑/阶段收口或发布决策需要时登记，延续现有 verification 规则。
+6. **示例格式不得提前替代格式决策**：当前 YAML 只是语义示例。D0 决定协议语义，D1 才确定机器格式、schema 版本和兼容规则；不得在文档中一边称格式未定，一边让示例看起来像已冻结契约。
+
+以上是提案级语义修订，不构成用户确认；四项产品决策仍未裁定。
