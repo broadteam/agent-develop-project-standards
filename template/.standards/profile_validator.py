@@ -113,7 +113,7 @@ def validate_profile(root: Path) -> tuple[list[str], list[str]]:
             if error not in errors:
                 errors.append(error)
         verification = profile.get("verification", {})
-        if capabilities.get("quality_gates") == "strict" and not any(isinstance(verification.get(k), str) and verification[k].strip() for k in ["lint", "test", "build"]):
+        if "verification" in profile and capabilities.get("quality_gates") == "strict" and not any(isinstance(verification.get(k), str) and verification[k].strip() for k in ["lint", "test", "build"]):
             errors.append("quality_gates=strict 至少需要配置 lint、test、build 中一项适用的验证命令")
     if "verification" in profile:
         for key in expected["verification"]:

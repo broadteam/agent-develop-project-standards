@@ -7,6 +7,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const root = path.resolve(__dirname, '..');
 const { resolveCapabilities } = require('../template/.standards/capability-resolver.cjs');
+const { validateProfile } = require('../template/.standards/profile-validator.cjs');
 function assertResolverParity(label, profile) {
   const node = resolveCapabilities(profile, registry);
   const script = [
@@ -78,6 +79,39 @@ assertResolverParity('stack_rules on accepts a confirmed concrete stack', { prof
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-capability-resolver-'));
 try {
+  function assertProfileValidatorParity(label, profileText) {
+    const project = path.join(tmp, 'profile-parity-' + label.replace(/[^a-z0-9-]/gi, '-'));
+    fs.mkdirSync(path.join(project, 'policy'), { recursive: true });
+    fs.writeFileSync(path.join(project, 'project-profile.toml'), profileText);
+    fs.writeFileSync(path.join(project, 'policy/capabilities.json'), JSON.stringify(registry, null, 2));
+    const node = validateProfile(project);
+    const script = [
+      'import json, sys',
+      'sys.dont_write_bytecode = True',
+      'from pathlib import Path',
+      `sys.path.insert(0, ${JSON.stringify(path.join(root, 'template/.standards'))})`,
+      'from profile_validator import validate_profile',
+      'errors, warnings = validate_profile(Path(sys.argv[1]))',
+      'print(json.dumps({"errors": errors, "warnings": warnings}, ensure_ascii=False))'
+    ].join('\\n');
+    let python = spawnSync(process.env.PYTHON || 'python3', ['-c', script, project], { encoding: 'utf8' });
+    if (python.error && !process.env.PYTHON) python = spawnSync('python', ['-c', script, project], { encoding: 'utf8' });
+    if (python.error) throw python.error;
+    assert.equal(python.status, 0, python.stderr);
+    assert.deepEqual(JSON.parse(python.stdout.trim()), node, label + ': Node/Python profile validation results differ');
+  }
+
+  const validProfileText = fs.readFileSync(path.join(root, 'template/project-profile.toml'), 'utf8');
+  assertProfileValidatorParity('default-needs-review', validProfileText);
+  assertProfileValidatorParity('strict-with-verification', validProfileText.replace('quality_gates = "baseline"', 'quality_gates = "strict"'));
+  assertProfileValidatorParity('strict-missing-verification-section', validProfileText.replace('quality_gates = "baseline"', 'quality_gates = "strict"').split('[verification]')[0]);
+  assertProfileValidatorParity('unconfirmed-stack-rules', validProfileText
+    .replace('status = "needs_review"', 'status = "needs_review"')
+    .replace('detected = ["generic"]', 'detected = ["php"]')
+    .replace('stack_rules = "auto"', 'stack_rules = "on"'));
+  assertProfileValidatorParity('roadmap-auto-dependency-conflict', validProfileText
+    .replace('task_tracking = "auto"', 'task_tracking = "off"'));
+
   // auto defers optional task rules by task context, but does not disable repository data integrity checks.
   const autoProject = path.join(tmp, 'auto-project');
   fs.mkdirSync(autoProject);
