@@ -33,7 +33,7 @@ SCP 的目标不是再造任务系统或记忆系统，而是定义一套**恢�
 
 ### 3.1 Project Continuity Context
 
-一个项目在某一时刻可恢复的上下文，由以下信息组成：
+一个项目在某一时刻可恢复的上下文，由以下信息组成。它是恢复视图，不是需要整体复制或持续双写的独立记录：
 
 - 项目身份：仓库、协议版本、工作区位置。
 - 意图锚点：原始目标及当前适用的 accepted changes。
@@ -50,11 +50,13 @@ SCP 的目标不是再造任务系统或记忆系统，而是定义一套**恢�
 
 Packet 必须区分：
 
-- `authoritative_ref`：权威记录的路径与 ID。
-- `observed_state`：本次现场读取到的状态。
-- `last_known_state`：上次断点保存的状态。
+- `authoritative_ref`：权威记录的路径与 ID；可选能力关闭或记录不存在时，明确标记 `not_applicable` / `not_configured`，不得虚构路径。
+- `observed_state`：本次现场读取到的状态，并注明观察来源及版本。
+- `last_known_state`：上次断点保存的状态，只能作为比较基线。
 - `inference`：Agent 推断，不能作为已确认事实。
 - `pending_confirmation`：必须由用户或指定责任人决定的事项。
+
+Packet 中的领域状态原则上只保存引用和恢复所需的最小摘要；除非权威来源本身就是该断点文件，否则不得复制完整需求、任务卡、意图变更或验证记录。
 
 ### 3.3 Checkpoint 与 Handoff
 
@@ -121,15 +123,15 @@ Packet 必须区分：
 
 **目标**：准确表达工作处于哪个持久化和验证阶段，保证中断后可以安全续做。
 
-Checkpoint 不采用单一“完成度”字段，而应分别描述以下维度：
+Checkpoint 不采用单一“完成度”字段，而应分别描述以下维度。以下状态只描述执行断点，不覆盖任务索引、需求索引、验证索引或里程碑中的领域状态：
 
 | 维度 | 状态示例 | 含义 |
 |---|---|---|
-| 工作内容 | not_started / in_progress / blocked / locally_complete | 工作本身进度 |
+| 工作内容 | not_started / in_progress / blocked / locally_complete | 工作本身进度；`locally_complete` 仅表示当前执行者认为本轮实现已完成，不等同任务 `done`、需求 `verified` 或里程碑完成 |
 | 持久化 | unsaved / saved / committed | 文件是否保存、是否进入 Git commit |
-| 验证 | not_run / running / passed / failed / stale | 验证结果及其新鲜度 |
+| 验证 | not_run / running / passed / failed / stale / unknown | 本次工作区/提交上的验证状态；`passed` 必须关联 Evidence，旧证据对新版本为 `stale`，无法读取证据为 `unknown` |
 | 审查 | not_reviewed / reviewed / changes_requested | 是否完成代码/语义审查 |
-| 决策 | not_required / pending_user / confirmed / rejected | 是否需要用户确认及结果 |
+| 决策 | not_required / pending / confirmed / rejected | 是否存在待裁定事项及其结果；`confirmed` / `rejected` 必须关联具体决策 ID、裁定主体和来源，不能作为泛化的用户授权标记 |
 
 Checkpoint 最小字段：
 
@@ -138,7 +140,7 @@ Checkpoint 最小字段：
 - 未提交变更的文件列表与摘要；必要时记录 diff/tree hash，但不默认复制完整 diff。
 - 当前工作主题与 G/R/T/M 引用（适用时）。
 - 已完成、未完成、阻塞、待决策。
-- 验证命令、结果、绑定 SHA；没有运行必须写 `not_run`。
+- 验证命令、结果、绑定 revision 和 Evidence 引用；没有运行必须写 `not_run`。`running` 还需记录执行者与运行标识，无法确认状态时写 `unknown`。
 - 下一步和禁止操作。
 
 规则：
@@ -154,9 +156,9 @@ Checkpoint 最小字段：
 
 优先策略：
 
-1. 每个并行 Agent 使用独立 branch/worktree。
-2. 任务或文件范围明确分配 owner；同一权威文件默认单写者。
-3. 需要共享写入时，声明 lease：资源范围、owner、base SHA、创建时间、到期时间、续租/释放状态。
+1. 发生真实并行写入时，每个 Agent 优先使用独立 branch/worktree；没有并行写入时不要求引入协调文件或 lease。
+2. 任务或文件范围明确分配 owner；同一权威文件默认单写者。该约束沿用项目已有 `multi_agent` 能力规则，不因 SCP 自动启用该能力。
+3. 只有无法通过分支/worktree 隔离且确有共享资源协调需求时，才考虑声明 lease：资源范围、owner、base SHA、创建时间、到期时间、续租/释放状态。
 4. 写入前比较 base SHA 与当前 SHA；发生变化必须重新读取、重放或人工解决，不允许盲目覆盖。
 5. 过期 lease 只表示协调声明失效，不代表可以删除其他 Agent 的工作；先检查工作树、分支和未提交改动。
 6. 同一任务的状态变更与证据更新必须串行化，避免 done 状态先于验证结果写入。
@@ -196,7 +198,7 @@ Checkpoint 最小字段：
 - subject：被验证的需求、任务、文件或发布对象。
 - type：test / lint / build / CI / manual_review / user_acceptance / static_analysis。
 - source：命令、CI run URL、审查记录或用户确认来源。
-- subject revision：commit SHA 或明确的工作树快照。
+- subject revision：优先使用 commit SHA；未提交工作区必须描述 HEAD SHA、dirty 状态及被纳入验证的文件/差异范围。单独一个 Git tree SHA 不包含未跟踪文件，不能被误称为完整工作区快照。
 - environment：OS、runtime、关键版本（适用时）。
 - result：pass / fail / inconclusive / not_run。
 - observed_at、actor、scope/limitations。
@@ -260,8 +262,9 @@ provenance:
 
 重要约束：
 
-- Packet 是可重建的工作快照，不是任务、需求或意图的新权威数据库。
-- 不要求每次普通对话都生成文件；跨会话暂停、Agent 交接、长任务 checkpoint、阶段收口时才需要持久化。
+- Packet 是可重建的恢复视图，不是任务、需求或意图的新权威数据库。
+- 不要求每次普通对话都生成文件；跨会话暂停、Agent 交接、长任务 checkpoint、阶段收口时才考虑持久化。轻量任务继续遵循项目现有轻量流程，不因 SCP 自动升级为跟踪任务。
+- `task_ref`、`milestone_ref`、`lease_ref` 等引用按项目能力和实际场景选填；能力关闭或场景不适用时不得为了填满字段而创建治理记录。
 - 任何动态字段都必须能标记 last-known 与 observed；不能把旧快照中的 branch/PR/CI 状态冒充实时状态。
 - YAML 示例中的时间、分支和 SHA 仅作字段示意，实际实现必须从运行环境/权威来源读取，不能使用占位值伪造运行状态。
 
@@ -299,7 +302,7 @@ START
 - Checkpoint/Handoff 的字段契约。
 - Evidence 与 commit/CI SHA 绑定规则。
 - Node/Python schema validator 的一致性测试（如最终决定采用双实现）。
-- 至少两个独立客户端按同一 Packet 完成恢复的可重复 fixture；真实客户端端到端支持需单独标注版本和证据。
+- 至少两个独立客户端按同一 Packet 完成恢复的可重复 fixture；真实客户端端到端支持需单独标注客户端版本和证据。fixture 验证协议互操作，不等于证明真实客户端加载规则或工具权限行为一致。
 
 ### 初版不做
 
@@ -340,3 +343,49 @@ START
 - 本文仅为设计提案，不改变 PR #10 的 3.0 审查结论。
 - PR #10 保持 Open + Draft；本提案应在独立分支/独立 PR 评审，不能混入 PR #10。
 - 未经用户审查，不冻结 schema、不启用门禁、不要求现有项目迁移。
+
+
+## 11. D0 内部一致性审查（2026-11-12）
+
+本节是设计审查记录，不代表用户已批准 D0，也不冻结字段名或 schema。
+
+### 11.1 与现有规范的职责映射
+
+SCP 必须作为现有会话协议的跨客户端互操作层，而不是替换它。当前模板已经定义了按任务分级的开工/收口流程、六行内 MEMORY 断点、意图/需求/验证分域事实源、可选任务/路线图/ADR 能力，以及客户端私有记忆单向镜像。D0 应沿用这些约束：
+
+| 现有权威来源/机制 | 当前职责 | SCP 允许做什么 | SCP 不得做什么 |
+|---|---|---|---|
+| `AGENTS.md` | 唯一规则入口、任务分级、权限、按需读取、收口路由 | 定义跨客户端一致的恢复顺序与最低互操作语义 | 复制规则正文或强制所有任务走完整流程 |
+| `.memory/MEMORY.md §0` | 最小跨会话断点与稳定事实摘要 | 作为默认恢复入口；handoff/packet 可引用其断点 | 另建长期会话总账，或要求每轮对话写 packet |
+| `.spec/intent/BASELINE.md + CHANGES.md` | 原始目标与被接受/待确认的意图变化 | 引用有效 G/C，检测 drift | 在 packet 中维护第二份目标或变更账本 |
+| `.spec/requirements/INDEX.md` | 需求 ID 与状态 | 引用相关 R，恢复验收上下文 | 复制需求正文或自行改变需求状态 |
+| `.spec/verification/INDEX.md` | 验证证据事实及其 commit 绑定 | 引用 V，并核验其 revision/freshness | 另建与 V 并行的验证事实账本 |
+| `.spec/tasks/index.md`（仅 task_tracking 启用） | 任务状态唯一源 | 引用 T 与任务卡断点 | 在 packet 中覆盖任务状态或强制启用 task_tracking |
+| `.spec/roadmap/INDEX.md`（仅 roadmap 启用） | 里程碑状态唯一源 | 引用 M | 复制或替代里程碑状态 |
+| `.spec/adr/`（仅 adr 启用） | 架构决策记录 | 引用相关 ADR | 把临时会话判断提升为已采纳架构决策 |
+| `CLIENTS.md` | 客户端入口与已验证程度 | 定义 packet 的客户端中立语义，并记录 adapter 能力声明 | 将 fixture 通过等同真实客户端 E2E 通过 |
+| Git / CI | 代码版本、工作区和自动化运行事实 | 现场读取并绑定 SHA/run | 把旧 handoff 中的动态状态当作当前事实 |
+
+**冲突原则**：先按领域定位权威来源，再比较来源版本与现场状态；Packet 只能报告冲突，不能裁决领域事实。用户当次指令仍决定本次授权边界，SCP 不扩大操作权限。
+
+### 11.2 D0 语义修订建议
+
+内部审查发现，初稿有几处需要在进入 schema 前收紧：
+
+1. **轻量任务不能被协议升级**：Bootstrap 是恢复策略，不意味着每次会话都生成 Packet、Checkpoint 或任务卡。默认持久化仍只用于跨会话暂停、真实交接、长任务断点和阶段收口。
+2. **Checkpoint 状态不能冒充领域状态**：`locally_complete` 不是 task done；Checkpoint 的 verification 只能引用 Evidence，不能取代 V 索引；decision 状态必须绑定具体决策，不能被理解为通用授权。
+3. **可选能力必须可缺省**：T/M/ADR/lease 等引用按项目能力启用和实际场景选填。关闭能力时不创建替代目录，也不把 `not_configured` 误报为错误。
+4. **未提交工作区证据需要精确定义**：Git tree SHA 不覆盖 untracked 文件；未提交验证至少要记录 HEAD、dirty 状态、纳入范围及必要的文件摘要，避免伪称已绑定完整快照。
+5. **并发控制按需启用**：沿用现有 `multi_agent` 规则；单 Agent/无并发任务不引入 lease。Branch/worktree 隔离优先，lease 不是 MVP 前置条件。
+6. **客户端互操作分级**：fixture 只证明数据契约可交换；真实 CLI 加载、工具权限和行为差异必须单独验证，不能由 fixture 代替。
+
+### 11.3 尚待用户裁定的产品决策
+
+以下选择影响协议成本和互操作范围，暂不替用户定案：
+
+- Packet 持久化：仅在重要断点/交接时持久化（推荐），还是每个跟踪任务都维护独立 packet。
+- 表示格式：JSON Schema 为机器契约、Markdown 为可选展示（推荐），还是单一 YAML；若采用双表示，必须规定机器权威源与生成方式，禁止人工双写。
+- 客户端验收：先 fixture 契约测试（推荐），再按客户端逐一声明 E2E 支持；还是首版就要求真实 CLI E2E。
+- Lease：首版仅采用 branch/worktree + owner 声明（推荐）；仅在后续出现可复现的共享写冲突时，再评估 lease 存储。外部锁服务不属于当前 MVP。
+
+在这些决策获得用户明确裁定前，D0 保持 `review_pending`；不得开始 D1 Schema 冻结或实现 validator。
