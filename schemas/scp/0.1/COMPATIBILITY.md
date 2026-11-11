@@ -12,7 +12,7 @@
 ## Versioning
 
 - `protocol` identifies the protocol family (`scp`); `schema_version` identifies the exact packet contract.
-- A published schema version is immutable. A change that alters field meaning, requiredness, accepted values, or validation behavior requires a new schema version.
+- A published schema version is immutable. Any change to the core contract requires a new schema version, including adding an optional core field: strict consumers reject unknown core fields. Changes to field meaning, requiredness, accepted values, or validation behavior are also versioned changes.
 - During the 0.x design phase, any incompatible contract change increments the minor version (for example, 0.1.0 to 0.2.0); a patch revision may correct wording or schema metadata only when instance validity and semantics are unchanged.
 - A future 1.x policy may adopt conventional major/minor/patch compatibility guarantees only after D1 review.
 - Producers must emit the exact schema version they target. Consumers must not silently reinterpret an unknown version.
@@ -32,8 +32,8 @@
 - Dynamic Git/PR/CI state must be refreshed at consumption time. `code` and `checkpoint` capture the producer's observed state at packet generation; on later consumption they are only last-known state. `provenance.source_revisions` binds source revisions and freshness. The consumer's live Bootstrap observations are compared with, not silently substituted for, those last-known values.
 - `head_sha: null` is permitted only when the revision cannot be observed; the producer must pair it with an honest `worktree_state` and must not claim revision-bound verification.
 - `observed_clean` and `observed_dirty` describe only tool-observable filesystem/Git state, never unsaved editor buffers. The canonical worktree observation is `code.worktree_state`; it must not be duplicated in checkpoint fields.
-- A packet claiming `verification_state: passed` or `failed`, or `review_state: reviewed` or `changes_requested`, must include at least one `evidence_refs` entry.
-- Code/worktree observations and every provenance source revision must include an RFC 3339 `observed_at` timestamp; `source_revisions` must identify at least one source. A `running` verification must include `verification_run.actor`, `verification_run.run_id`, and `verification_run.started_at`.
+- A packet claiming `verification_state: passed`, `failed`, or `stale`, or `review_state: reviewed`, `changes_requested`, or `stale`, must include at least one `evidence_refs` entry. Stale states retain the historical evidence reference that was judged stale.
+- Code/worktree observations and every provenance source revision must include an RFC 3339 `observed_at` timestamp; `source_revisions` must identify at least one source. A `running` verification must include `verification_run.actor`, `verification_run.run_id`, and `verification_run.started_at`; `verification_run` must be omitted for every non-running state.
 - A blocked checkpoint must include `blocked_reason`. An observed-dirty worktree must enumerate `uncommitted_paths`; an observed-clean worktree must not list any. If `head_sha` is unavailable, `worktree_state` must be `unknown`. Consumers MUST enable JSON Schema Draft 2020-12 format assertion (not annotation-only handling) for `date-time`, and reject values that are not valid RFC 3339 timestamps.
 - Agent interpretations belong in the top-level `inferences` array with explicit basis references and confidence; they must not be written into observed-state or authoritative-reference fields.
 - Decisions are represented individually under `checkpoint.decisions`. `pending` decisions must not have `decided_at`; `confirmed`, `rejected`, and `deferred` decisions must have it. Each decision is scoped to its own `decision_id` and source; confirmation is not blanket authorization for other actions.
