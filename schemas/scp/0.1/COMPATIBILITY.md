@@ -30,7 +30,8 @@
 - Missing optional capabilities are represented by omission, not by fabricated paths or placeholder records.
 - Dynamic Git/PR/CI state must be refreshed at consumption time. Packet values are last-known observations, not live truth.
 - `head_sha: null` is permitted only when the revision cannot be observed; the producer must pair it with an honest `worktree_state` and must not claim revision-bound verification.
-- `observed_clean` and `observed_dirty` describe only tool-observable filesystem/Git state, never unsaved editor buffers.
+- `observed_clean` and `observed_dirty` describe only tool-observable filesystem/Git state, never unsaved editor buffers. The canonical worktree observation is `code.worktree_state`; it must not be duplicated in checkpoint fields.
+- A packet claiming `verification_state: passed` or `review_state: reviewed` must include at least one `evidence_refs` entry. Consumers should validate date-time formats as RFC 3339, not merely accept arbitrary strings.
 - A confirmed decision is scoped to its own `decision_id` and source. It is not blanket authorization for other actions.
 
 ## Validation scope
