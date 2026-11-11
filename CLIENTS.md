@@ -35,22 +35,22 @@
 
 **但入口通了只解决一半问题。** 很多客户端还有自己的**项目级记忆目录**——规则读得到，状态却写在自己的目录里，换个客户端就"失忆"。这一层必须单独约定，见 §3。
 
-## 3. 客户端私有记忆怎么和 `.memory/` 对齐
+## 3. 客户端私有记忆怎么和项目权威文件对齐
 
 这是最容易漏的一块。很多 Agent 有自己的项目级记忆目录（如 `.workbuddy-ai/`）。不管它，会出现两种坏情况：
 
 - Agent 把项目状态写进私有目录，换个客户端就"失忆"
 - `.memory/MEMORY.md` 的 §0 永远是模板里的「待填」，真实状态散在各家私有目录里
 
-**原则：私有记忆是缓存，`.memory/` 是权威。** 不是禁止私有记忆，是不许它成为唯一副本。
+**原则：私有记忆是缓存，仓库内按领域划分的权威文件才是事实来源。** `.memory/` 只保存跨会话断点与稳定事实摘要，不是任务、需求、意图或验证的总账。不是禁止私有记忆，是不许它成为唯一副本。
 
 落地成三条可执行规则（已写进 `AGENTS.md` §0.5 收口要求）：
 
 | 时机 | 做什么 |
 |---|---|
-| 开工 | 读 `.memory/MEMORY.md` §0 恢复断点；私有记忆只作辅助，不当权威 |
-| 收口 | 项目级事实（状态、决策、未完成事项）写回 `.memory/`；私有记忆可留副本 |
-| 冲突 | 两者不一致时以 `.memory/` 为准，并把差异记进 `.memory/PITFALLS.md` |
+| 开工 | 读 `.memory/MEMORY.md` §0 恢复断点；再按任务读取对应领域的仓库权威文件 |
+| 收口 | 意图、需求、验证写回各自 core 权威文件；仅在启用 `task_tracking` / `roadmap` / `adr` 时，任务、里程碑、架构决策分别写回对应权威文件；MEMORY 只更新断点/稳定事实；私有记忆可留缓存 |
+| 冲突 | 仓库内对应领域的权威文件优先于客户端私有记忆；可复现的故障教训才记入 PITFALLS |
 
 **哪些私有目录该忽略**：只忽略纯工具数据/缓存。`.cursor/rules/`、`.claude/commands/` 这类团队共享配置要入库。`.workbuddy-ai/` 属于前者，模板已默认忽略；其他客户端按同一标准判断后，自己加到 `.gitignore` 的托管区块**外面**——区块内是模板生成的，会被覆盖。
 
@@ -83,10 +83,10 @@ mirrors = [".workbuddy-ai/memory/MEMORY.md"]
 
 镜像只同步 6 行断点。如果私有目录里已经有上百行项目知识（很常见），做一次归位：
 
-1. 把"项目级事实"（定位、技术栈、命令、约定）搬进 `.memory/MEMORY.md` 对应段落
+1. 把内容归入对应权威文件：意图/范围变化进 `.spec/intent/`，需求进 `.spec/requirements/`，验证进 `.spec/verification/`；仅在启用 `task_tracking` 时任务状态进 `.spec/tasks/index.md`，仅在启用 `roadmap` 时里程碑状态进 `.spec/roadmap/INDEX.md`，仅在启用 `adr` 时架构决策进 `.spec/adr/`；MEMORY 只留稳定事实摘要与恢复断点
 2. 私有记忆里只留会话流水和客户端自己的笔记
 3. 跑一次 `sync-memory`，断点区块盖在顶部
-4. 之后只维护 `.memory/`，私有文件靠镜像保持同步
+4. 之后维护各领域自己的权威文件；MEMORY 仅维护断点/稳定事实，私有文件靠镜像保持断点同步
 
 归位要人工判断哪些算"项目级事实"，**不要指望脚本自动分类**——它分不清"这条是项目约定"还是"这条是这次会话的临时决定"。
 
@@ -98,17 +98,17 @@ mirrors = [".workbuddy-ai/memory/MEMORY.md"]
 2. **写指针**：新建入口文件，内容只有一行导入或一句指路。例如：
 
    ```markdown
-   Read AGENTS.md for project rules and .memory/MEMORY.md for current state.
+   Read AGENTS.md for project rules and .memory/MEMORY.md for the cross-session breakpoint; consult the relevant .spec index for domain state.
    ```
 
    禁止在适配文件里复制规则正文——一旦复制，两份必然走样。
 3. **加契约断言**：在 `tests/test-client-adapters.cjs` 里加一条，验证这个入口存在、指向的文件存在、且没有包含第二套规则正文。
 
-如果该客户端支持配置文件（如 `opencode.json` 的 `instructions`），可以顺带把 `.spec/02-conventions.md`、`.spec/stacks/<stack>.md` 列进去——但**不要把 `.spec/**` 全量塞进去**，那等于每次会话都加载整套规范，违背按需读取。
+如果该客户端支持配置文件（如 `opencode.json` 的 `instructions`），可以顺带把 `.spec/02-conventions.md` 列进去；仅当项目启用 `stack_rules` 时，再加入实际涉及的 `.spec/stacks/<stack>.md`——但**不要把 `.spec/**` 全量塞进去**，那等于每次会话都加载整套规范，违背按需读取。
 
 ## 5. 已知限制
 
 - 客户端升级可能改变加载行为。矩阵里的结论有核对日期，过期需重核。
 - 客户端的用户级规则、个人记忆、本地配置**不由本模板管理**；项目事实仍以仓库内文件为准。
-- 同一事实的优先级：仓库权威文件 > 客户端私有规则 > 个人记忆。
+- 同一事实的优先级：该领域的仓库权威文件 > 客户端私有规则 > 个人记忆。
 - 局部规则（子目录 `AGENTS.md`）只在有独立稳定职责时才加，且必须与根规则不重复。Codex 的 `AGENTS.override.md` 是例外——它替代根规则，加之前要人工确认红线还在。

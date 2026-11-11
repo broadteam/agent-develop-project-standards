@@ -217,6 +217,14 @@ if (capabilityResolution.errors.length) {
   process.exit(1);
 }
 
+if (capabilityResolution.capabilities.task_tracking?.status === 'disabled') {
+  // No task-card import is performed when tracking is off. Existing plan files remain
+  // the project's chosen source of work and must stay in the root whitelist.
+  for (const name of planFiles) if (!allowedFiles.includes(name)) allowedFiles.push(name);
+  allowedFiles.sort();
+  replacements.ALLOWED_FILES = allowedFiles.join(' ');
+}
+
 // Refuse to follow project-owned symlinks while installing managed files.
 // A symlinked project root itself is allowed; links below that root are not.
 function assertSafeTargetFile(relPath) {
@@ -441,6 +449,7 @@ const CAPABILITY_LABELS = {
   adr: '.spec/adr/',
   module_boundaries: '模块边界',
   stack_rules: '.spec/stacks/',
+  multi_agent: '多 Agent 并发协作约定',
 };
 const capabilityDisabled = (ids) => ids.some((id) => capabilityResolution.capabilities[id]?.status === 'disabled');
 
@@ -455,8 +464,7 @@ function renderCapabilityBlocks(content) {
 function capabilityNotice() {
   const disabled = Object.keys(CAPABILITY_LABELS).filter((id) => capabilityDisabled([id]));
   if (!disabled.length) return '';
-  const refs = disabled.map((id) => CAPABILITY_LABELS[id]).join('、');
-  return `> **本项目已关闭能力：${disabled.join('、')}**（见 \`project-profile.toml [capabilities]\`）。下文凡引用 ${refs} 的地方一律不适用，替代做法写在 §2.5。\n\n`;
+  return `> **本项目已关闭能力：${disabled.join('、')}**（见 \`project-profile.toml [capabilities]\`）。对应的可选指引与门禁不会启用；已存在的历史记录不会因此删除。若任务确实需要某项已关闭能力，先由维护者调整配置或明确替代方案。\n\n`;
 }
 
 // Template-owned directories are always legitimate, and a newer release may add one (3.0.0 added
@@ -508,7 +516,7 @@ function walk(dir, rel = '') {
     if (!DRY) {
       ensureDirectoryTransactional(path.dirname(to));
       let content = fill(fs.readFileSync(from, 'utf8'));
-      if (relPath === 'AGENTS.md' || relPath === 'ROUTER.md') {
+      if (relPath === 'AGENTS.md' || relPath === 'ROUTER.md' || relPath === '.spec/01-architecture.md') {
         content = renderCapabilityBlocks(content);
       }
       if (relPath === 'AGENTS.md') {
@@ -520,6 +528,16 @@ function walk(dir, rel = '') {
         content = content.replace(/^detected = \["generic"\]$/m, `detected = [${detected}]`);
       }
       if (relPath === 'gov.toml') {
+        if (capabilityResolution.capabilities.task_tracking?.status === 'disabled') {
+          const line = content.match(/^file_patterns = \[(.*)\]$/m);
+          if (line) {
+            const values = [...line[1].matchAll(/"((?:[^"\\]|\\.)*)"/g)]
+              .map((match) => JSON.parse('"' + match[1] + '"'));
+            const planPattern = '(?i)^(todo|plan|roadmap|next|next_steps|progress|notes|backlog|tasks|checklist|draft)([-_].*)?\\.md$';
+            const filtered = values.filter((value) => value !== planPattern);
+            content = content.replace(line[0], 'file_patterns = [' + filtered.map((value) => JSON.stringify(value)).join(', ') + ']');
+          }
+        }
         const tomlValues = { name: PROJECT_NAME, desc: PROJECT_DESC, language: STACK, framework: replacements.FRAMEWORK, package_manager: packageManager, src_dir: SRC_DIR, build_output: BUILD_OUTPUT };
         for (const [key, value] of Object.entries(tomlValues)) {
           content = content.replace(new RegExp(`^${key} = \".*\"$`, 'm'), `${key} = ${JSON.stringify(String(value))}`);
@@ -583,9 +601,11 @@ if (report.created.includes('gov.toml') || report.forced.includes('gov.toml')) {
     const requiredLine = govText.match(/^files = \[(.*)\]$/m);
     if (requiredLine) {
       const required = [...requiredLine[1].matchAll(/"([^"]+)"/g)].map((match) => match[1]).filter((rel) => !capabilityResolution.isExcluded(rel));
-      for (const stack of presetMap) {
-        const rel = `.spec/stacks/${stack}.md`;
-        if (fs.existsSync(path.join(TARGET, rel)) && !required.includes(rel)) required.push(rel);
+      if (capabilityResolution.capabilities.stack_rules?.status !== 'disabled') {
+        for (const stack of presetMap) {
+          const rel = `.spec/stacks/${stack}.md`;
+          if (fs.existsSync(path.join(TARGET, rel)) && !required.includes(rel)) required.push(rel);
+        }
       }
       govText = govText.replace(requiredLine[0], `files = [${required.map(quote).join(', ')}]`);
     }

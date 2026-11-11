@@ -77,16 +77,15 @@ function validateProfile(root) {
     for (const key of ['primary','framework','package_manager']) if (typeof profile.stack[key] !== 'string') errors.push(`stack.${key} 必须是字符串`);
     if (!Array.isArray(profile.stack.detected) || profile.stack.detected.some((v) => typeof v !== 'string')) errors.push('stack.detected 必须是字符串数组');
     else if (!profile.stack.detected.length) errors.push('stack.detected 不能为空；未知技术栈请使用 ["generic"]');
+    else if (profile.stack.detected.some((value) => !/^[a-z][a-z0-9-]*$/.test(value))) errors.push('stack.detected 每项必须是小写技术栈 ID（例如 php、node-web、generic）');
   }
   if (profile.capabilities) {
     for (const [name, definition] of Object.entries(registry.capabilities ?? {})) {
       const value = profile.capabilities[name];
       if (value !== undefined && !definition.values.includes(value)) errors.push(`非法能力配置：capabilities.${name} = ${value}（允许：${definition.values.join(', ')}）`);
     }
-    const roadmap = profile.capabilities.roadmap;
-    if (roadmap === 'on' && profile.capabilities.task_tracking === 'off') errors.push('能力依赖冲突：roadmap=on 要求 task_tracking 不得为 off');
-    if (profile.capabilities.stack_rules === 'on' && profile.stack?.detected?.every((v) => v === 'generic')) errors.push('stack_rules=on 要求至少一个已确认的非 generic 技术栈');
-    if (profile.capabilities.release_governance === 'strict' && profile.capabilities.quality_gates === 'baseline') errors.push('release_governance=strict 要求 quality_gates 为 standard 或 strict');
+    const resolution = require('./capability-resolver.cjs').resolveCapabilities(profile, registry);
+    for (const error of resolution.errors) if (!errors.includes(error)) errors.push(error);
     if (profile.capabilities.quality_gates === 'strict' && profile.verification && !['lint','test','build'].some((key) => typeof profile.verification[key] === 'string' && profile.verification[key].trim())) errors.push('quality_gates=strict 至少需要配置 lint、test、build 中一项适用的验证命令');
   }
   if (profile.verification) for (const key of expected.verification) if (typeof profile.verification[key] !== 'string') errors.push(`verification.${key} 必须是字符串`);

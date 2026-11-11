@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 
-def validate_intent_alignment(root: Path) -> list[str]:
+def validate_intent_alignment(root: Path, *, task_tracking: bool = True, roadmap: bool = True) -> list[str]:
     errors: list[str] = []
 
     def read(rel: str) -> str:
@@ -43,8 +43,8 @@ def validate_intent_alignment(root: Path) -> list[str]:
     changes_text = read(".spec/intent/CHANGES.md")
     requirements_text = read(".spec/requirements/INDEX.md")
     verification_text = read(".spec/verification/INDEX.md")
-    task_index = read(".spec/tasks/index.md")
-    roadmap_index = read(".spec/roadmap/INDEX.md")
+    task_index = read(".spec/tasks/index.md") if task_tracking else ""
+    roadmap_index = read(".spec/roadmap/INDEX.md") if roadmap else ""
 
     goals = {
         row[0] for row in rows(baseline)
@@ -92,7 +92,7 @@ def validate_intent_alignment(root: Path) -> list[str]:
 
     task_statuses: dict[str, str] = {}
     task_refs: dict[str, dict] = {}
-    for row in rows(task_index):
+    for row in (rows(task_index) if task_tracking else []):
         task_id = row[0]
         if not re.fullmatch(r"T\d+", task_id):
             continue
@@ -107,9 +107,14 @@ def validate_intent_alignment(root: Path) -> list[str]:
         }
         task_refs[task_id] = task_ref
         mode = field(card, "意图对齐")
+        created_at = field(card, "创建日期")
         status = task_statuses[task_id]
+        if created_at and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", created_at):
+            errors.append(f"意图对齐：任务 {task_id} 的创建日期格式必须为 YYYY-MM-DD")
         if not mode:
-            continue
+            if created_at:
+                errors.append(f"意图对齐：新建任务 {task_id} 缺少意图对齐模式；新任务必须显式 required 或 not_applicable")
+            continue  # Legacy cards without a creation date remain compatible.
         if mode not in {"required", "not_applicable"}:
             errors.append(f"意图对齐：任务 {task_id} 的意图对齐模式非法：{mode}")
             continue
@@ -183,6 +188,8 @@ def validate_intent_alignment(root: Path) -> list[str]:
         if not evidence_refs:
             if placeholder(verification_text) or not re.search(r"命令|步骤", verification_text) or not re.search(r"结果|通过|失败|pass|fail|partial", verification_text, re.I):
                 errors.append(f"意图对齐：任务 {task_id} 必须引用 Vnnn，或填写可复现验证步骤及结果")
+        if status == "done" and not evidence_refs and not re.search(r"(?:结果|判定)[:：]?\s*(?:通过|成功|pass(?:ed)?\b)(?![\w])", verification_text, re.I):
+            errors.append(f"意图对齐：任务 {task_id} 没有 V 证据却标记 done；可复现验证结果必须明确为 pass/通过")
         for ref in evidence_refs:
             record = evidence_records.get(ref)
             if not record:
@@ -192,6 +199,8 @@ def validate_intent_alignment(root: Path) -> list[str]:
                     errors.append(f"意图对齐：任务 {task_id} 的验证证据 {ref} 未覆盖该任务关联需求")
                 if proof_sha and record["commit"].lower() != proof_sha:
                     errors.append(f"意图对齐：任务 {task_id} 的验证证据 {ref} 与收口 Commit SHA 不一致")
+                if status == "done" and record["result"] != "pass":
+                    errors.append(f"意图对齐：任务 {task_id} 标记 done，但验证证据 {ref} 不是 pass")
         if outcome == "justified_adjustment" and (not reason or reason in {"无", "—"}):
             errors.append(f"意图对齐：任务 {task_id} 的 justified_adjustment 必须说明偏离理由")
         if outcome == "user_confirmed_change" and not confirmed_changes:
@@ -202,7 +211,7 @@ def validate_intent_alignment(root: Path) -> list[str]:
         if status == "done" and outcome == "unresolved_drift":
             errors.append(f"意图对齐：任务 {task_id} 存在 unresolved_drift，不能标记 done")
 
-    milestone_rows = [row for row in rows(roadmap_index) if re.fullmatch(r"M\d+", row[0])]
+    milestone_rows = [row for row in rows(roadmap_index) if re.fullmatch(r"M\d+", row[0])] if roadmap else []
     milestone_statuses = {row[0]: (row[3] if len(row) > 3 else "") for row in milestone_rows}
     milestone_refs: dict[str, dict] = {}
     for row in milestone_rows:
@@ -212,6 +221,14 @@ def validate_intent_alignment(root: Path) -> list[str]:
             continue
         goals_in = refs(field(detail, "目标"), r"G\d+")
         reqs_in = refs(field(detail, "需求"), r"R\d+")
+        mode = field(detail, "意图对齐")
+        created_at = field(detail, "创建日期")
+        if created_at and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", created_at):
+            errors.append(f"意图对齐：里程碑 {milestone_id} 的创建日期格式必须为 YYYY-MM-DD")
+        if created_at and not mode:
+            errors.append(f"意图对齐：新建里程碑 {milestone_id} 缺少意图对齐模式；新里程碑必须显式 required 或 not_applicable")
+        if mode and mode not in {"required", "not_applicable"}:
+            errors.append(f"意图对齐：里程碑 {milestone_id} 的意图对齐模式非法：{mode}")
         milestone_refs[milestone_id] = {"goals": goals_in, "reqs": reqs_in}
         for ref in goals_in:
             if ref not in goals:
@@ -269,14 +286,17 @@ def validate_intent_alignment(root: Path) -> list[str]:
                 errors.append(f"意图对齐：里程碑 {milestone_id} 的 user_confirmed_change 必须引用 accepted C 记录")
         if unresolved and unresolved.lower() not in {"无", "—", "none"}:
             errors.append(f"意图对齐：里程碑 {milestone_id} 仍有未解决漂移，不能标记已完成")
-        delivery_sha_match = re.search(r"\b[a-f0-9]{40}\b", delivery_proof, re.I)
-        if not delivery_sha_match and not re.match(r"no-code[:：]\s*.+", delivery_proof, re.I):
+        delivery_shas = {match.group(0).lower() for match in re.finditer(r"\b[a-f0-9]{40}\b", delivery_proof, re.I)}
+        if not delivery_shas and not re.match(r"no-code[:：]\s*.+", delivery_proof, re.I):
             errors.append(f"意图对齐：已完成里程碑 {milestone_id} 的实际交付与依据必须包含完整 Commit SHA 或 no-code 原因")
         coverage_vs = refs(coverage, r"V\d+")
         coverage_cs = refs(coverage, r"C\d+")
         for ref in coverage_vs:
-            if ref not in evidence_records:
+            record = evidence_records.get(ref)
+            if not record:
                 errors.append(f"意图对齐：里程碑 {milestone_id} 引用了不存在的验证证据 {ref}")
+            elif delivery_shas and record["commit"].lower() not in delivery_shas:
+                errors.append(f"意图对齐：里程碑 {milestone_id} 的验证证据 {ref} 不属于里程碑交付 Commit 集合")
         for ref in coverage_cs:
             if change_statuses.get(ref) != "accepted":
                 errors.append(f"意图对齐：里程碑 {milestone_id} 引用了非 accepted 变更 {ref}")

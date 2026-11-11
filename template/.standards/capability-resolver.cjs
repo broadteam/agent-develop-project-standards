@@ -26,10 +26,20 @@ function resolveCapabilities(profile, registry) {
     const item = resolved[id];
     if (!item || item.status === 'disabled') continue;
     const dependency = definition.requires;
-    if (!dependency || item.configured !== dependency.when) continue;
-    const target = resolved[dependency.capability];
-    if (!target || target.configured === dependency.not) {
-      errors.push('能力依赖冲突：' + id + '=' + item.configured + ' 要求 ' + dependency.capability + ' 不得为 ' + dependency.not);
+    if (dependency && (item.configured === dependency.when || item.status === 'deferred')) {
+      const target = resolved[dependency.capability];
+      if (!target || target.configured === dependency.not) {
+        errors.push('能力依赖冲突：' + id + '=' + item.configured + ' 要求 ' + dependency.capability + ' 不得为 ' + dependency.not);
+      }
+    }
+    const stackRequirement = definition.requires_stack;
+    if (stackRequirement && item.configured === stackRequirement.when) {
+      const detected = profile.stack?.detected ?? [];
+      const hasConfirmedNonGenericStack = profile.profile?.status === 'confirmed' && Array.isArray(detected)
+        && detected.some((value) => typeof value === 'string' && /^[a-z][a-z0-9-]*$/.test(value) && value !== 'generic');
+      if (stackRequirement.non_generic && !hasConfirmedNonGenericStack) {
+        errors.push(id + '=' + item.configured + ' 要求至少一个已确认的非 generic 技术栈');
+      }
     }
   }
 

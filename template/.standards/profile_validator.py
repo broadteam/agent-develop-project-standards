@@ -102,20 +102,20 @@ def validate_profile(root: Path) -> tuple[list[str], list[str]]:
             errors.append("stack.detected 必须是字符串数组")
         elif not detected:
             errors.append('stack.detected 不能为空；未知技术栈请使用 ["generic"]')
+        elif any(not re.fullmatch(r"[a-z][a-z0-9-]*", value) for value in detected):
+            errors.append("stack.detected 每项必须是小写技术栈 ID（例如 php、node-web、generic）")
     if "capabilities" in profile:
         capabilities = profile["capabilities"]
         for name, definition in registry.get("capabilities", {}).items():
             value = capabilities.get(name)
             if value is not None and value not in definition.get("values", []):
                 errors.append(f"非法能力配置：capabilities.{name} = {value}（允许：{', '.join(definition.get('values', []))}）")
-        if capabilities.get("roadmap") == "on" and capabilities.get("task_tracking") == "off":
-            errors.append("能力依赖冲突：roadmap=on 要求 task_tracking 不得为 off")
-        if capabilities.get("stack_rules") == "on" and all(v == "generic" for v in profile.get("stack", {}).get("detected", [])):
-            errors.append("stack_rules=on 要求至少一个已确认的非 generic 技术栈")
-        if capabilities.get("release_governance") == "strict" and capabilities.get("quality_gates") == "baseline":
-            errors.append("release_governance=strict 要求 quality_gates 为 standard 或 strict")
+        resolution = resolve_capabilities(profile, registry)
+        for error in resolution["errors"]:
+            if error not in errors:
+                errors.append(error)
         verification = profile.get("verification", {})
-        if capabilities.get("quality_gates") == "strict" and not any(isinstance(verification.get(k), str) and verification[k].strip() for k in ["lint", "test", "build"]):
+        if "verification" in profile and capabilities.get("quality_gates") == "strict" and not any(isinstance(verification.get(k), str) and verification[k].strip() for k in ["lint", "test", "build"]):
             errors.append("quality_gates=strict 至少需要配置 lint、test、build 中一项适用的验证命令")
     if "verification" in profile:
         for key in expected["verification"]:
@@ -140,10 +140,16 @@ def resolve_capabilities(profile: dict, registry: dict) -> dict:
             excluded_paths.extend(definition.get("artifacts", []))
     for name, definition in registry.get("capabilities", {}).items():
         item = resolved.get(name)
-        dependency = definition.get("requires")
-        if not item or item["status"] == "disabled" or not dependency or item["configured"] != dependency.get("when"):
+        if not item or item["status"] == "disabled":
             continue
-        target = resolved.get(dependency.get("capability"))
-        if not target or target["configured"] == dependency.get("not"):
-            errors.append(f"能力依赖冲突：{name}={item['configured']} 要求 {dependency.get('capability')} 不得为 {dependency.get('not')}")
+        dependency = definition.get("requires")
+        if dependency and (item["configured"] == dependency.get("when") or item["status"] == "deferred"):
+            target = resolved.get(dependency.get("capability"))
+            if not target or target["configured"] == dependency.get("not"):
+                errors.append(f"能力依赖冲突：{name}={item['configured']} 要求 {dependency.get('capability')} 不得为 {dependency.get('not')}")
+        stack_requirement = definition.get("requires_stack")
+        if stack_requirement and item["configured"] == stack_requirement.get("when"):
+            detected = profile.get("stack", {}).get("detected", [])
+            if stack_requirement.get("non_generic") and (profile.get("profile", {}).get("status") != "confirmed" or not isinstance(detected, list) or not any(isinstance(value, str) and re.fullmatch(r"[a-z][a-z0-9-]*", value) and value != "generic" for value in detected)):
+                errors.append(f"{name}={item['configured']} 要求至少一个已确认的非 generic 技术栈")
     return {"capabilities": resolved, "excluded_paths": list(dict.fromkeys(excluded_paths)), "errors": errors}

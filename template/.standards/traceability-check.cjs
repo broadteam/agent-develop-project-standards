@@ -2,7 +2,9 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-function validateTraceability(root) {
+function validateTraceability(root, options = {}) {
+  const taskTracking = options.taskTracking !== false;
+  const roadmap = options.roadmap !== false;
   const errors = [];
   const read = (rel) => { const file = path.join(root, rel); return fs.existsSync(file) ? fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n') : ''; };
   const rows = (text) => text.split('\n').filter(line => /^\|\s*[A-Z][A-Z0-9]*\d+\s*\|/.test(line)).map(line => line.split('|').slice(1, -1).map(x => x.trim()));
@@ -16,8 +18,8 @@ function validateTraceability(root) {
   const changesText = read('.spec/intent/CHANGES.md');
   const reqText = read('.spec/requirements/INDEX.md');
   const verText = read('.spec/verification/INDEX.md');
-  const taskIndex = read('.spec/tasks/index.md');
-  const roadmapIndex = read('.spec/roadmap/INDEX.md');
+  const taskIndex = taskTracking ? read('.spec/tasks/index.md') : '';
+  const roadmapIndex = roadmap ? read('.spec/roadmap/INDEX.md') : '';
   const goals = unique(rows(baseline).filter(r => /^G\d+$/.test(r[0]) && !isPlaceholder(r)).map(r => r[0]), 'G');
   const changes = unique([...changesText.matchAll(/^###\s+(C\d+)\s+—\s+(.+)$/gm)].filter(m => !/简短标题|示例/.test(m[2])).map(m => m[1]), 'C');
   const requirements = new Map();
@@ -53,7 +55,7 @@ function validateTraceability(root) {
     if (!/^V\d+$/.test(r[0]) || isPlaceholder(r)) continue;
     if (!evidenceRecords.has(r[0])) errors.push(`追踪关系：索引中的验证证据 ${r[0]} 缺少详情记录`);
   }
-  const taskIds = rows(taskIndex).filter(r => /^T\d+$/.test(r[0])).map(r => r[0]);
+  const taskIds = taskTracking ? rows(taskIndex).filter(r => /^T\d+$/.test(r[0])).map(r => r[0]) : [];
   const taskRefs = new Map();
   for (const id of taskIds) {
     const card = read(`.spec/tasks/${id}/card.md`);
@@ -67,7 +69,7 @@ function validateTraceability(root) {
     for (const x of refs.changes) if (!changes.has(x)) errors.push(`追踪关系：任务 ${id} 引用了不存在的变更 ${x}`);
     if (!refs.goals.length && !/supporting:/.test(goalCell) && (goals.size > 0 || requirements.size > 0)) errors.push(`追踪关系：任务 ${id} 必须关联目标或说明 supporting 关系`);
   }
-  const milestoneIds = rows(roadmapIndex).filter(r => /^M\d+$/.test(r[0])).map(r => r[0]);
+  const milestoneIds = roadmap ? rows(roadmapIndex).filter(r => /^M\d+$/.test(r[0])).map(r => r[0]) : [];
   const milestoneRefs = new Map();
   for (const id of milestoneIds) {
     const file = read(`.spec/roadmap/${id}/milestone.md`);
@@ -83,7 +85,7 @@ function validateTraceability(root) {
     if (['accepted','in_progress','implemented','verified'].includes(req.status)) {
       const hasTask=[...taskRefs.values()].some(ref=>ref.reqs.includes(id));
       const hasPass=[...evidenceRecords.values()].some(v=>v.result==='pass'&&v.covers.includes(id));
-      if (!hasTask && !hasPass) errors.push(`追踪关系：活跃需求 ${id} 没有任务或通过的验证证据`);
+      if (taskTracking && !hasTask && !hasPass) errors.push(`追踪关系：活跃需求 ${id} 没有任务或通过的验证证据`);
     }
     if (req.status==='verified') {
       const declared = req.evidence.match(/V\d+/g) || [];
@@ -97,7 +99,7 @@ function validateTraceability(root) {
     const hasTask=[...taskRefs.values()].some(r=>r.goals.includes(goal));
     if (!hasRequirement && !hasTask) errors.push(`追踪关系：活跃目标 ${goal} 没有需求或任务承接`);
   }
-  errors.push(...require('./intent-alignment-check.cjs').validateIntentAlignment(root));
+  errors.push(...require('./intent-alignment-check.cjs').validateIntentAlignment(root, { taskTracking, roadmap }));
   return errors;
 }
 module.exports = { validateTraceability };

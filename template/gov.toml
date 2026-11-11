@@ -42,13 +42,13 @@ allowed_files = []
 # 这些名字出现在根目录直接判违规——都是「图省事新建一个」的产物。
 # 防的是：out2/out8 各存一版产物、test1/test2 各放一份探针、临时目录散落。
 dir_patterns = ["^out\\d+$", "^release\\d+$", "^dist\\d+$", "^build\\d+$", "^test\\d*$", "^tmp\\d*$", "^temp\\d*$", "^new\\d*$", "^新建"]
-# 计划/待办类文件禁止散落在根目录——它们有唯一的家（.spec/tasks 与 .spec/roadmap）。
+# 启用 task_tracking 时，计划/待办类文件不得散落在根目录；关闭时保留项目已有的唯一入口。
 # 见 AGENTS.md §2.5。前缀 (?i) 表示忽略大小写，检查脚本会转成对应标志。
 file_patterns = ["\\.bak$", "\\.orig$", "^untitled", "^\\.DS_Store$", "(?i)^(todo|plan|roadmap|next|next_steps|progress|notes|backlog|tasks|checklist|draft)([-_].*)?\\.md$"]
 
 [required]
 # 缺了这些文件说明规范体系被破坏，直接判违规。
-files = ["AGENTS.md", ".agent-standards.json", ".spec/intent/BASELINE.md", ".spec/intent/CHANGES.md", ".spec/requirements/INDEX.md", ".spec/verification/INDEX.md", "gov.toml", "project-profile.toml", "policy/standards-version.json", "policy/capabilities.json", ".standards/profile-validator.cjs", ".standards/traceability-check.cjs", ".standards/traceability_check.py", ".standards/intent-alignment-check.cjs", ".standards/intent_alignment_check.py", ".standards/capability-resolver.cjs", ".standards/task-context-resolver.cjs", ".standards/profile_validator.py", ".memory/MEMORY.md", ".memory/PITFALLS.md", ".spec/REGISTRY.md", ".spec/00-constitution.md", ".spec/tasks/index.md", ".spec/tasks/BOARD.md", ".spec/tasks/archive/INDEX.md", ".spec/roadmap/INDEX.md", ".spec/roadmap/archive/INDEX.md", ".spec/stacks/README.md", ".standards/generate-board.cjs"]
+files = ["AGENTS.md", ".agent-standards.json", ".spec/intent/BASELINE.md", ".spec/intent/CHANGES.md", ".spec/requirements/INDEX.md", ".spec/verification/INDEX.md", "gov.toml", "project-profile.toml", "policy/standards-version.json", "policy/capabilities.json", ".standards/profile-validator.cjs", ".standards/traceability-check.cjs", ".standards/traceability_check.py", ".standards/intent-alignment-check.cjs", ".standards/intent_alignment_check.py", ".standards/capability-resolver.cjs", ".standards/task-context-resolver.cjs", ".standards/profile_validator.py", ".memory/MEMORY.md", ".memory/PITFALLS.md", ".spec/REGISTRY.md", ".spec/00-constitution.md", ".spec/tasks/index.md", ".spec/tasks/BOARD.md", ".spec/tasks/archive/INDEX.md", ".spec/roadmap/INDEX.md", ".spec/roadmap/archive/INDEX.md", ".spec/adr/README.md", ".spec/stacks/README.md", ".standards/generate-board.cjs"]
 
 [layout]
 # 计划的唯一位置。检查器用它做「索引 ↔ 卡片目录」双向一致性校验。

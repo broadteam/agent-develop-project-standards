@@ -64,6 +64,7 @@ jobs:
           node tests/test-client-adapters.cjs
           node tests/test-migration-v2.cjs
           node tests/test-template-drift.cjs
+          node tests/test-adopt-template-baseline.cjs
           node tests/test-template-upgrade-plan.cjs
           node tests/test-template-upgrade-review.cjs
           node tests/test-template-upgrade-recovery.cjs

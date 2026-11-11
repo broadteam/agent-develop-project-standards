@@ -3,44 +3,33 @@
 ### Added
 - Add task-level intent alignment review: tracked work records its baseline/accepted-change anchors before implementation and compares actual diffs, commits and verification evidence before closeout. Unresolved drift cannot be marked done.
 - Add separate Node/Python `intent-alignment-check` modules, invoked by the existing traceability gates; enforce task kickoff/closeout anchors, accepted change references, task evidence coverage/commit matching, and completed-milestone closure gates. Legacy tasks/milestones without explicit opt-in remain compatible.
-
-### Tests
-- Add positive/negative intent-alignment contract tests for omitted goals/requirements, pending changes, missing closeout, unresolved drift, unjustified adjustments, task evidence coverage/commit mismatch, incomplete milestone requirements, unresolved milestone drift, and legacy opt-in compatibility.
-
-## Unreleased
-
-### Tests
-- Add a multi-stage intent continuity simulation covering bounded interruptions, pending Agent proposals, accepted user corrections, unresolved conflicts, explicit conflict resolution, session resume, task-done/requirement-not-verified separation, and final passing evidence; compare Node/Python results at each state.
-
-## Unreleased
-
-### Added
 - Define a per-turn intent review protocol that distinguishes continuation, clarification, bounded interruption, explicit intent change and unresolved conflict; preserve the original task resume point across interruptions.
 - Extend the cross-session breakpoint template with G/R/T anchors and pending decision references, without adding another current-goal registry.
-
-### Tests
-- Extend intent continuity contract tests for interruption preservation, pending proposals, conflict handling and resume-point recovery.
-
-## Unreleased
-
-### Added
 - Add Node/Python traceability integrity checks to the governance gate: stable-ID references, active goal/requirement coverage, and verified-requirement evidence requirements.
-- Add parity-oriented regression coverage for dangling references, invalid evidence commits, partial evidence, and active requirements without work items.
-
-## Unreleased
-
-### Added
 - Define the second-stage traceability chain: project goals (G) map to accepted requirements (R), milestones (M) and tasks (T), while verification records (V) bind acceptance evidence to an exact commit.
 - Separate task completion, requirement verification, milestone completion and goal completion; none can be inferred from another.
 - Add lightweight requirements and verification registries, with explicit rules against creating a requirement for every small task.
+- 为长期项目补上目标连续性基础：原始目标基线与后续意图变更分离记录；跟踪任务上下文强制读取两者，任务卡/里程碑通过稳定 ID 追踪目标。明确对话增量分类、计划偏离回顾与局部修复不得替代整体目标验收。
+
+### Changed
+- Bind old-project baseline adoption confirmation to a deterministic project/template snapshot via a dry-run `plan_id`; require `--expect-plan-id`, revalidate immediately before writing, and reject stale project, manifest or template inputs.
+- Align capability enablement with confirmed facts: `stack_rules=on` now requires `profile.status=confirmed` and at least one syntactically valid non-generic stack ID; Node/Python resolver and profile-validator parity tests reject malformed, empty and invalid-case IDs.
+- Clarify domain-specific sources of truth: MEMORY is a compact cross-session breakpoint, not a global state registry.
+- Harden intent alignment: new task/milestone records carry creation dates so omission of the alignment mode cannot silently bypass review; completed tasks require passing V evidence, and milestone V records must match the declared delivery commit.
+- Keep project-profile details out of the unconditional task-context read set.
+- Slim the always-read AGENTS entry by removing duplicated document-map and hook instructions; route detailed navigation through ROUTER.md and deployment docs.
+- Align CLIENTS.md, README, SPEC-v2.0 and PROJECT-ADAPTATION docs with domain-specific sources of truth; private client memory mirrors only the breakpoint, not all project state, and project-profile is not a mandatory per-session read.
+- Support multiple commits in a milestone delivery record; each referenced V record must match one of the explicitly declared delivery commits.
+- Clarify that registry `validation` strings are human/Agent acceptance guidance, not automatic CI checks unless a corresponding resolver or checker implements them.
 
 ### Tests
+- Add positive/negative intent-alignment contract tests for omitted goals/requirements, pending changes, missing closeout, unresolved drift, unjustified adjustments, task evidence coverage/commit mismatch, incomplete milestone requirements, unresolved milestone drift, and legacy opt-in compatibility.
+- Add a multi-stage intent continuity simulation covering bounded interruptions, pending Agent proposals, accepted user corrections, unresolved conflicts, explicit conflict resolution, session resume, task-done/requirement-not-verified separation, and final passing evidence; compare Node/Python results at each state.
+- Extend intent continuity contract tests for interruption preservation, pending proposals, conflict handling and resume-point recovery.
+- Add parity-oriented regression coverage for dangling references, invalid evidence commits, partial evidence, and active requirements without work items.
 - Add a traceability contract regression test and include it in the Ubuntu/Windows CI matrix.
-
-## Unreleased
-
-### Added
-- 为长期项目补上目标连续性基础：原始目标基线与后续意图变更分离记录；跟踪任务上下文强制读取两者，任务卡/里程碑通过稳定 ID 追踪目标。明确对话增量分类、计划偏离回顾与局部修复不得替代整体目标验收。
+- Add `test-adopt-template-baseline.cjs` for read-only legacy baseline preview, plan-ID binding, stale project/template/manifest rejection, and metadata-only confirmation; update the legacy drift fixture to confirm the reviewed plan ID.
+- Assert that ROUTER exposes the core requirements and verification evidence indexes.
 - 增加目标连续性模板契约测试与任务上下文回归覆盖；不改变 3.0.0 已发布版本号。
 
 ## 3.0.0 - 2026-11-10

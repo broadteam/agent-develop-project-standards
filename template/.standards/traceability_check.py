@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 from intent_alignment_check import validate_intent_alignment
 
-def validate_traceability(root: Path) -> list[str]:
+def validate_traceability(root: Path, *, task_tracking: bool = True, roadmap: bool = True) -> list[str]:
     errors: list[str] = []
     def read(rel: str) -> str:
         file = root / rel
@@ -28,7 +28,8 @@ def validate_traceability(root: Path) -> list[str]:
 
     baseline, changes_text = read(".spec/intent/BASELINE.md"), read(".spec/intent/CHANGES.md")
     req_text, ver_text = read(".spec/requirements/INDEX.md"), read(".spec/verification/INDEX.md")
-    task_index, roadmap_index = read(".spec/tasks/index.md"), read(".spec/roadmap/INDEX.md")
+    task_index = read(".spec/tasks/index.md") if task_tracking else ""
+    roadmap_index = read(".spec/roadmap/INDEX.md") if roadmap else ""
     goals = unique([r[0] for r in rows(baseline) if re.fullmatch(r"G\d+", r[0]) and not placeholder(r)], "G")
     changes = unique([m.group(1) for m in re.finditer(r"^###\s+(C\d+)\s+—\s+(.+)$", changes_text, re.M) if not re.search(r"简短标题|示例", m.group(2))], "C")
     requirements: dict[str, dict] = {}
@@ -78,7 +79,7 @@ def validate_traceability(root: Path) -> list[str]:
             errors.append(f"追踪关系：索引中的验证证据 {row[0]} 缺少详情记录")
 
     task_refs: dict[str, dict] = {}
-    for row in rows(task_index):
+    for row in (rows(task_index) if task_tracking else []):
         task_id = row[0]
         if not re.fullmatch(r"T\d+", task_id):
             continue
@@ -101,7 +102,7 @@ def validate_traceability(root: Path) -> list[str]:
             errors.append(f"追踪关系：任务 {task_id} 必须关联目标或说明 supporting 关系")
 
     milestone_refs: dict[str, dict] = {}
-    for row in rows(roadmap_index):
+    for row in (rows(roadmap_index) if roadmap else []):
         milestone_id = row[0]
         if not re.fullmatch(r"M\d+", milestone_id):
             continue
@@ -122,7 +123,7 @@ def validate_traceability(root: Path) -> list[str]:
         if req["status"] in {"accepted","in_progress","implemented","verified"}:
             has_task = any(req_id in refs["reqs"] for refs in task_refs.values())
             has_pass = any(v["result"] == "pass" and req_id in v["covers"] for v in evidence_records.values())
-            if not has_task and not has_pass:
+            if task_tracking and not has_task and not has_pass:
                 errors.append(f"追踪关系：活跃需求 {req_id} 没有任务或通过的验证证据")
         if req["status"] == "verified":
             declared = re.findall(r"V\d+", req.get("evidence", ""))
@@ -136,5 +137,5 @@ def validate_traceability(root: Path) -> list[str]:
         has_task = any(goal in refs["goals"] for refs in task_refs.values())
         if not has_req and not has_task:
             errors.append(f"追踪关系：活跃目标 {goal} 没有需求或任务承接")
-    errors.extend(validate_intent_alignment(root))
+    errors.extend(validate_intent_alignment(root, task_tracking=task_tracking, roadmap=roadmap))
     return errors

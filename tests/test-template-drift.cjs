@@ -162,12 +162,15 @@ try {
   // Baseline adoption is a separate, explicit, metadata-only operation.
   const legacyBeforeAdoption = JSON.stringify(snapshotTree(legacyProject));
   const adoptionPreview = spawnSync(process.execPath, [
-    path.join(root, 'tools/adopt-template-baseline.cjs'), '--root', legacyProject, '--dry-run'
+    path.join(root, 'tools/adopt-template-baseline.cjs'), '--root', legacyProject, '--dry-run', '--json'
   ], { encoding: 'utf8' });
   assert.equal(adoptionPreview.status, 0, adoptionPreview.stdout + adoptionPreview.stderr);
+  const adoptionPlan = JSON.parse(adoptionPreview.stdout);
+  assert.match(adoptionPlan.plan_id, /^[a-f0-9]{16}$/);
   assert.equal(JSON.stringify(snapshotTree(legacyProject)), legacyBeforeAdoption, 'baseline preview must be read-only');
   const adoption = spawnSync(process.execPath, [
-    path.join(root, 'tools/adopt-template-baseline.cjs'), '--root', legacyProject, '--confirm-reviewed'
+    path.join(root, 'tools/adopt-template-baseline.cjs'), '--root', legacyProject,
+    '--expect-plan-id', adoptionPlan.plan_id, '--confirm-reviewed', '--json'
   ], { encoding: 'utf8' });
   assert.equal(adoption.status, 0, adoption.stdout + adoption.stderr);
   const adoptedMarker = JSON.parse(fs.readFileSync(path.join(legacyProject, '.agent-standards.json'), 'utf8'));

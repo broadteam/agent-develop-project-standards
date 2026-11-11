@@ -4,10 +4,12 @@
 /**
  * Explicitly records a reviewed baseline for an existing project.
  * Only .agent-standards.json is written; project rules and code are untouched.
+ * A dry-run plan ID binds confirmation to the exact project + template snapshot.
  */
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const { buildTemplateSourceInventory } = require('./template-source-inventory.cjs');
 
 const START = '# >>> agent-project-standards (managed)';
 const END = '# <<< agent-project-standards (managed)';
@@ -47,9 +49,8 @@ function hashRegularFileWithin(root, rel, label) {
 }
 function collectTemplateFiles(templateRoot, rel = '') {
   const files = [];
-  for (const entry of fs.readdirSync(path.join(templateRoot, rel), { withFileTypes: true })) {
+  for (const entry of fs.readdirSync(path.join(templateRoot, rel), { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
     const sourceRel = path.posix.join(rel.split(path.sep).join('/'), entry.name);
-    const full = path.join(templateRoot, sourceRel);
     if (entry.isSymbolicLink()) continue;
     if (entry.isDirectory()) files.push(...collectTemplateFiles(templateRoot, sourceRel));
     else if (entry.isFile() && sourceRel !== '.gitignore.append') files.push(sourceRel);
@@ -64,38 +65,58 @@ function readVersion(standardsRoot) {
 function buildBaseline({ projectRoot, standardsRoot }) {
   const root = path.resolve(projectRoot);
   const sourceRoot = path.resolve(standardsRoot);
+  const rootStat = fs.lstatSync(root);
+  const sourceStat = fs.lstatSync(sourceRoot);
+  const templateRoot = path.join(sourceRoot, 'template');
+  const templateStat = fs.lstatSync(templateRoot);
+  if (rootStat.isSymbolicLink() || !rootStat.isDirectory()) throw new Error('项目根目录必须是真实目录');
+  if (sourceStat.isSymbolicLink() || !sourceStat.isDirectory()) throw new Error('规范仓库根目录必须是真实目录');
+  if (templateStat.isSymbolicLink() || !templateStat.isDirectory()) throw new Error('template 必须是真实目录');
   const markerPath = path.join(root, MARKER);
   const prior = hashRegularFile(markerPath);
   let previous = null;
   if (prior) {
     previous = JSON.parse(fs.readFileSync(markerPath, 'utf8'));
-    if (previous.format_version !== 1 || !previous.managed_files || typeof previous.managed_files !== 'object' || Array.isArray(previous.managed_files)) {
+    if (previous.format_version !== 1 || !previous.managed_files || typeof previous.managed_files !== 'object'
+      || Array.isArray(previous.managed_files) || !Array.isArray(previous.preserved_paths)) {
       throw new Error(MARKER + ' 格式无效；拒绝覆盖');
     }
   }
 
+  const sourceInventory = buildTemplateSourceInventory(sourceRoot);
+  const version = readVersion(sourceRoot);
   const managedFiles = { ...(previous?.managed_files ?? {}) };
   const preserved = new Set(previous?.preserved_paths ?? []);
   const derived = new Set(previous?.derived_paths ?? []);
   const excluded = new Set(previous?.excluded_paths ?? []);
   const adopted = [];
-  const skipped = [];
+  const reviewInputs = [];
+
+  function capture(sourceRel, targetRel) {
+    const sourceInfo = hashRegularFileWithin(sourceRoot, sourceRel, '模板源');
+    const targetInfo = hashRegularFileWithin(root, targetRel, '项目目标');
+    reviewInputs.push({
+      source: sourceRel,
+      target: targetRel,
+      source_sha256: sourceInfo?.hash ?? null,
+      source_mode: sourceInfo?.mode ?? null,
+      target_sha256: targetInfo?.hash ?? null,
+      target_mode: targetInfo?.mode ?? null
+    });
+    return { sourceInfo, targetInfo };
+  }
 
   for (const sourceRel of collectTemplateFiles(path.join(sourceRoot, 'template'))) {
-    const source = path.join(sourceRoot, 'template', sourceRel);
     const targetRel = sourceRel;
-    if (derived.has(targetRel) || excluded.has(targetRel) || targetRel === '.spec/tasks/BOARD.md') continue;
-    if (managedFiles[targetRel]) continue;
-    const targetInfo = hashRegularFileWithin(root, targetRel, '项目目标');
-    if (!targetInfo) continue;
-    const sourceInfo = hashRegularFileWithin(sourceRoot, 'template/' + sourceRel, '模板源');
-    if (!sourceInfo) continue;
+    const { sourceInfo, targetInfo } = capture('template/' + sourceRel, targetRel);
+    if (!sourceInfo || !targetInfo || derived.has(targetRel) || excluded.has(targetRel)
+      || targetRel === '.spec/tasks/BOARD.md' || managedFiles[targetRel]) continue;
     managedFiles[targetRel] = {
       source: 'template/' + sourceRel,
       template_sha256: sourceInfo.hash,
       installed_sha256: targetInfo.hash,
       installed_mode: targetInfo.mode,
-      template_version: readVersion(sourceRoot),
+      template_version: version,
       customized_at_baseline: targetInfo.hash !== sourceInfo.hash
     };
     preserved.delete(targetRel);
@@ -104,22 +125,24 @@ function buildBaseline({ projectRoot, standardsRoot }) {
 
   // Optional stack presets live outside template/ but are installed into .spec/stacks/.
   const presetsRoot = path.join(sourceRoot, 'presets/stacks');
-  if (fs.existsSync(presetsRoot)) {
-    for (const name of fs.readdirSync(presetsRoot)) {
+  let presetsStat = null;
+  try { presetsStat = fs.lstatSync(presetsRoot); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  if (presetsStat && (presetsStat.isSymbolicLink() || !presetsStat.isDirectory())) {
+    throw new Error('presets/stacks 必须是真实目录');
+  }
+  if (presetsStat) {
+    for (const name of fs.readdirSync(presetsRoot).sort()) {
       if (!name.endsWith('.md')) continue;
       const targetRel = '.spec/stacks/' + name;
-      if (managedFiles[targetRel]) continue;
       const sourceRel = 'presets/stacks/' + name;
-      const targetInfo = hashRegularFileWithin(root, targetRel, '项目目标');
-      if (!targetInfo) continue;
-      const sourceInfo = hashRegularFileWithin(sourceRoot, sourceRel, '模板源');
-      if (!sourceInfo) continue;
+      const { sourceInfo, targetInfo } = capture(sourceRel, targetRel);
+      if (!sourceInfo || !targetInfo || managedFiles[targetRel]) continue;
       managedFiles[targetRel] = {
         source: sourceRel,
         template_sha256: sourceInfo.hash,
         installed_sha256: targetInfo.hash,
         installed_mode: targetInfo.mode,
-        template_version: readVersion(sourceRoot),
+        template_version: version,
         customized_at_baseline: targetInfo.hash !== sourceInfo.hash
       };
       preserved.delete(targetRel);
@@ -127,11 +150,11 @@ function buildBaseline({ projectRoot, standardsRoot }) {
     }
   }
 
-  const ignoreFile = path.join(root, '.gitignore');
-  const ignoreInfo = hashRegularFileWithin(root, '.gitignore', '项目目标');
-  const ignoreSource = path.join(sourceRoot, 'template/.gitignore.append');
-  const ignoreSourceInfo = hashRegularFileWithin(sourceRoot, 'template/.gitignore.append', '模板源');
+  // The full .gitignore file is included in the review snapshot conservatively, while only the
+  // managed block is recorded in the baseline metadata.
+  const { targetInfo: ignoreInfo, sourceInfo: ignoreSourceInfo } = capture('template/.gitignore.append', '.gitignore');
   if (ignoreInfo && ignoreSourceInfo) {
+    const ignoreFile = path.join(root, '.gitignore');
     const text = fs.readFileSync(ignoreFile, 'utf8');
     const start = text.indexOf(START);
     const end = text.indexOf(END);
@@ -144,17 +167,18 @@ function buildBaseline({ projectRoot, standardsRoot }) {
         source: 'template/.gitignore.append',
         template_sha256: ignoreSourceInfo.hash,
         installed_sha256: sha256(block),
-        template_version: readVersion(sourceRoot),
+        template_version: version,
         customized_at_baseline: true
       };
       previous = { ...(previous ?? {}), managed_blocks: managedBlocks };
     }
   }
 
+  reviewInputs.sort((a, b) => a.target.localeCompare(b.target) || a.source.localeCompare(b.source));
   const remainingPreserved = [...preserved].filter(rel => rel !== '.githooks/pre-commit').sort();
   const manifest = {
     format_version: 1,
-    installed_with_version: readVersion(sourceRoot),
+    installed_with_version: version,
     baseline_state: remainingPreserved.length ? 'partial_unknown' : 'complete',
     managed_files: Object.fromEntries(Object.entries(managedFiles).sort(([a], [b]) => a.localeCompare(b))),
     managed_blocks: previous?.managed_blocks ?? {},
@@ -163,48 +187,123 @@ function buildBaseline({ projectRoot, standardsRoot }) {
     excluded_paths: [...excluded].sort(),
     baseline_adopted_after_review: true
   };
-  return { manifest, adopted: adopted.sort(), remaining_preserved: remainingPreserved };
+  const reviewSnapshot = {
+    plan_schema: 1,
+    source_version: version,
+    source_inventory_sha256: sourceInventory.sha256,
+    manifest_sha256: prior?.hash ?? null,
+    manifest_mode: prior?.mode ?? null,
+    review_inputs: reviewInputs,
+    adopted: adopted.sort(),
+    remaining_preserved: remainingPreserved
+  };
+  const snapshotSha256 = sha256(Buffer.from(JSON.stringify(reviewSnapshot), 'utf8'));
+  return {
+    manifest,
+    adopted: adopted.sort(),
+    remaining_preserved: remainingPreserved,
+    source_inventory_sha256: sourceInventory.sha256,
+    review_snapshot_sha256: snapshotSha256,
+    manifest_mode: prior?.mode ?? null,
+    plan_id: snapshotSha256.slice(0, 16)
+  };
 }
 function parseArgs(argv) {
-  const args = { root: null, standardsRoot: path.resolve(__dirname, '..'), dryRun: false, confirm: false };
+  const args = { root: null, standardsRoot: path.resolve(__dirname, '..'), dryRun: false, confirm: false, expectPlanId: null, json: false };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--root' && argv[i + 1]) args.root = argv[++i];
     else if (argv[i] === '--standards-root' && argv[i + 1]) args.standardsRoot = argv[++i];
     else if (argv[i] === '--dry-run') args.dryRun = true;
     else if (argv[i] === '--confirm-reviewed') args.confirm = true;
+    else if (argv[i] === '--expect-plan-id' && argv[i + 1]) args.expectPlanId = argv[++i];
+    else if (argv[i] === '--json') args.json = true;
     else if (argv[i] === '--help') {
-      console.log('用法：node tools/adopt-template-baseline.cjs --root <项目目录> --dry-run');
-      console.log('审查差异并确认后：node tools/adopt-template-baseline.cjs --root <项目目录> --confirm-reviewed');
+      console.log('用法：node tools/adopt-template-baseline.cjs --root <项目目录> --dry-run [--standards-root <规范仓库>] [--json]');
+      console.log('审查预览中的 plan_id 后确认：node tools/adopt-template-baseline.cjs --root <项目目录> --expect-plan-id <plan_id> --confirm-reviewed');
       process.exit(0);
     } else throw new Error('未知参数或参数缺失：' + argv[i]);
   }
   if (!args.root) throw new Error('必须指定 --root <项目目录>');
-  if (!args.dryRun && !args.confirm) throw new Error('写入基线必须显式指定 --confirm-reviewed；建议先执行 --dry-run');
-  if (args.dryRun && args.confirm) throw new Error('--dry-run 与 --confirm-reviewed 不能同时使用');
+  if (args.dryRun === args.confirm) throw new Error('必须且只能指定 --dry-run 或 --confirm-reviewed');
+  if (args.confirm && !/^[a-f0-9]{16}$/.test(args.expectPlanId ?? '')) {
+    throw new Error('确认基线必须提供 dry-run 输出的 --expect-plan-id <16 位 plan_id>');
+  }
+  if (args.dryRun && args.expectPlanId) throw new Error('--expect-plan-id 只能与 --confirm-reviewed 一起使用');
   return args;
+}
+function writeManifestAtomic(markerPath, manifest, mode) {
+  const temp = markerPath + '.tmp-' + process.pid + '-' + crypto.randomBytes(6).toString('hex');
+  let fd;
+  try {
+    fd = fs.openSync(temp, 'wx', mode ?? 0o644);
+    fs.writeFileSync(fd, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
+    fs.fsyncSync(fd);
+    fs.closeSync(fd);
+    fd = undefined;
+    fs.renameSync(temp, markerPath);
+  } catch (error) {
+    if (fd !== undefined) {
+      try { fs.closeSync(fd); } catch {}
+    }
+    try { fs.unlinkSync(temp); } catch {}
+    throw error;
+  }
 }
 function main(argv) {
   const args = parseArgs(argv);
-  if (!fs.existsSync(args.root) || !fs.statSync(args.root).isDirectory()) throw new Error('项目目录不存在');
-  const result = buildBaseline({ projectRoot: args.root, standardsRoot: args.standardsRoot });
-  console.log('可登记为已审查基线的文件：' + result.adopted.length);
-  for (const file of result.adopted) console.log('  - ' + file);
-  console.log('仍未识别的保留路径：' + result.remaining_preserved.length);
-  for (const file of result.remaining_preserved) console.log('  - ' + file);
+  const root = path.resolve(args.root);
+  const rootStat = fs.lstatSync(root);
+  if (rootStat.isSymbolicLink() || !rootStat.isDirectory()) throw new Error('项目根目录必须是真实目录');
+  const result = buildBaseline({ projectRoot: root, standardsRoot: args.standardsRoot });
+  const output = {
+    ok: true,
+    mode: args.dryRun ? 'dry_run' : 'recorded',
+    plan_id: result.plan_id,
+    source_inventory_sha256: result.source_inventory_sha256,
+    review_snapshot_sha256: result.review_snapshot_sha256,
+    adopted_count: result.adopted.length,
+    adopted: result.adopted,
+    remaining_preserved: result.remaining_preserved,
+    baseline_state: result.manifest.baseline_state,
+    manifest_written: false
+  };
   if (args.dryRun) {
-    console.log('预览完成，未写入任何文件。');
+    console.log(args.json ? JSON.stringify(output, null, 2) : [
+      '旧项目安装基线采纳预览（只读）',
+      'Plan ID：' + result.plan_id,
+      '来源模板快照 SHA-256：' + result.source_inventory_sha256,
+      '可登记文件：' + result.adopted.length,
+      '未知归属保留路径：' + result.remaining_preserved.length,
+      '未写入任何文件；人工审查后使用 --expect-plan-id ' + result.plan_id + ' --confirm-reviewed。'
+    ].join('\n'));
     return 0;
   }
-  const markerPath = path.join(path.resolve(args.root), MARKER);
-  const temp = markerPath + '.tmp-' + process.pid;
-  fs.writeFileSync(temp, JSON.stringify(result.manifest, null, 2) + '\n', { flag: 'wx' });
-  try { fs.renameSync(temp, markerPath); }
-  catch (error) { try { fs.unlinkSync(temp); } catch {} throw error; }
-  console.log('已更新 .agent-standards.json；项目规则文件未被修改。');
+
+  if (result.plan_id !== args.expectPlanId) {
+    throw new Error('项目文件、安装清单或模板源自 dry-run 后发生变化；拒绝采纳，请重新 dry-run 并复核新的 plan_id。');
+  }
+  // Rebuild once more immediately before writing. This is optimistic snapshot validation, not an
+  // OS-level lock; concurrent editors should still pause while baseline adoption is confirmed.
+  const current = buildBaseline({ projectRoot: root, standardsRoot: args.standardsRoot });
+  if (current.plan_id !== args.expectPlanId) {
+    throw new Error('确认前项目或模板快照再次变化；拒绝写入，请重新 dry-run 并复核。');
+  }
+  const markerPath = path.join(root, MARKER);
+  writeManifestAtomic(markerPath, result.manifest, current.manifest_mode);
+  output.mode = 'recorded';
+  output.manifest_written = true;
+  console.log(args.json ? JSON.stringify(output, null, 2) : [
+    '已登记人工审查的旧项目安装基线',
+    'Plan ID：' + result.plan_id,
+    '登记文件：' + result.adopted.length,
+    '仍未识别的保留路径：' + result.remaining_preserved.length,
+    '基线状态：' + result.manifest.baseline_state,
+    '只写入 .agent-standards.json；项目规则文件未修改。'
+  ].join('\n'));
   return 0;
 }
 if (require.main === module) {
   try { process.exitCode = main(process.argv.slice(2)); }
   catch (error) { console.error('[adopt-template-baseline] ' + error.message); process.exitCode = 2; }
 }
-module.exports = { buildBaseline };
+module.exports = { buildBaseline, parseArgs, writeManifestAtomic };

@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
+const { analyzeDrift } = require('../tools/check-template-drift.cjs');
 const root = path.resolve(__dirname, '..');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-standards-init-'));
 // Created inside the test and removed in finally: proves untracked artifacts under
@@ -111,6 +112,18 @@ try {
   assert.ok(
     agentsBudget - installedAgents >= 1024,
     `初始化后的 AGENTS.md 只留 ${agentsBudget - installedAgents}B 余量（${installedAgents}/${agentsBudget}B），至少要留 1024B 给项目自有规则`);
+  // Worst-case capability rendering must still leave project-owned rule space.
+  const multiAgentProject = path.join(tmp, 'multi-agent-context-budget');
+  fs.mkdirSync(multiAgentProject);
+  const multiAgentProfile = fs.readFileSync(path.join(root, 'template/project-profile.toml'), 'utf8')
+    .replace('multi_agent = "off"', 'multi_agent = "on"');
+  fs.writeFileSync(path.join(multiAgentProject, 'project-profile.toml'), multiAgentProfile);
+  const multiAgentInstalled = spawnSync(process.execPath, [path.join(root, 'init.cjs'), multiAgentProject], { encoding: 'utf8' });
+  assert.equal(multiAgentInstalled.status, 0, multiAgentInstalled.stdout + multiAgentInstalled.stderr);
+  const multiAgentGov = fs.readFileSync(path.join(multiAgentProject, 'gov.toml'), 'utf8');
+  const multiAgentBudget = Number(multiAgentGov.match(/^agents_bytes = (\d+)/m)[1]);
+  const multiAgentAgents = Buffer.byteLength(fs.readFileSync(path.join(multiAgentProject, 'AGENTS.md'), 'utf8').replace(/\r\n/g, '\n'), 'utf8');
+  assert.ok(multiAgentBudget - multiAgentAgents >= 1024, 'multi_agent=on leaves only ' + (multiAgentBudget - multiAgentAgents) + 'B for project-owned rules');
   // An unknown placeholder would ship to the user as a literal {{X}} marker: init only
   // substitutes known keys, so the installed tree is scanned instead of trusted.
   const leftovers = [];
@@ -409,6 +422,134 @@ try {
   assert.doesNotMatch(offRouter, /\.spec\/tasks\/index\.md/, '路由表同样不得指向未安装的目录');
   assert.doesNotMatch(offRouter, /\.spec\/roadmap\/INDEX\.md/);
   assert.doesNotMatch(offRouter, /<!--cap/, '路由表渲染后不得残留标记');
+
+  // Capability changes on an already-installed project must converge without deleting
+  // historical records or overwriting user edits. Exercise off -> on -> off -> on via --update.
+  const capabilityUpgrade = path.join(tmp, 'capability-upgrade-app');
+  fs.mkdirSync(capabilityUpgrade);
+  fs.writeFileSync(path.join(capabilityUpgrade, 'package.json'), JSON.stringify({ name: 'capability-upgrade' }));
+  const capabilityProfileTemplate = fs.readFileSync(path.join(root, 'template/project-profile.toml'), 'utf8')
+    .replace('{{PROJECT_NAME}}', 'Capability Upgrade')
+    .replace('{{PROJECT_DESC}}', 'capability transition fixture')
+    .replace('{{LANGUAGE}}', 'node')
+    .replace('{{FRAMEWORK}}', 'none')
+    .replace('{{PACKAGE_MANAGER}}', 'npm');
+  const offProfileText = capabilityProfileTemplate
+    .replace('task_tracking = "auto"', 'task_tracking = "off"')
+    .replace('roadmap = "auto"', 'roadmap = "off"')
+    .replace('adr = "auto"', 'adr = "off"')
+    .replace('module_boundaries = "auto"', 'module_boundaries = "off"')
+    .replace('stack_rules = "auto"', 'stack_rules = "off"')
+    .replace('multi_agent = "off"', 'multi_agent = "off"');
+  fs.writeFileSync(path.join(capabilityUpgrade, 'project-profile.toml'), offProfileText);
+  const offInstall = spawnSync(process.execPath, [path.join(root, 'init.cjs'), capabilityUpgrade], { encoding: 'utf8' });
+  assert.equal(offInstall.status, 0, offInstall.stdout + offInstall.stderr);
+  for (const rel of ['.spec/tasks', '.spec/roadmap', '.spec/adr', '.spec/stacks']) {
+    assert.equal(fs.existsSync(path.join(capabilityUpgrade, rel)), false, 'initial off install must omit ' + rel);
+  }
+
+  // Enabling capabilities later must install their files, update the generated routing/required
+  // lists, and leave the user-edited profile itself untouched.
+  const enabledProfileText = offProfileText
+    .replace('status = "needs_review"', 'status = "confirmed"')
+    .replace('type = "unknown"', 'type = "web"')
+    .replace('scale = "unknown"', 'scale = "small"')
+    .replace('risk = "unknown"', 'risk = "low"')
+    .replace('architecture = "unknown"', 'architecture = "layered"')
+    .replace('detected = ["generic"]', 'detected = ["node"]')
+    .replace('primary = "node"', 'primary = "node"')
+    .replace('task_tracking = "off"', 'task_tracking = "on"')
+    .replace('roadmap = "off"', 'roadmap = "on"')
+    .replace('adr = "off"', 'adr = "on"')
+    .replace('stack_rules = "off"', 'stack_rules = "on"')
+    .replace('multi_agent = "off"', 'multi_agent = "on"');
+  fs.writeFileSync(path.join(capabilityUpgrade, 'project-profile.toml'), enabledProfileText);
+  const enableRun = spawnSync(process.execPath, [path.join(root, 'init.cjs'), capabilityUpgrade, '--update'], { encoding: 'utf8' });
+  assert.equal(enableRun.status, 0, enableRun.stdout + enableRun.stderr);
+  for (const rel of [
+    '.spec/tasks/index.md', '.spec/tasks/T1/card.md', '.spec/tasks/BOARD.md',
+    '.spec/roadmap/INDEX.md', '.spec/roadmap/M1/milestone.md',
+    '.spec/adr/README.md', '.spec/stacks/node.md'
+  ]) assert.ok(fs.existsSync(path.join(capabilityUpgrade, rel)), 'enabled capability must install ' + rel);
+  const enabledAgents = fs.readFileSync(path.join(capabilityUpgrade, 'AGENTS.md'), 'utf8');
+  const enabledRouter = fs.readFileSync(path.join(capabilityUpgrade, 'ROUTER.md'), 'utf8');
+  assert.match(enabledAgents, /多 Agent 协作（仅启用时）/);
+  assert.match(enabledRouter, /\.spec\/tasks\/index\.md/);
+  assert.match(enabledRouter, /\.spec\/roadmap\/INDEX\.md/);
+  const enabledGov = fs.readFileSync(path.join(capabilityUpgrade, 'gov.toml'), 'utf8');
+  const enabledRequired = enabledGov.match(/^files = \[(.*)\]$/m)?.[1] ?? '';
+  for (const rel of ['.spec/tasks/index.md', '.spec/roadmap/INDEX.md', '.spec/adr/README.md', '.spec/stacks/node.md']) {
+    assert.ok(enabledRequired.includes(rel), 'required.files must include newly enabled path ' + rel);
+  }
+  assert.equal(fs.readFileSync(path.join(capabilityUpgrade, 'project-profile.toml'), 'utf8'), enabledProfileText,
+    '--update must preserve the user-edited capability profile');
+  const enabledManifest = JSON.parse(fs.readFileSync(path.join(capabilityUpgrade, '.agent-standards.json'), 'utf8'));
+  assert.ok(!enabledManifest.excluded_paths.some(rel => rel.startsWith('.spec/tasks/') || rel.startsWith('.spec/roadmap/') || rel.startsWith('.spec/adr/') || rel.startsWith('.spec/stacks/')));
+  const enabledGate = spawnSync(process.execPath, [path.join(capabilityUpgrade, '.standards/check-governance.cjs')], { cwd: capabilityUpgrade, encoding: 'utf8' });
+  assert.equal(enabledGate.status, 0, enabledGate.stdout + enabledGate.stderr);
+
+  // A project edit to a managed historical card must survive disabling and re-enabling tracking.
+  const preservedCard = path.join(capabilityUpgrade, '.spec/tasks/T1/card.md');
+  const cardWithProjectNote = fs.readFileSync(preservedCard, 'utf8') + '\n<!-- project-owned task note -->\n';
+  fs.writeFileSync(preservedCard, cardWithProjectNote);
+  const disabledAgainProfile = enabledProfileText
+    .replace('task_tracking = "on"', 'task_tracking = "off"')
+    .replace('roadmap = "on"', 'roadmap = "off"')
+    .replace('adr = "on"', 'adr = "off"')
+    .replace('stack_rules = "on"', 'stack_rules = "off"')
+    .replace('multi_agent = "on"', 'multi_agent = "off"');
+  fs.writeFileSync(path.join(capabilityUpgrade, 'project-profile.toml'), disabledAgainProfile);
+  const disableRun = spawnSync(process.execPath, [path.join(root, 'init.cjs'), capabilityUpgrade, '--update'], { encoding: 'utf8' });
+  assert.equal(disableRun.status, 0, disableRun.stdout + disableRun.stderr);
+  assert.equal(fs.readFileSync(preservedCard, 'utf8'), cardWithProjectNote,
+    'disabling a capability must never delete or rewrite its historical project data');
+  for (const rel of ['.spec/tasks/index.md', '.spec/roadmap/INDEX.md', '.spec/adr/README.md', '.spec/stacks/node.md']) {
+    assert.ok(fs.existsSync(path.join(capabilityUpgrade, rel)), 'disabling a capability must preserve its historical file ' + rel);
+  }
+  const disabledAgents = fs.readFileSync(path.join(capabilityUpgrade, 'AGENTS.md'), 'utf8');
+  const disabledRouter = fs.readFileSync(path.join(capabilityUpgrade, 'ROUTER.md'), 'utf8');
+  assert.doesNotMatch(disabledAgents, /多 Agent 协作（仅启用时）/);
+  assert.doesNotMatch(disabledRouter, /\.spec\/tasks\/index\.md|\.spec\/roadmap\/INDEX\.md|\.spec\/adr\/README\.md|\.spec\/stacks\//);
+  const disabledNodeGate = spawnSync(process.execPath, [path.join(capabilityUpgrade, '.standards/check-governance.cjs')], { cwd: capabilityUpgrade, encoding: 'utf8' });
+  assert.equal(disabledNodeGate.status, 0, disabledNodeGate.stdout + disabledNodeGate.stderr);
+  const disabledPython = spawnSync(process.env.PYTHON || 'python3', [path.join(capabilityUpgrade, '.standards/check_governance.py')], { cwd: capabilityUpgrade, encoding: 'utf8' });
+  if (disabledPython.error && !process.env.PYTHON) {
+    const fallback = spawnSync('python', [path.join(capabilityUpgrade, '.standards/check_governance.py')], { cwd: capabilityUpgrade, encoding: 'utf8' });
+    if (!fallback.error) {
+      assert.equal(fallback.status, 0, fallback.stdout + fallback.stderr);
+      assert.equal(disabledNodeGate.stdout, fallback.stdout, 'disabled historical capability data must be ignored consistently');
+    }
+  } else if (!disabledPython.error) {
+    assert.equal(disabledPython.status, 0, disabledPython.stdout + disabledPython.stderr);
+    assert.equal(disabledNodeGate.stdout, disabledPython.stdout, 'disabled historical capability data must be ignored consistently');
+  }
+  const disabledGov = fs.readFileSync(path.join(capabilityUpgrade, 'gov.toml'), 'utf8');
+  const disabledRequired = disabledGov.match(/^files = \[(.*)\]$/m)?.[1] ?? '';
+  assert.ok(!disabledRequired.includes('.spec/tasks/index.md'));
+  assert.ok(!disabledRequired.includes('.spec/roadmap/INDEX.md'));
+  assert.ok(!disabledRequired.includes('.spec/adr/README.md'));
+  assert.ok(!disabledRequired.includes('.spec/stacks/node.md'));
+
+  // Re-enable the capabilities: untouched template files can return to the managed set, while
+  // the edited task card remains project-owned and is never silently overwritten.
+  fs.writeFileSync(path.join(capabilityUpgrade, 'project-profile.toml'), enabledProfileText);
+  const reenableRun = spawnSync(process.execPath, [path.join(root, 'init.cjs'), capabilityUpgrade, '--update'], { encoding: 'utf8' });
+  assert.equal(reenableRun.status, 0, reenableRun.stdout + reenableRun.stderr);
+  assert.equal(fs.readFileSync(preservedCard, 'utf8'), cardWithProjectNote, 're-enabling must preserve local task-card edits');
+  const reenabledManifest = JSON.parse(fs.readFileSync(path.join(capabilityUpgrade, '.agent-standards.json'), 'utf8'));
+  assert.ok(reenabledManifest.managed_files['.spec/tasks/T1/card.md'],
+    'a previously managed card keeps its original known baseline while its capability is disabled');
+  assert.ok(!reenabledManifest.preserved_paths.includes('.spec/tasks/T1/card.md'),
+    'a customized managed file retains a known baseline instead of becoming an unknown-ownership path');
+  assert.ok(reenabledManifest.preserved_paths.includes('project-profile.toml'),
+    'the pre-existing user-owned profile remains the explicit unknown-baseline path');
+  assert.equal(reenabledManifest.baseline_state, 'partial_unknown');
+  const reenabledDrift = analyzeDrift({ projectRoot: capabilityUpgrade, standardsRoot: root });
+  const editedCardFinding = reenabledDrift.findings.find(item => item.path === '.spec/tasks/T1/card.md');
+  assert.equal(editedCardFinding?.status, 'local_customized',
+    'the retained baseline hash must identify the edited historical card as a local customization');
+  const reenabledGate = spawnSync(process.execPath, [path.join(capabilityUpgrade, '.standards/check-governance.cjs')], { cwd: capabilityUpgrade, encoding: 'utf8' });
+  assert.equal(reenabledGate.status, 0, reenabledGate.stdout + reenabledGate.stderr);
 
   // 3.0.0 moved the tooling from scripts/ to .standards/. An upgrade must remove our old copies
   // (proven by hash) and must never touch a file the project wrote itself.

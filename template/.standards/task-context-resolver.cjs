@@ -95,7 +95,7 @@ function resolveTaskContext(input, options = {}) {
   add(alwaysRead, '.memory/MEMORY.md', '跨会话断点', '§0');
   const profileStatus = profile.profile?.status ?? 'needs_review';
   const profileFields = ['profile.status', 'stack.primary', 'stack.detected', 'capabilities'];
-  add(alwaysRead, 'project-profile.toml', '只读取当前任务相关的画像字段：' + profileFields.join('、'));
+  add(optionalRead, 'project-profile.toml', '仅在需要核实能力开关、技术栈候选或验证命令时读取：' + profileFields.join('、'));
 
   const signals = new Set();
   if (task.cross_session) signals.add('cross_session');
@@ -153,9 +153,23 @@ function resolveTaskContext(input, options = {}) {
   }
 
   const taskDecision = decisions.task_tracking;
-  if (taskDecision?.decision === 'auto_selected_for_task' || (taskDecision?.configured === 'on' && taskDecision.matched.length)) {
-    add(requiredRead, '.spec/intent/BASELINE.md', '跟踪任务必须恢复原始目标基线，防止局部工作取代项目目标');
-    add(requiredRead, '.spec/intent/CHANGES.md', '跟踪任务必须核对用户已确认的意图变化与未决事项');
+  const taskTrackingSelected = taskDecision?.decision === 'auto_selected_for_task'
+    || (taskDecision?.configured === 'on' && taskDecision.matched.length);
+  const intentContextNeeded = task.cross_session || task.uncertainty === 'high'
+    || ['impact_cross_module', 'impact_public_contract', 'impact_data', 'impact_security', 'impact_production'].some((signal) => signals.has(signal))
+    || ['kind_architecture_change', 'kind_database_change', 'kind_security_change', 'kind_dependency_change', 'kind_incident', 'kind_release'].some((signal) => signals.has(signal));
+  if (intentContextNeeded || taskTrackingSelected) {
+    add(requiredRead, '.spec/intent/BASELINE.md', '跨会话或高影响工作必须恢复原始目标基线，防止局部工作取代项目目标');
+    add(requiredRead, '.spec/intent/CHANGES.md', '按任务相关 G/R/C 锚点检索已确认变化及后续状态；不通读全部历史', '仅相关 Cnnn 条目及后续状态（按 G/R/C ID 定位）');
+    add(requiredRead, '.spec/requirements/INDEX.md', '跟踪/连续性工作需要核对关联 R ID、当前需求状态与验收判据');
+    const verificationRequired = ['high', 'critical'].includes(task.risk)
+      || HIGH_IMPACTS.has(task.impact) || ['public_contract', 'system'].includes(task.impact)
+      || task.release_target === 'production' || ['release', 'incident'].includes(task.kind);
+    add(verificationRequired ? requiredRead : optionalRead, '.spec/verification/INDEX.md', verificationRequired
+      ? '高风险或交付工作必须核对已有 V 证据及其覆盖范围'
+      : '有 V 引用、验收收口或核对 verified 状态时读取');
+  }
+  if (taskTrackingSelected) {
     add(requiredRead, '.spec/tasks/index.md', '当前任务需要跟踪；先读活跃任务索引');
     if (task.task_id) {
       add(requiredRead, '.spec/tasks/' + task.task_id + '/card.md', '当前任务卡的范围与验收');
@@ -166,7 +180,15 @@ function resolveTaskContext(input, options = {}) {
   }
 
   const roadmapDecision = decisions.roadmap;
-  if (roadmapDecision?.decision === 'auto_selected_for_task' || (roadmapDecision?.configured === 'on' && roadmapDecision.matched.length)) {
+  let roadmapSelected = roadmapDecision?.decision === 'auto_selected_for_task'
+    || (roadmapDecision?.configured === 'on' && roadmapDecision.matched.length);
+  if (roadmapSelected && taskDecision?.decision === 'disabled_by_project') {
+    roadmapSelected = false;
+    roadmapDecision.effective = 'off';
+    roadmapDecision.decision = 'disabled_by_dependency';
+    warnings.push('任务触发了 roadmap，但 task_tracking 已关闭；不会单独启用里程碑跟踪。');
+  }
+  if (roadmapSelected) {
     add(requiredRead, '.spec/roadmap/INDEX.md', '当前工作属于里程碑规划');
     if (task.milestone_id) add(requiredRead, '.spec/roadmap/' + task.milestone_id + '/milestone.md', '当前里程碑详情');
   }
@@ -222,10 +244,16 @@ function resolveTaskContext(input, options = {}) {
   if (registryRelevant) add(optionalRead, '.spec/REGISTRY.md', '核对标识符、接口名、字段和数据实体登记');
 
   if (task.impact === 'cross_module' || task.impact === 'system') {
-    nextActions.push('检查涉及模块的允许依赖方向与所有权；如果项目配置了架构测试，必须执行对应测试。');
+    if (decisions.module_boundaries?.decision === 'disabled_by_project') {
+      nextActions.push('项目已关闭 module_boundaries：不执行该能力的专项门禁；如本次工作必须依赖模块边界约束，先请维护者启用该能力。');
+    } else {
+      nextActions.push('检查涉及模块的允许依赖方向与所有权；如果项目配置了架构测试，必须执行对应测试。');
+    }
   }
   if (task.multiple_agents && decisions.multi_agent?.decision === 'disabled_by_project') {
     nextActions.push('当前任务声明使用多个 Agent，但项目未启用 multi_agent 能力；先明确共享文件、任务认领与并发写入协调方式。');
+  } else if (task.multiple_agents && decisions.multi_agent?.decision === 'load_for_task') {
+    nextActions.push('按 AGENTS.md 多 Agent 协作约定认领独立写入范围；共享文件采用单写者，并在写入前刷新版本。');
   }
   if (profileStatus !== 'confirmed') warnings.push('项目画像状态为 ' + profileStatus + '；只把任务显式给出的 stacks 和画像中已确认的内容当作事实。');
 
