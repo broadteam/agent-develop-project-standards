@@ -125,7 +125,7 @@ try {
   assert.equal(markerEditPreview.status, 0, markerEditPreview.stdout + markerEditPreview.stderr);
   const markerPlan = JSON.parse(markerEditPreview.stdout);
   const editedManifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-  editedManifest.project_review_note = 'changed after dry-run';
+  editedManifest.installed_with_version = 'review-state-changed';
   fs.writeFileSync(manifestPath, JSON.stringify(editedManifest, null, 2) + '\n');
   const manifestBeforeRejectedConfirm = fs.readFileSync(manifestPath);
   const manifestStale = run(project, standards, '--expect-plan-id', markerPlan.plan_id, '--confirm-reviewed', '--json');
@@ -140,7 +140,8 @@ try {
   assert.equal(finalConfirm.status, 0, finalConfirm.stdout + finalConfirm.stderr);
   const finalManifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
   assert.ok(finalManifest.managed_files['.spec/00-constitution.md']);
-  assert.equal(finalManifest.project_review_note, 'changed after dry-run');
+  assert.equal(finalManifest.installed_with_version, JSON.parse(fs.readFileSync(path.join(standards, 'template/policy/standards-version.json'), 'utf8')).version,
+    'freshly reviewed adoption recalculates the current source version after rejecting a stale manifest snapshot');
 
   console.log('test-adopt-template-baseline: all cases passed');
 } finally {
