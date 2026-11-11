@@ -188,7 +188,7 @@ def validate_intent_alignment(root: Path, *, task_tracking: bool = True, roadmap
         if not evidence_refs:
             if placeholder(verification_text) or not re.search(r"命令|步骤", verification_text) or not re.search(r"结果|通过|失败|pass|fail|partial", verification_text, re.I):
                 errors.append(f"意图对齐：任务 {task_id} 必须引用 Vnnn，或填写可复现验证步骤及结果")
-        if status == "done" and not evidence_refs and not re.search(r"(?:结果|判定)[:：]?\s*(?:通过|成功|pass(?:ed)?\b)", verification_text, re.I):
+        if status == "done" and not evidence_refs and not re.search(r"(?:结果|判定)[:：]?\s*(?:通过|成功|pass(?:ed)?\b)(?![\w])", verification_text, re.I):
             errors.append(f"意图对齐：任务 {task_id} 没有 V 证据却标记 done；可复现验证结果必须明确为 pass/通过")
         for ref in evidence_refs:
             record = evidence_records.get(ref)
