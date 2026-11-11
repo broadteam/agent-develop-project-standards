@@ -79,7 +79,7 @@
 ### 能力开关交叉审查发现与修复
 
 1. **AGENTS 的复合能力块裁剪**：原 `cap:task_tracking,roadmap` 把两个独立能力绑在一起；现在分别渲染任务与里程碑指引，避免 task_tracking=on、roadmap=off 时一起删除。
-2. **ADR / stack_rules / module_boundaries 关闭后仍被引用**：AGENTS、ROUTER、Constitution、Architecture 的可选指引改为按能力渲染；ADR 关闭时，用户裁定仍然有效，记录可放任务/PR 审查记录；模块边界关闭时不再要求执行该能力专项门禁。
+2. **ADR / stack_rules / module_boundaries 关闭后仍被引用**：AGENTS、ROUTER、Constitution、Architecture 的可选指引改为按能力渲染；ADR 关闭时，用户裁定仍然有效，记录放在 `.spec/01-architecture.md` 或 PR 审查记录，不依赖 task_tracking；模块边界关闭时不再要求执行该能力专项门禁。
 3. **关闭能力后历史记录仍被强制校验**：Node/Python traceability 与 intent-alignment checker 接收 task_tracking/roadmap 状态；对应能力关闭时保留历史文件，但跳过相应索引、详情和对齐门禁。核心需求与验证证据仍继续校验。
 4. **roadmap 与 task_tracking 触发条件不一致**：milestone_planning 也触发 task_tracking auto；roadmap=on/auto 不得绕过 task_tracking=off 的依赖约束。
 5. **task_tracking 关闭导致原始意图丢失**：跨会话、高不确定性或高影响工作仍需读取 BASELINE 和 CHANGES，不再把意图恢复错误地绑定到任务卡能力。
@@ -106,6 +106,7 @@
 - 第二优先级（进行中）：规则重复与冲突审查已发现并修正两处遗漏：
   1. `template/.memory/MEMORY.md` 原先无条件将任务目录列为权威源；现已明确任务/里程碑/ADR 的权威路径仅在对应能力启用时成立，§0 的 T 锚点和 log 指引也按 task_tracking 条件化。
   2. `PROJECT-ADAPTATION-v2.0.md` 要求关闭 `module_boundaries` 后仍保留基础架构事实，但 `template/.spec/01-architecture.md` 曾把基础依赖方向原则一并裁剪；现将核心单向依赖原则保留，模块依赖矩阵和专项门禁仍受开关控制。AGENTS 的权威来源摘要也已补入独立的 roadmap 条件。
+  3. 关闭 `adr` 且关闭 `task_tracking` 时，决策记录不能再只指向任务/PR 审查记录；现统一为 `.spec/01-architecture.md` 或 PR 审查记录，并在 all-off fixture 中验证。
 - README 的意图对齐章节前后分别承担使用概览和检查器/验收细节，当前属于摘要与详细说明的分层，不应为去重而删除必要的下游实现说明；后续继续检查其他真正的重复定义和优先级冲突。
 - 第三阶段：四类任务上下文成本审查（轻量维护、普通跟踪、跨会话持续开发、高风险架构/数据变更），量化必须/可选读取集与预算。
 - 第四阶段：升级兼容性审查，覆盖空项目初始化、已有项目升级、旧记录兼容、能力开关变更和人工存档恢复。
