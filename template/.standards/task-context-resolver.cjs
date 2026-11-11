@@ -161,6 +161,13 @@ function resolveTaskContext(input, options = {}) {
   if (intentContextNeeded || taskTrackingSelected) {
     add(requiredRead, '.spec/intent/BASELINE.md', '跨会话或高影响工作必须恢复原始目标基线，防止局部工作取代项目目标');
     add(requiredRead, '.spec/intent/CHANGES.md', '核对用户已确认的意图变化与未决事项');
+    add(requiredRead, '.spec/requirements/INDEX.md', '跟踪/连续性工作需要核对关联 R ID、当前需求状态与验收判据');
+    const verificationRequired = ['high', 'critical'].includes(task.risk)
+      || HIGH_IMPACTS.has(task.impact) || ['public_contract', 'system'].includes(task.impact)
+      || task.release_target === 'production' || ['release', 'incident'].includes(task.kind);
+    add(verificationRequired ? requiredRead : optionalRead, '.spec/verification/INDEX.md', verificationRequired
+      ? '高风险或交付工作必须核对已有 V 证据及其覆盖范围'
+      : '有 V 引用、验收收口或核对 verified 状态时读取');
   }
   if (taskTrackingSelected) {
     add(requiredRead, '.spec/tasks/index.md', '当前任务需要跟踪；先读活跃任务索引');

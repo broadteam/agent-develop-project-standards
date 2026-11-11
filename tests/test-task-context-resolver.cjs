@@ -53,9 +53,20 @@ try {
   assert.ok(smallRequired.includes('.spec/02-conventions.md'));
   assert.ok(smallRequired.includes('.spec/stacks/php.md'));
   assert.ok(!smallRequired.includes('.spec/tasks/index.md'));
+  assert.ok(!smallRequired.includes('.spec/requirements/INDEX.md'));
+  assert.ok(!smallRequired.includes('.spec/verification/INDEX.md'));
   assert.ok(!smallRequired.includes('.spec/adr/README.md'));
   assert.ok(!smallRequired.includes('.spec/00-constitution.md'));
   assert.equal(small.capabilityDecisions.task_tracking.effective, 'off');
+
+  const ordinaryTracked = resolveTaskContext({
+    kind: 'bugfix', risk: 'medium', impact: 'local', uncertainty: 'low', task_id: 'T12'
+  }, { root, profile, registry });
+  const ordinaryTrackedRequired = ordinaryTracked.requiredRead.map((x) => x.path);
+  assert.ok(ordinaryTrackedRequired.includes('.spec/tasks/index.md'));
+  assert.ok(ordinaryTrackedRequired.includes('.spec/tasks/T12/card.md'));
+  assert.ok(ordinaryTrackedRequired.includes('.spec/requirements/INDEX.md'));
+  assert.ok(ordinaryTracked.optionalRead.some((x) => x.path === '.spec/verification/INDEX.md'), 'ordinary tracked work should load V history on demand, not unconditionally');
 
   const complex = resolveTaskContext({
     kind: 'database_change', risk: 'high', impact: 'data', uncertainty: 'high',
@@ -67,6 +78,8 @@ try {
   assert.ok(complexRequired.includes('.spec/adr/README.md'));
   assert.ok(complexRequired.includes('.spec/intent/BASELINE.md'));
   assert.ok(complexRequired.includes('.spec/intent/CHANGES.md'));
+  assert.ok(complexRequired.includes('.spec/requirements/INDEX.md'));
+  assert.ok(complexRequired.includes('.spec/verification/INDEX.md'));
   assert.ok(complexRequired.includes('.spec/tasks/index.md'));
   assert.ok(complexRequired.includes('.spec/tasks/T12/card.md'));
   assert.ok(complexRequired.includes('.spec/roadmap/INDEX.md'));
@@ -89,6 +102,8 @@ try {
   const overriddenPaths = overridden.requiredRead.map((x) => x.path);
   assert.ok(overriddenPaths.includes('.spec/intent/BASELINE.md'), 'cross-session intent context remains required when task_tracking is off');
   assert.ok(overriddenPaths.includes('.spec/intent/CHANGES.md'), 'accepted intent changes remain visible when task_tracking is off');
+  assert.ok(overriddenPaths.includes('.spec/requirements/INDEX.md'), 'core requirement state remains visible when task_tracking is off');
+  assert.ok(overriddenPaths.includes('.spec/verification/INDEX.md'), 'high-risk verification evidence remains visible when task_tracking is off');
   assert.ok(!overriddenPaths.includes('.spec/tasks/index.md'));
   assert.ok(!overriddenPaths.includes('.spec/adr/README.md'));
   assert.ok(overridden.warnings.some((x) => x.includes('task_tracking')));

@@ -13,7 +13,7 @@
 2. **根目录白名单**。根目录只允许 `gov.toml [dirs]` 列出的目录/文件；临时产物只能进 `.tmp/<任务ID>/`，构建产物只能进 `{{BUILD_OUTPUT}}/`。
    **禁止** `out2` `test1` `tmp` `新建文件夹` 这类序号/随手目录。
 3. **单一规则入口 + 分域事实源**。规则入口看本文件；`.memory/MEMORY.md` 只保存跨会话断点与稳定项目事实，不是所有领域状态的总账。
-   项目意图以 `.spec/intent/` 为准，需求以 `.spec/requirements/INDEX.md` 为准，验证以 `.spec/verification/INDEX.md` 为准；启用 `task_tracking` 时任务状态以 `.spec/tasks/index.md` 为准，启用 `adr` 时架构决策以 `.spec/adr/` 为准。
+   意图、需求、验证分别以 `.spec/intent/`、`.spec/requirements/INDEX.md`、`.spec/verification/INDEX.md` 为始终有效的权威源；任务、路线图、ADR 仅在对应能力启用时使用各自索引/目录。
    <!--cap:roadmap-->
    启用 `roadmap` 时里程碑状态以 `.spec/roadmap/INDEX.md` 为准。
    <!--/cap-->
@@ -71,6 +71,8 @@
 | `.spec/tasks/index.md` + 对应 `card.md` | 跟踪任务；轻量任务无需强制建卡 |
 <!--/cap-->
 | `.spec/intent/BASELINE.md` + `CHANGES.md` | 跟踪任务、跨会话恢复、需求/计划变更或阶段回顾时 |
+| `.spec/requirements/INDEX.md` | 跟踪任务必读；核对 R ID / 需求状态时读取 |
+| `.spec/verification/INDEX.md` | 有 V 引用、验收收口或核对 verified 状态时读取 |
 <!--cap:roadmap-->
 | `.spec/roadmap/INDEX.md` + 里程碑详情 | 任务属于某个里程碑，或需要调整阶段计划时 |
 <!--/cap-->
