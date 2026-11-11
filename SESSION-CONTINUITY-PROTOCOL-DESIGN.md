@@ -424,3 +424,187 @@ D0 已冻结，D1 开始定义可跨语言消费的机器契约。当前策略�
 - 首版并发字段只表达 owner、工作范围和隔离信息；不定义 Lease 服务或锁语义。
 
 D1 完成标准：schema 与示例结构稳定；必填/可选字段有明确语义；版本兼容与扩展策略明确；负例边界可测试；不产生第二套领域状态源。通过独立审查后，才进入 D2 只读 Bootstrap；validator/fixture 实现应作为后续可单独审查的交付，不与 schema 设计混为一体。
+
+## 13. D2 只读 Bootstrap 与 Context Freshness 设计提案（2026-11-12）
+
+> 状态：设计草案，待独立审查；D1 Schema 0.1.0 尚未获用户批准冻结。
+>
+> 本节先定义恢复算法、freshness 语义和安全边界。它不修改 D1 Schema，不要求实现 Validator、Packet Writer、CI Gate 或客户端适配器。下文的字段/引用映射仅为概念映射，最终必须与获批准的 Schema 版本逐项核对。
+
+### 13.1 D2 的目标与非目标
+
+D2 要回答的不是“如何把 Packet 读进来”，而是：一个新会话如何以只读方式恢复项目工作上下文，判断哪些旧信息仍可用、哪些已过期、哪些相互矛盾，以及在证据不足时如何安全降级。
+
+目标：
+
+- 从项目规则入口和现有权威来源恢复最小可执行上下文。
+- 对 Packet/handoff 中的引用逐项检查存在性、版本和适用范围。
+- 对 Git、PR、CI 等动态状态现场核验，不把旧快照当成当前事实。
+- 对每个来源给出可解释的 freshness 结果和证据。
+- 在 schema 不兼容、来源不可访问、状态冲突或权限不足时，采取明确的只读降级策略。
+- 输出可审计的恢复摘要，供 Agent 与用户决定下一步。
+
+非目标：
+
+- 不重建或复制任务、需求、意图、ADR、验证记录等领域状态。
+- 不自动修复引用、不自动更新 Packet、不写 MEMORY、不创建任务或决策记录。
+- 不执行 stash、commit、checkout、reset、merge、rebase、push、PR 修改或 CI dispatch。
+- 不把 Bootstrap 结果视为用户对后续写操作的授权。
+- 不要求所有普通会话都持久化 Bootstrap 报告。
+
+### 13.2 Read-only 的精确定义
+
+D2 的只读模式是对项目状态的严格无写入读取，不只是“尽量不改文件”。
+
+允许：
+
+- 读取规则、断点、领域索引、被引用记录和相关文件。
+- 读取 Git 状态、commit/tree/blob 元数据及 diff（仅用于理解，不应用）。
+- 查询远端分支、PR、CI run 和只读 API。
+- 计算本地文件哈希、比较 revision、生成内存中的恢复摘要。
+- 向用户报告缺失、过期、冲突、未知和需要授权的事项。
+
+禁止：
+
+- 修改工作区文件、索引、配置、权限或 Git 元数据。
+- 创建、覆盖或删除 Packet、handoff、MEMORY、任务卡、证据记录或临时项目文件。
+- 执行会改变仓库状态的 Git 命令或远端写 API。
+- 自动安装依赖、运行会产生项目文件/缓存/数据库迁移的命令，或触发具有副作用的构建/测试脚本。
+- 因发现不一致而擅自“修正”权威来源。
+
+若某个检查工具本身可能产生写入（例如生成缓存、锁文件、测试报告或自动格式化），该检查不属于 D2 Bootstrap 的只读操作；应跳过并标记未验证，或在取得明确授权后另行执行。
+
+### 13.3 Bootstrap 的恢复顺序
+
+Bootstrap 采用有序、按需读取的流程；前序步骤无法确认时，不得假装后续结论完整。
+
+| 阶段 | 读取与检查 | 产出 |
+|---|---|---|
+| B0 项目识别 | 仓库根目录、remote/repository identity、当前工作目录、协议标识 | project identity；不匹配时停止套用该 Packet |
+| B1 规则入口 | 读取 AGENTS.md 及其明确要求的宪法/规则入口；识别适用能力开关和权限边界 | 当前适用规则集与读取范围 |
+| B2 断点定位 | 优先读取项目指定的 MEMORY §0 或既有恢复入口；若存在 SESSION-HANDOFF.md/Packet，则作为导航和 last-known 线索 | 恢复锚点，不把摘要提升为权威事实 |
+| B3 意图与范围 | 按当前工作读取 intent baseline、适用 accepted changes、相关 requirements；可选任务/roadmap/ADR 仅在能力启用且引用存在时读取 | 当前目标、约束、验收锚点、待确认项 |
+| B4 代码现场 | 只读检查 branch、HEAD、upstream、tracked/untracked/dirty 状态及相关提交关系 | 现场代码状态；不可观察内容标 unknown |
+| B5 证据现场 | 对本次任务相关的 verification/review evidence、PR/CI 引用做存在性和 revision 核验 | 证据有效性与 freshness 结果 |
+| B6 冲突与新鲜度 | 比较 Packet last-known、权威来源当前版本和现场观察结果 | per-source freshness、冲突清单、限制 |
+| B7 恢复摘要 | 汇总目标、当前断点、已确认事实、Agent 推断、待用户决定和单一建议下一步 | 可供用户审阅的只读恢复报告 |
+
+读取应遵循最小必要原则：先根据断点定位相关 G/R/T/M/V/ADR，再读取对应记录；不得因为协议存在就全量加载所有历史变更、任务卡或证据正文。
+
+### 13.4 来源权威性与冲突处理
+
+Bootstrap 不使用“最新文件优先”这种简单规则。不同事实由不同来源负责，先识别事实类型，再识别权威来源：
+
+| 信息类别 | 权威来源 | Packet/handoff 的地位 |
+|---|---|---|
+| 原始目标、已接受意图变化 | intent baseline + accepted change ledger | 导航引用与 last-known 摘要 |
+| 需求与验收状态 | requirements index / requirement record | 引用，不得覆盖 |
+| 任务状态 | 启用 task_tracking 时的 task index/card | 引用；未启用时不得推造任务状态 |
+| 里程碑状态 | 启用 roadmap 时的 roadmap index/record | 引用；未启用时不得推造里程碑 |
+| 架构决策 | 启用 ADR 时的 ADR；否则按项目既定决策落点 | 引用或待确认说明 |
+| 验证/审查证据 | verification index 与对应 Evidence 记录；PR review/CI 原始记录按其领域适用 | 证据引用和上次观察结果 |
+| 当前代码状态 | 当前工作区与 Git 对象/状态 | 生成时快照，不代表消费时事实 |
+| PR/CI 当前状态 | 现场查询到的远端 PR/CI 资源 | last-known，仅供定位 |
+| 用户授权/本次操作范围 | 当前会话中用户明确表达及项目权限规则 | 不得从历史 Packet 推导新授权 |
+
+冲突处理规则：
+
+1. **权威来源与 Packet 不一致**：权威来源优先；Packet 标记 stale，并记录差异。不得静默改写权威来源。
+2. **同一领域存在多个权威候选且无法确定优先级**：标记 conflict，停止依赖该事实的高影响操作，向用户报告冲突来源。
+3. **用户当前指令与历史意图记录不一致**：当前指令可构成待记录的意图变化，但在需要持久化或影响长期目标时，按现有 Intent Continuity 规则确认并记录；Bootstrap 不自行写入。
+4. **Git 现场与远端状态不一致**：分别报告本地与远端事实；不将远端分支或 PR 状态覆盖成本地工作区状态。
+5. **证据与被验证 revision 不一致**：证据保留为历史证据，但对当前 revision 标 stale；不得将旧通过结果沿用到新代码。
+6. **Packet 与 Packet 冲突**：Packet 本身不是权威来源。回到其引用的权威来源；若仍无法确定，标 conflict，不按时间戳自动选一个 Packet。
+
+### 13.5 Context Freshness 分类
+
+Freshness 是逐个来源/声明计算的属性，不是给整个项目贴一个全局“新鲜/过期”标签。
+
+| 状态 | 定义 | 允许的使用方式 |
+|---|---|---|
+| current | 已成功读取对应权威来源或现场资源，身份/版本/范围匹配，且没有发现相关变更 | 可用于本次恢复摘要；仍受操作授权约束 |
+| stale | 来源存在，但 revision、内容、状态或适用范围已变化，旧声明不能直接代表当前事实 | 仅作为历史线索；需重新读取/验证 |
+| conflict | 两个或多个适用来源对同一事实给出不可同时成立的结论，且权威规则不能消解 | 不得选边；暂停依赖该事实的高影响操作 |
+| unknown | 来源无法访问、引用不可解析、版本不可观察或证据不足 | 不得按成功/当前处理；明确列出未验证原因 |
+
+状态判定补充：
+
+- current 需要可验证的身份和版本匹配；仅时间戳较新不构成 current。
+- 来源内容变化不一定影响所有声明。应按声明依赖的范围判断；无关文件变化不应让整个 Packet 全部 stale。
+- stale 不代表原记录错误或应删除，只表示它不再证明当前状态。
+- conflict 不等同 unknown：前者有互相矛盾的可观察证据，后者缺少足够证据。
+- unknown 不能被降级成 current、passed、clean 或“无变更”。
+- Schema 不支持的协议版本/核心字段语义不得解释成 unknown 后继续使用；应进入不兼容降级路径（见 §13.7）。
+
+### 13.6 Revision 与 Freshness 判定规则
+
+判定应基于来源类型，不应强求所有来源使用同一种哈希：
+
+- Git commit：比较完整 commit SHA，并在需要时检查祖先关系；分支名只是可变引用，不能代替 SHA。
+- Git tracked file：可比较当前 blob SHA 与 Packet provenance 记录；路径存在不代表内容未变。
+- Untracked/dirty worktree：不能只依赖 Git tree SHA。若 Packet 没有覆盖相关未提交路径及其摘要，只能确认 HEAD，不能宣称 dirty worktree 与生成时一致。
+- PR：重新读取 PR 当前 head/base、状态和必要的 review 状态；PR 编号不代表 head 未变。
+- CI：核验 workflow run 的 head SHA、run 身份、结论和完成状态；排队/运行中不是通过，旧 run 不能覆盖新 head。
+- Evidence：核验 evidence ID 是否可解析、subject/revision/scope 是否覆盖当前工作；无法读取 Evidence 正文或权威记录时标 unknown。
+- 文档/领域记录：优先使用 Git blob/commit revision；若来源位于外部系统，则使用该系统提供的稳定 revision/etag/update token。只有时间戳而无可靠版本标识时，不得宣称严格 current。
+- 用户决策：回到可追溯的明确用户表达或项目决策记录；Agent 摘要不是决策证据。
+
+Freshness 计算应记录“比较对象”和“比较范围”，例如：Packet 在 commit A 观察到 requirements/R001；当前工作树在 commit B 中该文件 blob 未变化，因此该引用可判 current。若只能证明 commit A 与 B 的关系，却未检查相关路径，不足以证明所有来源 current。
+
+### 13.7 失败路径与安全降级
+
+Bootstrap 必须定义可继续、受限继续和停止三种结果，不用一个布尔值掩盖风险：
+
+| 场景 | 恢复结果 | 行为边界 |
+|---|---|---|
+| Packet 缺失 | 从规则入口和既有断点恢复 | 可继续只读恢复；不要求创建 Packet |
+| Packet JSON 无法解析 | 忽略其机器数据，保留文件作为待修复线索 | 不猜字段含义；回到权威来源恢复 |
+| Schema 版本未知/不兼容 | 标记 unsupported/incompatible | 不消费未知核心语义；仅可读取明确安全的项目规则和权威来源 |
+| 可选引用目标不存在 | 对该引用标 unknown 或 stale（依具体原因） | 不自动创建缺失任务/需求/ADR |
+| 远端 API 不可用 | 远端动态状态标 unknown | 可在明确标注限制后继续本地只读工作；禁止宣称 PR/CI 当前状态 |
+| Git HEAD 不可读取 | code revision/worktree freshness 为 unknown | 不执行依赖当前 revision 的写操作 |
+| 工作区 dirty 且归属不明 | 报告 dirty paths 和 owner unknown | 不覆盖、不清理、不 stash；冲突路径暂停写入 |
+| 证据缺失或 revision 不匹配 | evidence unknown/stale | 不宣称验证通过；可重新设计验证计划，但执行需遵循权限规则 |
+| 权威来源相互矛盾 | conflict | 暂停依赖冲突事实的高影响动作，向用户提出最小澄清 |
+| 只读权限不足 | 对受影响来源标 unknown | 不尝试绕过权限或切换凭据 |
+
+**受限继续**仅适用于不依赖未知/冲突事实的低风险只读分析；任何写入、发布、合并、迁移、删除或权限变更均需要重新检查相应事实并满足用户授权。Bootstrap 本身不授予此类操作权限。
+
+### 13.8 Bootstrap 输出契约（概念层）
+
+D2 输出不是新的持久化账本。默认只在当前会话中形成恢复摘要；只有 D0 已定义的持久化节点才考虑将断点写入 Packet。
+
+恢复摘要至少区分：
+
+- **Verified facts**：现场读取并带来源/版本的事实。
+- **Last-known facts**：来自 Packet/handoff，但尚未现场验证的旧观察。
+- **Inferences**：Agent 基于证据作出的推断，明确标记置信度与依据。
+- **Unknowns**：无法访问或缺少证据的项目。
+- **Conflicts**：不能由权威来源规则解决的冲突。
+- **User decisions needed**：需要用户裁定的具体事项，不得伪装成已授权。
+- **Next safe action**：在当前证据和权限边界内最安全、最小的一步。
+- **Forbidden/unauthorized actions**：当前没有授权或明确禁止的动作。
+
+每项 Verified fact 至少能追溯到 source reference、observed revision/identity、observed_at 和本次检查结果。摘要不得复制大段领域记录；只保留足以让用户理解结论的最小内容。
+
+### 13.9 D2 验收标准（设计阶段）
+
+D2 设计通过审查前，至少需要以下可审查产物；此处仅定义验收，不代表现在实现：
+
+1. Bootstrap 状态流程图或等价状态转移说明，覆盖正常、缺失、不可访问、冲突和不兼容路径。
+2. 一份来源权威性矩阵，覆盖 intent、requirements、tasks、roadmap、ADR、verification、Git、PR、CI 和用户授权。
+3. 每种来源的 revision/freshness 判定方法与无法判定时的 unknown 规则。
+4. 至少 10 个正/负场景案例，覆盖 Packet 缺失、过期、远端不可用、dirty worktree、未跟踪文件、PR head 变化、CI queued、Evidence revision mismatch、未知 Schema 版本和权威来源冲突。
+5. 对只读边界进行逐项审查，确保恢复过程不会隐式写文件、改变 Git 状态、触发远端写 API 或运行有副作用的命令。
+6. 与 D1 Schema 的字段映射表；在 D1 冻结前，该映射只能标为 provisional，不得据此修改 0.1.0 Schema。
+
+D2 不以“能读出 Packet”作为验收。关键验收是：在来源过期、不可访问或互相矛盾时，客户端能否拒绝错误恢复，并给出一致、可解释的降级结果。
+
+### 13.10 D2 与后续阶段的边界
+
+- D1 Schema 0.1.0：当前仍待用户批准冻结；D2 不得把它描述为已冻结。
+- D2：本节只完成设计草案；待审查通过后，才可提出只读 Bootstrap/Freshness 的独立实现范围。
+- Validator / Fixture Runner：仍是单独交付提案；不能因 D2 定义了测试场景就提前实现或接入门禁。
+- D3 之后：具体阶段编号与顺序须在 D2 设计审查后复核；不得默认把概念设计直接转成实现承诺。
+- PR #10、main、项目版本和 tags 均不属于 D2 工作范围。
+
