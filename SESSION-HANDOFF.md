@@ -65,7 +65,8 @@
 - 完成任务引用 V 证据时要求结果为 pass；里程碑引用的 V 证据必须与里程碑交付 Commit SHA 一致。
 - task-context resolver 将 project-profile 从 unconditional read 移到 optional read，避免每个任务都加载画像。
 - `AGENTS.md` 的初始安装体积仅给项目自有规则留下 486B，低于 `test-init` 要求的 1024B；已移除与 `ROUTER.md` 重复的文档地图和与 README/DEPLOY 重复的 Hook 操作说明，精简后约 5.7KB，显著降低每轮 L0 上下文成本。
-- 复查发现 README 设计边界与 CLIENTS.md 仍把 `.memory/` 说成全局权威；已同步修正：各领域仓库文件为权威来源，客户端私有记忆只镜像 MEMORY §0 断点。
+- 复查发现 README 设计边界与 CLIENTS.md 仍把 `.memory/` 说成全局权威；已同步修正 README、CLIENTS、SPEC-v2.0 与 PROJECT-ADAPTATION：各领域仓库文件为权威来源，客户端私有记忆只镜像 MEMORY §0 断点。
+- PROJECT-ADAPTATION 的固定上下文清单也已与 resolver 一致：project-profile 由工具读取计算，Agent 只在需要时加载相关字段。
 - 第一次 CI 明确暴露上述 AGENTS 预算失败（Ubuntu 四个矩阵任务）；按测试定义压缩 L0 入口后，最新 head `079cb271cfa1863ce4e4c6c4a9dd20ef88abfbfc` 的 CI run `42954213177` 在 Ubuntu/Windows × Node 22/24 × Python 3.11/3.13 的 8 个 job 全部通过。
 - 本阶段代码与文档已写入 Draft PR #10，尚未合并；继续保持 PR #4–#10 的整体审查边界。
 

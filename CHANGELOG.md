@@ -4,7 +4,7 @@
 - Harden intent alignment: new task/milestone records carry creation dates so omission of the alignment mode cannot silently bypass review; completed tasks require passing V evidence, and milestone V records must match the declared delivery commit.
 - Keep project-profile details out of the unconditional task-context read set.
 - Slim the always-read AGENTS entry by removing duplicated document-map and hook instructions; route detailed navigation through ROUTER.md and deployment docs.
-- Align CLIENTS.md and README design boundaries with the domain-specific source-of-truth model; private client memory mirrors only the breakpoint, not all project state.
+- Align CLIENTS.md, README, SPEC-v2.0 and PROJECT-ADAPTATION docs with domain-specific sources of truth; private client memory mirrors only the breakpoint, not all project state, and project-profile is not a mandatory per-session read.
 
 ### Added
 - Add task-level intent alignment review: tracked work records its baseline/accepted-change anchors before implementation and compares actual diffs, commits and verification evidence before closeout. Unresolved drift cannot be marked done.

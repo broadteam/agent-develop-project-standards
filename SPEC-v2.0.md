@@ -46,7 +46,7 @@
 | 技术栈层 | 语言、框架、工具链约束 | `.spec/stacks/<stack>.md` |
 | 交付层 | 构建、验证、发布、回滚 | `.spec/03-delivery.md` |
 | 决策层 | 被采纳的架构取舍 | `.spec/adr/` |
-| 状态层 | 当前状态、任务、路线图、记忆 | `.memory/` 与 `.spec/tasks/`、`.spec/roadmap/` |
+| 状态层 | 跨会话断点/稳定事实、意图、需求、任务、路线图、验证 | `.memory/MEMORY.md`、`.spec/intent/`、`.spec/requirements/`、`.spec/tasks/`、`.spec/roadmap/`、`.spec/verification/` |
 
 **验收**：
 - 每类事实只有一个权威文件；README、ROUTER 和 AGENTS 不复制完整规则。
