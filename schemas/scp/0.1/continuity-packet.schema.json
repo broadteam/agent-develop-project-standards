@@ -16,7 +16,6 @@
     "work",
     "code",
     "checkpoint",
-    "handoff",
     "coordination",
     "provenance"
   ],
@@ -298,7 +297,6 @@
       "additionalProperties": false,
       "required": [
         "work_state",
-        "workspace_state",
         "verification_state",
         "review_state",
         "decisions"
@@ -310,13 +308,6 @@
             "in_progress",
             "blocked",
             "locally_complete"
-          ]
-        },
-        "workspace_state": {
-          "enum": [
-            "unknown",
-            "observed_clean",
-            "observed_dirty"
           ]
         },
         "verification_state": {
@@ -501,5 +492,82 @@
         }
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "packet_kind": {
+            "const": "handoff"
+          }
+        },
+        "required": [
+          "packet_kind"
+        ]
+      },
+      "then": {
+        "required": [
+          "handoff"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "checkpoint": {
+            "properties": {
+              "verification_state": {
+                "const": "passed"
+              }
+            },
+            "required": [
+              "verification_state"
+            ]
+          }
+        },
+        "required": [
+          "checkpoint"
+        ]
+      },
+      "then": {
+        "properties": {
+          "evidence_refs": {
+            "minItems": 1
+          }
+        },
+        "required": [
+          "evidence_refs"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "checkpoint": {
+            "properties": {
+              "review_state": {
+                "const": "reviewed"
+              }
+            },
+            "required": [
+              "review_state"
+            ]
+          }
+        },
+        "required": [
+          "checkpoint"
+        ]
+      },
+      "then": {
+        "properties": {
+          "evidence_refs": {
+            "minItems": 1
+          }
+        },
+        "required": [
+          "evidence_refs"
+        ]
+      }
+    }
+  ]
 }
