@@ -27,6 +27,7 @@
 ## State and authority boundaries
 
 - References point to existing authoritative files/records; packets do not replace them.
+- `coordination` is optional. Include it when real concurrent writing or explicit ownership boundaries matter; ordinary single-agent work must not be forced to create coordination metadata.
 - Missing optional capabilities are represented by omission, not by fabricated paths or placeholder records.
 - Dynamic Git/PR/CI state must be refreshed at consumption time. Packet values are last-known observations, not live truth.
 - `head_sha: null` is permitted only when the revision cannot be observed; the producer must pair it with an honest `worktree_state` and must not claim revision-bound verification.
