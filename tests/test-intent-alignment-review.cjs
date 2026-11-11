@@ -201,6 +201,21 @@ try {
 `);
   assertParity('aligned closeout with commit evidence');
 
+  // Done without a formal V record may use reproducible command evidence, but that result must pass.
+  base('done');
+  write('.spec/tasks/T1/card.md', read('.spec/tasks/T1/card.md') + `
+## 收口意图对齐
+
+- 结论：aligned
+- 计划与实际差异：无实质偏离
+- 偏离理由：无
+- 实现依据：${commit}
+- 验证证据：命令 npm test，结果 fail
+- 目标/需求影响：G001 / R001 目标和验收未改变
+- 未解决问题/后续动作：无
+`);
+  assertParity('done without V cannot use failing command evidence', ['没有 V 证据却标记 done；可复现验证结果必须明确为 pass/通过']);
+
 
   // A closeout V record must cover at least one of this task's requirements
   // and must have been run against the exact implementation commit being reviewed.
