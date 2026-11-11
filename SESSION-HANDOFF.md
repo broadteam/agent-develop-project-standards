@@ -360,3 +360,20 @@
 ### 下一步（唯一首选）
 
 继续第二轮 D2 语义审查，重点检查失败降级是否过度宽松、来源 revision 是否可实际判定、只读恢复的边界是否有遗漏；之后再决定是否进入 D2 设计冻结审查。D1 Schema 0.1.0 是否冻结仍需用户明确批准，不得因 D2 推进而默认冻结。
+
+### D2 第二轮语义审查补充（2026-11-12）
+
+- B0 项目识别已澄清：没有 Packet 或协议元数据的旧项目仍可从 AGENTS.md / MEMORY §0 恢复，不因未采用 SCP 而失败。
+- 将 Schema/协议兼容性与 freshness 分为独立检查轴；未知/不兼容版本标 unsupported/incompatible，不能伪装成 freshness=unknown 后忽略核心语义。
+- 明确 HEAD tracked blob 与工作区实际文件必须分别判断；相关 tracked path dirty 时不能因 HEAD blob 未变而宣称 current。
+- 对 untracked path 增加边界：没有可核验的路径身份和内容摘要时，不得判 current；Git tree SHA 不能代表完整 dirty/untracked worktree。
+- 保留两个实现前置问题：dirty/untracked 内容摘要的编码必须与最终 D1 Schema 对齐；多 remote/fork 需稳定 repository identity 或显式 upstream 映射。D1 未冻结前不增加字段、不修改 Schema 0.1.0。
+- 第二轮审查未发现需要改变 D0 语义或 D1 Schema 的问题；当前 D2 仍是设计草案，不是冻结规范或实现承诺。
+
+### PR #11 当前状态（第二轮 D2 设计提交）
+
+- D2 第二轮设计提交：7f02b631c19fe518a9709031603c656a8e42d2ee。
+- PR #11：Open + Draft，Base feat/governance-consistency-audit；现场查询时该 Head 对应 1 个 Check Suite / 8 个 check，全部 queued，尚无完成结论。
+- PR #10：Open + Draft，未修改。
+- main：02f8dde262455f15029a54694e129b05b70013a4，未修改。
+- 更新本 Handoff 会产生新的 PR #11 Head；新会话必须现场读取 PR head 与对应 CI，不沿用本节旧 SHA 的 CI 状态。
