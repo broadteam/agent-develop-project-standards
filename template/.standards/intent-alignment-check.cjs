@@ -83,8 +83,13 @@ function validateIntentAlignment(root) {
     taskRefs.set(taskId, taskRef);
 
     const mode = field(card, '意图对齐');
+    const createdAt = field(card, '创建日期');
     const status = taskStatuses.get(taskId);
-    if (!mode) continue; // Existing task cards opt in explicitly.
+    if (createdAt && !/^\d{4}-\d{2}-\d{2}$/.test(createdAt)) errors.push('意图对齐：任务 ' + taskId + ' 的创建日期格式必须为 YYYY-MM-DD');
+    if (!mode) {
+      if (createdAt) errors.push('意图对齐：新建任务 ' + taskId + ' 缺少意图对齐模式；新任务必须显式 required 或 not_applicable');
+      continue; // Legacy cards without a creation date remain compatible.
+    }
     if (!['required', 'not_applicable'].includes(mode)) {
       errors.push('意图对齐：任务 ' + taskId + ' 的意图对齐模式非法：' + mode);
       continue;
@@ -185,6 +190,7 @@ function validateIntentAlignment(root) {
         if (proofSha && record.commit.toLowerCase() !== proofSha) {
           errors.push('意图对齐：任务 ' + taskId + ' 的验证证据 ' + ref + ' 与收口 Commit SHA 不一致');
         }
+        if (status === 'done' && record.result !== 'pass') errors.push('意图对齐：任务 ' + taskId + ' 标记 done，但验证证据 ' + ref + ' 不是 pass');
       }
     }
     if (outcome === 'justified_adjustment' && (!reason || reason === '无' || reason === '—')) {
@@ -212,6 +218,11 @@ function validateIntentAlignment(root) {
     if (!detail || /示例里程碑/.test(detail.split('\n')[0])) continue;
     const goalsIn = refs(field(detail, '目标'), /G\d+/g);
     const reqsIn = refs(field(detail, '需求'), /R\d+/g);
+    const mode = field(detail, '意图对齐');
+    const createdAt = field(detail, '创建日期');
+    if (createdAt && !/^\d{4}-\d{2}-\d{2}$/.test(createdAt)) errors.push('意图对齐：里程碑 ' + milestoneId + ' 的创建日期格式必须为 YYYY-MM-DD');
+    if (createdAt && !mode) errors.push('意图对齐：新建里程碑 ' + milestoneId + ' 缺少意图对齐模式；新里程碑必须显式 required 或 not_applicable');
+    if (mode && !['required', 'not_applicable'].includes(mode)) errors.push('意图对齐：里程碑 ' + milestoneId + ' 的意图对齐模式非法：' + mode);
     milestoneRefs.set(milestoneId, { goals: goalsIn, reqs: reqsIn });
     for (const ref of goalsIn) {
       if (!goals.has(ref)) errors.push('追踪关系：里程碑 ' + milestoneId + ' 引用了不存在的目标 ' + ref);
@@ -277,13 +288,16 @@ function validateIntentAlignment(root) {
       errors.push('意图对齐：里程碑 ' + milestoneId + ' 仍有未解决漂移，不能标记已完成');
     }
     const deliveryShaMatch = deliveryProof.match(/\b[a-f0-9]{40}\b/i);
+    const deliverySha = deliveryShaMatch ? deliveryShaMatch[0].toLowerCase() : '';
     if (!deliveryShaMatch && !/^no-code[:：]\s*.+/i.test(deliveryProof)) {
       errors.push('意图对齐：已完成里程碑 ' + milestoneId + ' 的实际交付与依据必须包含完整 Commit SHA 或 no-code 原因');
     }
     const coverageVs = refs(coverage, /V\d+/g);
     const coverageCs = refs(coverage, /C\d+/g);
     for (const ref of coverageVs) {
-      if (!evidenceRecords.has(ref)) errors.push('意图对齐：里程碑 ' + milestoneId + ' 引用了不存在的验证证据 ' + ref);
+      const record = evidenceRecords.get(ref);
+      if (!record) errors.push('意图对齐：里程碑 ' + milestoneId + ' 引用了不存在的验证证据 ' + ref);
+      else if (deliverySha && record.commit.toLowerCase() !== deliverySha) errors.push('意图对齐：里程碑 ' + milestoneId + ' 的验证证据 ' + ref + ' 与里程碑交付 Commit SHA 不一致');
     }
     for (const ref of coverageCs) {
       if (changeStatuses.get(ref) !== 'accepted') errors.push('意图对齐：里程碑 ' + milestoneId + ' 引用了非 accepted 变更 ' + ref);

@@ -107,9 +107,14 @@ def validate_intent_alignment(root: Path) -> list[str]:
         }
         task_refs[task_id] = task_ref
         mode = field(card, "意图对齐")
+        created_at = field(card, "创建日期")
         status = task_statuses[task_id]
+        if created_at and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", created_at):
+            errors.append(f"意图对齐：任务 {task_id} 的创建日期格式必须为 YYYY-MM-DD")
         if not mode:
-            continue
+            if created_at:
+                errors.append(f"意图对齐：新建任务 {task_id} 缺少意图对齐模式；新任务必须显式 required 或 not_applicable")
+            continue  # Legacy cards without a creation date remain compatible.
         if mode not in {"required", "not_applicable"}:
             errors.append(f"意图对齐：任务 {task_id} 的意图对齐模式非法：{mode}")
             continue
@@ -192,6 +197,8 @@ def validate_intent_alignment(root: Path) -> list[str]:
                     errors.append(f"意图对齐：任务 {task_id} 的验证证据 {ref} 未覆盖该任务关联需求")
                 if proof_sha and record["commit"].lower() != proof_sha:
                     errors.append(f"意图对齐：任务 {task_id} 的验证证据 {ref} 与收口 Commit SHA 不一致")
+                if status == "done" and record["result"] != "pass":
+                    errors.append(f"意图对齐：任务 {task_id} 标记 done，但验证证据 {ref} 不是 pass")
         if outcome == "justified_adjustment" and (not reason or reason in {"无", "—"}):
             errors.append(f"意图对齐：任务 {task_id} 的 justified_adjustment 必须说明偏离理由")
         if outcome == "user_confirmed_change" and not confirmed_changes:
@@ -212,6 +219,14 @@ def validate_intent_alignment(root: Path) -> list[str]:
             continue
         goals_in = refs(field(detail, "目标"), r"G\d+")
         reqs_in = refs(field(detail, "需求"), r"R\d+")
+        mode = field(detail, "意图对齐")
+        created_at = field(detail, "创建日期")
+        if created_at and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", created_at):
+            errors.append(f"意图对齐：里程碑 {milestone_id} 的创建日期格式必须为 YYYY-MM-DD")
+        if created_at and not mode:
+            errors.append(f"意图对齐：新建里程碑 {milestone_id} 缺少意图对齐模式；新里程碑必须显式 required 或 not_applicable")
+        if mode and mode not in {"required", "not_applicable"}:
+            errors.append(f"意图对齐：里程碑 {milestone_id} 的意图对齐模式非法：{mode}")
         milestone_refs[milestone_id] = {"goals": goals_in, "reqs": reqs_in}
         for ref in goals_in:
             if ref not in goals:
@@ -270,13 +285,17 @@ def validate_intent_alignment(root: Path) -> list[str]:
         if unresolved and unresolved.lower() not in {"无", "—", "none"}:
             errors.append(f"意图对齐：里程碑 {milestone_id} 仍有未解决漂移，不能标记已完成")
         delivery_sha_match = re.search(r"\b[a-f0-9]{40}\b", delivery_proof, re.I)
+        delivery_sha = delivery_sha_match.group(0).lower() if delivery_sha_match else ''
         if not delivery_sha_match and not re.match(r"no-code[:：]\s*.+", delivery_proof, re.I):
             errors.append(f"意图对齐：已完成里程碑 {milestone_id} 的实际交付与依据必须包含完整 Commit SHA 或 no-code 原因")
         coverage_vs = refs(coverage, r"V\d+")
         coverage_cs = refs(coverage, r"C\d+")
         for ref in coverage_vs:
-            if ref not in evidence_records:
+            record = evidence_records.get(ref)
+            if not record:
                 errors.append(f"意图对齐：里程碑 {milestone_id} 引用了不存在的验证证据 {ref}")
+            elif delivery_sha and record["commit"].lower() != delivery_sha:
+                errors.append(f"意图对齐：里程碑 {milestone_id} 的验证证据 {ref} 与里程碑交付 Commit SHA 不一致")
         for ref in coverage_cs:
             if change_statuses.get(ref) != "accepted":
                 errors.append(f"意图对齐：里程碑 {milestone_id} 引用了非 accepted 变更 {ref}")

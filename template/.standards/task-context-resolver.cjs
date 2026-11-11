@@ -95,7 +95,7 @@ function resolveTaskContext(input, options = {}) {
   add(alwaysRead, '.memory/MEMORY.md', '跨会话断点', '§0');
   const profileStatus = profile.profile?.status ?? 'needs_review';
   const profileFields = ['profile.status', 'stack.primary', 'stack.detected', 'capabilities'];
-  add(alwaysRead, 'project-profile.toml', '只读取当前任务相关的画像字段：' + profileFields.join('、'));
+  add(optionalRead, 'project-profile.toml', '仅在需要核实能力开关、技术栈候选或验证命令时读取：' + profileFields.join('、'));
 
   const signals = new Set();
   if (task.cross_session) signals.add('cross_session');

@@ -48,6 +48,8 @@ try {
   const smallRequired = small.requiredRead.map((x) => x.path);
   assert.ok(small.alwaysRead.some((x) => x.path === 'AGENTS.md'));
   assert.ok(small.alwaysRead.some((x) => x.path === '.memory/MEMORY.md' && x.section === '§0'));
+  assert.ok(!small.alwaysRead.some((x) => x.path === 'project-profile.toml'), 'project profile is not part of every session baseline');
+  assert.ok(small.optionalRead.some((x) => x.path === 'project-profile.toml'), 'profile details are available on demand');
   assert.ok(smallRequired.includes('.spec/02-conventions.md'));
   assert.ok(smallRequired.includes('.spec/stacks/php.md'));
   assert.ok(!smallRequired.includes('.spec/tasks/index.md'));

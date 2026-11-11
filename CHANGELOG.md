@@ -1,5 +1,9 @@
 ## Unreleased
 
+- Clarify domain-specific sources of truth: MEMORY is a compact cross-session breakpoint, not a global state registry.
+- Harden intent alignment: new task/milestone records carry creation dates so omission of the alignment mode cannot silently bypass review; completed tasks require passing V evidence, and milestone V records must match the declared delivery commit.
+- Keep project-profile details out of the unconditional task-context read set.
+
 ### Added
 - Add task-level intent alignment review: tracked work records its baseline/accepted-change anchors before implementation and compares actual diffs, commits and verification evidence before closeout. Unresolved drift cannot be marked done.
 - Add separate Node/Python `intent-alignment-check` modules, invoked by the existing traceability gates; enforce task kickoff/closeout anchors, accepted change references, task evidence coverage/commit matching, and completed-milestone closure gates. Legacy tasks/milestones without explicit opt-in remain compatible.

@@ -88,6 +88,7 @@ function base(status = 'in_progress') {
 `);
   write('.spec/tasks/T1/card.md', `# T1 Implement device creation and query
 
+- 创建日期：2026-11-11
 - 关联目标：G001
 - 关联需求：R001
 - 关联变更：C001
@@ -313,6 +314,7 @@ try {
 `);
     write('.spec/roadmap/M1/milestone.md', `# M1 Device onboarding
 
+- 创建日期：2026-11-11
 - 意图对齐：required
 - 目标：G001
 - 需求：R001
@@ -354,10 +356,31 @@ try {
   assertParity('completed milestone cannot hide unfinished requirement', ['需求 R001 尚未 verified 或经用户确认暂缓/撤回']);
 
 
+  // New task records cannot bypass alignment by deleting only the mode field.
+  base('in_progress');
+  write('.spec/tasks/T1/card.md', read('.spec/tasks/T1/card.md').replace('- 意图对齐：required\n', ''));
+  assertParity('new task missing alignment mode', ['新建任务 T1 缺少意图对齐模式']);
+
+  // A done task cannot use partial/failing V evidence as successful closeout proof.
+  base('done');
+  write('.spec/verification/INDEX.md', '# Verification\n\n| ID | 覆盖需求 | 验证类型 | 结果 | 证据位置 |\n|---|---|---|---|---|\n| V001 | R001 | CI | partial | https://github.com/example/run/3 |\n\n### V001 — partial verification\n\n- 日期：2026-11-11\n- 覆盖需求：R001\n- 验证类型：CI\n- 结果：partial\n- Commit：' + commit + '\n- 执行环境：Ubuntu\n- 命令/步骤：npm test\n- 证据：https://github.com/example/run/3\n- 判定：部分场景通过\n- 限制：仍有未覆盖场景\n');
+  write('.spec/tasks/T1/card.md', read('.spec/tasks/T1/card.md') + '\n## 收口意图对齐\n\n- 结论：aligned\n- 计划与实际差异：无实质偏离\n- 偏离理由：无\n- 实现依据：' + commit + '\n- 验证证据：V001\n- 目标/需求影响：G001 / R001 保持一致\n- 未解决问题/后续动作：无\n');
+  assertParity('done task requires pass verification', ['标记 done，但验证证据 V001 不是 pass']);
+
+  // Milestone evidence must be bound to the exact delivery commit.
+  completedMilestone();
+  write('.spec/verification/INDEX.md', read('.spec/verification/INDEX.md').replace(commit, 'd'.repeat(40)));
+  assertParity('milestone evidence commit must match delivery', ['与里程碑交付 Commit SHA 不一致']);
+
+  // New milestones cannot bypass alignment by deleting only the mode field.
+  completedMilestone();
+  write('.spec/roadmap/M1/milestone.md', read('.spec/roadmap/M1/milestone.md').replace('- 意图对齐：required\n', ''));
+  assertParity('new milestone missing alignment mode', ['新建里程碑 M1 缺少意图对齐模式']);
   // Legacy task cards without an explicit opt-in stay backward compatible.
   base('done');
   write('.spec/tasks/T1/card.md', read('.spec/tasks/T1/card.md')
     .replace('- 意图对齐：required\n', '')
+    .replace('- 创建日期：2026-11-11\n', '')
     .replace(/\n## 开工意图对齐[\s\S]*$/, '\n'));
   assertParity('legacy task card without explicit alignment mode');
 
@@ -365,6 +388,7 @@ try {
   completedMilestone();
   write('.spec/roadmap/M1/milestone.md', read('.spec/roadmap/M1/milestone.md')
     .replace('- 意图对齐：required\n', '')
+    .replace('- 创建日期：2026-11-11\n', '')
     .replace(/\n## 里程碑意图对齐回顾[\s\S]*$/, '\n'));
   assertParity('legacy completed milestone without explicit alignment mode');
 
