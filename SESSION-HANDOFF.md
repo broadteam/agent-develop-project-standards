@@ -92,21 +92,21 @@
 ### PR #10 最新功能验证基线
 
 - 分支：`feat/governance-consistency-audit`。
-- 最新已验证功能提交：`0de4d92b686afb7b704aa96ab4c2668fee54fd75`。
+- 最新已验证功能/测试提交：`89202a95573b773a72581dea04ce536f7273bff2`。
 - Base：PR #9 的 `feat/intent-alignment-review`，Base SHA `c98c99a9f39693f893300e990cd6770064438e42`。
-- 功能提交时 PR #10 为 Open + Draft，27 个提交、32 个变更文件；未合并。
-- Push Actions run `43051975761`：8/8 Ubuntu/Windows × Node 22/24 × Python 3.11/3.13 全部通过。
-- Pull Request Actions run `43051986512`：同一矩阵 8/8 全部通过。
-- 两个 CI 结果严格绑定 `0de4d92...`。本次 Handoff 文档更新发生在该功能提交之后，属于文档变更；新会话仍须现场核对它产生的实际 HEAD 与 CI，不能把上述结果自动转移到后续提交。
+- 该提交时 PR #10 为 Open + Draft，31 个提交、32 个变更文件；未合并。
+- Push Actions run `43053046822`：8/8 Ubuntu/Windows × Node 22/24 × Python 3.11/3.13 全部通过。
+- Pull Request Actions run `43053057538`：同一矩阵 8/8 全部通过。
+- 两个 CI 结果严格绑定 `89202a9...`。本次 Handoff 文档刷新是其后的独立文档提交，必须单独核验新 HEAD 对应的 CI，不能把上述结果自动转移到 Handoff-only 提交。
 - `main` 仍为 `02f8dde262455f15029a54694e129b05b70013a4`；本轮未修改 main。PR #3–#10 的状态与依赖关系均需新会话现场复核。
 
 ### 尚未完成
 
 - 第一优先级：能力开关交叉审查的代表性组合、初始化器裁剪、Node/Python 可选门禁行为和文档语义已完成一轮修复并通过 CI。已明确 `auto` 是任务级规则加载策略，不代表轻量任务强制建卡；静态检查仍校验实际存在的可选索引/记录。当前 fixture 覆盖关键组合，但不声称穷尽所有可能配置组合。
-- 第二优先级（进行中）：规则重复与冲突审查已发现并修正两处遗漏：
+- 第二优先级（进行中）：规则重复与冲突审查已发现并修正三处遗漏：
   1. `template/.memory/MEMORY.md` 原先无条件将任务目录列为权威源；现已明确任务/里程碑/ADR 的权威路径仅在对应能力启用时成立，§0 的 T 锚点和 log 指引也按 task_tracking 条件化。
   2. `PROJECT-ADAPTATION-v2.0.md` 要求关闭 `module_boundaries` 后仍保留基础架构事实，但 `template/.spec/01-architecture.md` 曾把基础依赖方向原则一并裁剪；现将核心单向依赖原则保留，模块依赖矩阵和专项门禁仍受开关控制。AGENTS 的权威来源摘要也已补入独立的 roadmap 条件。
-  3. 关闭 `adr` 且关闭 `task_tracking` 时，决策记录不能再只指向任务/PR 审查记录；现统一为 `.spec/01-architecture.md` 或 PR 审查记录，并在 all-off fixture 中验证。
+  3. 关闭 `adr` 且关闭 `task_tracking` 时，决策记录不能再只指向可能不存在的任务记录；Constitution、AGENTS、MEMORY 与 PROJECT-ADAPTATION 现统一指向 `.spec/01-architecture.md` 或 PR 审查记录，并在 all-off fixture 中验证。
 - README 的意图对齐章节前后分别承担使用概览和检查器/验收细节，当前属于摘要与详细说明的分层，不应为去重而删除必要的下游实现说明；后续继续检查其他真正的重复定义和优先级冲突。
 - 第三阶段：四类任务上下文成本审查（轻量维护、普通跟踪、跨会话持续开发、高风险架构/数据变更），量化必须/可选读取集与预算。
 - 第四阶段：升级兼容性审查，覆盖空项目初始化、已有项目升级、旧记录兼容、能力开关变更和人工存档恢复。
