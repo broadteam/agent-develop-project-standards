@@ -205,3 +205,11 @@
 - 当前仅为 Proposal；尚未冻结 schema、实施 validator、增加强制门禁或要求现有项目迁移。
 - 需要用户审查的四项决策：Packet 持久化频率、初版 lease 强度、JSON/YAML/Markdown 表示策略、客户端互操作验收深度。
 - 下一步：完成文档内部一致性检查与链接/术语检查，提交独立 Draft PR；随后先冻结 D0 协议语义，不直接跳入代码实现。
+
+
+### PR #11 创建记录
+
+- 独立 Draft PR #11：`https://github.com/broadteam/agent-develop-project-standards/pull/11`。
+- Head 分支：`design/session-continuity-protocol`；Base：`feat/governance-consistency-audit`，Base SHA 为 PR #10 已通过 16/16 CI 的 `88c342536b7d421aafd0b313e07c6f2b1849eab0`。
+- PR #11 当前只包含协议设计提案与本交接文档，不改 PR #10 或 main。
+- 本记录提交前，PR #11 对应的 Push CI 正在运行；最终结论必须绑定 PR #11 最新 Head，不能用 PR #10 的 CI 结果代替。
