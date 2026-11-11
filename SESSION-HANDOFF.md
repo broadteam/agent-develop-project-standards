@@ -184,3 +184,24 @@
 1. 现场读取 PR #10 最新 Head，确认本 Handoff 提交后的 Push 与 PR CI 均 8/8 成功。
 2. 若 CI 通过，结束本轮 3.0 一致性/兼容性审查并向用户提交最终审查摘要；PR 仍保持 Draft，等待用户决定是否标记 Ready。
 3. Session Continuity Protocol 七方向进入下一独立设计阶段，不混入本轮 PR #10。
+
+
+## 最新状态补充（2026-11-12，覆盖此前 PR #10 CI 待验证记录）
+
+### 3.0 阶段正式结项
+
+- PR #10 最新 Head：`88c342536b7d421aafd0b313e07c6f2b1849eab0`。
+- Push run `43079739753` 与 Pull Request run `43079746681` 均完成成功；每个 workflow 8/8，合计 16/16 检查通过。
+- 当前 PR #10：Open + Draft；Base `feat/intent-alignment-review`，Head `feat/governance-consistency-audit`。不合并、不修改 main、不 bump 版本、不打 tag。
+- 现场核对 PR #3–#10：全部 Open + Draft，堆叠依赖链连续；main SHA 仍为 `02f8dde262455f15029a54694e129b05b70013a4`。
+- 3.0 一致性与兼容性审查正式结项。之前记录中“CI 尚待验证”的描述仅保留历史背景，以本节最终结果为准。
+
+### Session Continuity Protocol 设计阶段启动
+
+- 新建独立分支：`design/session-continuity-protocol`，起点为 PR #10 已验证 Head `88c342536b7d421aafd0b313e07c6f2b1849eab0`；不修改 PR #10 分支。
+- 新增提案：`SESSION-CONTINUITY-PROTOCOL-DESIGN.md`，提交 `837b3d16db969dcbfb049219672a60ca71b537cf`。
+- 提案覆盖七个协议域：Bootstrap、Context Freshness、Intent Continuity、Checkpoint、Concurrency Control、Handoff、Evidence Provenance；定义权威来源、Continuity Packet、状态维度、生命周期、失败路径、Non-goals 和分阶段落地路线。
+- 设计坚持不新增第二套任务/需求/意图事实源；handoff 与 packet 仅保存引用、快照元数据和恢复断点。客户端私有记忆与聊天历史不作为权威来源。
+- 当前仅为 Proposal；尚未冻结 schema、实施 validator、增加强制门禁或要求现有项目迁移。
+- 需要用户审查的四项决策：Packet 持久化频率、初版 lease 强度、JSON/YAML/Markdown 表示策略、客户端互操作验收深度。
+- 下一步：完成文档内部一致性检查与链接/术语检查，提交独立 Draft PR；随后先冻结 D0 协议语义，不直接跳入代码实现。
