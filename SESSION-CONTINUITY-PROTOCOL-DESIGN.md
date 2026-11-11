@@ -150,7 +150,7 @@ Checkpoint 最小字段：
 
 - 文件系统中可观察到的改动不等于已提交；提交不等于验证；验证通过不等于用户验收。
 - 通用 Agent 通常无法观察 IDE/编辑器内尚未写入文件系统的缓冲区；除非客户端提供可验证的编辑器状态接口，否则该部分必须标为不可观察/unknown，不得声称已保存或未保存。
-- 若工作树 dirty，必须明确交接可观察到的未提交变更路径、归属与处理方式。
+- 若工作树 dirty，必须明确交接可观察到的未提交变更路径、归属与处理方式；D1 Schema 要求 `observed_dirty` 至少列出一个 `uncommitted_paths`。若无法观察 HEAD，则 worktree 状态必须为 `unknown`。
 - 不自动 stash、commit、reset 或清理未跟踪文件。
 - 新 commit 或相关文件变更会使旧验证/审查证据重新评估 freshness，相关 subject 已变化时标为 stale，除非证据明确覆盖新版本。
 
