@@ -211,7 +211,7 @@ Checkpoint 最小字段：
 
 - CI 证据必须绑定实际 workflow run 的 head SHA；仅有绿色徽标或旧 run 不够。
 - 本地测试必须记录执行命令、退出码和代码版本；没有 commit 时需说明工作树状态。
-- 人工审查必须说明审查对象和范围，不能泛写“已检查”。
+- 人工审查必须说明审查对象和范围，不能泛写“已检查”；reviewer 必须可识别，结果与 observed_at 必须明确，提交变化后按 revision 判断 stale。
 - 用户确认必须能追溯到明确用户表达；Agent 自己总结不能代替。
 - 证据只对其 subject、revision 和 scope 有效；代码变化后需要重新判断是否仍有效。
 - 证据缺失时明确标记 unknown/not_run，不允许补造。
