@@ -610,6 +610,24 @@ D2 不以“能读出 Packet”作为验收。关键验收是：在来源过期�
 
 
 
+### 13.11 第二轮内部审查：状态轴与工作区边界
+
+第二轮审查聚焦 D2 的可判定性，补充以下约束：
+
+1. **无 Packet 不等于无协议恢复能力**：B0 仅在 Packet/协议元数据存在时检查其协议标识；没有 Packet 的旧项目仍从 AGENTS.md 与项目既有断点入口恢复，不因尚未采用 SCP 而失败。
+2. **协议兼容性与 freshness 分轴**：Schema 不兼容属于 unsupported/incompatible，不是 freshness=unknown。客户端不得把未知核心字段“忽略后继续”，也不得把协议不兼容伪装成普通过期。
+3. **HEAD 与工作区内容分开判定**：HEAD 中 tracked blob 未变，不代表工作区文件未变。相关 tracked path dirty 时必须标 stale；若 Packet 声称覆盖 dirty 内容，则必须有可核验的文件路径范围与内容摘要，否则只能确认 HEAD，不能确认工作区快照。
+4. **Untracked 路径的证据边界**：路径存在不等于内容与 Packet 生成时一致；没有可核验内容摘要时，不得将其 freshness 判为 current。
+5. **恢复兼容旧项目**：项目没有 SCP Packet、协议元数据或可选治理能力时，Bootstrap 继续沿用既有入口和能力开关，不创建替代记录，不把缺省误判为损坏。
+
+当前仍保留为后续实现前置设计细节的项目：
+- Packet 对 dirty/untracked 文件摘要的具体编码，必须与最终获批准的 D1 Schema 对齐；在 D1 未冻结前不新增字段或修改 0.1.0。
+- 外部系统若无稳定 revision/etag，只能给出 unknown；不得用时间戳单独推导 current。
+- 多 remote/fork 场景需以仓库平台的稳定 repository identity 或显式 upstream 映射区分 canonical repository 与工作 fork；仅凭 remote 名称不能认定项目身份。
+
+**第二轮审查结论：** 上述修订后，D2 的状态轴、旧项目兼容性和工作区 freshness 边界更加明确；未发现需要改变 D0 语义或 D1 Schema 的问题。dirty/untracked 摘要编码与多 remote identity 保留为 D2 实施前需与客户端能力一起验证的边界，不在本轮擅自扩展机器契约。
+
+
 ### 13.12 D2 场景契约矩阵（跨客户端一致性基准）
 
 本矩阵定义的是设计验收用例，不是已实现的 Fixture，也不授权在本 PR 中实现测试运行器。每个客户端对同一输入、同一权威来源快照和同一权限配置，应得到相同的规范化状态与允许/禁止行为。客户端可以使用不同 UI 文案，但不能改变下列语义。
@@ -683,22 +701,6 @@ D2 设计评审通过后，后续独立实现提案应将上述场景转成机�
 
 本轮不创建 fixture 文件、不实现 runner、不接入 CI。场景矩阵是下一阶段实现提案的验收依据，不是已经执行的测试结果。
 
-### 13.11 第二轮内部审查：状态轴与工作区边界
-
-第二轮审查聚焦 D2 的可判定性，补充以下约束：
-
-1. **无 Packet 不等于无协议恢复能力**：B0 仅在 Packet/协议元数据存在时检查其协议标识；没有 Packet 的旧项目仍从 AGENTS.md 与项目既有断点入口恢复，不因尚未采用 SCP 而失败。
-2. **协议兼容性与 freshness 分轴**：Schema 不兼容属于 unsupported/incompatible，不是 freshness=unknown。客户端不得把未知核心字段“忽略后继续”，也不得把协议不兼容伪装成普通过期。
-3. **HEAD 与工作区内容分开判定**：HEAD 中 tracked blob 未变，不代表工作区文件未变。相关 tracked path dirty 时必须标 stale；若 Packet 声称覆盖 dirty 内容，则必须有可核验的文件路径范围与内容摘要，否则只能确认 HEAD，不能确认工作区快照。
-4. **Untracked 路径的证据边界**：路径存在不等于内容与 Packet 生成时一致；没有可核验内容摘要时，不得将其 freshness 判为 current。
-5. **恢复兼容旧项目**：项目没有 SCP Packet、协议元数据或可选治理能力时，Bootstrap 继续沿用既有入口和能力开关，不创建替代记录，不把缺省误判为损坏。
-
-当前仍保留为后续实现前置设计细节的项目：
-- Packet 对 dirty/untracked 文件摘要的具体编码，必须与最终获批准的 D1 Schema 对齐；在 D1 未冻结前不新增字段或修改 0.1.0。
-- 外部系统若无稳定 revision/etag，只能给出 unknown；不得用时间戳单独推导 current。
-- 多 remote/fork 场景需以仓库平台的稳定 repository identity 或显式 upstream 映射区分 canonical repository 与工作 fork；仅凭 remote 名称不能认定项目身份。
-
-**第二轮审查结论：** 上述修订后，D2 的状态轴、旧项目兼容性和工作区 freshness 边界更加明确；未发现需要改变 D0 语义或 D1 Schema 的问题。dirty/untracked 摘要编码与多 remote identity 保留为 D2 实施前需与客户端能力一起验证的边界，不在本轮擅自扩展机器契约。
 
 ### 13.13 Bootstrap 状态转移与判定顺序（规范化伪流程）
 
