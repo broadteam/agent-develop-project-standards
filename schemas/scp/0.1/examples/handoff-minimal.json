@@ -24,7 +24,8 @@
     "branch": "design/session-continuity-protocol",
     "head_sha": null,
     "worktree_state": "unknown",
-    "uncommitted_paths": []
+    "uncommitted_paths": [],
+    "observed_at": "2026-11-12T00:00:00Z"
   },
   "checkpoint": {
     "work_state": "in_progress",
@@ -63,7 +64,8 @@
       {
         "source_ref": "SESSION-CONTINUITY-PROTOCOL-DESIGN.md",
         "revision": "D1-draft",
-        "freshness": "current"
+        "freshness": "current",
+        "observed_at": "2026-11-12T00:00:00Z"
       }
     ]
   }
