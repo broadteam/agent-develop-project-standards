@@ -47,6 +47,9 @@ for (const file of markdown) {
 
 // The README directory tree is the repository map. It drifted once already, so it is
 // checked instead of trusted: every leaf must resolve to a real path.
+const changelog = fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8');
+assert.equal((changelog.match(/^## Unreleased$/gm) ?? []).length, 1, 'CHANGELOG must contain exactly one Unreleased section');
+
 const readme = path.join(root, 'README.md');
 const treeMatch = fs.readFileSync(readme, 'utf8').match(/```text\r?\n(project-standards\/[\s\S]*?)```/);
 assert.ok(treeMatch, 'README.md 缺少 project-standards/ 目录树代码块');
