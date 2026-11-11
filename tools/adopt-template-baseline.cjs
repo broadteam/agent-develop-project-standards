@@ -65,6 +65,13 @@ function readVersion(standardsRoot) {
 function buildBaseline({ projectRoot, standardsRoot }) {
   const root = path.resolve(projectRoot);
   const sourceRoot = path.resolve(standardsRoot);
+  const rootStat = fs.lstatSync(root);
+  const sourceStat = fs.lstatSync(sourceRoot);
+  const templateRoot = path.join(sourceRoot, 'template');
+  const templateStat = fs.lstatSync(templateRoot);
+  if (rootStat.isSymbolicLink() || !rootStat.isDirectory()) throw new Error('项目根目录必须是真实目录');
+  if (sourceStat.isSymbolicLink() || !sourceStat.isDirectory()) throw new Error('规范仓库根目录必须是真实目录');
+  if (templateStat.isSymbolicLink() || !templateStat.isDirectory()) throw new Error('template 必须是真实目录');
   const markerPath = path.join(root, MARKER);
   const prior = hashRegularFile(markerPath);
   let previous = null;
@@ -118,7 +125,12 @@ function buildBaseline({ projectRoot, standardsRoot }) {
 
   // Optional stack presets live outside template/ but are installed into .spec/stacks/.
   const presetsRoot = path.join(sourceRoot, 'presets/stacks');
-  if (fs.existsSync(presetsRoot)) {
+  let presetsStat = null;
+  try { presetsStat = fs.lstatSync(presetsRoot); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  if (presetsStat && (presetsStat.isSymbolicLink() || !presetsStat.isDirectory())) {
+    throw new Error('presets/stacks 必须是真实目录');
+  }
+  if (presetsStat) {
     for (const name of fs.readdirSync(presetsRoot).sort()) {
       if (!name.endsWith('.md')) continue;
       const targetRel = '.spec/stacks/' + name;
@@ -192,6 +204,7 @@ function buildBaseline({ projectRoot, standardsRoot }) {
     remaining_preserved: remainingPreserved,
     source_inventory_sha256: sourceInventory.sha256,
     review_snapshot_sha256: snapshotSha256,
+    manifest_mode: prior?.mode ?? null,
     plan_id: snapshotSha256.slice(0, 16)
   };
 }
