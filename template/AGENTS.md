@@ -97,22 +97,9 @@
 
 ---
 
-## 2. 文档地图
+## 2. 文档路由
 
-| 位置 | 内容 |
-|---|---|
-| `.spec/00-constitution.md` | 红线（不可协商的技术约束） |
-| `.spec/01-architecture.md` | 架构、目录职责、数据位置 |
-| `.spec/02-conventions.md` | 命名、提交信息、文案纪律 |
-| `.spec/stacks/<stack>.md` | 当前技术栈专属约定（按任务读） |
-| `.spec/03-delivery.md` | 构建、产物路径、发布检查 |
-| `.spec/REGISTRY.md` | 标识符唯一登记处 |
-| `.spec/adr/` | 架构决策记录（推翻既有设计时必写） |
-| `.spec/tasks/` | `index.md` 唯一状态源；`<ID>/card.md` 背景/范围/验收，`<ID>/log.md` 流水；`archive/` 默认不读 |
-| `.spec/roadmap/` | `INDEX.md` 里程碑索引；`<ID>/milestone.md` 详情 |
-| `.memory/` | `MEMORY.md` 跨会话记忆；`PITFALLS.md` 判据实证；`log/` 每日收口 |
-
-按「要做什么」定位文件看 `ROUTER.md`；各文件体积上限见 `gov.toml [budget]`。
+按任务定位权威文件使用 `ROUTER.md`；文件预算见 `gov.toml [budget]`。不要在本文件复制目录清单。
 
 ---
 
@@ -191,15 +178,4 @@ node .standards/check-governance.cjs
 git config core.hooksPath .githooks
 ```
 
-**pre-commit 钩子**会跑治理检查，不通过直接拦下。确属误判时改 `gov.toml [dirs]`，不要用 `--no-verify` 绕。
-
-**通用 Hook 与项目检查分离**：项目专属检查写入 `.githooks/pre-commit.local`，不要直接修改通用 `pre-commit`。
-模板不知道你项目的类型检查 / lint / 测试命令，所以 `pre-commit` 默认只跑治理检查。
-铺完之后复制 `.githooks/pre-commit.local.example` 为 `.githooks/pre-commit.local`，启用本项目检查：
-
-```sh
-cp .githooks/pre-commit.local.example .githooks/pre-commit.local
-# 编辑 pre-commit.local，取消注释并替换成项目真实命令
-```
-
-**模板不会声称项目测试已通过**：未配置的项目检查不会被假装执行。每个项目应在钩子或 CI 中明确配置构建、lint、类型检查和测试命令。
+**提交闸门**：`pre-commit` 执行通用治理检查；项目专属 lint、类型检查和测试配置在 `.githooks/pre-commit.local`，模板见 `.githooks/pre-commit.local.example`。未配置的检查不视为通过。完整铺设说明见仓库 README / DEPLOY 文档。

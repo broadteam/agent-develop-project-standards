@@ -64,7 +64,9 @@
 - 新任务/里程碑仅靠 `意图对齐` 字段 opt-in，删除字段即可绕过；新模板增加创建日期，校验器据此识别新记录，同时保留没有日期/模式的旧记录兼容。
 - 完成任务引用 V 证据时要求结果为 pass；里程碑引用的 V 证据必须与里程碑交付 Commit SHA 一致。
 - task-context resolver 将 project-profile 从 unconditional read 移到 optional read，避免每个任务都加载画像。
-- 本阶段代码与文档已写入 `feat/governance-consistency-audit`，尚待提交、CI 和 PR 审查。
+- `AGENTS.md` 的初始安装体积仅给项目自有规则留下 486B，低于 `test-init` 要求的 1024B；已移除与 `ROUTER.md` 重复的文档地图和与 README/DEPLOY 重复的 Hook 操作说明，精简后约 5.7KB，显著降低每轮 L0 上下文成本。
+- 第一次 CI 明确暴露上述 AGENTS 预算失败（Ubuntu 四个矩阵任务）；Windows 任务通过。已按测试定义压缩 L0 入口，下一提交重新跑完整矩阵。
+- 本阶段代码与文档已写入 `feat/governance-consistency-audit`，等待最终 CI 和 PR 审查。
 
 ## 工程边界
 

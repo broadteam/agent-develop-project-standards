@@ -3,6 +3,7 @@
 - Clarify domain-specific sources of truth: MEMORY is a compact cross-session breakpoint, not a global state registry.
 - Harden intent alignment: new task/milestone records carry creation dates so omission of the alignment mode cannot silently bypass review; completed tasks require passing V evidence, and milestone V records must match the declared delivery commit.
 - Keep project-profile details out of the unconditional task-context read set.
+- Slim the always-read AGENTS entry by removing duplicated document-map and hook instructions; route detailed navigation through ROUTER.md and deployment docs.
 
 ### Added
 - Add task-level intent alignment review: tracked work records its baseline/accepted-change anchors before implementation and compares actual diffs, commits and verification evidence before closeout. Unresolved drift cannot be marked done.
