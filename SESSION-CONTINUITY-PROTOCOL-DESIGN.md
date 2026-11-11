@@ -142,7 +142,7 @@ Checkpoint 最小字段：
 - 未提交变更的文件列表与摘要；必要时记录 diff/tree hash，但不默认复制完整 diff。
 - 当前工作主题与 G/R/T/M 引用（适用时）。
 - 已完成、未完成、阻塞、待决策。
-- 验证命令、结果、绑定 revision 和 Evidence 引用；没有运行必须写 `not_run`。`running` 还需记录执行者与运行标识，无法确认状态时写 `unknown`。
+- 验证命令、结果、绑定 revision 和 Evidence 引用；没有运行必须写 `not_run`。`running` 还需记录执行者、运行标识和开始时间，无法确认状态时写 `unknown`。
 - 待裁定事项列表及其权威来源引用；多个决策不能压缩成单一 decision 状态。
 - 下一步和禁止操作。
 
