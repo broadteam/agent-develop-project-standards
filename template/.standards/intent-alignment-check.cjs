@@ -287,9 +287,8 @@ function validateIntentAlignment(root) {
     if (unresolved && !['无', '—', 'none'].includes(unresolved.toLowerCase())) {
       errors.push('意图对齐：里程碑 ' + milestoneId + ' 仍有未解决漂移，不能标记已完成');
     }
-    const deliveryShaMatch = deliveryProof.match(/\b[a-f0-9]{40}\b/i);
-    const deliverySha = deliveryShaMatch ? deliveryShaMatch[0].toLowerCase() : '';
-    if (!deliveryShaMatch && !/^no-code[:：]\s*.+/i.test(deliveryProof)) {
+    const deliveryShas = new Set([...deliveryProof.matchAll(/\b[a-f0-9]{40}\b/gi)].map(match => match[0].toLowerCase()));
+    if (!deliveryShas.size && !/^no-code[:：]\s*.+/i.test(deliveryProof)) {
       errors.push('意图对齐：已完成里程碑 ' + milestoneId + ' 的实际交付与依据必须包含完整 Commit SHA 或 no-code 原因');
     }
     const coverageVs = refs(coverage, /V\d+/g);
@@ -297,7 +296,7 @@ function validateIntentAlignment(root) {
     for (const ref of coverageVs) {
       const record = evidenceRecords.get(ref);
       if (!record) errors.push('意图对齐：里程碑 ' + milestoneId + ' 引用了不存在的验证证据 ' + ref);
-      else if (deliverySha && record.commit.toLowerCase() !== deliverySha) errors.push('意图对齐：里程碑 ' + milestoneId + ' 的验证证据 ' + ref + ' 与里程碑交付 Commit SHA 不一致');
+      else if (deliveryShas.size && !deliveryShas.has(record.commit.toLowerCase())) errors.push('意图对齐：里程碑 ' + milestoneId + ' 的验证证据 ' + ref + ' 不属于里程碑交付 Commit 集合');
     }
     for (const ref of coverageCs) {
       if (changeStatuses.get(ref) !== 'accepted') errors.push('意图对齐：里程碑 ' + milestoneId + ' 引用了非 accepted 变更 ' + ref);

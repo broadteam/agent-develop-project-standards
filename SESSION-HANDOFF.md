@@ -68,6 +68,7 @@
 - 复查发现 README 设计边界与 CLIENTS.md 仍把 `.memory/` 说成全局权威；已同步修正 README、CLIENTS、SPEC-v2.0 与 PROJECT-ADAPTATION：各领域仓库文件为权威来源，客户端私有记忆只镜像 MEMORY §0 断点。
 - PROJECT-ADAPTATION 的固定上下文清单也已与 resolver 一致：project-profile 由工具读取计算，Agent 只在需要时加载相关字段。
 - 第一次 CI 明确暴露上述 AGENTS 预算失败（Ubuntu 四个矩阵任务）；按测试定义压缩 L0 入口后，最新 head `079cb271cfa1863ce4e4c6c4a9dd20ef88abfbfc` 的 CI run `42954213177` 在 Ubuntu/Windows × Node 22/24 × Python 3.11/3.13 的 8 个 job 全部通过。
+- 里程碑交付可能包含多个任务提交，校验器按交付记录中的 SHA 集合匹配 V 证据，不错误地要求所有 V 都绑定到单个 SHA；新增多 Commit 回归测试。
 - 本阶段代码与文档已写入 Draft PR #10，尚未合并；继续保持 PR #4–#10 的整体审查边界。
 
 ## 工程边界

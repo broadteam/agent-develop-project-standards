@@ -5,6 +5,7 @@
 - Keep project-profile details out of the unconditional task-context read set.
 - Slim the always-read AGENTS entry by removing duplicated document-map and hook instructions; route detailed navigation through ROUTER.md and deployment docs.
 - Align CLIENTS.md, README, SPEC-v2.0 and PROJECT-ADAPTATION docs with domain-specific sources of truth; private client memory mirrors only the breakpoint, not all project state, and project-profile is not a mandatory per-session read.
+- Support multiple commits in a milestone delivery record; each referenced V record must match one of the explicitly declared delivery commits.
 
 ### Added
 - Add task-level intent alignment review: tracked work records its baseline/accepted-change anchors before implementation and compares actual diffs, commits and verification evidence before closeout. Unresolved drift cannot be marked done.

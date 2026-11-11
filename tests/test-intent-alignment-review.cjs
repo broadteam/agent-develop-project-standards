@@ -372,6 +372,13 @@ try {
   write('.spec/verification/INDEX.md', read('.spec/verification/INDEX.md').replace(commit, 'd'.repeat(40)));
   assertParity('milestone evidence commit must match delivery', ['与里程碑交付 Commit SHA 不一致']);
 
+  // A milestone may contain multiple delivery commits; V evidence can bind to any declared commit.
+  completedMilestone();
+  const secondCommit = 'd'.repeat(40);
+  write('.spec/verification/INDEX.md', read('.spec/verification/INDEX.md').replace(commit, secondCommit));
+  write('.spec/tasks/T1/card.md', read('.spec/tasks/T1/card.md').replace('- 实现依据：' + commit, '- 实现依据：' + secondCommit));
+  write('.spec/roadmap/M1/milestone.md', read('.spec/roadmap/M1/milestone.md').replace('commit ' + commit, 'commits ' + commit + ' and ' + secondCommit));
+  assertParity('milestone supports multiple delivery commits');
   // New milestones cannot bypass alignment by deleting only the mode field.
   completedMilestone();
   write('.spec/roadmap/M1/milestone.md', read('.spec/roadmap/M1/milestone.md').replace('- 意图对齐：required\n', ''));

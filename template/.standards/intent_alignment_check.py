@@ -284,9 +284,8 @@ def validate_intent_alignment(root: Path) -> list[str]:
                 errors.append(f"意图对齐：里程碑 {milestone_id} 的 user_confirmed_change 必须引用 accepted C 记录")
         if unresolved and unresolved.lower() not in {"无", "—", "none"}:
             errors.append(f"意图对齐：里程碑 {milestone_id} 仍有未解决漂移，不能标记已完成")
-        delivery_sha_match = re.search(r"\b[a-f0-9]{40}\b", delivery_proof, re.I)
-        delivery_sha = delivery_sha_match.group(0).lower() if delivery_sha_match else ''
-        if not delivery_sha_match and not re.match(r"no-code[:：]\s*.+", delivery_proof, re.I):
+        delivery_shas = {match.group(0).lower() for match in re.finditer(r"\b[a-f0-9]{40}\b", delivery_proof, re.I)}
+        if not delivery_shas and not re.match(r"no-code[:：]\s*.+", delivery_proof, re.I):
             errors.append(f"意图对齐：已完成里程碑 {milestone_id} 的实际交付与依据必须包含完整 Commit SHA 或 no-code 原因")
         coverage_vs = refs(coverage, r"V\d+")
         coverage_cs = refs(coverage, r"C\d+")
@@ -294,8 +293,8 @@ def validate_intent_alignment(root: Path) -> list[str]:
             record = evidence_records.get(ref)
             if not record:
                 errors.append(f"意图对齐：里程碑 {milestone_id} 引用了不存在的验证证据 {ref}")
-            elif delivery_sha and record["commit"].lower() != delivery_sha:
-                errors.append(f"意图对齐：里程碑 {milestone_id} 的验证证据 {ref} 与里程碑交付 Commit SHA 不一致")
+            elif delivery_shas and record["commit"].lower() not in delivery_shas:
+                errors.append(f"意图对齐：里程碑 {milestone_id} 的验证证据 {ref} 不属于里程碑交付 Commit 集合")
         for ref in coverage_cs:
             if change_statuses.get(ref) != "accepted":
                 errors.append(f"意图对齐：里程碑 {milestone_id} 引用了非 accepted 变更 {ref}")
