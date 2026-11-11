@@ -480,7 +480,7 @@ Bootstrap 采用有序、按需读取的流程；前序步骤无法确认时，�
 
 | 阶段 | 读取与检查 | 产出 |
 |---|---|---|
-| B0 项目识别 | 仓库根目录、remote/repository identity、当前工作目录、协议标识 | project identity；不匹配时停止套用该 Packet |
+| B0 项目识别 | 仓库根目录、remote/repository identity、当前工作目录；若存在 Packet/协议元数据则读取协议标识 | project identity；不匹配时停止套用该 Packet；没有 Packet 或协议元数据不阻断旧项目恢复 |
 | B1 规则入口 | 读取 AGENTS.md 及其明确要求的宪法/规则入口；识别适用能力开关和权限边界 | 当前适用规则集与读取范围 |
 | B2 断点定位 | 优先读取项目指定的 MEMORY §0 或既有恢复入口；若存在 SESSION-HANDOFF.md/Packet，则作为导航和 last-known 线索 | 恢复锚点，不把摘要提升为权威事实 |
 | B3 意图与范围 | 按当前工作读取 intent baseline、适用 accepted changes、相关 requirements；可选任务/roadmap/ADR 仅在能力启用且引用存在时读取 | 当前目标、约束、验收锚点、待确认项 |
@@ -518,7 +518,7 @@ Bootstrap 不使用“最新文件优先”这种简单规则。不同事实由�
 
 ### 13.5 Context Freshness 分类
 
-Freshness 是逐个来源/声明计算的属性，不是给整个项目贴一个全局“新鲜/过期”标签。
+Freshness 是逐个来源/声明计算的属性，不是给整个项目贴一个全局“新鲜/过期”标签。协议兼容性是独立检查轴：未知或不兼容的 Schema 版本应标记 unsupported/incompatible，而不是伪装成 freshness=unknown；两项结果必须分别报告。
 
 | 状态 | 定义 | 允许的使用方式 |
 |---|---|---|
@@ -541,8 +541,8 @@ Freshness 是逐个来源/声明计算的属性，不是给整个项目贴一个
 判定应基于来源类型，不应强求所有来源使用同一种哈希：
 
 - Git commit：比较完整 commit SHA，并在需要时检查祖先关系；分支名只是可变引用，不能代替 SHA。
-- Git tracked file：可比较当前 blob SHA 与 Packet provenance 记录；路径存在不代表内容未变。
-- Untracked/dirty worktree：不能只依赖 Git tree SHA。若 Packet 没有覆盖相关未提交路径及其摘要，只能确认 HEAD，不能宣称 dirty worktree 与生成时一致。
+- Git tracked file：先区分 HEAD 中的 blob 与工作区实际文件。工作区 clean 时可比较 HEAD blob SHA；相关 tracked path 在工作区被修改时，该来源至少标 stale，不能因为 HEAD blob 未变就宣称工作区内容 current。若 Packet 声称覆盖 dirty 文件，必须有可核验的文件内容摘要和路径范围；否则标 unknown/stale，不把 Git tree SHA 当作完整工作区快照。
+- Untracked/dirty worktree：不能只依赖 Git tree SHA。若 Packet 没有覆盖相关未提交路径及其摘要，只能确认 HEAD，不能宣称 dirty worktree 与生成时一致。对被引用的 untracked path，若没有可核验的路径身份和内容摘要，不得判 current。
 - PR：重新读取 PR 当前 head/base、状态和必要的 review 状态；PR 编号不代表 head 未变。
 - CI：核验 workflow run 的 head SHA、run 身份、结论和完成状态；排队/运行中不是通过，旧 run 不能覆盖新 head。
 - Evidence：核验 evidence ID 是否可解析、subject/revision/scope 是否覆盖当前工作；无法读取 Evidence 正文或权威记录时标 unknown。
@@ -608,3 +608,19 @@ D2 不以“能读出 Packet”作为验收。关键验收是：在来源过期�
 - D3 之后：具体阶段编号与顺序须在 D2 设计审查后复核；不得默认把概念设计直接转成实现承诺。
 - PR #10、main、项目版本和 tags 均不属于 D2 工作范围。
 
+### 13.11 第二轮内部审查：状态轴与工作区边界
+
+第二轮审查聚焦 D2 的可判定性，补充以下约束：
+
+1. **无 Packet 不等于无协议恢复能力**：B0 仅在 Packet/协议元数据存在时检查其协议标识；没有 Packet 的旧项目仍从 AGENTS.md 与项目既有断点入口恢复，不因尚未采用 SCP 而失败。
+2. **协议兼容性与 freshness 分轴**：Schema 不兼容属于 unsupported/incompatible，不是 freshness=unknown。客户端不得把未知核心字段“忽略后继续”，也不得把协议不兼容伪装成普通过期。
+3. **HEAD 与工作区内容分开判定**：HEAD 中 tracked blob 未变，不代表工作区文件未变。相关 tracked path dirty 时必须标 stale；若 Packet 声称覆盖 dirty 内容，则必须有可核验的文件路径范围与内容摘要，否则只能确认 HEAD，不能确认工作区快照。
+4. **Untracked 路径的证据边界**：路径存在不等于内容与 Packet 生成时一致；没有可核验内容摘要时，不得将其 freshness 判为 current。
+5. **恢复兼容旧项目**：项目没有 SCP Packet、协议元数据或可选治理能力时，Bootstrap 继续沿用既有入口和能力开关，不创建替代记录，不把缺省误判为损坏。
+
+当前仍保留为后续实现前置设计细节的项目：
+- Packet 对 dirty/untracked 文件摘要的具体编码，必须与最终获批准的 D1 Schema 对齐；在 D1 未冻结前不新增字段或修改 0.1.0。
+- 外部系统若无稳定 revision/etag，只能给出 unknown；不得用时间戳单独推导 current。
+- 多 remote/fork 场景需以仓库平台的稳定 repository identity 或显式 upstream 映射区分 canonical repository 与工作 fork；仅凭 remote 名称不能认定项目身份。
+
+**第二轮审查结论：** 上述修订后，D2 的状态轴、旧项目兼容性和工作区 freshness 边界更加明确；未发现需要改变 D0 语义或 D1 Schema 的问题。dirty/untracked 摘要编码与多 remote identity 保留为 D2 实施前需与客户端能力一起验证的边界，不在本轮擅自扩展机器契约。
