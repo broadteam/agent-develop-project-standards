@@ -20,6 +20,7 @@ assert.equal(resolved.capabilities.task_tracking.status, 'disabled');
 assert.equal(resolved.capabilities.quality_gates.status, 'enabled');
 assert.equal(resolved.capabilities.adr.status, 'deferred');
 assert.ok(registry.core.rules.every((rule) => !Object.values(registry.capabilities).some((capability) => (capability.artifacts ?? []).some((artifact) => rule === artifact || rule.startsWith(artifact)))));
+for (const requiredCore of ['.spec/intent/BASELINE.md','.spec/intent/CHANGES.md','.spec/requirements/INDEX.md','.spec/verification/INDEX.md']) assert.ok(registry.core.rules.includes(requiredCore), requiredCore + ' must be an always-on foundation');
 assert.equal(resolved.capabilities.adr.status, 'deferred');
 assert.equal(resolved.capabilities.module_boundaries.status, 'deferred');
 assert.equal(resolved.isExcluded('.spec/tasks/index.md'), true);
@@ -36,6 +37,10 @@ assert.equal(defaults.isExcluded('.spec/tasks/index.md'), false, 'auto must not 
 
 const invalid = resolveCapabilities({ capabilities: { roadmap: 'on', task_tracking: 'off' } }, registry);
 assert.ok(invalid.errors.some((error) => error.includes('能力依赖冲突')));
+const invalidStack = resolveCapabilities({stack:{detected:['generic']},capabilities:{stack_rules:'on'}}, registry);
+assert.ok(invalidStack.errors.some((error) => error.includes('stack_rules=on')));
+const invalidRelease = resolveCapabilities({capabilities:{quality_gates:'baseline',release_governance:'strict'}}, registry);
+assert.ok(invalidRelease.errors.some((error) => error.includes('release_governance=strict')));
 const invalidAutoRoadmap = resolveCapabilities({capabilities:{task_tracking:'off',roadmap:'auto'}}, registry);
 assert.ok(invalidAutoRoadmap.errors.some((error) => error.includes('roadmap=auto') && error.includes('task_tracking')));
 
@@ -69,6 +74,57 @@ try {
     assert.equal(pythonGate.status, 0, pythonGate.stdout + pythonGate.stderr);
     assert.equal(nodeGate.stdout, pythonGate.stdout, 'Node/Python capability-off gate output must match');
   }
+  // Turning optional capabilities off preserves historical files without enforcing their gates.
+  const oldTaskDir = path.join(project, '.spec/tasks/T99');
+  fs.mkdirSync(oldTaskDir, { recursive: true });
+  fs.writeFileSync(path.join(project, '.spec/tasks/index.md'), [
+    '# Historical task index', '',
+    '| ID | 标题 | 状态 | 优先级 |',
+    '|---|---|---|---|',
+    '| T99 | preserved legacy task | done | normal |', ''
+  ].join('\n'));
+  fs.writeFileSync(path.join(oldTaskDir, 'card.md'), '# Historical task\n\n- 创建日期：not-a-date\n- 意图对齐：invalid\n');
+  const oldMilestoneDir = path.join(project, '.spec/roadmap/M99');
+  fs.mkdirSync(oldMilestoneDir, { recursive: true });
+  fs.writeFileSync(path.join(project, '.spec/roadmap/INDEX.md'), [
+    '# Historical roadmap', '',
+    '| ID | 标题 | 时间 | 状态 |',
+    '|---|---|---|---|',
+    '| M99 | preserved legacy milestone | long | 已完成 |', ''
+  ].join('\n'));
+  fs.writeFileSync(path.join(oldMilestoneDir, 'milestone.md'), '# Historical milestone\n\n- 创建日期：not-a-date\n- 意图对齐：invalid\n');
+  const nodeGateWithHistory = spawnSync(process.execPath, [path.join(project, '.standards/check-governance.cjs')], { encoding: 'utf8' });
+  assert.equal(nodeGateWithHistory.status, 0, nodeGateWithHistory.stdout + nodeGateWithHistory.stderr);
+  const pythonGateWithHistory = spawnSync(process.env.PYTHON || 'python3', [path.join(project, '.standards/check_governance.py')], { encoding: 'utf8' });
+  if (!pythonGateWithHistory.error) {
+    assert.equal(pythonGateWithHistory.status, 0, pythonGateWithHistory.stdout + pythonGateWithHistory.stderr);
+    assert.equal(nodeGateWithHistory.stdout, pythonGateWithHistory.stdout, 'Node/Python must both skip optional historical record gates when disabled');
+  }
+
+  // Validate independent capability combinations rather than only all-on/all-off presets.
+  const taskOnlyProject = path.join(tmp, 'task-only-project');
+  fs.mkdirSync(taskOnlyProject);
+  const taskOnlyProfile = profileTemplate
+    .replace('task_tracking = "off"', 'task_tracking = "on"')
+    .replace('multi_agent = "off"', 'multi_agent = "on"')
+    .replace('module_boundaries = "auto"', 'module_boundaries = "off"');
+  fs.writeFileSync(path.join(taskOnlyProject, 'project-profile.toml'), taskOnlyProfile);
+  const taskOnlyRun = spawnSync(process.execPath, [path.join(root, 'init.cjs'), taskOnlyProject], { encoding: 'utf8' });
+  assert.equal(taskOnlyRun.status, 0, taskOnlyRun.stdout + taskOnlyRun.stderr);
+  const taskOnlyAgents = fs.readFileSync(path.join(taskOnlyProject, 'AGENTS.md'), 'utf8');
+  const taskOnlyRouter = fs.readFileSync(path.join(taskOnlyProject, 'ROUTER.md'), 'utf8');
+  const taskOnlyArchitecture = fs.readFileSync(path.join(taskOnlyProject, '.spec/01-architecture.md'), 'utf8');
+  assert.match(taskOnlyAgents, /几天内的持续工作使用 `.spec\/tasks\//, 'task_tracking=on must retain task guidance');
+  assert.doesNotMatch(taskOnlyAgents, /几周至几个月.*\.spec\/roadmap/s, 'roadmap=off must not retain roadmap instructions');
+  assert.match(taskOnlyAgents, /多 Agent 协作（仅启用时）/, 'multi_agent=on must add shared-write coordination rules');
+  assert.match(taskOnlyRouter, /\.spec\/tasks\/index\.md/);
+  assert.doesNotMatch(taskOnlyRouter, /\.spec\/roadmap\/INDEX\.md/);
+  assert.doesNotMatch(taskOnlyRouter, /\.spec\/adr\/README\.md/);
+  assert.doesNotMatch(taskOnlyRouter, /\.spec\/stacks\//);
+  assert.doesNotMatch(taskOnlyArchitecture, /模块依赖矩阵/, 'module_boundaries=off must remove its optional matrix instructions');
+  const taskOnlyGate = spawnSync(process.execPath, [path.join(taskOnlyProject, '.standards/check-governance.cjs')], { encoding: 'utf8' });
+  assert.equal(taskOnlyGate.status, 0, taskOnlyGate.stdout + taskOnlyGate.stderr);
+
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
 }

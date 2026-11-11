@@ -441,6 +441,7 @@ const CAPABILITY_LABELS = {
   adr: '.spec/adr/',
   module_boundaries: '模块边界',
   stack_rules: '.spec/stacks/',
+  multi_agent: '多 Agent 并发协作约定',
 };
 const capabilityDisabled = (ids) => ids.some((id) => capabilityResolution.capabilities[id]?.status === 'disabled');
 
@@ -455,7 +456,7 @@ function renderCapabilityBlocks(content) {
 function capabilityNotice() {
   const disabled = Object.keys(CAPABILITY_LABELS).filter((id) => capabilityDisabled([id]));
   if (!disabled.length) return '';
-  return `> **本项目已关闭能力：${disabled.join('、')}**（见 \`project-profile.toml [capabilities]\`）。下文凡引用 ${refs} 的地方一律不适用，替代做法写在 §2.5。\n\n`;
+  return `> **本项目已关闭能力：${disabled.join('、')}**（见 \`project-profile.toml [capabilities]\`）。对应的可选指引与门禁不会启用；已存在的历史记录不会因此删除。若任务确实需要某项已关闭能力，先由维护者调整配置或明确替代方案。\n\n`;
 }
 
 // Template-owned directories are always legitimate, and a newer release may add one (3.0.0 added
@@ -507,7 +508,7 @@ function walk(dir, rel = '') {
     if (!DRY) {
       ensureDirectoryTransactional(path.dirname(to));
       let content = fill(fs.readFileSync(from, 'utf8'));
-      if (relPath === 'AGENTS.md' || relPath === 'ROUTER.md') {
+      if (relPath === 'AGENTS.md' || relPath === 'ROUTER.md' || relPath === '.spec/01-architecture.md') {
         content = renderCapabilityBlocks(content);
       }
       if (relPath === 'AGENTS.md') {
