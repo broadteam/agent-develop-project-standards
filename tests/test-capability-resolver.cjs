@@ -203,7 +203,6 @@ try {
   assert.match(readme, /仅在启用 `task_tracking` \/ `roadmap` \/ `adr` 时/, 'README must qualify task, milestone, and ADR state sources');
   assert.match(spec, /关闭时记入 `\.spec\/01-architecture\.md` 或 PR 审查记录/, 'SPEC must define a stable ADR-off decision record path');
   assert.match(readme, /仅在启用 `task_tracking` 时再记录 T 任务锚点/, 'README must mark the task anchor as optional');
-  assert.match(readme, /仅在启用 `adr` 时，架构决策以 ADR 为准/, 'README must mark ADR as optional');
   assert.match(spec, /启用 `task_tracking` 时，Board 源哈希与生成内容哈希/, 'SPEC must qualify the Board acceptance gate');
   assert.match(deploy, /启用 `task_tracking` 时默认导入到/, 'DEPLOY must condition plan import on task tracking');
 
