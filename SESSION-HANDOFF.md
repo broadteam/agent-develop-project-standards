@@ -299,3 +299,38 @@
 
 - 增加 D1 最小正/负例契约，区分 JSON Schema 可验证的结构约束与后续 semantic validator 责任；明确 JSON Schema `uniqueItems` 不能保证 `decisions[].decision_id` 属性级唯一，后续 validator 必须补充该语义检查。
 - 兼容策略列出未知核心字段、未知 schema_version、handoff 缺失、证据缺失、running/blocked/dirty/clean/HEAD/coordination/decision 时间边界、RFC 3339 格式断言等最小 fixture 预期。当前只定义测试契约，不实现 validator、fixture runner 或 CI gate。
+
+## SCP D2 只读 Bootstrap / Context Freshness 设计推进（2026-11-12）
+
+### 本轮执行边界
+
+- 用户指示按建议继续推进；没有明确批准冻结 D1 Schema 0.1.0。因此 D1 继续保持候选/待批准状态，不得写成 Frozen。
+- 本轮先推进不依赖 D1 冻结的 D2 概念设计：只读 Bootstrap、Context Freshness、来源权威性、revision 比较、冲突处理和失败降级。
+- 未修改 Schema、Compatibility、JSON example；未实现 Validator、Fixture Runner、Packet Writer 或 CI Gate。
+- 不改变 PR #10、main、项目版本或 tags；不合并、不关闭 PR。
+
+### D2 文档变更
+
+- 在 SESSION-CONTINUITY-PROTOCOL-DESIGN.md 新增 §13「D2 只读 Bootstrap 与 Context Freshness 设计提案」。
+- 定义 B0–B7 恢复顺序：项目识别、规则入口、断点定位、意图与范围、代码现场、证据现场、冲突/新鲜度、恢复摘要。
+- 明确只读操作边界：不写文件、不改变 Git 状态、不调用远端写 API、不执行可能生成缓存/报告/迁移的副作用命令。
+- 建立来源权威性矩阵，区分 intent、requirements、tasks、roadmap、ADR、verification、Git、PR/CI 与用户授权的职责。
+- 定义逐来源 freshness：current / stale / conflict / unknown；时间戳较新不等于 current，unknown 不得降级为成功或无变更。
+- 定义 commit、tracked blob、dirty/untracked worktree、PR head、CI run、Evidence 和用户决策的 revision 核验方式。
+- 定义 Packet 缺失、解析失败、未知 Schema 版本、远端不可用、dirty worktree、证据失效、权威来源冲突和只读权限不足等降级路径。
+- 明确 Bootstrap 输出只是当前会话恢复视图，不构成新事实账本，也不授予后续写操作权限。
+- 给出 D2 设计验收标准；至少覆盖 10 类正/负场景，但当前仅定义验收，不代表已实现测试。
+
+### 当前状态与验证限制
+
+- D0：Frozen（用户已明确确认）。
+- D1 Schema 0.1.0：语义审查已完成，仍待用户明确批准冻结；尚未运行正式 JSON Schema Validator。
+- D2：只读 Bootstrap / Freshness 设计草案已写入，尚待独立一致性审查；不代表实现或生产可用。
+- PR #11 之前 Head 为 8f75c26ca176808d6a09e730c97501bd05f8f2d6；该 SHA 的 16 项 CI 在本轮复核时为 13 queued、3 in_progress、0 completed，不能声称通过。
+- 本轮新增设计提交：39e935e13c21ab3ed808c30eb017b39781e93029。该提交后的 CI 必须按最新 Head 重新核验；不能沿用 8f75c26 的状态。
+- 更新本 Handoff 会再产生一个 PR #11 commit；最终 Head 与 CI 需在本次交接提交后重新现场核验。
+- PR #11 继续 Open + Draft；PR #10 继续 Open + Draft；main 保持未修改。
+
+### 下一步（唯一首选）
+
+对 D2 §13 做独立边界审查，重点检查：Bootstrap 顺序是否会过度读取、权威来源矩阵是否与现有规范一致、current/stale/conflict/unknown 是否可判定、只读模式是否存在隐式副作用、受限继续与停止条件是否足够精确。修订后再向用户提交 D2 设计审查结论；D1 是否冻结仍由用户明确决定。
