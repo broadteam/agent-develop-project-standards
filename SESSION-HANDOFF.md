@@ -1,6 +1,6 @@
 # 会话交接：Agent 项目开发规范 3.0
 
-更新时间：2026-11-11
+更新时间：2026-11-11（能力开关交叉审查与规则冲突审查进展）
 
 ## 项目目标与边界
 
@@ -30,12 +30,13 @@
 
 - `.spec/intent/BASELINE.md`：原始问题、目标、约束、Non-goals 和成功判据。
 - `.spec/intent/CHANGES.md`：用户意图变化追加记录；Agent 推断保持 pending。
-- `.spec/requirements/INDEX.md`：Rnnn 可验收需求。
-- `.spec/verification/INDEX.md`：Vnnn 证据及被验证 commit。
-- 任务卡、里程碑通过 G/R/C/V ID 形成追踪关系。
-- `.memory/MEMORY.md` §0 保存执行断点与 G/R/T 恢复锚点，不复制完整历史。
+- `.spec/requirements/INDEX.md`：始终启用的 Rnnn 可验收需求。
+- `.spec/verification/INDEX.md`：始终启用的 Vnnn 证据及被验证 commit。
+- 仅在启用 `task_tracking` 时，`.spec/tasks/index.md` 与任务卡维护任务状态；仅在启用 `roadmap` 时，`.spec/roadmap/INDEX.md` 与里程碑详情维护阶段状态；仅在启用 `adr` 时，`.spec/adr/` 维护架构决策。
+- 对应能力启用时，任务卡/里程碑通过 G/R/C/V ID 形成追踪关系；关闭能力时保留历史文件，但不要求新建对应记录或执行该能力专属门禁。
+- `.memory/MEMORY.md` §0 保存执行断点与 G/R/T 恢复锚点；T 锚点仅在启用 `task_tracking` 时使用，不复制完整历史。
 
-## 第六阶段：意图对齐审查（当前工作）
+## 第六阶段：意图对齐审查（已完成的阶段成果）
 
 - 标记 `意图对齐：required` 的跟踪任务，在 `in_progress` 前填写任务卡「开工意图对齐」：目标/需求锚点、accepted C、预期贡献、保留约束。
 - 进入 `review` / `done` 前填写「收口意图对齐」：计划与实际差异、偏离理由、commit SHA、V 证据、目标/需求影响和后续动作。
@@ -62,7 +63,7 @@
 
 ### 已完成的统一性修复
 
-- **分域权威来源**：意图以 `.spec/intent/` 为权威，需求以 `.spec/requirements/INDEX.md` 为权威，任务状态以 `.spec/tasks/index.md` 为权威，验证以 `.spec/verification/INDEX.md` 为权威，架构决策以 `.spec/adr/` 为权威；`.memory/MEMORY.md` 只保留稳定事实摘要与跨会话断点。
+- **分域权威来源**：意图、需求、验证分别以 `.spec/intent/`、`.spec/requirements/INDEX.md`、`.spec/verification/INDEX.md` 为始终启用的权威来源；任务、里程碑、架构决策分别仅在启用 `task_tracking`、`roadmap`、`adr` 时以各自的索引/目录为权威。`.memory/MEMORY.md` 只保留稳定事实摘要与跨会话断点，不是任何可选领域的替代状态源。
 - **恢复边界**：修正宪法对多文件写入原子性和一键回退的过度承诺；初始化器只对可捕获异常提供 best-effort rollback，不承诺进程强杀/断电下的原子事务。
 - **意图对齐 opt-in**：新建任务/里程碑带创建日期，日期格式合法但缺少模式会失败；没有日期和模式的旧记录继续兼容。
 - **证据完整性**：done 任务需要 pass V 证据；里程碑 V 证据绑定其声明的交付 Commit SHA 集合，支持多 Commit。
@@ -88,25 +89,27 @@
 9. **能力依赖重复硬编码**：roadmap、stack_rules、release_governance 的依赖转由 capabilities 注册表声明，Node/Python profile validator 使用同一 resolver 语义。
 10. **能力关闭组合回归**：测试覆盖 all-off、task_tracking on + roadmap/ADR/stack_rules/module_boundaries off + multi_agent on、关闭后保留历史任务/里程碑、关闭后保留根目录计划文件，以及 Node/Python 追踪输出一致。
 
-### PR #10 最新状态与验证
+### PR #10 最新功能验证基线
 
 - 分支：`feat/governance-consistency-audit`。
-- 最新代码 Head：`2ba5d2d3f7736ba2e902a6a96bc417d38960b25a`。
+- 最新已验证功能提交：`0de4d92b686afb7b704aa96ab4c2668fee54fd75`。
 - Base：PR #9 的 `feat/intent-alignment-review`，Base SHA `c98c99a9f39693f893300e990cd6770064438e42`。
-- PR #10 仍为 Open + Draft，未合并；当前 31 个文件变更、17 个提交。
-- Push Actions run `42997557899`：8/8 Ubuntu/Windows × Node 22/24 × Python 3.11/3.13 全部通过。
-- Pull request Actions run `42997566716`：同一矩阵 8/8 全部通过。
-- 上述结果严格绑定 `2ba5d2d3...`；后续任何提交都必须重新核实其 CI，不得沿用这两个 run 的结论。
-- `main` 仍为 `02f8dde262455f15029a54694e129b05b70013a4`；本轮未修改 main。PR #4–#10 仍全部 Open + Draft，堆叠依赖顺序未改变。
+- 功能提交时 PR #10 为 Open + Draft，27 个提交、32 个变更文件；未合并。
+- Push Actions run `43051975761`：8/8 Ubuntu/Windows × Node 22/24 × Python 3.11/3.13 全部通过。
+- Pull Request Actions run `43051986512`：同一矩阵 8/8 全部通过。
+- 两个 CI 结果严格绑定 `0de4d92...`。本次 Handoff 文档更新发生在该功能提交之后，属于文档变更；新会话仍须现场核对它产生的实际 HEAD 与 CI，不能把上述结果自动转移到后续提交。
+- `main` 仍为 `02f8dde262455f15029a54694e129b05b70013a4`；本轮未修改 main。PR #3–#10 的状态与依赖关系均需新会话现场复核。
 
 ### 尚未完成
 
-- 第一优先级的实现修复和代表性组合测试已通过 CI，但仍需完成能力矩阵的文档全量复核，特别是 README、SPEC、ROUTER 与初始化器/检查器对所有开关组合的措辞是否完全一致；不能把当前代表性 fixture 当作所有可能组合均已穷尽。
-- 第二阶段：规则重复与冲突审查，重点查看 AGENTS、Constitution、SPEC、README、ROUTER、CHANGES、MEMORY、模板和工具是否重复维护同一规则。
+- 第一优先级：能力开关交叉审查的代表性组合、初始化器裁剪、Node/Python 可选门禁行为和文档语义已完成一轮修复并通过 CI。已明确 `auto` 是任务级规则加载策略，不代表轻量任务强制建卡；静态检查仍校验实际存在的可选索引/记录。当前 fixture 覆盖关键组合，但不声称穷尽所有可能配置组合。
+- 第二优先级（进行中）：规则重复与冲突审查已发现并修正两处遗漏：
+  1. `template/.memory/MEMORY.md` 原先无条件将任务目录列为权威源；现已明确任务/里程碑/ADR 的权威路径仅在对应能力启用时成立，§0 的 T 锚点和 log 指引也按 task_tracking 条件化。
+  2. `PROJECT-ADAPTATION-v2.0.md` 要求关闭 `module_boundaries` 后仍保留基础架构事实，但 `template/.spec/01-architecture.md` 曾把基础依赖方向原则一并裁剪；现将核心单向依赖原则保留，模块依赖矩阵和专项门禁仍受开关控制。AGENTS 的权威来源摘要也已补入独立的 roadmap 条件。
+- README 的意图对齐章节前后分别承担使用概览和检查器/验收细节，当前属于摘要与详细说明的分层，不应为去重而删除必要的下游实现说明；后续继续检查其他真正的重复定义和优先级冲突。
 - 第三阶段：四类任务上下文成本审查（轻量维护、普通跟踪、跨会话持续开发、高风险架构/数据变更），量化必须/可选读取集与预算。
 - 第四阶段：升级兼容性审查，覆盖空项目初始化、已有项目升级、旧记录兼容、能力开关变更和人工存档恢复。
 - Session Continuity Protocol 仍是后续正式设计方向；本阶段不开始新增协议子系统。保留七个方向：Bootstrap、Context Freshness、Intent Continuity、Checkpoint、Concurrency Control、Handoff、Evidence Provenance。
-
 ## ChatGPT / Agent 跨会话恢复协议
 
 - 不依赖旧会话全文或模型隐式记忆恢复项目；本文件是本仓库当前工作交接入口，不取代各领域权威状态文件。
@@ -125,7 +128,8 @@
 
 ## 恢复工作
 
-1. 现场检查 `main`、PR #3–#9、所有依赖分支和 head SHA。
-2. 读取本文件、PR #9 最新 diff、相关 checker/test 与 CI 运行。
-3. 不信任旧会话摘要覆盖 GitHub 实际状态；发现冲突时以 Git 文件和可复现测试为准。
-4. 下一步优先审查 PR #4–#9 的整体一致性、入口预算、规则重复和版本依赖，再决定是否合并或升级版本。
+1. 现场检查 `main`、PR #3–#10、所有依赖分支和 head SHA；确认 PR #10 的 Handoff-only 更新提交及其 CI。
+2. 读取本文件、PR #10 当前 diff、能力注册表、AGENTS/Constitution/SPEC/README/ROUTER/MEMORY 与相关 checker/test。
+3. 继续第二优先级：规则重复、冲突优先级、单一权威来源与实际工具行为交叉审查；发现问题按文件与可复现依据记录。
+4. 随后进入上下文成本审查，再进入升级兼容性审查。不得把代表性 fixture 描述为所有开关组合均已穷尽。
+5. 不信任旧会话摘要覆盖 GitHub 实际状态；发现冲突时以 Git 文件和可复现测试为准，不合并 PR、不改 main、不 bump 版本。
