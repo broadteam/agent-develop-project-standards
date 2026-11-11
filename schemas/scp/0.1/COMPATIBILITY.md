@@ -29,11 +29,12 @@
 - References point to existing authoritative files/records; packets do not replace them.
 - `coordination` is optional. Include it when real concurrent writing or explicit ownership boundaries matter; ordinary single-agent work must not be forced to create coordination metadata.
 - Missing optional capabilities are represented by omission, not by fabricated paths or placeholder records.
-- Dynamic Git/PR/CI state must be refreshed at consumption time. Packet values are last-known observations, not live truth.
+- Dynamic Git/PR/CI state must be refreshed at consumption time. `code` and `checkpoint` capture the producer's observed state at packet generation; on later consumption they are only last-known state. `provenance.source_revisions` binds source revisions and freshness. The consumer's live Bootstrap observations are compared with, not silently substituted for, those last-known values.
 - `head_sha: null` is permitted only when the revision cannot be observed; the producer must pair it with an honest `worktree_state` and must not claim revision-bound verification.
 - `observed_clean` and `observed_dirty` describe only tool-observable filesystem/Git state, never unsaved editor buffers. The canonical worktree observation is `code.worktree_state`; it must not be duplicated in checkpoint fields.
 - A packet claiming `verification_state: passed` or `review_state: reviewed` must include at least one `evidence_refs` entry. Consumers should validate date-time formats as RFC 3339, not merely accept arbitrary strings.
-- A confirmed decision is scoped to its own `decision_id` and source. It is not blanket authorization for other actions.
+- Agent interpretations belong in the top-level `inferences` array with explicit basis references and confidence; they must not be written into observed-state or authoritative-reference fields.
+- Pending/confirmed decisions are represented individually under `checkpoint.decisions`; a confirmed decision is scoped to its own `decision_id` and source. It is not blanket authorization for other actions.
 
 ## Validation scope
 
