@@ -419,6 +419,7 @@ D0 已冻结，D1 开始定义可跨语言消费的机器契约。当前策略�
 - Core object 拒绝未知字段；扩展数据必须放入 namespaced `extensions`，不得覆盖核心语义。
 - `code.worktree_state` 是工作区可观察状态的唯一字段，不在 checkpoint 中重复保存；声称验证/审查通过必须附带 `evidence_refs`。
 - 首轮只定义 Packet 数据契约，不实现 validator、不接入门禁、不生成自动写入器。
+- D1 同时明确最小正/负例契约；JSON Schema 无法单独保证 `decisions[].decision_id` 的属性级唯一性，因此该约束留给后续独立审查的 semantic validator。Schema/fixture 规范不等于本 PR 实现 validator 或 CI gate。
 - 首轮互操作验收先建立两个独立客户端 fixture 的共同输入/预期恢复结果；真实 CLI E2E 是后续按客户端单独声明的证据。
 - 首版并发字段只表达 owner、工作范围和隔离信息；不定义 Lease 服务或锁语义。
 
