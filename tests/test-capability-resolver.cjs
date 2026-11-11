@@ -95,13 +95,13 @@ try {
   assert.ok(fs.existsSync(path.join(project, '.spec/00-constitution.md')), 'core rules must remain');
   assert.ok(fs.existsSync(path.join(project, '.spec/01-architecture.md')), 'base architecture guidance must remain');
   const memoryTemplate = fs.readFileSync(path.join(project, '.memory/MEMORY.md'), 'utf8');
-  assert.match(memoryTemplate, /意图、需求、验证分别以/);
+  assert.match(memoryTemplate, /关闭时引用 `\.spec\/01-architecture\.md` 或 PR 审查记录/);
   assert.match(memoryTemplate, /仅在启用 `task_tracking`、`roadmap`、`adr` 时/);
   assert.match(memoryTemplate, /关闭对应能力时，不得假设这些路径存在或要求维护/);
   const leanConstitution = fs.readFileSync(path.join(project, '.spec/00-constitution.md'), 'utf8');
   const leanAgents = fs.readFileSync(path.join(project, 'AGENTS.md'), 'utf8');
-  assert.match(leanConstitution, /关闭时更新 `\\.spec\\/01-architecture\\.md` 或 PR 审查记录/);
-  assert.match(leanAgents, /关闭时在 `\\.spec\\/01-architecture\\.md` 或 PR 审查记录中保存裁定/);
+  assert.match(leanConstitution, /关闭时更新 `\.spec\/01-architecture\.md` 或 PR 审查记录/);
+  assert.match(leanAgents, /关闭时在 `\.spec\/01-architecture\.md` 或 PR 审查记录中保存裁定/);
   assert.match(memoryTemplate, /关闭时引用 `\\.spec\\/01-architecture\\.md` 或 PR 审查记录/);
   const nodeGate = spawnSync(process.execPath, [path.join(project, '.standards/check-governance.cjs')], { encoding: 'utf8' });
   assert.equal(nodeGate.status, 0, nodeGate.stdout + nodeGate.stderr);
