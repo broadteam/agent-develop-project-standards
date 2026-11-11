@@ -216,6 +216,11 @@ try {
 `);
   assertParity('done without V cannot use failing command evidence', ['没有 V 证据却标记 done；可复现验证结果必须明确为 pass/通过']);
 
+  // A substring such as “通过率” is not an explicit passing result.
+  base('done');
+  write('.spec/tasks/T1/card.md', read('.spec/tasks/T1/card.md') + `\n## 收口意图对齐\n\n- 结论：aligned\n- 计划与实际差异：无实质偏离\n- 偏离理由：无\n- 实现依据：${commit}\n- 验证证据：命令 npm test，结果：通过率 20%\n- 目标/需求影响：G001 / R001 目标和验收未改变\n- 未解决问题/后续动作：无\n`);
+  assertParity('done without V rejects ambiguous passing substring', ['没有 V 证据却标记 done；可复现验证结果必须明确为 pass/通过']);
+
 
   // A closeout V record must cover at least one of this task's requirements
   // and must have been run against the exact implementation commit being reviewed.
