@@ -28,6 +28,8 @@
 - Extend intent continuity contract tests for interruption preservation, pending proposals, conflict handling and resume-point recovery.
 - Add parity-oriented regression coverage for dangling references, invalid evidence commits, partial evidence, and active requirements without work items.
 - Add a traceability contract regression test and include it in the Ubuntu/Windows CI matrix.
+- Add `test-adopt-template-baseline.cjs` for read-only legacy baseline preview, plan-ID binding, stale project/template/manifest rejection, and metadata-only confirmation; update the legacy drift fixture to confirm the reviewed plan ID.
+- Assert that ROUTER exposes the core requirements and verification evidence indexes.
 - 增加目标连续性模板契约测试与任务上下文回归覆盖；不改变 3.0.0 已发布版本号。
 
 ## 3.0.0 - 2026-11-10

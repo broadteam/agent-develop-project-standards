@@ -1,6 +1,6 @@
 # 会话交接：Agent 项目开发规范 3.0
 
-更新时间：2026-11-12（上下文读取成本审查进展）
+更新时间：2026-11-12（3.0 一致性、上下文成本与升级兼容性第一轮收口）
 
 ## 项目目标与边界
 
@@ -69,6 +69,7 @@
 - **证据完整性**：done 任务需要 pass V 证据；里程碑 V 证据绑定其声明的交付 Commit SHA 集合，支持多 Commit。
 - **上下文成本与扩展空间**：AGENTS 源模板从 12,229B 精简至 10,885B；按默认能力渲染后为 9,613B，`multi_agent=on` 最坏渲染为 10,135B。12,288B 预算下，最坏组合仍留 2,153B；`test-init` 已增加 `multi_agent=on` 实际安装余量不少于 1,024B 的回归。
 - **文档一致性**：README、CLIENTS、SPEC-v2.0、PROJECT-ADAPTATION 与 AGENTS/Constitution/MEMORY 对分域事实源的描述已同步；PROJECT-ADAPTATION 不再把 project-profile 作为每轮固定上下文。
+- **路由闭环**：ROUTER 新增 core 需求索引与验证证据索引入口；`test-capability-resolver` 固定这两个入口，避免任务/验收文档引用 R/V ID 却没有统一导航。
 - **规则记录落点**：关闭 ADR 时，决策/例外统一写入 `.spec/01-architecture.md` 或 PR 审查记录，不依赖可能不存在的 task record；关闭 task_tracking/roadmap/adr 时，对应事实源路径不再被写成无条件权威来源。
 - **Node/Python Resolver 一致性**：两端对 `auto/deferred` 能力依赖和 `requires_stack` 使用相同语义；`stack_rules=on` 要求 `profile.status=confirmed` 且存在非 `generic` 技术栈。对畸形的非数组 `stack.detected` 做防御性拒绝。
 - **Node/Python Profile Validator 一致性**：增加最终 errors/warnings 级对照测试；修正 strict quality gate 在整个 `[verification]` 区块缺失时的诊断差异。Python 对照脚本禁用字节码缓存，避免生成 `.pyc` 污染模板漂移扫描。
@@ -112,25 +113,35 @@
 - Task Context Resolver 运行时内部读取 project-profile（661B）与能力注册表（5,435B）用于决策；这是工具侧读取，不应误计为模型上下文。项目定制 stack 文档与 PITFALLS 等按主题读取，不计入固定集合。
 - 本轮修复了原 Resolver 未提示跟踪任务读取 R/V 状态索引的问题，并增加轻量、普通跟踪、跨会话 task_tracking-off、高风险架构/数据四类断言。
 
+### 第四优先级：升级兼容性审查（第一轮完成）
+
+- **空项目与旧项目迁移**：`tests/test-migration-v2.cjs` 覆盖空项目 dry-run/首次安装、旧 1.2.x 项目迁移、多技术栈、既有 AGENTS/Hook/脚本定制保留和重复运行幂等；真实项目外部备份与实际项目测试仍是部署方责任。
+- **已有项目安全更新**：`init.cjs --update` 只刷新与上次安装哈希一致的文件，项目修改过的文件保留并报告；3.0 的 `scripts/`→`.standards/` 迁移只删除可证明由模板管理且哈希未变的旧文件。
+- **能力开关往返**：`tests/test-init.cjs` 增加已有安装从 task/roadmap/ADR/stack/multi-agent 全关→开启→关闭→重新开启的流程，核对模板文件、AGENTS/ROUTER、`gov.toml [required].files`、Node/Python 门禁，以及用户自有任务卡编辑是否完整保留。回归发现并修复 ADR README 未进入 required 清单、stack_rules 关闭后旧栈预设仍被重新加入 required 清单两个缺陷。
+- **模板升级方案边界**：`plan-template-upgrade.cjs` 只读生成逐文件计划；Review validator 绑定 plan ID 与审批字段；record 工具只登记人工已执行且验证过的结果；defer 需要重新计划，存在延期路径时不推进整体版本。不存在自动应用器，也不应把 `init --update` 误当作完整模板升级器。
+- **人工恢复演练**：`test-template-upgrade-recovery.cjs` 在临时项目验证外部完整备份、模拟人工审批批次、确定性治理失败、完整恢复、文件树与权限复核、治理/漂移复验。它是 fixture 演练，不代表用户真实业务数据备份已演练。
+- **旧项目基线采纳**：`adopt-template-baseline.cjs` 的 dry-run 输出 `plan_id` 绑定完整 template/presets 源快照、目标候选文件内容与权限、现有 `.agent-standards.json` 哈希/权限及采纳结果。确认必须回传 `--expect-plan-id`，并在写入前重新计算快照；项目、manifest 或模板源在审查后变化都会拒绝写入。新增 `test-adopt-template-baseline.cjs` 覆盖 dry-run 无写入、缺失/错误 ID、项目漂移、模板漂移、manifest 漂移及只写 manifest；旧 `test-template-drift.cjs` 已更新为新确认契约。
+- **确认机制限制**：这是乐观快照复核，不是跨进程文件锁；执行确认期间应暂停其他项目/模板写入。它不替代外部完整备份，也不提供自动回滚或自动升级应用。
 ### PR #10 最新功能验证基线
 
 - 分支：`feat/governance-consistency-audit`。
-- 最新已验证功能/测试提交：`49443da3b4f05e83e7d3cdd3d5fa87764e46fa74`。
+- 最新已验证功能/测试提交：`7b60ac6e0a88dbc297a8cfb24f28f912dc478cab`。
 - Base：PR #9 的 `feat/intent-alignment-review`，Base SHA `c98c99a9f39693f893300e990cd6770064438e42`。
-- 该提交时 PR #10 为 Open + Draft，53 个提交、34 个变更文件；未合并。
-- Push Actions run `43067709134`：8/8 Ubuntu/Windows × Node 22/24 × Python 3.11/3.13 全部通过。
-- Pull Request Actions run `43067724287`：同一矩阵 8/8 全部通过。
-- 两个 CI 结果严格绑定 `49443da...`；本次 Handoff 刷新是其后的独立文档提交，需单独核验该 Head 的 CI。
-- `main` 仍为 `02f8dde262455f15029a54694e129b05b70013a4`；本轮未修改 main。PR #3–#9 仍为 Open + Draft；依赖链 #4→#5→#6→#7→#8→#9 未改变，具体 Head/Base 以现场查询为准。
+- 该提交时 PR #10 为 Open + Draft，66 个提交、38 个变更文件；未合并。
+- Push Actions run `43071677951`：8/8 Ubuntu/Windows × Node 22/24 × Python 3.11/3.13 全部通过。
+- Pull Request Actions run `43071692274`：同一矩阵 8/8 全部通过。
+- 结果严格绑定 `7b60ac6...`；后续 Handoff 文档提交必须重新核验自己的 Head CI。
+- `main` 仍为 `02f8dde262455f15029a54694e129b05b70013a4`；本轮未修改 main。PR #3–#9 现场仍为 Open + Draft，依赖链 #4→#5→#6→#7→#8→#9 未改变；具体 Base/Head 以实时查询为准。
 
 
-### 尚未完成
+### 尚未完成与范围边界
 
-- 第一优先级：能力开关交叉审查的代表性组合、初始化器裁剪、Node/Python 可选门禁行为和文档语义已完成一轮修复并通过 CI。已明确 `auto` 是任务级规则加载策略，不代表轻量任务强制建卡；静态检查仍校验实际存在的可选索引/记录。当前 fixture 覆盖关键组合，但不声称穷尽所有可能配置组合。
-- 第二优先级（收尾阶段）：本轮又完成了事实来源、能力关闭决策落点、自动化承诺边界、CHANGELOG 单一 Unreleased 结构，以及 Node/Python resolver/profile validator 的更深层一致性审查。最新功能提交 `4db58aa...` Push/PR 两套 CI 均 8/8 通过。剩余工作是做一次最终扫尾，确认没有未说明的能力门禁或双端分支差异；不要为了行数去重删除“摘要 + 详细规范”这种合理分层。
-- 第三阶段：已完成第一轮四类任务上下文成本量化，并修复 R/V 索引读取缺口、AGENTS 过长及 `multi_agent=on` 最坏预算测试，CHANGES 改为按锚点选择性读取。后续只需结合最终规则扫尾复核读取优先级和真实项目定制文档成本，不再重复统计本轮 fixture。
-- 第四阶段（下一步）：升级兼容性审查，覆盖空项目初始化、已有项目升级、旧记录兼容、能力开关变更、从关闭到重新启用以及人工存档恢复。
-- Session Continuity Protocol 仍是后续正式设计方向；本阶段不开始新增协议子系统。保留七个方向：Bootstrap、Context Freshness、Intent Continuity、Checkpoint、Concurrency Control、Handoff、Evidence Provenance。
+- 第一优先级（能力开关交叉审查）：已完成代表性组合、初始化器裁剪、Node/Python 专属门禁和文档语义回归；明确 `auto` 是任务级加载策略，不代表轻量任务强制建卡。测试覆盖关键组合，不声称穷尽所有理论排列。
+- 第二优先级（规则冲突与权威来源）：已完成分域事实源、规则关闭后记录落点、自动化承诺边界、Node/Python resolver/profile validator 一致性、CHANGELOG 单一 Unreleased 结构及 R/V Router 导航闭环。不要为追求行数删除合理的“摘要 + 详细规范”分层。
+- 第三优先级（上下文成本）：第一轮四类任务读取量化与读取集修复已完成；AGENTS 模板当前 10,906B，默认渲染 9,634B，`multi_agent=on` 最坏渲染 10,156B；最坏组合在 12,288B 预算下仍留 2,132B，其中保留 1,024B 项目自定义规则后还有 1,108B。CHANGES 按 G/R/C 锚点读取，不通读全部历史。
+- 第四优先级（升级兼容性）：本轮第一轮完整覆盖已完成，见上节。实际业务项目全量试铺是补充证据，不作为本规范阶段的默认验收前提。
+- **有意保留的产品边界**：不增加自动模板升级应用器/自动回滚器；升级通过备份、只读计划、人工审查、独立分支/worktree 手工应用、验证和 metadata 登记。`adopt-template-baseline` 的 plan ID 是乐观快照验证，不是并发文件锁。
+- Session Continuity Protocol 仍是后续独立设计方向；当前 3.0 一致性/兼容性审查不实现新子系统。七个方向仍为 Bootstrap、Context Freshness、Intent Continuity、Checkpoint、Concurrency Control、Handoff、Evidence Provenance。
 
 
 ## ChatGPT / Agent 跨会话恢复协议
