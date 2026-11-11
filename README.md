@@ -60,7 +60,7 @@ node init.cjs /path/to/your-project --strict-scan
 
 ### 项目能力画像
 
-初始化与治理检查会读取 `project-profile.toml` 与 `policy/capabilities.json`，通过 Capability Resolver 计算能力状态：`on` 为启用、`off` 为关闭并裁剪注册表声明的可选模板产物及对应可选门禁、`auto` 保持 `deferred`，交由具体任务上下文判断。关闭能力不会删除项目中已经存在的文件；core 门禁始终执行。原始意图基线/变更账本、需求索引和验证证据索引属于 core，不提供关闭开关；`task_tracking`、`roadmap`、`adr`、`module_boundaries`、`multi_agent`、`stack_rules` 是可选能力。意图对齐不是独立全局开关，而是随启用的任务/里程碑记录执行。详见 [PROJECT-ADAPTATION-v2.0.md](PROJECT-ADAPTATION-v2.0.md)。
+初始化与治理检查会读取 `project-profile.toml` 与 `policy/capabilities.json`，通过 Capability Resolver 计算能力状态：`on` 为启用、`off` 为关闭并裁剪注册表声明的可选模板产物及对应可选门禁、`auto` 保持 `deferred`，由任务上下文决定当前任务是否加载相关规则。`auto` 不是要求每个任务都建卡的强制开关；仓库级检查器仍会校验保留的可选索引/目录和已有记录，避免已登记数据失去完整性，但不会因此要求轻量任务创建任务卡或里程碑。关闭能力不会删除项目中已经存在的文件；core 门禁始终执行。原始意图基线/变更账本、需求索引和验证证据索引属于 core，不提供关闭开关；`task_tracking`、`roadmap`、`adr`、`module_boundaries`、`multi_agent`、`stack_rules` 是可选能力。意图对齐不是独立全局开关，而是随启用的任务/里程碑记录执行。详见 [PROJECT-ADAPTATION-v2.0.md](PROJECT-ADAPTATION-v2.0.md)。
 
 ### 任务上下文解析（按需）
 

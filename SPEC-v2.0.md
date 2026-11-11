@@ -41,7 +41,7 @@
 | 入口层 | 会话规则、权限摘要、按需加载路由 | `AGENTS.md` |
 | 治理层 | 机器可测预算、白名单、必需文件、目录映射 | `gov.toml` |
 | 原则层 | 红线、授权边界、冲突裁决 | `.spec/00-constitution.md` |
-| 架构层 | 模块边界、依赖方向、接口与数据所有权 | `.spec/01-architecture.md` |
+| 架构层 | 基础架构事实、接口与数据所有权；模块边界专项约束仅在启用 `module_boundaries` 时生效 | `.spec/01-architecture.md` |
 | 约定层 | 跨语言约定 | `.spec/02-conventions.md` |
 | 技术栈层 | 启用 `stack_rules` 时的语言、框架、工具链约束 | `.spec/stacks/<stack>.md` |
 | 交付层 | 构建、验证、发布、回滚 | `.spec/03-delivery.md` |
