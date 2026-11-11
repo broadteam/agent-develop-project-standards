@@ -42,3 +42,39 @@
 ## Validation scope
 
 D1 defines the data contract only. Validator implementation, fixture runners, CLI adapters, and mandatory gates are separate deliverables and require their own review and evidence.
+
+
+## D1 semantic validation boundaries (test contract; implementation deferred)
+
+JSON Schema validates packet shape and declared conditional constraints. A conforming validator must additionally enforce the following portable semantic checks:
+
+- `checkpoint.decisions[].decision_id` must be unique within one packet. JSON Schema `uniqueItems` compares whole objects and does not guarantee uniqueness of one property.
+- A `decision_id` must identify one decision in the referenced authoritative decision source; packet-local uniqueness does not replace source lookup.
+- Every `evidence_refs` entry must resolve to an authoritative evidence record whose subject, revision, scope, actor, result, and observed time satisfy the evidence rules above. For review evidence, actor is the reviewer; for verification evidence, actor is the executor.
+- A consumer must compare packet source revisions with live Bootstrap results before treating any observation as current. Schema validity alone never proves freshness.
+
+The following cases define the minimum positive/negative fixture boundary. They are test expectations, not a validator implementation:
+
+| Case | Expected |
+|---|---|
+| Minimal checkpoint packet; no handoff and no coordination | Valid |
+| Handoff packet with a complete handoff object | Valid |
+| Optional namespaced extension, without core-field override | Valid |
+| Inference with non-empty basis references and explicit confidence | Valid |
+| Unknown top-level or nested core field | Invalid |
+| Unknown `schema_version` | Reject / read-only fallback |
+| Handoff packet without `handoff` | Invalid |
+| Passed/failed/stale verification without evidence reference | Invalid |
+| Reviewed/changes_requested/stale review without evidence reference | Invalid |
+| Running verification without actor, run ID, or start time | Invalid |
+| Non-running verification with an active `verification_run` | Invalid |
+| Blocked work without a non-empty reason | Invalid |
+| Dirty worktree without uncommitted paths | Invalid |
+| Clean worktree with uncommitted paths | Invalid |
+| Null HEAD paired with a non-unknown worktree state | Invalid |
+| Known isolation mode without a non-empty owner and write scope | Invalid |
+| Pending decision with `decided_at`, or resolved decision without it | Invalid |
+| Duplicate `decision_id` values in one packet | Invalid (semantic validator) |
+| Invalid RFC 3339 date-time despite a `date-time` annotation | Invalid (format assertion) |
+
+This boundary is part of D1 review. It does not authorize implementing the validator, fixture runner, or CI gate in this PR.
