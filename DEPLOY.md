@@ -23,7 +23,7 @@ node <目标目录>/.standards/check-governance.cjs                      # 验�
 不需要先建目录、不需要改 package.json、不需要装依赖。`init.cjs` 零依赖，Node 22+ 直接跑。
 
 **为什么先 dry-run**：它会打印「新建 / 覆盖 / 跳过 / 保护 / 导入」五类清单。你只需要看其中两类：
-`覆盖` 应该是空的（有内容说明会动你已有文件），`导入` 是它打算搬走的根目录计划文件。
+`覆盖` 应该是空的（有内容说明会动你已有文件）；仅在启用 `task_tracking` 时，`导入` 清单才会列出准备搬走的根目录计划文件。
 
 ### AI 遇到这些情况必须先问你，不许自己决定
 
@@ -33,7 +33,7 @@ node <目标目录>/.standards/check-governance.cjs                      # 验�
 铺之前如果遇到以下情况，停下来把选项列给我，不要自己选：
 1. dry-run 的「覆盖」不是空的 —— 说明会动我已有的文件
 2. 出现「同名文件从未被管理过」的警告 —— 可能是我的脚本，也可能是残留
-3. 根目录有计划文件要导入，但我已经有 .spec/tasks/T1 —— 导进去会冲突
+3. 启用 `task_tracking` 且根目录有计划文件要导入，但我已经有 `.spec/tasks/T1` —— 导进去会冲突
 4. 检测到多技术栈 —— 默认只按主栈生成，选错了规则就不对
 5. 装完治理检查不通过 —— 把违规项和我的原始状态一起给我，不要自己改我的文件
 ```
@@ -49,7 +49,7 @@ node <目标目录>/.standards/check-governance.cjs                      # 验�
 | 40 个规范文件（`AGENTS.md`、`.spec/`、`.memory/`、`scripts/` 等） | **只创建不存在的**。已存在一律跳过，不覆盖 |
 | 你已有的 `.githooks/pre-commit` | **零改动**。它只会在旁边放一个 `pre-commit.local.example` 作参考 |
 | `.gitignore` | 追加一个带 `# >>> agent-project-standards (managed)` 标记的区块；**区块外的规则原样保留** |
-| 根目录的 `TODO.md` / `PLAN.md` / `NOTES.md` / `BACKLOG.md` 等 | **自动导入**到 `.spec/tasks/T1/imported/`，原文逐字保留，根目录那份移除（见 §3） |
+| 根目录的 `TODO.md` / `PLAN.md` / `NOTES.md` / `BACKLOG.md` 等 | 启用 `task_tracking` 时默认导入到 `.spec/tasks/T1/imported/`；关闭时保留现有计划入口，不导入模板任务卡 |
 | `gov.toml` 的根目录白名单 | 按当前根目录自动生成，**保证装完就能通过检查**，不会一上来就报你违规 |
 | 业务代码 / 依赖 / 构建配置 / 现有测试 | **完全不碰** |
 

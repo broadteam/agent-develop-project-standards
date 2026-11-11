@@ -142,6 +142,10 @@ try {
   assert.match(spec, /启用 `task_tracking` 时，`.spec\/tasks\/index\.md`/, 'SPEC must mark task index as optional');
   assert.match(deploy, /关闭 `task_tracking` 时则不会导入这些文件/, 'DEPLOY must document task_tracking=off plan preservation');
   assert.match(clients, /仅当项目启用 `stack_rules` 时/, 'CLIENTS must not recommend disabled stack files');
+  assert.match(readme, /仅在启用 `task_tracking` 时再记录 T 任务锚点/, 'README must mark the task anchor as optional');
+  assert.match(readme, /仅在启用 `adr` 时，架构决策以 ADR 为准/, 'README must mark ADR as optional');
+  assert.match(spec, /启用 `task_tracking` 时，Board 源哈希与生成内容哈希/, 'SPEC must qualify the Board acceptance gate');
+  assert.match(deploy, /启用 `task_tracking` 时默认导入到/, 'DEPLOY must condition plan import on task tracking');
 
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
