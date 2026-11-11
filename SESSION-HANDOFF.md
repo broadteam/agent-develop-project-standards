@@ -284,3 +284,14 @@
 - D1：Schema + compatibility policy draft，待语义审查；不接入强制门禁，不实现自动 Packet 写入器。
 - PR #11 继续 Open + Draft，PR #10 继续 Open + Draft；不合并、不修改 main、不 bump 版本、不打 tag。
 - 下一步：针对 D1 的字段必需性、状态组合、扩展机制和兼容策略做一次独立审查；修订后再决定是否冻结 schema。之后才考虑独立的 validator/fixture 实现提案。
+
+
+## D1 第二轮语义审查（2026-11-12）
+
+- 决策时间不变量：`pending` 不得携带 `decided_at`；`confirmed`、`rejected`、`deferred` 必须提供裁定时间。
+- 正在运行的验证必须记录 `actor`、`run_id`、`started_at`；非 running 状态不得保留活动 `verification_run`。
+- 过期的验证/审查状态（`stale`）仍须保留历史 `evidence_refs`，避免状态只剩一个无法追溯的 stale 标签。
+- Validator 必须启用 JSON Schema Draft 2020-12 的 date-time format assertion，不能只把 format 当注释。
+- Evidence 仍由既有权威记录保存；review Evidence 至少绑定 revision、scope、reviewer、result、observed_at；verification Evidence 至少绑定 revision、command/procedure、result、executor、observed_at。Packet 只引用，不复制证据内容。
+- 兼容性策略明确：由于 Core 严格拒绝未知字段，新增任何 Core 字段（即使 optional）也需要新 schema_version；生产者特定附加数据使用 namespaced extensions。
+- 验证限制不变：尚未运行正式 JSON Schema Validator，也未实现自动校验器或门禁。上述修订仍属 D1 语义审查，不代表 Schema 已冻结。
