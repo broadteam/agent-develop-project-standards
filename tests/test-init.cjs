@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
+const { analyzeDrift } = require('../tools/check-template-drift.cjs');
 const root = path.resolve(__dirname, '..');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-standards-init-'));
 // Created inside the test and removed in finally: proves untracked artifacts under
@@ -536,9 +537,14 @@ try {
   assert.equal(reenableRun.status, 0, reenableRun.stdout + reenableRun.stderr);
   assert.equal(fs.readFileSync(preservedCard, 'utf8'), cardWithProjectNote, 're-enabling must preserve local task-card edits');
   const reenabledManifest = JSON.parse(fs.readFileSync(path.join(capabilityUpgrade, '.agent-standards.json'), 'utf8'));
-  assert.ok(reenabledManifest.preserved_paths.includes('.spec/tasks/T1/card.md'));
-  assert.equal(reenabledManifest.baseline_state, 'partial_unknown',
-    'the project must explicitly review files that became customized while their capability was disabled');
+  assert.ok(reenabledManifest.managed_files['.spec/tasks/T1/card.md'],
+    'a previously managed card keeps its original known baseline while its capability is disabled');
+  assert.equal(reenabledManifest.baseline_state, 'complete',
+    'a known baseline with local edits is not an unknown-ownership path');
+  const reenabledDrift = analyzeDrift({ projectRoot: capabilityUpgrade, standardsRoot: root });
+  const editedCardFinding = reenabledDrift.findings.find(item => item.path === '.spec/tasks/T1/card.md');
+  assert.equal(editedCardFinding?.status, 'local_customized',
+    'the retained baseline hash must identify the edited historical card as a local customization');
   const reenabledGate = spawnSync(process.execPath, [path.join(capabilityUpgrade, '.standards/check-governance.cjs')], { cwd: capabilityUpgrade, encoding: 'utf8' });
   assert.equal(reenabledGate.status, 0, reenabledGate.stdout + reenabledGate.stderr);
 
