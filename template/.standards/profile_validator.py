@@ -138,14 +138,13 @@ def resolve_capabilities(profile: dict, registry: dict) -> dict:
             excluded_paths.extend(definition.get("artifacts", []))
     for name, definition in registry.get("capabilities", {}).items():
         item = resolved.get(name)
+        if not item or item["status"] == "disabled":
+            continue
         dependency = definition.get("requires")
-        if not item or item["status"] == "disabled" or not dependency:
-            continue
-        if item["configured"] != dependency.get("when") and item["status"] != "deferred":
-            continue
-        target = resolved.get(dependency.get("capability"))
-        if not target or target["configured"] == dependency.get("not"):
-            errors.append(f"能力依赖冲突：{name}={item['configured']} 要求 {dependency.get('capability')} 不得为 {dependency.get('not')}")
+        if dependency and (item["configured"] == dependency.get("when") or item["status"] == "deferred"):
+            target = resolved.get(dependency.get("capability"))
+            if not target or target["configured"] == dependency.get("not"):
+                errors.append(f"能力依赖冲突：{name}={item['configured']} 要求 {dependency.get('capability')} 不得为 {dependency.get('not')}")
         stack_requirement = definition.get("requires_stack")
         if stack_requirement and item["configured"] == stack_requirement.get("when"):
             detected = profile.get("stack", {}).get("detected", [])
