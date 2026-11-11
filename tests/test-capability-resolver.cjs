@@ -62,7 +62,7 @@ try {
   fs.writeFileSync(path.join(autoProject, '.spec/tasks/T777/log.md'), '# Log\\n');
   const indexedAutoGate = spawnSync(process.execPath, [path.join(autoProject, '.standards/check-governance.cjs')], { encoding: 'utf8' });
   assert.equal(indexedAutoGate.status, 1, indexedAutoGate.stdout + indexedAutoGate.stderr);
-  assert.match(indexedAutoGate.stdout, /存在，但 .*index\\.md 里没有登记/);
+  assert.match(indexedAutoGate.stdout, /存在，但 .*index\.md 里没有登记/);
   let indexedAutoPython = spawnSync('python3', [path.join(autoProject, '.standards/check_governance.py')], { encoding: 'utf8' });
   if (indexedAutoPython.error) indexedAutoPython = spawnSync('python', [path.join(autoProject, '.standards/check_governance.py')], { encoding: 'utf8' });
   if (!indexedAutoPython.error) {
