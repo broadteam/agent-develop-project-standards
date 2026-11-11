@@ -631,7 +631,8 @@
               "verification_state": {
                 "enum": [
                   "passed",
-                  "failed"
+                  "failed",
+                  "stale"
                 ]
               }
             },
@@ -663,7 +664,8 @@
               "review_state": {
                 "enum": [
                   "reviewed",
-                  "changes_requested"
+                  "changes_requested",
+                  "stale"
                 ]
               }
             },
@@ -710,7 +712,23 @@
           "checkpoint": {
             "required": [
               "verification_run"
-            ]
+            ],
+            "properties": {
+              "verification_run": {
+                "$ref": "#/$defs/checkpoint/properties/verification_run"
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "checkpoint": {
+            "not": {
+              "required": [
+                "verification_run"
+              ]
+            }
           }
         }
       }
