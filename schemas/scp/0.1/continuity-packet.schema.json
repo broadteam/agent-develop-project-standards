@@ -583,7 +583,10 @@
           "checkpoint": {
             "properties": {
               "verification_state": {
-                "const": "passed"
+                "enum": [
+                  "passed",
+                  "failed"
+                ]
               }
             },
             "required": [
@@ -612,7 +615,10 @@
           "checkpoint": {
             "properties": {
               "review_state": {
-                "const": "reviewed"
+                "enum": [
+                  "reviewed",
+                  "changes_requested"
+                ]
               }
             },
             "required": [
