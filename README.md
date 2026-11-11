@@ -332,11 +332,11 @@ node tools/check-template-drift.cjs --root /path/to/your-project --json
 旧项目没有 `.agent-standards.json` 时，工具会明确报告历史基线未知，不猜测哪些文件是原始规范、哪些是项目定制。先备份并人工比较；确认当前保留内容后，才可预览并显式采纳：
 
 ```bash
-node tools/adopt-template-baseline.cjs --root /path/to/your-project --dry-run
-node tools/adopt-template-baseline.cjs --root /path/to/your-project --confirm-reviewed
+node tools/adopt-template-baseline.cjs --root /path/to/your-project --dry-run --json
+node tools/adopt-template-baseline.cjs --root /path/to/your-project --expect-plan-id <plan_id> --confirm-reviewed
 ```
 
-基线采纳只更新 `.agent-standards.json`，不修改规则文件。它表示维护者已审查并接受当前项目内容；已接受的定制会被保留，未来上游修改同一文件时会报告为冲突，要求人工合并。不要在未审查差异时执行 `--confirm-reviewed`。
+基线采纳只更新 `.agent-standards.json`，不修改规则文件。dry-run 输出的 `plan_id` 绑定当时的项目候选文件/权限、现有安装清单和完整模板源快照；确认时必须回传同一个 `--expect-plan-id`。项目文件、安装清单或模板源在审查后发生变化，确认会失败并要求重新 dry-run。该机制是快照复核，不是跨进程文件锁；确认期间应暂停其他写入。已接受的定制会被保留，未来上游修改同一文件时会报告为冲突，要求人工合并。
 
 ### 版本升级预览（只读）
 

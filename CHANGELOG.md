@@ -12,6 +12,7 @@
 - 为长期项目补上目标连续性基础：原始目标基线与后续意图变更分离记录；跟踪任务上下文强制读取两者，任务卡/里程碑通过稳定 ID 追踪目标。明确对话增量分类、计划偏离回顾与局部修复不得替代整体目标验收。
 
 ### Changed
+- Bind old-project baseline adoption confirmation to a deterministic project/template snapshot via a dry-run `plan_id`; require `--expect-plan-id`, revalidate immediately before writing, and reject stale project, manifest or template inputs.
 - Align capability enablement with confirmed facts: `stack_rules=on` now requires `profile.status=confirmed` and at least one non-generic detected stack; Node/Python resolver parity tests cover deferred dependencies and stack requirements.
 - Clarify domain-specific sources of truth: MEMORY is a compact cross-session breakpoint, not a global state registry.
 - Harden intent alignment: new task/milestone records carry creation dates so omission of the alignment mode cannot silently bypass review; completed tasks require passing V evidence, and milestone V records must match the declared delivery commit.
