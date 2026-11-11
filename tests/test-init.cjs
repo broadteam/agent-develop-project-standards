@@ -117,7 +117,7 @@ try {
   const multiAgentProfile = fs.readFileSync(path.join(root, 'template/project-profile.toml'), 'utf8')
     .replace('multi_agent = "off"', 'multi_agent = "on"');
   fs.writeFileSync(path.join(multiAgentProject, 'project-profile.toml'), multiAgentProfile);
-  const multiAgentInstalled = init(multiAgentProject);
+  const multiAgentInstalled = spawnSync(process.execPath, [path.join(root, 'init.cjs'), multiAgentProject], { encoding: 'utf8' });
   assert.equal(multiAgentInstalled.status, 0, multiAgentInstalled.stdout + multiAgentInstalled.stderr);
   const multiAgentGov = fs.readFileSync(path.join(multiAgentProject, 'gov.toml'), 'utf8');
   const multiAgentBudget = Number(multiAgentGov.match(/^agents_bytes = (\d+)/m)[1]);
