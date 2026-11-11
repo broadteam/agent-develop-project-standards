@@ -108,7 +108,7 @@ try {
   const recorded = JSON.parse(confirm.stdout);
   assert.equal(recorded.plan_id, freshPlan.plan_id);
   assert.equal(recorded.manifest_written, true);
-  assert.equal(fs.readFileSync(path.join(project, 'AGENTS.md'), 'utf8'), fs.readFileSync(path.join(project, 'AGENTS.md'), 'utf8'));
+  assert.equal(fs.readFileSync(path.join(project, 'AGENTS.md'), 'utf8'), customBefore + '\n<!-- changed after review -->\n', 'confirmation must leave project rules untouched');
   const manifestPath = path.join(project, '.agent-standards.json');
   assert.ok(fs.existsSync(manifestPath));
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
