@@ -247,7 +247,8 @@
       "additionalProperties": false,
       "required": [
         "head_sha",
-        "worktree_state"
+        "worktree_state",
+        "observed_at"
       ],
       "properties": {
         "branch": {
@@ -530,7 +531,8 @@
             "required": [
               "source_ref",
               "revision",
-              "freshness"
+              "freshness",
+              "observed_at"
             ],
             "properties": {
               "source_ref": {
@@ -554,7 +556,8 @@
                 "format": "date-time"
               }
             }
-          }
+          },
+          "minItems": 1
         }
       }
     }
