@@ -268,7 +268,7 @@ provenance:
 
 - Packet 是可重建的恢复视图，不是任务、需求或意图的新权威数据库。
 - 不要求每次普通对话都生成文件；跨会话暂停、Agent 交接、长任务 checkpoint、阶段收口时才考虑持久化。轻量任务继续遵循项目现有轻量流程，不因 SCP 自动升级为跟踪任务。
-- `task_ref`、`milestone_ref`、`lease_ref` 等引用按项目能力和实际场景选填；能力关闭或场景不适用时不得为了填满字段而创建治理记录。
+- `task_ref`、`milestone_ref` 等引用按项目能力和实际场景选填；SCP 0.1 不定义 `lease_ref`，能力关闭或场景不适用时不得为了填满字段而创建治理记录。
 - 任何动态字段都必须能标记 last-known 与 observed；不能把旧快照中的 branch/PR/CI 状态冒充实时状态。
 - YAML 示例中的时间、分支和 SHA 仅作字段示意，实际实现必须从运行环境/权威来源读取，不能使用占位值伪造运行状态。
 
@@ -378,7 +378,7 @@ SCP 必须作为现有会话协议的跨客户端互操作层，而不是替换�
 
 1. **轻量任务不能被协议升级**：Bootstrap 是恢复策略，不意味着每次会话都生成 Packet、Checkpoint 或任务卡。默认持久化仍只用于跨会话暂停、真实交接、长任务断点和阶段收口。
 2. **Checkpoint 状态不能冒充领域状态**：`locally_complete` 不是 task done；Checkpoint 的 verification 只能引用 Evidence，不能取代 V 索引；decision 状态必须绑定具体决策，不能被理解为通用授权。
-3. **可选能力必须可缺省**：T/M/ADR/lease 等引用按项目能力启用和实际场景选填。关闭能力时不创建替代目录，也不把 `not_configured` 误报为错误。
+3. **可选能力必须可缺省**：T/M/ADR 等引用按项目能力启用和实际场景选填。关闭能力时不创建替代目录，也不把 `not_configured` 误报为错误。SCP 0.1 不定义 Lease 字段。
 4. **未提交工作区证据需要精确定义**：Git tree SHA 不覆盖 untracked 文件；未提交验证至少要记录 HEAD、dirty 状态、纳入范围及必要的文件摘要，避免伪称已绑定完整快照。
 5. **并发控制按需启用**：沿用现有 `multi_agent` 规则；单 Agent/无并发任务不引入 lease。Branch/worktree 隔离优先，lease 不是 MVP 前置条件。
 6. **客户端互操作分级**：fixture 只证明数据契约可交换；真实 CLI 加载、工具权限和行为差异必须单独验证，不能由 fixture 代替。
@@ -412,7 +412,7 @@ SCP 必须作为现有会话协议的跨客户端互操作层，而不是替换�
 D0 已冻结，D1 开始定义可跨语言消费的机器契约。当前策略：
 
 - 唯一机器权威源：JSON Schema Draft 2020-12；不维护手写 YAML/Markdown 平行契约。
-- Schema 文件：`schemas/scp/0.1/continuity-packet.schema.json`。
+- Schema 文件：`schemas/scp/0.1/continuity-packet.schema.json`，当前 schema 标识为 `0.1.0`。
 - 示例文件：`schemas/scp/0.1/examples/handoff-minimal.json`，示例必须通过对应 schema 验证。
 - Packet 的持久化由工作节点/交接场景触发，不代表每个 session 必须创建文件。
 - schema 采用显式版本标识；已发布版本不可原地改变既有字段语义。兼容性策略见 `schemas/scp/0.1/COMPATIBILITY.md`，当前仍是 D1 草案。
