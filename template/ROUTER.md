@@ -9,6 +9,8 @@
 | 改架构 / 加模块 | 进程或分层模型、接口契约 | `.spec/01-architecture.md` |
 | 查某个 ID / 名称 / 字段叫什么 | 标识符唯一登记处 | `.spec/REGISTRY.md` |
 | 恢复项目最初目标、检查后续需求变化 | 原始目标基线与变更账本 | `.spec/intent/BASELINE.md`、`CHANGES.md` |
+| 核对需求状态、关联目标与验收判据 | 需求索引 | `.spec/requirements/INDEX.md` |
+| 查找验收证据、核对 verified 状态 | 验证证据索引 | `.spec/verification/INDEX.md` |
 <!--cap:task_tracking-->
 | 检查跟踪任务是否偏离目标 | 任务卡开工/收口对齐区块与目标变更账本 | `.spec/tasks/<ID>/card.md`、`.spec/intent/CHANGES.md` |
 <!--/cap-->

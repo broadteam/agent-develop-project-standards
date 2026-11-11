@@ -28,6 +28,7 @@ const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
 const spec = fs.readFileSync(path.join(root, 'SPEC-v2.0.md'), 'utf8');
 const deploy = fs.readFileSync(path.join(root, 'DEPLOY.md'), 'utf8');
 const clients = fs.readFileSync(path.join(root, 'CLIENTS.md'), 'utf8');
+const router = fs.readFileSync(path.join(root, 'template/ROUTER.md'), 'utf8');
 
 const profile = { capabilities: {
   task_tracking: 'off', roadmap: 'off', adr: 'auto', stack_rules: 'off',
@@ -35,6 +36,8 @@ const profile = { capabilities: {
   quality_gates: 'baseline', release_governance: 'light'
 }};
 const resolved = resolveCapabilities(profile, registry);
+assert.ok(router.includes('`.spec/requirements/INDEX.md`'), 'ROUTER must expose the core requirement registry');
+assert.ok(router.includes('`.spec/verification/INDEX.md`'), 'ROUTER must expose the core verification evidence registry');
 assert.deepEqual(resolved.errors, []);
 assert.equal(resolved.capabilities.task_tracking.status, 'disabled');
 assert.equal(resolved.capabilities.quality_gates.status, 'enabled');
