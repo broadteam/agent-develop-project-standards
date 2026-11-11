@@ -13,7 +13,11 @@
 2. **根目录白名单**。根目录只允许 `gov.toml [dirs]` 列出的目录/文件；临时产物只能进 `.tmp/<任务ID>/`，构建产物只能进 `{{BUILD_OUTPUT}}/`。
    **禁止** `out2` `test1` `tmp` `新建文件夹` 这类序号/随手目录。
 3. **单一规则入口 + 分域事实源**。规则入口看本文件；`.memory/MEMORY.md` 只保存跨会话断点与稳定项目事实，不是所有领域状态的总账。
-   项目意图以 `.spec/intent/` 为准，需求以 `.spec/requirements/INDEX.md` 为准，验证以 `.spec/verification/INDEX.md` 为准；启用 `task_tracking` 时任务状态以 `.spec/tasks/index.md` 为准，启用 `adr` 时架构决策以 `.spec/adr/` 为准。关闭可选能力不删除历史记录，也不要求新建对应记录。客户端私有 memory 只能作缓存，不得成为任何领域事实的权威来源。
+   项目意图以 `.spec/intent/` 为准，需求以 `.spec/requirements/INDEX.md` 为准，验证以 `.spec/verification/INDEX.md` 为准；启用 `task_tracking` 时任务状态以 `.spec/tasks/index.md` 为准，启用 `adr` 时架构决策以 `.spec/adr/` 为准。
+   <!--cap:roadmap-->
+   启用 `roadmap` 时里程碑状态以 `.spec/roadmap/INDEX.md` 为准。
+   <!--/cap-->
+   关闭可选能力不删除历史记录，也不要求新建对应记录。客户端私有 memory 只能作缓存，不得成为任何领域事实的权威来源。
 4. **一次改动一次提交**。提交信息写清"动了什么 + 为什么"。
 
 ---

@@ -155,7 +155,10 @@ try {
   assert.doesNotMatch(taskOnlyRouter, /\.spec\/roadmap\/INDEX\.md/);
   assert.doesNotMatch(taskOnlyRouter, /\.spec\/adr\/README\.md/);
   assert.doesNotMatch(taskOnlyRouter, /\.spec\/stacks\//);
+  assert.match(taskOnlyArchitecture, /基础依赖原则/, 'base architecture constraints must remain even when module_boundaries is off');
+  assert.match(taskOnlyArchitecture, /外层通过显式接口依赖内层/, 'module_boundaries=off must not disable core one-way dependency rules');
   assert.doesNotMatch(taskOnlyArchitecture, /模块依赖矩阵/, 'module_boundaries=off must remove its optional matrix instructions');
+  assert.doesNotMatch(taskOnlyAgents, /里程碑状态以 `\.spec\/roadmap\/INDEX\.md` 为准/, 'roadmap=off must not retain an unconditional authority pointer');
   assert.match(taskOnlyAgents, /启用 `adr` 时 ADR 也采用单写者/, 'multi_agent rules must not assume ADR is enabled');
   const taskOnlyConstitution = fs.readFileSync(path.join(taskOnlyProject, '.spec/00-constitution.md'), 'utf8');
   assert.match(taskOnlyConstitution, /启用 `task_tracking` 时，任务状态以/, 'constitution must mark task state as optional');
