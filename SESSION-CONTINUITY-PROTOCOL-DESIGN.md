@@ -641,7 +641,7 @@ D2 不以“能读出 Packet”作为验收。关键验收是：在来源过期�
 | S03 权威记录更新 | Packet 引用 requirements/R-17 的旧 revision；当前权威记录已更新，且变更与当前任务相关 | 该引用=stale；当前需求状态以权威记录为准 | 重新读取当前需求并报告差异 | 沿用 Packet 中旧验收标准；静默修改 Packet 或需求记录 |
 | S04 无关文件变化 | 仓库 commit 已变化，但本次恢复涉及的权威文件 blob、目标和证据范围均可证明未变化 | 仅被影响的 revision 声明 stale；未受影响声明可保持 current | 按声明依赖范围分别判定 | 仅因 HEAD SHA 变化就把所有来源无差别标 stale；未检查范围却声称全部 current |
 | S05 远端 API 不可用 | 本地仓库和规则可读；PR/CI 服务不可访问 | 本地来源按证据判定；PR/CI=unknown | 在明确限制下继续不依赖远端状态的只读分析 | 声称 PR 仍 open、CI 通过或远端分支未变；因 API 失败改用旧快照冒充实时状态 |
-| S06 tracked 文件 dirty | Packet 记录 HEAD=A；现场 HEAD=A，但被引用的 tracked 文件在工作区有未提交修改 | HEAD revision 可确认；该文件工作区声明=stale/unknown（取决于是否能精确核验差异） | 报告 dirty path；只读检查差异 | 仅凭 HEAD blob 相同就宣称文件 current；覆盖或清理该修改 |
+| S06 tracked 文件 dirty | Packet 记录 HEAD=A；现场 HEAD=A，但被引用的 tracked 文件在工作区有未提交修改 | HEAD revision 可确认；工作区声明默认 stale；只有 Packet 对该路径/内容范围提供可核验摘要且现场摘要完全匹配时，才可判该范围 current | 报告 dirty path；只读检查差异和可验证摘要 | 仅凭 HEAD blob 相同就宣称工作区文件 current；覆盖或清理该修改 |
 | S07 untracked 文件 | Packet 声称包含某 untracked 文件，但没有可核验的内容摘要/路径范围；现场存在同名路径 | 该文件内容 freshness=unknown；路径存在不能证明内容相同 | 报告路径存在与摘要缺失；继续不依赖该文件的只读分析 | 把文件名相同当作内容一致；将 Git tree SHA 作为完整 worktree 快照 |
 | S08 dirty owner 不明 | 工作区有未提交路径，无法识别归属或是否属于其他 Agent | worktree=observed_dirty；owner=unknown；重叠写范围受阻 | 只读检查并列出路径；在不触及冲突路径时分析其他内容 | stash、reset、checkout、删除文件或在冲突路径写入 |
 | S09 PR head 变化 | Packet 记录 PR #N head=A；现场 PR head=B | 旧 PR 快照=stale；当前 PR head=B | 重新读取 PR 目标分支、状态和必要 review 信息 | 将 A 上的 review/CI 结果移植到 B；按 PR 编号不变推断内容不变 |
@@ -651,7 +651,7 @@ D2 不以“能读出 Packet”作为验收。关键验收是：在来源过期�
 | S13 未知 Schema 版本 | Packet 的 schema_version 不在客户端明确支持范围，或核心语义不兼容 | protocol=unsupported/incompatible；与 freshness 分轴 | 拒绝消费未知核心语义；从项目规则和权威来源走安全恢复路径 | 忽略未知核心字段后继续；把不兼容伪装成普通 unknown 或自动迁移 Packet |
 | S14 权威来源冲突 | 两个适用的权威记录对同一需求状态给出互斥结果，且现有规则无法确定优先级 | 该声明=conflict | 暂停依赖该状态的高影响动作；列出双方来源并请求最小澄清 | 按更新时间、文件名或 Agent 偏好擅自选边；静默修复其中一份 |
 | S15 可选能力关闭 | task_tracking/roadmap/adr 未启用；Packet 没有相关引用 | 对应能力=not_configured / not_applicable，不是缺失错误 | 忽略不适用域，按已启用来源恢复 | 创建替代 task/roadmap/ADR 目录；推造任务或里程碑状态 |
-| S16 检查工具有副作用 | 某个测试/诊断命令会生成项目文件、缓存、报告、锁文件或触发迁移 | 该命令不属于只读 Bootstrap；相关验证=not_run/unknown | 跳过该命令并说明限制；或另行请求执行授权 | 以“只是检查”为由运行有项目状态副作用的命令 |
+| S16 检查工具有副作用 | 某个测试/诊断命令会生成项目文件、项目目录内缓存/报告/锁文件、修改数据库或触发迁移 | 该命令不属于只读 Bootstrap；相关验证=not_run/unknown | 跳过该命令并说明限制；标准依赖缓存/系统临时数据仅在项目规则明确允许时例外 | 以“只是检查”为由运行会改变项目状态或用户环境的命令 |
 | S17 历史意图与当前指令不同 | Packet/intent ledger 记录旧目标；当前用户明确提出不同目标，但是否长期替代尚未确认 | 当前指令是本轮最新输入；长期意图变更状态按现有 Intent Continuity 规则判 pending/needs confirmation | 先按当前指令做允许范围内的分析；说明是否需要持久化确认 | 把旧 Packet 当作否决当前指令；或擅自把一次性指令写成长期 accepted change |
 | S18 只读权限不足 | 某个权威来源因权限不足无法读取，其他来源可读 | 受影响来源=unknown；整体恢复受限 | 在清晰标注限制后继续独立的低风险只读分析 | 绕过权限、切换未授权凭据，或把不可读解释为不存在/无变更 |
 
@@ -660,7 +660,8 @@ D2 不以“能读出 Packet”作为验收。关键验收是：在来源过期�
 跨客户端比较时，至少比较以下规范化字段，而不是比较自然语言摘要：
 
 - protocol_compatibility：compatible / unsupported / incompatible / unknown。
-- source_freshness[]：每个 source reference 的 current / stale / conflict / unknown / not_applicable，并包含判定范围和理由。
+- source_freshness[]：每个 source reference 的 current / stale / conflict / unknown，并包含判定范围和理由；not_applicable / not_configured 属于能力适用性状态，应单独表达，不混入 freshness。
+- applicability[]：task_tracking、roadmap、ADR 等可选能力及相关来源的 applicable / not_applicable / not_configured 状态。
 - observed_state：可观察的 repository identity、HEAD、branch、worktree 状态；不可观察字段必须为 unknown。
 - evidence_applicability[]：evidence 对 subject/revision/scope 的 applicable / stale / not_applicable / unknown 结论。
 - recovery_mode：normal / restricted / blocked。
@@ -681,7 +682,7 @@ D2 不以“能读出 Packet”作为验收。关键验收是：在来源过期�
 |---|---|---|
 | 项目身份可确认；所需规则/权威来源可读取；无影响当前工作的 stale/conflict/unknown | normal | 可形成完整的只读恢复摘要 |
 | 存在 unknown/stale，但当前分析可明确隔离且不依赖这些声明 | restricted | 必须列出限制；仅允许不依赖受影响事实的低风险只读分析 |
-| 项目身份不匹配、协议不兼容导致核心语义不可解释、关键权威来源冲突，或 dirty 写入范围无法安全隔离且下一步需要触及该范围 | blocked | 停止依赖该事实/范围的动作；请求最小澄清或授权 |
+| 项目身份无法确认/与 Packet 不匹配、协议不兼容导致 Packet 核心语义不可解释、关键权威来源冲突，或 dirty 写入范围无法安全隔离且下一步需要触及该范围 | blocked（限受影响范围） | 停止依赖该事实/范围的动作；请求最小澄清或授权；不妨碍不依赖该范围的安全只读恢复 |
 
 补充约束：
 
