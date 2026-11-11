@@ -329,7 +329,49 @@
           "type": "string",
           "maxLength": 1000
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "enum": [
+                  "confirmed",
+                  "rejected",
+                  "deferred"
+                ]
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "required": [
+              "decided_at"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "pending"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "not": {
+              "required": [
+                "decided_at"
+              ]
+            }
+          }
+        }
+      ]
     },
     "checkpoint": {
       "type": "object",
@@ -388,7 +430,8 @@
           "additionalProperties": false,
           "required": [
             "actor",
-            "run_id"
+            "run_id",
+            "started_at"
           ],
           "properties": {
             "actor": {
