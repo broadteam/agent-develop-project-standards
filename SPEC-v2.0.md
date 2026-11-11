@@ -45,7 +45,7 @@
 | 约定层 | 跨语言约定 | `.spec/02-conventions.md` |
 | 技术栈层 | 启用 `stack_rules` 时的语言、框架、工具链约束 | `.spec/stacks/<stack>.md` |
 | 交付层 | 构建、验证、发布、回滚 | `.spec/03-delivery.md` |
-| 决策层 | 被采纳的架构取舍 | 启用 `adr` 时为 `.spec/adr/`；关闭时保留在项目既有决策记录中 |
+| 决策层 | 被采纳的架构取舍 | 启用 `adr` 时为 `.spec/adr/`；关闭时记入 `.spec/01-architecture.md` 或 PR 审查记录 |
 | 状态层 | 跨会话断点/稳定事实、意图、需求、验证；任务与路线图仅在对应能力启用时存在 | `.memory/MEMORY.md`、`.spec/intent/`、`.spec/requirements/`、`.spec/verification/`；可选 `.spec/tasks/`、`.spec/roadmap/` |
 
 **验收**：

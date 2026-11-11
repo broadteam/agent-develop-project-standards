@@ -173,6 +173,11 @@ try {
   assert.match(spec, /启用 `task_tracking` 时，`.spec\/tasks\/index\.md`/, 'SPEC must mark task index as optional');
   assert.match(deploy, /关闭 `task_tracking` 时则不会导入这些文件/, 'DEPLOY must document task_tracking=off plan preservation');
   assert.match(clients, /仅当项目启用 `stack_rules` 时/, 'CLIENTS must not recommend disabled stack files');
+  assert.match(clients, /仅在启用 `roadmap` 时里程碑状态进 `\\.spec\\/roadmap\\/INDEX\\.md`/, 'CLIENTS must mark roadmap state as optional');
+  assert.match(clients, /仅在启用 `task_tracking` 时，任务、里程碑、架构决策分别写回对应权威文件/, 'CLIENTS closeout map must qualify optional state domains');
+  assert.match(deploy, /启用 `adr` 时写 ADR；关闭时写入 `\\.spec\\/01-architecture\\.md` 或 PR 审查记录/, 'DEPLOY must use the stable ADR-off decision record path');
+  assert.match(readme, /仅在启用 `task_tracking` \/ `roadmap` \/ `adr` 时/, 'README must qualify task, milestone, and ADR state sources');
+  assert.match(spec, /关闭时记入 `\\.spec\\/01-architecture\\.md` 或 PR 审查记录/, 'SPEC must define a stable ADR-off decision record path');
   assert.match(readme, /仅在启用 `task_tracking` 时再记录 T 任务锚点/, 'README must mark the task anchor as optional');
   assert.match(readme, /仅在启用 `adr` 时，架构决策以 ADR 为准/, 'README must mark ADR as optional');
   assert.match(spec, /启用 `task_tracking` 时，Board 源哈希与生成内容哈希/, 'SPEC must qualify the Board acceptance gate');

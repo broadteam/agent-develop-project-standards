@@ -49,7 +49,7 @@
 | 时机 | 做什么 |
 |---|---|
 | 开工 | 读 `.memory/MEMORY.md` §0 恢复断点；再按任务读取对应领域的仓库权威文件 |
-| 收口 | 意图、需求、任务、验证、架构决策分别写回各自权威文件；MEMORY 只更新断点/稳定事实；私有记忆可留缓存 |
+| 收口 | 意图、需求、验证写回各自 core 权威文件；仅在启用 `task_tracking` / `roadmap` / `adr` 时，任务、里程碑、架构决策分别写回对应权威文件；MEMORY 只更新断点/稳定事实；私有记忆可留缓存 |
 | 冲突 | 仓库内对应领域的权威文件优先于客户端私有记忆；可复现的故障教训才记入 PITFALLS |
 
 **哪些私有目录该忽略**：只忽略纯工具数据/缓存。`.cursor/rules/`、`.claude/commands/` 这类团队共享配置要入库。`.workbuddy-ai/` 属于前者，模板已默认忽略；其他客户端按同一标准判断后，自己加到 `.gitignore` 的托管区块**外面**——区块内是模板生成的，会被覆盖。
@@ -83,7 +83,7 @@ mirrors = [".workbuddy-ai/memory/MEMORY.md"]
 
 镜像只同步 6 行断点。如果私有目录里已经有上百行项目知识（很常见），做一次归位：
 
-1. 把内容归入对应权威文件：意图/范围变化进 `.spec/intent/`，需求进 `.spec/requirements/`，验证进 `.spec/verification/`；仅在启用 `task_tracking` 时任务状态进 `.spec/tasks/index.md`，仅在启用 `adr` 时架构决策进 `.spec/adr/`；MEMORY 只留稳定事实摘要与恢复断点
+1. 把内容归入对应权威文件：意图/范围变化进 `.spec/intent/`，需求进 `.spec/requirements/`，验证进 `.spec/verification/`；仅在启用 `task_tracking` 时任务状态进 `.spec/tasks/index.md`，仅在启用 `roadmap` 时里程碑状态进 `.spec/roadmap/INDEX.md`，仅在启用 `adr` 时架构决策进 `.spec/adr/`；MEMORY 只留稳定事实摘要与恢复断点
 2. 私有记忆里只留会话流水和客户端自己的笔记
 3. 跑一次 `sync-memory`，断点区块盖在顶部
 4. 之后维护各领域自己的权威文件；MEMORY 仅维护断点/稳定事实，私有文件靠镜像保持断点同步

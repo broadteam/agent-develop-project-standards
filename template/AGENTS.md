@@ -96,7 +96,7 @@
 - 启用 `roadmap` 时，已完成里程碑必须完成意图对齐回顾，不得带未解决漂移关闭。
 - 意图对齐是对应跟踪记录的校验约束，不是独立的全局开关；关闭任务跟踪/路线图时，不扫描其保留的历史记录。
 - 轻量任务：只有产生了后续会话必须知道的事实、决策或未完成事项时，才更新记忆/日志；不要为了留痕重复抄写代码 diff。
-- 稳定项目事实与跨会话执行断点进入 `.memory/MEMORY.md`；目标/范围变化进入 `.spec/intent/CHANGES.md`，需求状态进入 `.spec/requirements/INDEX.md`，验证证据进入 `.spec/verification/INDEX.md`；启用 `task_tracking` 时任务状态进入 `.spec/tasks/index.md`，启用 `adr` 时架构决策进入 `.spec/adr/`。不要把同一事实复制到多个权威文件。
+- 稳定项目事实与跨会话执行断点进入 `.memory/MEMORY.md`；目标/范围变化进入 `.spec/intent/CHANGES.md`，需求状态进入 `.spec/requirements/INDEX.md`，验证证据进入 `.spec/verification/INDEX.md`；启用 `task_tracking` 时任务状态进入 `.spec/tasks/index.md`，启用 `roadmap` 时里程碑状态进入 `.spec/roadmap/INDEX.md`，启用 `adr` 时架构决策进入 `.spec/adr/`。不要把同一事实复制到多个权威文件。
 - 可复现的判据级教训进入 `.memory/PITFALLS.md`。
 - **客户端私有记忆只是缓存**（如 `.workbuddy-ai/`、各客户端自己的会话记忆）：项目级事实必须写回对应领域的权威文件；开工读 `.memory/MEMORY.md` §0 恢复断点，不读私有记忆当权威。
 - 任何验证都如实记录：未执行标记 `unverified`，不得写成通过。
