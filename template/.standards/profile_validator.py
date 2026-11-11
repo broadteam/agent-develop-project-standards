@@ -148,6 +148,6 @@ def resolve_capabilities(profile: dict, registry: dict) -> dict:
         stack_requirement = definition.get("requires_stack")
         if stack_requirement and item["configured"] == stack_requirement.get("when"):
             detected = profile.get("stack", {}).get("detected", [])
-            if stack_requirement.get("non_generic") and (profile.get("profile", {}).get("status") != "confirmed" or not any(value != "generic" for value in detected)):
+            if stack_requirement.get("non_generic") and (profile.get("profile", {}).get("status") != "confirmed" or not isinstance(detected, list) or not any(value != "generic" for value in detected)):
                 errors.append(f"{name}={item['configured']} 要求至少一个已确认的非 generic 技术栈")
     return {"capabilities": resolved, "excluded_paths": list(dict.fromkeys(excluded_paths)), "errors": errors}

@@ -81,6 +81,7 @@ assertResolverParity('roadmap auto must respect task_tracking dependency', { cap
 assertResolverParity('stack_rules on requires a confirmed non-generic stack', { stack: { detected: ['generic'] }, capabilities: { stack_rules: 'on' } });
 assertResolverParity('stack_rules on rejects an unconfirmed concrete stack', { profile: { status: 'needs_review' }, stack: { detected: ['php'] }, capabilities: { stack_rules: 'on' } });
 assertResolverParity('stack_rules on accepts a confirmed concrete stack', { profile: { status: 'confirmed' }, stack: { detected: ['php'] }, capabilities: { stack_rules: 'on' } });
+assertResolverParity('stack_rules on rejects a malformed detected stack value', { profile: { status: 'confirmed' }, stack: { detected: 'php' }, capabilities: { stack_rules: 'on' } });
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-capability-resolver-'));
 try {
@@ -113,6 +114,14 @@ try {
   assertProfileValidatorParity('unconfirmed-stack-rules', validProfileText
     .replace('status = "needs_review"', 'status = "needs_review"')
     .replace('detected = ["generic"]', 'detected = ["php"]')
+    .replace('stack_rules = "auto"', 'stack_rules = "on"'));
+  assertProfileValidatorParity('confirmed-profile-with-malformed-stack-list', validProfileText
+    .replace('status = "needs_review"', 'status = "confirmed"')
+    .replace('type = "unknown"', 'type = "saas"')
+    .replace('scale = "unknown"', 'scale = "small"')
+    .replace('risk = "unknown"', 'risk = "medium"')
+    .replace('architecture = "unknown"', 'architecture = "layered"')
+    .replace('detected = ["generic"]', 'detected = "php"')
     .replace('stack_rules = "auto"', 'stack_rules = "on"'));
   assertProfileValidatorParity('roadmap-auto-dependency-conflict', validProfileText
     .replace('task_tracking = "auto"', 'task_tracking = "off"'));
