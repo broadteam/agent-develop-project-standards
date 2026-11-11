@@ -539,8 +539,11 @@ try {
   const reenabledManifest = JSON.parse(fs.readFileSync(path.join(capabilityUpgrade, '.agent-standards.json'), 'utf8'));
   assert.ok(reenabledManifest.managed_files['.spec/tasks/T1/card.md'],
     'a previously managed card keeps its original known baseline while its capability is disabled');
-  assert.equal(reenabledManifest.baseline_state, 'complete',
-    'a known baseline with local edits is not an unknown-ownership path');
+  assert.ok(!reenabledManifest.preserved_paths.includes('.spec/tasks/T1/card.md'),
+    'a customized managed file retains a known baseline instead of becoming an unknown-ownership path');
+  assert.ok(reenabledManifest.preserved_paths.includes('project-profile.toml'),
+    'the pre-existing user-owned profile remains the explicit unknown-baseline path');
+  assert.equal(reenabledManifest.baseline_state, 'partial_unknown');
   const reenabledDrift = analyzeDrift({ projectRoot: capabilityUpgrade, standardsRoot: root });
   const editedCardFinding = reenabledDrift.findings.find(item => item.path === '.spec/tasks/T1/card.md');
   assert.equal(editedCardFinding?.status, 'local_customized',
