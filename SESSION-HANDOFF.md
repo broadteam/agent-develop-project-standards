@@ -71,7 +71,7 @@
 - **文档一致性**：README、CLIENTS、SPEC-v2.0、PROJECT-ADAPTATION 与 AGENTS/Constitution/MEMORY 对分域事实源的描述已同步；PROJECT-ADAPTATION 不再把 project-profile 作为每轮固定上下文。
 - **路由闭环**：ROUTER 新增 core 需求索引与验证证据索引入口；`test-capability-resolver` 固定这两个入口，避免任务/验收文档引用 R/V ID 却没有统一导航。
 - **规则记录落点**：关闭 ADR 时，决策/例外统一写入 `.spec/01-architecture.md` 或 PR 审查记录，不依赖可能不存在的 task record；关闭 task_tracking/roadmap/adr 时，对应事实源路径不再被写成无条件权威来源。
-- **Node/Python Resolver 一致性**：两端对 `auto/deferred` 能力依赖和 `requires_stack` 使用相同语义；`stack_rules=on` 要求 `profile.status=confirmed` 且存在非 `generic` 技术栈。对畸形的非数组 `stack.detected` 做防御性拒绝。
+- **Node/Python Resolver 一致性**：两端对 `auto/deferred` 能力依赖和 `requires_stack` 使用相同语义；`stack_rules=on` 要求 `profile.status=confirmed` 且至少存在一个格式合法的非 `generic` 技术栈 ID。畸形非数组、空字符串或非法大小写的 `stack.detected` 不得满足要求。
 - **Node/Python Profile Validator 一致性**：增加最终 errors/warnings 级对照测试；修正 strict quality gate 在整个 `[verification]` 区块缺失时的诊断差异。Python 对照脚本禁用字节码缓存，避免生成 `.pyc` 污染模板漂移扫描。
 - **自动化承诺边界**：PROJECT-ADAPTATION 明确 registry `validation` 是人工/Agent 验收指导，不会仅因写入 JSON 就自动执行；结构化依赖、画像规则和实际 checker 才构成机器门禁。模块依赖需要项目架构测试；multi_agent 是行为协议而非分布式锁。
 - **变更日志结构**：CHANGELOG 的多个重复 `## Unreleased` 已合并为一个区块，文档测试固定该结构。
@@ -125,12 +125,12 @@
 ### PR #10 最新功能验证基线
 
 - 分支：`feat/governance-consistency-audit`。
-- 最新已验证功能/测试提交：`7b60ac6e0a88dbc297a8cfb24f28f912dc478cab`。
+- 最新已验证功能/测试提交：`bc979d59a84e11fc05e86b6574dc58a8c822da44`。
 - Base：PR #9 的 `feat/intent-alignment-review`，Base SHA `c98c99a9f39693f893300e990cd6770064438e42`。
-- 该提交时 PR #10 为 Open + Draft，66 个提交、38 个变更文件；未合并。
-- Push Actions run `43071677951`：8/8 Ubuntu/Windows × Node 22/24 × Python 3.11/3.13 全部通过。
-- Pull Request Actions run `43071692274`：同一矩阵 8/8 全部通过。
-- 结果严格绑定 `7b60ac6...`；后续 Handoff 文档提交必须重新核验自己的 Head CI。
+- 该提交时 PR #10 为 Open + Draft，69 个提交、38 个变更文件；未合并。
+- Push Actions run `43072944062`：8/8 Ubuntu/Windows × Node 22/24 × Python 3.11/3.13 全部通过。
+- Pull Request Actions run `43072957574`：同一矩阵 8/8 全部通过。
+- 结果严格绑定 `bc979d5...`；本次 Handoff 更新是后续独立文档提交，需要单独核验新 Head CI。
 - `main` 仍为 `02f8dde262455f15029a54694e129b05b70013a4`；本轮未修改 main。PR #3–#9 现场仍为 Open + Draft，依赖链 #4→#5→#6→#7→#8→#9 未改变；具体 Base/Head 以实时查询为准。
 
 

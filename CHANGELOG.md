@@ -13,7 +13,7 @@
 
 ### Changed
 - Bind old-project baseline adoption confirmation to a deterministic project/template snapshot via a dry-run `plan_id`; require `--expect-plan-id`, revalidate immediately before writing, and reject stale project, manifest or template inputs.
-- Align capability enablement with confirmed facts: `stack_rules=on` now requires `profile.status=confirmed` and at least one non-generic detected stack; Node/Python resolver parity tests cover deferred dependencies and stack requirements.
+- Align capability enablement with confirmed facts: `stack_rules=on` now requires `profile.status=confirmed` and at least one syntactically valid non-generic stack ID; Node/Python resolver and profile-validator parity tests reject malformed, empty and invalid-case IDs.
 - Clarify domain-specific sources of truth: MEMORY is a compact cross-session breakpoint, not a global state registry.
 - Harden intent alignment: new task/milestone records carry creation dates so omission of the alignment mode cannot silently bypass review; completed tasks require passing V evidence, and milestone V records must match the declared delivery commit.
 - Keep project-profile details out of the unconditional task-context read set.
