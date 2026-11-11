@@ -1,0 +1,505 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/broadteam/agent-develop-project-standards/blob/main/schemas/scp/0.1/continuity-packet.schema.json",
+  "title": "Session Continuity Packet",
+  "description": "Machine contract for a minimal, reconstructable SCP checkpoint or handoff packet. Domain records remain authoritative in their existing sources.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol",
+    "schema_version",
+    "packet_id",
+    "packet_kind",
+    "generated_at",
+    "project",
+    "session",
+    "work",
+    "code",
+    "checkpoint",
+    "handoff",
+    "coordination",
+    "provenance"
+  ],
+  "properties": {
+    "protocol": {
+      "const": "scp"
+    },
+    "schema_version": {
+      "const": "0.1.0"
+    },
+    "packet_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "packet_kind": {
+      "enum": [
+        "checkpoint",
+        "handoff"
+      ]
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "project": {
+      "$ref": "#/$defs/project"
+    },
+    "session": {
+      "$ref": "#/$defs/session"
+    },
+    "intent": {
+      "$ref": "#/$defs/intent"
+    },
+    "work": {
+      "$ref": "#/$defs/work"
+    },
+    "code": {
+      "$ref": "#/$defs/code"
+    },
+    "checkpoint": {
+      "$ref": "#/$defs/checkpoint"
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/reference"
+      },
+      "uniqueItems": true
+    },
+    "handoff": {
+      "$ref": "#/$defs/handoff"
+    },
+    "coordination": {
+      "$ref": "#/$defs/coordination"
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    },
+    "extensions": {
+      "type": "object",
+      "description": "Namespaced, non-authoritative adapter or project extensions. Core SCP semantics must not be redefined here.",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)+$"
+      },
+      "additionalProperties": {
+        "type": [
+          "object",
+          "array",
+          "string",
+          "number",
+          "integer",
+          "boolean",
+          "null"
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "reference": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048,
+      "description": "Stable path, ID, or URL into an existing authoritative source; not a copied domain record."
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "root": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "project_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      }
+    },
+    "session": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "actor"
+      ],
+      "properties": {
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "actor": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "client": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "intent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "baseline_ref": {
+          "$ref": "#/$defs/reference"
+        },
+        "accepted_change_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/reference"
+          },
+          "uniqueItems": true
+        },
+        "pending_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/reference"
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "work": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "topic"
+      ],
+      "properties": {
+        "topic": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "task_ref": {
+          "$ref": "#/$defs/reference"
+        },
+        "milestone_ref": {
+          "$ref": "#/$defs/reference"
+        },
+        "requirement_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/reference"
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "code": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "head_sha",
+        "worktree_state"
+      ],
+      "properties": {
+        "branch": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        },
+        "head_sha": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$"
+        },
+        "worktree_state": {
+          "enum": [
+            "observed_clean",
+            "observed_dirty",
+            "unknown"
+          ]
+        },
+        "uncommitted_paths": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "uniqueItems": true
+        },
+        "observed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "source_ref": {
+          "$ref": "#/$defs/reference"
+        }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decision_id",
+        "status",
+        "decision_maker",
+        "source_ref"
+      ],
+      "properties": {
+        "decision_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "confirmed",
+            "rejected",
+            "deferred"
+          ]
+        },
+        "decision_maker": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "source_ref": {
+          "$ref": "#/$defs/reference"
+        },
+        "decided_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "summary": {
+          "type": "string",
+          "maxLength": 1000
+        }
+      }
+    },
+    "checkpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "work_state",
+        "workspace_state",
+        "verification_state",
+        "review_state",
+        "decisions"
+      ],
+      "properties": {
+        "work_state": {
+          "enum": [
+            "not_started",
+            "in_progress",
+            "blocked",
+            "locally_complete"
+          ]
+        },
+        "workspace_state": {
+          "enum": [
+            "unknown",
+            "observed_clean",
+            "observed_dirty"
+          ]
+        },
+        "verification_state": {
+          "enum": [
+            "not_run",
+            "running",
+            "passed",
+            "failed",
+            "stale",
+            "unknown"
+          ]
+        },
+        "review_state": {
+          "enum": [
+            "not_reviewed",
+            "reviewed",
+            "changes_requested",
+            "stale",
+            "unknown"
+          ]
+        },
+        "decisions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/decision"
+          },
+          "uniqueItems": true
+        },
+        "next_action": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "blocked_reason": {
+          "type": "string",
+          "maxLength": 2000
+        }
+      }
+    },
+    "handoff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "completed",
+        "in_progress",
+        "blocked",
+        "next_action",
+        "forbidden_actions"
+      ],
+      "properties": {
+        "from": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "to": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "completed": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        },
+        "in_progress": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        },
+        "blocked": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        },
+        "next_action": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "forbidden_actions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        }
+      }
+    },
+    "coordination": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "owner",
+        "write_scope",
+        "isolation"
+      ],
+      "properties": {
+        "owner": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        },
+        "write_scope": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "uniqueItems": true
+        },
+        "isolation": {
+          "enum": [
+            "branch_worktree",
+            "single_writer",
+            "shared_coordinated",
+            "unknown"
+          ]
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 1000
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "generated_by",
+        "source_revisions"
+      ],
+      "properties": {
+        "generated_by": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "source_revisions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "source_ref",
+              "revision",
+              "freshness"
+            ],
+            "properties": {
+              "source_ref": {
+                "$ref": "#/$defs/reference"
+              },
+              "revision": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "freshness": {
+                "enum": [
+                  "current",
+                  "stale",
+                  "conflict",
+                  "unknown"
+                ]
+              },
+              "observed_at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
