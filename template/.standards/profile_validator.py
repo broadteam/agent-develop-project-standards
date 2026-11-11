@@ -139,9 +139,16 @@ def resolve_capabilities(profile: dict, registry: dict) -> dict:
     for name, definition in registry.get("capabilities", {}).items():
         item = resolved.get(name)
         dependency = definition.get("requires")
-        if not item or item["status"] == "disabled" or not dependency or item["configured"] != dependency.get("when"):
+        if not item or item["status"] == "disabled" or not dependency:
+            continue
+        if item["configured"] != dependency.get("when") and item["status"] != "deferred":
             continue
         target = resolved.get(dependency.get("capability"))
         if not target or target["configured"] == dependency.get("not"):
             errors.append(f"能力依赖冲突：{name}={item['configured']} 要求 {dependency.get('capability')} 不得为 {dependency.get('not')}")
+        stack_requirement = definition.get("requires_stack")
+        if stack_requirement and item["configured"] == stack_requirement.get("when"):
+            detected = profile.get("stack", {}).get("detected", [])
+            if stack_requirement.get("non_generic") and not any(value != "generic" for value in detected):
+                errors.append(f"{name}={item['configured']} 要求至少一个已确认的非 generic 技术栈")
     return {"capabilities": resolved, "excluded_paths": list(dict.fromkeys(excluded_paths)), "errors": errors}

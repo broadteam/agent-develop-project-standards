@@ -7,6 +7,21 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const root = path.resolve(__dirname, '..');
 const { resolveCapabilities } = require('../template/.standards/capability-resolver.cjs');
+function assertResolverParity(label, profile) {
+  const node = resolveCapabilities(profile, registry);
+  const script = [
+    'import json, sys',
+    `sys.path.insert(0, ${JSON.stringify(path.join(root, 'template/.standards'))})`,
+    'from profile_validator import resolve_capabilities',
+    'print(json.dumps(resolve_capabilities(json.loads(sys.argv[1]), json.loads(sys.argv[2])), ensure_ascii=False))'
+  ].join('; ');
+  let result = spawnSync(process.env.PYTHON || 'python3', ['-c', script, JSON.stringify(profile), JSON.stringify(registry)], { encoding: 'utf8' });
+  if (result.error && !process.env.PYTHON) result = spawnSync('python', ['-c', script, JSON.stringify(profile), JSON.stringify(registry)], { encoding: 'utf8' });
+  if (result.error) throw result.error;
+  assert.equal(result.status, 0, result.stderr);
+  const python = JSON.parse(result.stdout.trim());
+  assert.deepEqual({ capabilities: python.capabilities, excludedPaths: python.excluded_paths, errors: python.errors }, node, label + ': Node/Python resolver results differ');
+}
 const registry = JSON.parse(fs.readFileSync(path.join(root, 'template/policy/capabilities.json'), 'utf8'));
 const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
 const spec = fs.readFileSync(path.join(root, 'SPEC-v2.0.md'), 'utf8');
@@ -47,6 +62,10 @@ const invalidRelease = resolveCapabilities({capabilities:{quality_gates:'baselin
 assert.ok(invalidRelease.errors.some((error) => error.includes('release_governance=strict')));
 const invalidAutoRoadmap = resolveCapabilities({capabilities:{task_tracking:'off',roadmap:'auto'}}, registry);
 assert.ok(invalidAutoRoadmap.errors.some((error) => error.includes('roadmap=auto') && error.includes('task_tracking')));
+assertResolverParity('default auto capability resolution', {});
+assertResolverParity('roadmap auto must respect task_tracking dependency', { capabilities: { task_tracking: 'off', roadmap: 'auto' } });
+assertResolverParity('stack_rules on requires a confirmed non-generic stack', { stack: { detected: ['generic'] }, capabilities: { stack_rules: 'on' } });
+assertResolverParity('stack_rules on accepts a concrete detected stack', { stack: { detected: ['php'] }, capabilities: { stack_rules: 'on' } });
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-capability-resolver-'));
 try {
@@ -173,11 +192,11 @@ try {
   assert.match(spec, /启用 `task_tracking` 时，`.spec\/tasks\/index\.md`/, 'SPEC must mark task index as optional');
   assert.match(deploy, /关闭 `task_tracking` 时则不会导入这些文件/, 'DEPLOY must document task_tracking=off plan preservation');
   assert.match(clients, /仅当项目启用 `stack_rules` 时/, 'CLIENTS must not recommend disabled stack files');
-  assert.match(clients, /仅在启用 `roadmap` 时里程碑状态进 `\\.spec\\/roadmap\\/INDEX\\.md`/, 'CLIENTS must mark roadmap state as optional');
+  assert.match(clients, /仅在启用 `roadmap` 时里程碑状态进 `\.spec\/roadmap\/INDEX\.md`/, 'CLIENTS must mark roadmap state as optional');
   assert.match(clients, /仅在启用 `task_tracking` 时，任务、里程碑、架构决策分别写回对应权威文件/, 'CLIENTS closeout map must qualify optional state domains');
-  assert.match(deploy, /启用 `adr` 时写 ADR；关闭时写入 `\\.spec\\/01-architecture\\.md` 或 PR 审查记录/, 'DEPLOY must use the stable ADR-off decision record path');
+  assert.match(deploy, /启用 `adr` 时写 ADR；关闭时写入 `\.spec\/01-architecture\.md` 或 PR 审查记录/, 'DEPLOY must use the stable ADR-off decision record path');
   assert.match(readme, /仅在启用 `task_tracking` \/ `roadmap` \/ `adr` 时/, 'README must qualify task, milestone, and ADR state sources');
-  assert.match(spec, /关闭时记入 `\\.spec\\/01-architecture\\.md` 或 PR 审查记录/, 'SPEC must define a stable ADR-off decision record path');
+  assert.match(spec, /关闭时记入 `\.spec\/01-architecture\.md` 或 PR 审查记录/, 'SPEC must define a stable ADR-off decision record path');
   assert.match(readme, /仅在启用 `task_tracking` 时再记录 T 任务锚点/, 'README must mark the task anchor as optional');
   assert.match(readme, /仅在启用 `adr` 时，架构决策以 ADR 为准/, 'README must mark ADR as optional');
   assert.match(spec, /启用 `task_tracking` 时，Board 源哈希与生成内容哈希/, 'SPEC must qualify the Board acceptance gate');
