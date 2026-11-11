@@ -9,7 +9,9 @@
 | 改架构 / 加模块 | 进程或分层模型、接口契约 | `.spec/01-architecture.md` |
 | 查某个 ID / 名称 / 字段叫什么 | 标识符唯一登记处 | `.spec/REGISTRY.md` |
 | 恢复项目最初目标、检查后续需求变化 | 原始目标基线与变更账本 | `.spec/intent/BASELINE.md`、`CHANGES.md` |
+<!--cap:task_tracking-->
 | 检查跟踪任务是否偏离目标 | 任务卡开工/收口对齐区块与目标变更账本 | `.spec/tasks/<ID>/card.md`、`.spec/intent/CHANGES.md` |
+<!--/cap-->
 | 决定跨语言命名、提交信息、文案怎么写 | 通用约定 | `.spec/02-conventions.md` |
 <!--cap:stack_rules-->
 | 查当前语言/框架的具体约束 | 技术栈规范 | `.spec/stacks/<stack>.md` |

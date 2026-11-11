@@ -83,7 +83,7 @@ mirrors = [".workbuddy-ai/memory/MEMORY.md"]
 
 镜像只同步 6 行断点。如果私有目录里已经有上百行项目知识（很常见），做一次归位：
 
-1. 把内容归入对应权威文件：意图/范围变化进 `.spec/intent/`，需求进 `.spec/requirements/`，任务状态进 `.spec/tasks/index.md`，验证进 `.spec/verification/`，架构决策进 `.spec/adr/`；MEMORY 只留稳定事实摘要与恢复断点
+1. 把内容归入对应权威文件：意图/范围变化进 `.spec/intent/`，需求进 `.spec/requirements/`，验证进 `.spec/verification/`；仅在启用 `task_tracking` 时任务状态进 `.spec/tasks/index.md`，仅在启用 `adr` 时架构决策进 `.spec/adr/`；MEMORY 只留稳定事实摘要与恢复断点
 2. 私有记忆里只留会话流水和客户端自己的笔记
 3. 跑一次 `sync-memory`，断点区块盖在顶部
 4. 之后维护各领域自己的权威文件；MEMORY 仅维护断点/稳定事实，私有文件靠镜像保持断点同步

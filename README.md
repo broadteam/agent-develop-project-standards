@@ -60,7 +60,7 @@ node init.cjs /path/to/your-project --strict-scan
 
 ### 项目能力画像
 
-初始化与治理检查会读取 `project-profile.toml` 与 `policy/capabilities.json`，通过 Capability Resolver 计算能力状态：`on` 为启用、`off` 为关闭并裁剪注册表声明的可选模板产物及对应可选门禁、`auto` 保持 `deferred`，交由具体任务上下文判断。关闭能力不会删除项目中已经存在的文件；core 门禁始终执行。详见 [PROJECT-ADAPTATION-v2.0.md](PROJECT-ADAPTATION-v2.0.md)。
+初始化与治理检查会读取 `project-profile.toml` 与 `policy/capabilities.json`，通过 Capability Resolver 计算能力状态：`on` 为启用、`off` 为关闭并裁剪注册表声明的可选模板产物及对应可选门禁、`auto` 保持 `deferred`，交由具体任务上下文判断。关闭能力不会删除项目中已经存在的文件；core 门禁始终执行。原始意图基线/变更账本、需求索引和验证证据索引属于 core，不提供关闭开关；`task_tracking`、`roadmap`、`adr`、`module_boundaries`、`multi_agent`、`stack_rules` 是可选能力。意图对齐不是独立全局开关，而是随启用的任务/里程碑记录执行。详见 [PROJECT-ADAPTATION-v2.0.md](PROJECT-ADAPTATION-v2.0.md)。
 
 ### 任务上下文解析（按需）
 
@@ -99,13 +99,13 @@ node .standards/task-context-resolver.cjs --input .tmp/task-context.json --forma
 
 为防止同一会话内的目标漂移，变更账本还定义了每轮对话的意图分类：继续、澄清、临时插单、明确变更或冲突待裁定。临时插单保留原任务恢复点；Agent 推断保持 pending；冲突只暂停有冲突的决策，不擅自重排整个计划。跨会话断点在 `.memory/MEMORY.md` §0 保留当前 G/R/T 指针、暂停原因与下一步。
 
-目标连续性进一步通过需求与验证证据形成闭环：`.spec/requirements/INDEX.md` 用 `Rnnn` 登记可验收要求，任务卡和里程碑引用需求；`.spec/verification/INDEX.md` 用 `Vnnn` 记录测试、人工检查或 CI 证据，并绑定被验证的 commit SHA。任务 `done`、需求 `verified`、里程碑完成和目标完成是不同状态，不得互相替代。轻量维护任务不必创建需求。
+目标连续性进一步通过需求与验证证据形成闭环：`.spec/requirements/INDEX.md` 用 `Rnnn` 登记可验收要求；启用 `task_tracking` / `roadmap` 时，任务卡和里程碑可引用需求。`.spec/verification/INDEX.md` 用 `Vnnn` 记录测试、人工检查或 CI 证据，并绑定被验证的 commit SHA。任务 `done`、需求 `verified`、里程碑完成和目标完成是不同状态，不得互相替代。轻量维护任务不必创建需求。
 
 ### 意图对齐审查
 
-跟踪任务卡使用 `意图对齐：required` 启用开工/收口审查：开工时记录 G/R、当前 accepted C、预期贡献与必须保留的约束；收口时对照实际 diff、完整 Commit SHA、V 证据和目标/需求影响，结论为 `aligned`、`justified_adjustment`、`user_confirmed_change` 或 `unresolved_drift`。未解决漂移不能将任务标记为 `done`。纯支撑任务可使用 `not_applicable`，但必须说明原因且不能有直接 G/R 关联。
+启用 `task_tracking` 时，跟踪任务卡使用 `意图对齐：required` 执行开工/收口审查：开工时记录 G/R、当前 accepted C、预期贡献与必须保留的约束；收口时对照实际 diff、完整 Commit SHA、V 证据和目标/需求影响，结论为 `aligned`、`justified_adjustment`、`user_confirmed_change` 或 `unresolved_drift`。未解决漂移不能将任务标记为 `done`。纯支撑任务可使用 `not_applicable`，但必须说明原因且不能有直接 G/R 关联。
 
-里程碑也有独立的关闭审查：状态改为「已完成」前，必须逐项对照目标成功判据、需求状态与验证证据；未解决漂移、未完成需求或未完成的包含任务会阻止关闭。旧任务卡/旧里程碑未显式启用审查时不被追溯性阻断。机器检查只验证结构、状态和证据指针，不替代 Agent 对实际代码的语义审查。
+启用 `roadmap` 时，里程碑也有独立的关闭审查：状态改为「已完成」前，必须逐项对照目标成功判据、需求状态与验证证据；未解决漂移、未完成需求或未完成的包含任务会阻止关闭。旧任务卡/旧里程碑未显式启用审查时不被追溯性阻断。机器检查只验证结构、状态和证据指针，不替代 Agent 对实际代码的语义审查。
 
 ### 初始化参数
 

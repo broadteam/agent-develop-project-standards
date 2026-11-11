@@ -45,8 +45,8 @@
 | 约定层 | 跨语言约定 | `.spec/02-conventions.md` |
 | 技术栈层 | 语言、框架、工具链约束 | `.spec/stacks/<stack>.md` |
 | 交付层 | 构建、验证、发布、回滚 | `.spec/03-delivery.md` |
-| 决策层 | 被采纳的架构取舍 | `.spec/adr/` |
-| 状态层 | 跨会话断点/稳定事实、意图、需求、任务、路线图、验证 | `.memory/MEMORY.md`、`.spec/intent/`、`.spec/requirements/`、`.spec/tasks/`、`.spec/roadmap/`、`.spec/verification/` |
+| 决策层 | 被采纳的架构取舍 | 启用 `adr` 时为 `.spec/adr/`；关闭时保留在项目既有决策记录中 |
+| 状态层 | 跨会话断点/稳定事实、意图、需求、验证；任务与路线图仅在对应能力启用时存在 | `.memory/MEMORY.md`、`.spec/intent/`、`.spec/requirements/`、`.spec/verification/`；可选 `.spec/tasks/`、`.spec/roadmap/` |
 
 **验收**：
 - 每类事实只有一个权威文件；README、ROUTER 和 AGENTS 不复制完整规则。
@@ -123,14 +123,11 @@
 
 **目标**：任务状态只有一个权威源，Board 是派生视图，路线图表达阶段目标而非重复任务清单。
 
-- `.spec/tasks/index.md` 是活跃任务状态唯一来源。
-- `card.md` 存背景、范围、验收；`log.md` 存执行记录。
-- `BOARD.md` 由索引生成，不允许手工维护。
-- `.spec/roadmap/INDEX.md` 管里程碑状态与依赖；单项详情独立存放。
+- 启用 `task_tracking` 时，`.spec/tasks/index.md` 是活跃任务状态唯一来源；`card.md` 存背景、范围、验收，`log.md` 存执行记录，`BOARD.md` 是索引的派生视图。
+- 启用 `roadmap` 时，`.spec/roadmap/INDEX.md` 管里程碑状态与依赖，单项详情独立存放；roadmap 依赖 task_tracking。
 - 轻量、低风险、验收明确的单点工作可不建卡。
-- 跨模块、跨会话、需求不确定或高影响工作必须建卡。
-- 归档保留完整任务资料，索引只留指针；归档默认不加载。
-- 活跃索引与归档索引双向登记；归档路径必须位于所属 `archive/` 内，未登记的归档目录不得残留；任务数量及任务卡 `card.md` / `log.md` 必须一致且存在；里程碑归档必须保留 `milestone.md`。
+- 跨模块、跨会话、需求不确定或高影响工作在 `task_tracking` 启用时必须进入任务跟踪；关闭时沿用项目已有的工作入口，不创建模板任务卡。
+- 启用相应能力时，归档保留完整任务/里程碑资料，索引只留指针；归档默认不加载。活跃索引与归档索引双向登记，目录详情一致性由对应治理门禁检查。
 
 **验收**：
 - 索引与详情目录双向一致、ID 唯一、状态合法。
