@@ -244,3 +244,39 @@
 ### 当前下一步
 
 现场核验 PR #11 最新 Head 的 CI；然后请用户裁定四项产品决策。未获明确决定前，不冻结协议、不增加门禁、不改 PR #10 或 main。
+
+
+## SCP D0 冻结与 D1 Schema 草案（2026-11-12）
+
+### 用户决策
+
+用户明确同意按此前四项推荐方案继续推进，D0 产品决策已冻结：
+
+1. Packet 只在跨会话暂停、真实交接、重要 checkpoint、阶段收口等有恢复价值的节点持久化；轻量任务不强制生成。
+2. JSON Schema 是唯一机器权威契约；Markdown 只能由工具生成，不允许人工双写。
+3. 先以至少两个独立客户端 fixture 验证数据/恢复契约，再逐客户端增加真实 CLI E2E 支持证据。
+4. 首版并发只要求 branch/worktree 隔离与 owner/write-scope 声明；不引入 Lease 服务、外部锁或仓库内锁协议。只有真实且无法通过隔离解决的共享写冲突出现后，才重新评估。
+
+### D1 已创建的候选文件
+
+- `schemas/scp/0.1/continuity-packet.schema.json`：JSON Schema Draft 2020-12，schema_version `0.1.0`。
+- `schemas/scp/0.1/examples/handoff-minimal.json`：最小 handoff packet 示例。
+- `schemas/scp/0.1/COMPATIBILITY.md`：版本不可变、未知字段、namespaced extensions、只读回退和状态权威边界的兼容策略草案。
+- `SESSION-CONTINUITY-PROTOCOL-DESIGN.md` §9/§11.3/§12：已记录 D0 决策和 D1 启动状态。
+
+### 本轮 D1 边界审查
+
+- JSON 文件均可解析；示例的顶层必填字段、顶层属性及各主要嵌套对象属性与 schema 定义一致。
+- 修正了工作区状态的重复表达：`code.worktree_state` 是唯一权威字段，不在 checkpoint 中重复。
+- Schema 条件约束：`packet_kind=handoff` 时必须提供 handoff；验证或审查状态声明 passed/reviewed 时必须提供至少一条 evidence_refs。
+- 决策以 `decisions[]` 表达多个独立事项，每项有 decision_id、status、decision_maker 和 source_ref；单项确认不构成泛化授权。
+- SCP 0.1 不含 lease_ref 或 lease service；协调信息只表达 owner、write_scope 和 isolation。
+- Core 对象拒绝未知字段；扩展数据只能放在 namespaced `extensions` 中，不得重定义核心语义。
+- **验证限制**：本轮只完成 JSON 语法和结构映射检查；尚未运行正式 JSON Schema validator，也未创建 validator/fixture runner。不能把示例标记为已通过正式 schema 验证。
+
+### 当前状态与下一步
+
+- D0：Frozen（用户已确认）。
+- D1：Schema + compatibility policy draft，待语义审查；不接入强制门禁，不实现自动 Packet 写入器。
+- PR #11 继续 Open + Draft，PR #10 继续 Open + Draft；不合并、不修改 main、不 bump 版本、不打 tag。
+- 下一步：针对 D1 的字段必需性、状态组合、扩展机制和兼容策略做一次独立审查；修订后再决定是否冻结 schema。之后才考虑独立的 validator/fixture 实现提案。
