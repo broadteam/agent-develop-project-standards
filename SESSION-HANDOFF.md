@@ -213,3 +213,18 @@
 - Head 分支：`design/session-continuity-protocol`；Base：`feat/governance-consistency-audit`，Base SHA 为 PR #10 已通过 16/16 CI 的 `88c342536b7d421aafd0b313e07c6f2b1849eab0`。
 - PR #11 当前只包含协议设计提案与本交接文档，不改 PR #10 或 main。
 - 本记录提交前，PR #11 对应的 Push CI 正在运行；最终结论必须绑定 PR #11 最新 Head，不能用 PR #10 的 CI 结果代替。
+
+
+## SCP D0 内部审查补充（2026-11-12）
+
+- PR #11 Head `ce9b2806bae45086a3ba4f003dd8f134b8e61db9` 的 16/16 checks 已全部完成成功；Push 与 Pull Request 两组矩阵均通过，覆盖 Ubuntu/Windows、Node 22/24、Python 3.11/3.13。
+- 现场复核 PR #11 仍为 Open + Draft，Base `feat/governance-consistency-audit`，Base SHA `88c342536b7d421aafd0b313e07c6f2b1849eab0`。未修改 PR #10 或 main。
+- 对照现有 `template/AGENTS.md`、`.spec/00-constitution.md`、`.spec/intent/`、`.spec/tasks/`、`.spec/verification/`、`.memory/MEMORY.md`、`CLIENTS.md` 与 `SPEC-v2.0.md` 完成第一轮 D0 内部审查。
+- 发现的主要风险是 SCP 初稿可能被误读为新建第二套状态账本、强制所有会话持久化、把 checkpoint 状态当作领域状态，以及把 Git tree SHA 误当成完整 dirty worktree 快照。
+- 已在 `SESSION-CONTINUITY-PROTOCOL-DESIGN.md` 新增 D0 内部一致性审查与现有规范职责映射，并收紧语义：轻量任务不升级；Packet 只保存引用/最小断点；T/M/ADR/lease 按能力和场景选填；checkpoint 不替代领域状态；未提交证据需说明 HEAD、dirty 状态和纳入范围；并发按需启用，branch/worktree 优先；fixture 不等于真实 CLI E2E。
+- 文档修订提交：`25600b094cb75d7badd91976b5c059742365d10b`。该提交之后的 CI 必须重新核验，旧 Head 的 16/16 不可移植到新 Head。
+- D0 尚未冻结。仍待用户裁定 Packet 持久化策略、表示格式、客户端验收深度和 lease 初版范围；未获明确确认前不进入 D1 Schema 冻结或 validator 实现。
+
+### 当前唯一下一步
+
+读取 PR #11 最新 Head，确认本次文档修订后的 Push/PR CI；然后将上述四项产品决策交由用户裁定。保持 PR #11 Open + Draft、PR #10 Open + Draft；不合并、不改 main、不 bump 版本、不打 tag。
