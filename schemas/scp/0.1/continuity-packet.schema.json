@@ -381,6 +381,34 @@
         "blocked_reason": {
           "type": "string",
           "maxLength": 2000
+        },
+        "verification_run": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "actor",
+            "run_id"
+          ],
+          "properties": {
+            "actor": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "run_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "command": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "started_at": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
         }
       }
     },
@@ -605,6 +633,203 @@
         "required": [
           "evidence_refs"
         ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "checkpoint": {
+            "properties": {
+              "verification_state": {
+                "const": "running"
+              }
+            },
+            "required": [
+              "verification_state"
+            ]
+          }
+        },
+        "required": [
+          "checkpoint"
+        ]
+      },
+      "then": {
+        "properties": {
+          "checkpoint": {
+            "required": [
+              "verification_run"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "checkpoint": {
+            "properties": {
+              "work_state": {
+                "const": "blocked"
+              }
+            },
+            "required": [
+              "work_state"
+            ]
+          }
+        },
+        "required": [
+          "checkpoint"
+        ]
+      },
+      "then": {
+        "properties": {
+          "checkpoint": {
+            "properties": {
+              "blocked_reason": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "blocked_reason"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "properties": {
+              "worktree_state": {
+                "const": "observed_dirty"
+              }
+            },
+            "required": [
+              "worktree_state"
+            ]
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "code": {
+            "properties": {
+              "uncommitted_paths": {
+                "minItems": 1
+              }
+            },
+            "required": [
+              "uncommitted_paths"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "properties": {
+              "worktree_state": {
+                "const": "observed_clean"
+              }
+            },
+            "required": [
+              "worktree_state"
+            ]
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "code": {
+            "properties": {
+              "uncommitted_paths": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "properties": {
+              "head_sha": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "head_sha"
+            ]
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "code": {
+            "properties": {
+              "worktree_state": {
+                "const": "unknown"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "coordination": {
+            "properties": {
+              "isolation": {
+                "enum": [
+                  "branch_worktree",
+                  "single_writer",
+                  "shared_coordinated"
+                ]
+              }
+            },
+            "required": [
+              "isolation"
+            ]
+          }
+        },
+        "required": [
+          "coordination"
+        ]
+      },
+      "then": {
+        "properties": {
+          "coordination": {
+            "properties": {
+              "owner": {
+                "type": "string",
+                "minLength": 1
+              },
+              "write_scope": {
+                "minItems": 1
+              }
+            },
+            "required": [
+              "owner",
+              "write_scope"
+            ]
+          }
+        }
       }
     }
   ]
