@@ -133,6 +133,8 @@ Checkpoint 不采用单一“完成度”字段，而应分别描述以下维度
 | 审查 | not_reviewed / reviewed / changes_requested / stale / unknown | 审查结论必须绑定被审查 revision、审查范围和审查者；revision 变化后重新判断是否 stale |
 | 决策 | 以 `pending_decisions[]` / `decision_refs[]` 表达多个独立事项 | 不用一个全局枚举代表多个决策；每项必须关联具体决策 ID、裁定主体和来源，不能作为泛化的用户授权标记 |
 
+D1 Schema 将多个独立裁定项统一表示为 `decisions[]`；每项包含 decision ID、状态、裁定主体与来源，单项确认不构成对 Packet 或其他操作的泛化授权。
+
 Checkpoint 最小字段：
 
 - checkpoint ID、时间、协议版本。
@@ -242,14 +244,14 @@ code:
   uncommitted_paths: []
 checkpoint:
   work_state: in_progress
-  workspace_state: observed_dirty
   verification_state: not_run
   review_state: not_reviewed
-  pending_decisions: []
+  decisions: []
 evidence_refs: []
 coordination:
   owner: agent-a
-  lease_ref: null
+  write_scope: [schemas/scp/0.1/]
+  isolation: branch_worktree
 handoff:
   completed: []
   in_progress: []
@@ -326,19 +328,19 @@ START
 | D2 Read-only Bootstrap | 恢复器/诊断报告，只读读取 Git 与项目权威文件 | 不写项目文件；过期和冲突可定位 |
 | D3 Checkpoint/Handoff | 生成/校验断点与交接 packet | dirty tree、未验证、待确认均不会丢失 |
 | D4 Evidence/Freshness | 证据绑定 commit、CI run 与失效规则 | 旧 SHA 证据不能覆盖新代码 |
-| D5 Concurrency | 先支持 branch/worktree 与轻量 lease 契约 | 冲突写入可检测；不虚称强锁 |
+| D5 Concurrency | 支持 branch/worktree 隔离与 owner/write-scope 声明；只有真实冲突证据出现后才重新评估协调存储 | 冲突写入可检测；首版不引入 Lease 服务或外部锁 |
 | D6 Client Adapters | 至少两个客户端消费相同 packet | 规则正文不分叉；恢复结果一致 |
 
 每个阶段独立评审和验收；只有 D0 语义冻结后才开始 schema/代码实现。阶段之间不要求版本号同步推进。
 
-## 9. 需要用户裁定的设计问题
+## 9. 已裁定的设计决策
 
-以下问题在获得明确决定前保持 proposal，不自行写入项目宪法或强制门禁：
+本节保留 D0 裁定主题的导航；正式决策及其边界以 §11.3 为准。用户已同意按推荐方案推进：
 
-1. **Packet 的持久化策略**：默认只在交接/长任务断点时生成文件，还是所有跟踪任务都生成机器可读 packet？提案倾向前者，以控制维护成本。
-2. **Lease 的初版强度**：先采用 branch/worktree 隔离 + 人工/仓库内声明，还是直接引入外部锁服务？提案倾向前者，不宣称强一致锁。
-3. **Schema 格式**：JSON Schema 作为机器契约、Markdown 作为可选人类视图，还是单一 YAML？提案倾向机器可校验的 JSON Schema + 可选 Markdown 渲染；如采用双表示，必须明确唯一机器权威源并由工具生成视图，禁止人工双写。当前 YAML 片段仅是语义示例，不代表格式决策。
-4. **客户端互操作验收**：先做两个客户端的文件/fixture 契约测试，还是必须启动真实 CLI 做端到端恢复？提案倾向先 fixture，再逐个客户端增加实测支持声明。
+1. Packet 仅在跨会话暂停、真实交接、重要 checkpoint 或阶段收口时持久化。
+2. JSON Schema 是唯一机器权威契约；Markdown 只能由工具生成，不得人工双写。
+3. 先做至少两个独立客户端的 fixture 契约测试，再逐客户端增加真实 CLI E2E 证据。
+4. 首版只要求 branch/worktree 隔离与 owner/write-scope 声明，不引入 Lease 服务或外部锁。
 
 ## 10. 当前状态
 
@@ -413,7 +415,9 @@ D0 已冻结，D1 开始定义可跨语言消费的机器契约。当前策略�
 - Schema 文件：`schemas/scp/0.1/continuity-packet.schema.json`。
 - 示例文件：`schemas/scp/0.1/examples/handoff-minimal.json`，示例必须通过对应 schema 验证。
 - Packet 的持久化由工作节点/交接场景触发，不代表每个 session 必须创建文件。
-- schema 采用显式版本标识；已发布版本不可原地改变既有字段语义。兼容性策略、扩展字段和未知字段处理必须在 D1 评审中明确。
+- schema 采用显式版本标识；已发布版本不可原地改变既有字段语义。兼容性策略见 `schemas/scp/0.1/COMPATIBILITY.md`，当前仍是 D1 草案。
+- Core object 拒绝未知字段；扩展数据必须放入 namespaced `extensions`，不得覆盖核心语义。
+- `code.worktree_state` 是工作区可观察状态的唯一字段，不在 checkpoint 中重复保存；声称验证/审查通过必须附带 `evidence_refs`。
 - 首轮只定义 Packet 数据契约，不实现 validator、不接入门禁、不生成自动写入器。
 - 首轮互操作验收先建立两个独立客户端 fixture 的共同输入/预期恢复结果；真实 CLI E2E 是后续按客户端单独声明的证据。
 - 首版并发字段只表达 owner、工作范围和隔离信息；不定义 Lease 服务或锁语义。
