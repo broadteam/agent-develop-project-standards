@@ -50,6 +50,26 @@ assert.ok(invalidAutoRoadmap.errors.some((error) => error.includes('roadmap=auto
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-capability-resolver-'));
 try {
+  // auto defers optional task rules by task context, but does not disable repository data integrity checks.
+  const autoProject = path.join(tmp, 'auto-project');
+  fs.mkdirSync(autoProject);
+  const autoInstall = spawnSync(process.execPath, [path.join(root, 'init.cjs'), autoProject], { encoding: 'utf8' });
+  assert.equal(autoInstall.status, 0, autoInstall.stdout + autoInstall.stderr);
+  const emptyAutoGate = spawnSync(process.execPath, [path.join(autoProject, '.standards/check-governance.cjs')], { encoding: 'utf8' });
+  assert.equal(emptyAutoGate.status, 0, emptyAutoGate.stdout + emptyAutoGate.stderr, 'auto must not force an otherwise unnecessary task card');
+  fs.mkdirSync(path.join(autoProject, '.spec/tasks/T777'), { recursive: true });
+  fs.writeFileSync(path.join(autoProject, '.spec/tasks/T777/card.md'), '# Existing tracked record\\n');
+  fs.writeFileSync(path.join(autoProject, '.spec/tasks/T777/log.md'), '# Log\\n');
+  const indexedAutoGate = spawnSync(process.execPath, [path.join(autoProject, '.standards/check-governance.cjs')], { encoding: 'utf8' });
+  assert.equal(indexedAutoGate.status, 1, indexedAutoGate.stdout + indexedAutoGate.stderr);
+  assert.match(indexedAutoGate.stdout, /存在，但 .*index\\.md 里没有登记/);
+  let indexedAutoPython = spawnSync('python3', [path.join(autoProject, '.standards/check_governance.py')], { encoding: 'utf8' });
+  if (indexedAutoPython.error) indexedAutoPython = spawnSync('python', [path.join(autoProject, '.standards/check_governance.py')], { encoding: 'utf8' });
+  if (!indexedAutoPython.error) {
+    assert.equal(indexedAutoPython.status, 1, indexedAutoPython.stdout + indexedAutoPython.stderr);
+    assert.equal(indexedAutoGate.stdout, indexedAutoPython.stdout, 'auto static data gates must preserve Node/Python parity');
+  }
+
   const project = path.join(tmp, 'lean-project');
   fs.mkdirSync(project);
   const profileTemplate = fs.readFileSync(path.join(root, 'template/project-profile.toml'), 'utf8')
