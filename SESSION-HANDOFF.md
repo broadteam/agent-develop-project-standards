@@ -268,6 +268,7 @@
 
 - JSON 文件均可解析；示例的顶层必填字段、顶层属性及各主要嵌套对象属性与 schema 定义一致。
 - 修正了工作区状态的重复表达：`code.worktree_state` 是唯一权威字段，不在 checkpoint 中重复。
+- 增加顶层 `inferences[]`，明确区分 Agent 推断与观察状态/权威记录；Packet 生成时的观察值在后续消费时只是 last-known，接收方必须现场 Bootstrap。`coordination` 对象为可选，仅在真实并发/所有权边界需要时提供。
 - Schema 条件约束：`packet_kind=handoff` 时必须提供 handoff；验证或审查状态声明 passed/reviewed 时必须提供至少一条 evidence_refs。
 - 决策以 `decisions[]` 表达多个独立事项，每项有 decision_id、status、decision_maker 和 source_ref；单项确认不构成泛化授权。
 - SCP 0.1 不含 lease_ref 或 lease service；协调信息只表达 owner、write_scope 和 isolation。
