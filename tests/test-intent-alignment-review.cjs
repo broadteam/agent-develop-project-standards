@@ -370,7 +370,7 @@ try {
   // Milestone evidence must be bound to the exact delivery commit.
   completedMilestone();
   write('.spec/verification/INDEX.md', read('.spec/verification/INDEX.md').replace(commit, 'd'.repeat(40)));
-  assertParity('milestone evidence commit must match delivery', ['与里程碑交付 Commit SHA 不一致']);
+  assertParity('milestone evidence commit must match delivery', ['不属于里程碑交付 Commit 集合']);
 
   // A milestone may contain multiple delivery commits; V evidence can bind to any declared commit.
   completedMilestone();
