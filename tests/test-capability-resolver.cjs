@@ -93,7 +93,7 @@ try {
       'from profile_validator import validate_profile',
       'errors, warnings = validate_profile(Path(sys.argv[1]))',
       'print(json.dumps({"errors": errors, "warnings": warnings}, ensure_ascii=False))'
-    ].join('\\n');
+    ].join(String.fromCharCode(10));
     let python = spawnSync(process.env.PYTHON || 'python3', ['-c', script, project], { encoding: 'utf8' });
     if (python.error && !process.env.PYTHON) python = spawnSync('python', ['-c', script, project], { encoding: 'utf8' });
     if (python.error) throw python.error;
