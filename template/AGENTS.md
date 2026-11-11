@@ -92,7 +92,7 @@
 | `.spec/tasks/index.md` | 改状态；卡详情改各自的 `card.md` |
 | `{{SRC_DIR}}/**` | 按任务卡范围 |
 | `.memory/log/**` | 只追加 |
-| `.memory/MEMORY.md` | 只在新增跨会话规则或覆盖 §0 时改 |
+| `.memory/MEMORY.md` | 只更新稳定事实/决策指针或覆盖 §0；领域状态写回各自权威文件 |
 | `.memory/PITFALLS.md` | 只增不改结论 |
 
 ---
