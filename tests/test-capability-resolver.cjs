@@ -61,6 +61,11 @@ const invalidStack = resolveCapabilities({stack:{detected:['generic']},capabilit
 assert.ok(invalidStack.errors.some((error) => error.includes('stack_rules=on')));
 assert.match(registry.capabilities.stack_rules.validation.join(' '), /profile\.status=confirmed/);
 assert.match(readme, /`stack_rules=on` 必须同时满足 `profile\.status = "confirmed"`/);
+const adaptation = fs.readFileSync(path.join(root, 'PROJECT-ADAPTATION-v2.0.md'), 'utf8');
+assert.match(adaptation, /注册表中的 `validation` 是人\/Agent 可读的验收要求，不会仅因写入 JSON 就自动执行/);
+assert.match(adaptation, /`module_boundaries` 只提供基础架构约束与可填写的模块依赖矩阵/);
+assert.match(adaptation, /`multi_agent` 是共享状态单写者、写入前刷新与交接的 Agent 行为协议，不是分布式锁/);
+assert.match(adaptation, /命令是否实际执行、结果是否绑定提交，仍由项目 Hook\/CI 与验证证据流程负责/);
 assert.match(spec, /`stack_rules` 为 `on` 时，画像必须为 `confirmed`/);
 assert.match(fs.readFileSync(path.join(root, 'PROJECT-ADAPTATION-v2.0.md'), 'utf8'), /`stack_rules=on` 还要求 `profile\.status=confirmed`/);
 const unconfirmedStack = resolveCapabilities({profile:{status:'needs_review'},stack:{detected:['php']},capabilities:{stack_rules:'on'}}, registry);

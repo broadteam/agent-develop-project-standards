@@ -99,6 +99,12 @@ project-profile.toml 由初始化器/任务上下文解析器读取以计算能�
 - `auto` 表示运行时按任务上下文判断，不在画像静态校验阶段被擅自解析成 `on` 或 `off`。
 - core 能力由注册表声明为 always enabled，项目画像不存在关闭 core 的入口。
 
+**自动校验边界必须与验收指导区分**：注册表中的 `validation` 是人/Agent 可读的验收要求，不会仅因写入 JSON 就自动执行。机器门禁必须有对应的结构化字段或实际 checker 实现：`requires` / `requires_stack` 由 Node/Python Resolver 解析；画像字段、`stack_rules` 的确认条件和 `quality_gates=strict` 命令配置由 profile validator 校验；任务/路线图索引、详情、状态和追踪关系由治理脚本校验。除此之外，能力规则仍可能需要人工或项目专属测试落实，不能把 `validation` 文案当成“CI 已覆盖”的证据。
+
+- `module_boundaries` 只提供基础架构约束与可填写的模块依赖矩阵；是否能自动发现违规依赖，取决于项目是否另行配置架构测试、静态分析或构建依赖规则。
+- `multi_agent` 是共享状态单写者、写入前刷新与交接的 Agent 行为协议，不是分布式锁，也不证明多个工作区不会产生并发冲突。
+- `quality_gates` 的画像校验只确认有适用验证命令配置；命令是否实际执行、结果是否绑定提交，仍由项目 Hook/CI 与验证证据流程负责。
+
 ## 10. Capability Resolver
 
 `.standards/capability-resolver.cjs` 是初始化阶段唯一的能力解析入口。它读取项目画像与能力注册表，使用注册表默认值补齐未显式配置的能力，并输出每项能力的 `enabled`、`disabled` 或 `deferred` 状态及可裁剪产物路径。
