@@ -35,7 +35,7 @@ function resolveCapabilities(profile, registry) {
     const stackRequirement = definition.requires_stack;
     if (stackRequirement && item.configured === stackRequirement.when) {
       const detected = profile.stack?.detected ?? [];
-      if (stackRequirement.non_generic && !detected.some((value) => value !== 'generic')) {
+      if (stackRequirement.non_generic && (profile.profile?.status !== 'confirmed' || !detected.some((value) => value !== 'generic'))) {
         errors.push(id + '=' + item.configured + ' 要求至少一个已确认的非 generic 技术栈');
       }
     }

@@ -58,6 +58,10 @@ const invalid = resolveCapabilities({ capabilities: { roadmap: 'on', task_tracki
 assert.ok(invalid.errors.some((error) => error.includes('能力依赖冲突')));
 const invalidStack = resolveCapabilities({stack:{detected:['generic']},capabilities:{stack_rules:'on'}}, registry);
 assert.ok(invalidStack.errors.some((error) => error.includes('stack_rules=on')));
+const unconfirmedStack = resolveCapabilities({profile:{status:'needs_review'},stack:{detected:['php']},capabilities:{stack_rules:'on'}}, registry);
+assert.ok(unconfirmedStack.errors.some((error) => error.includes('stack_rules=on')), 'a detected but unconfirmed stack must not satisfy stack_rules=on');
+const confirmedStack = resolveCapabilities({profile:{status:'confirmed'},stack:{detected:['php']},capabilities:{stack_rules:'on'}}, registry);
+assert.deepEqual(confirmedStack.errors, [], 'a confirmed non-generic stack satisfies stack_rules=on');
 const invalidRelease = resolveCapabilities({capabilities:{quality_gates:'baseline',release_governance:'strict'}}, registry);
 assert.ok(invalidRelease.errors.some((error) => error.includes('release_governance=strict')));
 const invalidAutoRoadmap = resolveCapabilities({capabilities:{task_tracking:'off',roadmap:'auto'}}, registry);
@@ -65,7 +69,8 @@ assert.ok(invalidAutoRoadmap.errors.some((error) => error.includes('roadmap=auto
 assertResolverParity('default auto capability resolution', {});
 assertResolverParity('roadmap auto must respect task_tracking dependency', { capabilities: { task_tracking: 'off', roadmap: 'auto' } });
 assertResolverParity('stack_rules on requires a confirmed non-generic stack', { stack: { detected: ['generic'] }, capabilities: { stack_rules: 'on' } });
-assertResolverParity('stack_rules on accepts a concrete detected stack', { stack: { detected: ['php'] }, capabilities: { stack_rules: 'on' } });
+assertResolverParity('stack_rules on rejects an unconfirmed concrete stack', { profile: { status: 'needs_review' }, stack: { detected: ['php'] }, capabilities: { stack_rules: 'on' } });
+assertResolverParity('stack_rules on accepts a confirmed concrete stack', { profile: { status: 'confirmed' }, stack: { detected: ['php'] }, capabilities: { stack_rules: 'on' } });
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-capability-resolver-'));
 try {
@@ -193,7 +198,7 @@ try {
   assert.match(deploy, /关闭 `task_tracking` 时则不会导入这些文件/, 'DEPLOY must document task_tracking=off plan preservation');
   assert.match(clients, /仅当项目启用 `stack_rules` 时/, 'CLIENTS must not recommend disabled stack files');
   assert.match(clients, /仅在启用 `roadmap` 时里程碑状态进 `\.spec\/roadmap\/INDEX\.md`/, 'CLIENTS must mark roadmap state as optional');
-  assert.match(clients, /仅在启用 `task_tracking` 时，任务、里程碑、架构决策分别写回对应权威文件/, 'CLIENTS closeout map must qualify optional state domains');
+  assert.match(clients, /仅在启用 `task_tracking` \/ `roadmap` \/ `adr` 时，任务、里程碑、架构决策分别写回对应权威文件/, 'CLIENTS closeout map must qualify optional state domains');
   assert.match(deploy, /启用 `adr` 时写 ADR；关闭时写入 `\.spec\/01-architecture\.md` 或 PR 审查记录/, 'DEPLOY must use the stable ADR-off decision record path');
   assert.match(readme, /仅在启用 `task_tracking` \/ `roadmap` \/ `adr` 时/, 'README must qualify task, milestone, and ADR state sources');
   assert.match(spec, /关闭时记入 `\.spec\/01-architecture\.md` 或 PR 审查记录/, 'SPEC must define a stable ADR-off decision record path');
