@@ -1,6 +1,6 @@
 # 会话交接：Agent 项目开发规范 3.0
 
-更新时间：2026-11-11（能力开关交叉审查与规则冲突审查进展）
+更新时间：2026-11-12（上下文读取成本审查进展）
 
 ## 项目目标与边界
 
@@ -67,7 +67,7 @@
 - **恢复边界**：修正宪法对多文件写入原子性和一键回退的过度承诺；初始化器只对可捕获异常提供 best-effort rollback，不承诺进程强杀/断电下的原子事务。
 - **意图对齐 opt-in**：新建任务/里程碑带创建日期，日期格式合法但缺少模式会失败；没有日期和模式的旧记录继续兼容。
 - **证据完整性**：done 任务需要 pass V 证据；里程碑 V 证据绑定其声明的交付 Commit SHA 集合，支持多 Commit。
-- **上下文成本**：task-context resolver 不再无条件读取完整 project-profile；画像字段按需加载。AGENTS 源模板当前为 12,056B / 12,288B，留有 232B；初始化预算测试要求安装后仍至少保留 1,024B 项目自有规则空间，并已通过。
+- **上下文成本与扩展空间**：AGENTS 源模板从 12,229B 精简至 10,885B；按默认能力渲染后为 9,613B，`multi_agent=on` 最坏渲染为 10,135B。12,288B 预算下，最坏组合仍留 2,153B；`test-init` 已增加 `multi_agent=on` 实际安装余量不少于 1,024B 的回归。
 - **文档一致性**：README、CLIENTS、SPEC-v2.0、PROJECT-ADAPTATION 与 AGENTS/Constitution/MEMORY 对分域事实源的描述已同步；PROJECT-ADAPTATION 不再把 project-profile 作为每轮固定上下文。
 - **规则记录落点**：关闭 ADR 时，决策/例外统一写入 `.spec/01-architecture.md` 或 PR 审查记录，不依赖可能不存在的 task record；关闭 task_tracking/roadmap/adr 时，对应事实源路径不再被写成无条件权威来源。
 - **Node/Python Resolver 一致性**：两端对 `auto/deferred` 能力依赖和 `requires_stack` 使用相同语义；`stack_rules=on` 要求 `profile.status=confirmed` 且存在非 `generic` 技术栈。对畸形的非数组 `stack.detected` 做防御性拒绝。
@@ -94,24 +94,42 @@
 9. **能力依赖重复硬编码**：roadmap、stack_rules、release_governance 的依赖转由 capabilities 注册表声明，Node/Python profile validator 使用同一 resolver 语义。
 10. **能力关闭组合回归**：测试覆盖 all-off、task_tracking on + roadmap/ADR/stack_rules/module_boundaries off + multi_agent on、关闭后保留历史任务/里程碑、关闭后保留根目录计划文件，以及 Node/Python 追踪输出一致。
 
+### 第三优先级：上下文读取成本审查（已完成第一轮量化与修复）
+
+**计算口径**：UTF-8 字节是可复核的上下文体积代理，不等同于模型 Token 数；表内按默认安装渲染的 AGENTS（9,613B）加 MEMORY §0（679B）计算。多 Agent 启用时 AGENTS 为 10,135B，所有场景在此基础上增加 522B。
+
+| 任务类别 | 必须读取集（UTF-8 B） | 条件/可选读取 |
+|---|---:|---|
+| 轻量维护（单文件、本地、低风险） | 15,184B | project-profile 661B（仅核实画像/能力时） |
+| 普通跟踪任务 | 34,719B | verification INDEX 2,028B、task log 459B、project-profile 661B |
+| 跨会话持续开发（示例：task_tracking 关闭） | 30,783B | verification INDEX 2,028B、project-profile 661B；不读任务索引/任务卡 |
+| 高风险架构/数据变更（带任务与里程碑） | 49,881B | project-profile 661B、task log 459B、REGISTRY 1,463B；项目自定义 stack 文档另计 |
+
+- 固定 L0：AGENTS 9,613B + MEMORY §0 679B = 10,292B；启用 multi_agent 时为 10,814B。`ROUTER.md`、画像全文、任务日志、ADR、历史档案都不是无条件必读。
+- 普通跟踪任务新增必读 `.spec/requirements/INDEX.md`，以解析任务卡关联的 Rnnn；`.spec/verification/INDEX.md` 在普通跟踪任务中为条件读取，在 high/critical、高影响、生产、release/incident 工作中为必读。
+- 即使 `task_tracking=off`，跨会话/高不确定/高影响工作仍读取 BASELINE、CHANGES 和 requirements INDEX；高风险工作继续读取 verification INDEX。连续性核心不依赖任务卡能力。
+- CHANGES 账本当前 10,550B，表中为全文读取的保守上限；Resolver 输出已明确要求按相关 G/R/C 锚点定位对应 Cnnn 记录及后续状态，不通读全部历史。
+- Task Context Resolver 运行时内部读取 project-profile（661B）与能力注册表（5,435B）用于决策；这是工具侧读取，不应误计为模型上下文。项目定制 stack 文档与 PITFALLS 等按主题读取，不计入固定集合。
+- 本轮修复了原 Resolver 未提示跟踪任务读取 R/V 状态索引的问题，并增加轻量、普通跟踪、跨会话 task_tracking-off、高风险架构/数据四类断言。
+
 ### PR #10 最新功能验证基线
 
 - 分支：`feat/governance-consistency-audit`。
-- 最新已验证功能/测试提交：`4db58aafe82eaeeb6dc59966d221d024ae23d36b`。
+- 最新已验证功能/测试提交：`49443da3b4f05e83e7d3cdd3d5fa87764e46fa74`。
 - Base：PR #9 的 `feat/intent-alignment-review`，Base SHA `c98c99a9f39693f893300e990cd6770064438e42`。
-- 该提交时 PR #10 为 Open + Draft，46 个提交、33 个变更文件；未合并。
-- Push Actions run `43064609362`：8/8 Ubuntu/Windows × Node 22/24 × Python 3.11/3.13 全部通过。
-- Pull Request Actions run `43064620497`：同一矩阵 8/8 全部通过。
-- 两个 CI 结果严格绑定 `4db58aa...`；后续文档提交必须重新核验其自己的 Head 和 CI。
-- `main` 仍为 `02f8dde262455f15029a54694e129b05b70013a4`；本轮未修改 main。PR #3–#9 当前仍为 Open + Draft，依赖链 #4→#5→#6→#7→#8→#9 未改变；其具体 Head 和 Base 仍以现场查询为准。
+- 该提交时 PR #10 为 Open + Draft，53 个提交、34 个变更文件；未合并。
+- Push Actions run `43067709134`：8/8 Ubuntu/Windows × Node 22/24 × Python 3.11/3.13 全部通过。
+- Pull Request Actions run `43067724287`：同一矩阵 8/8 全部通过。
+- 两个 CI 结果严格绑定 `49443da...`；本次 Handoff 刷新是其后的独立文档提交，需单独核验该 Head 的 CI。
+- `main` 仍为 `02f8dde262455f15029a54694e129b05b70013a4`；本轮未修改 main。PR #3–#9 仍为 Open + Draft；依赖链 #4→#5→#6→#7→#8→#9 未改变，具体 Head/Base 以现场查询为准。
 
 
 ### 尚未完成
 
 - 第一优先级：能力开关交叉审查的代表性组合、初始化器裁剪、Node/Python 可选门禁行为和文档语义已完成一轮修复并通过 CI。已明确 `auto` 是任务级规则加载策略，不代表轻量任务强制建卡；静态检查仍校验实际存在的可选索引/记录。当前 fixture 覆盖关键组合，但不声称穷尽所有可能配置组合。
 - 第二优先级（收尾阶段）：本轮又完成了事实来源、能力关闭决策落点、自动化承诺边界、CHANGELOG 单一 Unreleased 结构，以及 Node/Python resolver/profile validator 的更深层一致性审查。最新功能提交 `4db58aa...` Push/PR 两套 CI 均 8/8 通过。剩余工作是做一次最终扫尾，确认没有未说明的能力门禁或双端分支差异；不要为了行数去重删除“摘要 + 详细规范”这种合理分层。
-- 第三阶段（下一步）：四类任务上下文成本审查（轻量维护、普通跟踪、跨会话持续开发、高风险架构/数据变更），量化必须/可选读取集与预算；重点检查 Task Context Resolver 输出是否与 AGENTS/ROUTER 读取优先级一致，以及画像字段是否真正按需加载。
-- 第四阶段：升级兼容性审查，覆盖空项目初始化、已有项目升级、旧记录兼容、能力开关变更和人工存档恢复。
+- 第三阶段：已完成第一轮四类任务上下文成本量化，并修复 R/V 索引读取缺口、AGENTS 过长及 `multi_agent=on` 最坏预算测试，CHANGES 改为按锚点选择性读取。后续只需结合最终规则扫尾复核读取优先级和真实项目定制文档成本，不再重复统计本轮 fixture。
+- 第四阶段（下一步）：升级兼容性审查，覆盖空项目初始化、已有项目升级、旧记录兼容、能力开关变更、从关闭到重新启用以及人工存档恢复。
 - Session Continuity Protocol 仍是后续正式设计方向；本阶段不开始新增协议子系统。保留七个方向：Bootstrap、Context Freshness、Intent Continuity、Checkpoint、Concurrency Control、Handoff、Evidence Provenance。
 
 
@@ -133,8 +151,8 @@
 
 ## 恢复工作
 
-1. 现场检查 `main`、PR #3–#10、所有依赖分支和 head SHA；确认 PR #10 的 Handoff-only 更新提交及其 CI。
+1. 现场检查 `main`、PR #3–#10、所有依赖分支和 head SHA；确认 PR #10 的最新 Handoff-only 提交及其 CI。
 2. 读取本文件、PR #10 当前 diff、能力注册表、AGENTS/Constitution/SPEC/README/ROUTER/MEMORY 与相关 checker/test。
-3. 继续第二优先级：规则重复、冲突优先级、单一权威来源与实际工具行为交叉审查；发现问题按文件与可复现依据记录。
-4. 随后进入上下文成本审查，再进入升级兼容性审查。不得把代表性 fixture 描述为所有开关组合均已穷尽。
+3. 完成第二优先级的最终扫尾，重点核实剩余规则引用和文档/工具是否一致；不要把合理的摘要 + 详细规范分层误判为重复。
+4. 进入第四优先级升级兼容性审查，继续使用真实初始化器、迁移 preview、旧记录兼容和人工备份恢复 fixture；本轮四类上下文读取成本基线见上节。
 5. 不信任旧会话摘要覆盖 GitHub 实际状态；发现冲突时以 Git 文件和可复现测试为准，不合并 PR、不改 main、不 bump 版本。
