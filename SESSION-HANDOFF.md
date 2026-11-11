@@ -295,3 +295,7 @@
 - Evidence 仍由既有权威记录保存；review Evidence 至少绑定 revision、scope、reviewer、result、observed_at；verification Evidence 至少绑定 revision、command/procedure、result、executor、observed_at。Packet 只引用，不复制证据内容。
 - 兼容性策略明确：由于 Core 严格拒绝未知字段，新增任何 Core 字段（即使 optional）也需要新 schema_version；生产者特定附加数据使用 namespaced extensions。
 - 验证限制不变：尚未运行正式 JSON Schema Validator，也未实现自动校验器或门禁。上述修订仍属 D1 语义审查，不代表 Schema 已冻结。
+
+
+- 增加 D1 最小正/负例契约，区分 JSON Schema 可验证的结构约束与后续 semantic validator 责任；明确 JSON Schema `uniqueItems` 不能保证 `decisions[].decision_id` 属性级唯一，后续 validator 必须补充该语义检查。
+- 兼容策略列出未知核心字段、未知 schema_version、handoff 缺失、证据缺失、running/blocked/dirty/clean/HEAD/coordination/decision 时间边界、RFC 3339 格式断言等最小 fixture 预期。当前只定义测试契约，不实现 validator、fixture runner 或 CI gate。
