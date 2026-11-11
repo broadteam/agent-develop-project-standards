@@ -601,9 +601,11 @@ if (report.created.includes('gov.toml') || report.forced.includes('gov.toml')) {
     const requiredLine = govText.match(/^files = \[(.*)\]$/m);
     if (requiredLine) {
       const required = [...requiredLine[1].matchAll(/"([^"]+)"/g)].map((match) => match[1]).filter((rel) => !capabilityResolution.isExcluded(rel));
-      for (const stack of presetMap) {
-        const rel = `.spec/stacks/${stack}.md`;
-        if (fs.existsSync(path.join(TARGET, rel)) && !required.includes(rel)) required.push(rel);
+      if (capabilityResolution.capabilities.stack_rules?.status !== 'disabled') {
+        for (const stack of presetMap) {
+          const rel = `.spec/stacks/${stack}.md`;
+          if (fs.existsSync(path.join(TARGET, rel)) && !required.includes(rel)) required.push(rel);
+        }
       }
       govText = govText.replace(requiredLine[0], `files = [${required.map(quote).join(', ')}]`);
     }
