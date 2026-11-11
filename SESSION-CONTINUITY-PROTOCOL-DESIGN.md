@@ -128,10 +128,10 @@ Checkpoint 不采用单一“完成度”字段，而应分别描述以下维度
 | 维度 | 状态示例 | 含义 |
 |---|---|---|
 | 工作内容 | not_started / in_progress / blocked / locally_complete | 工作本身进度；`locally_complete` 仅表示当前执行者认为本轮实现已完成，不等同任务 `done`、需求 `verified` 或里程碑完成 |
-| 工作区可观察状态 | unknown / observed_clean / observed_dirty | 基于当前工具可见的文件系统与 Git 状态描述工作区；不得推断编辑器内未落盘缓冲区状态 |
+| 工作区可观察状态 | unknown / observed_clean / observed_dirty | 由 `code.worktree_state` 唯一承载，基于当前工具可见的文件系统与 Git 状态；不得推断编辑器内未落盘缓冲区状态 |
 | 验证 | not_run / running / passed / failed / stale / unknown | 本次工作区/提交上的验证状态；`passed` 必须关联 Evidence，旧证据对新版本为 `stale`，无法读取证据为 `unknown` |
 | 审查 | not_reviewed / reviewed / changes_requested / stale / unknown | 审查结论必须绑定被审查 revision、审查范围和审查者；revision 变化后重新判断是否 stale |
-| 决策 | 以 `pending_decisions[]` / `decision_refs[]` 表达多个独立事项 | 不用一个全局枚举代表多个决策；每项必须关联具体决策 ID、裁定主体和来源，不能作为泛化的用户授权标记 |
+| 决策 | 以 `decisions[]` 表达多个独立事项 | 不用一个全局枚举代表多个决策；每项必须关联具体决策 ID、裁定主体和来源，不能作为泛化的用户授权标记 |
 
 D1 Schema 将多个独立裁定项统一表示为 `decisions[]`；每项包含 decision ID、状态、裁定主体与来源，单项确认不构成对 Packet 或其他操作的泛化授权。
 
@@ -162,7 +162,7 @@ Checkpoint 最小字段：
 
 1. 发生真实并行写入时，每个 Agent 优先使用独立 branch/worktree；没有并行写入时不要求引入协调文件或 lease。
 2. 任务或文件范围明确分配 owner；同一权威文件默认单写者。该约束沿用项目已有 `multi_agent` 能力规则，不因 SCP 自动启用该能力。
-3. 只有无法通过分支/worktree 隔离且确有共享资源协调需求时，才考虑声明 lease：资源范围、owner、base SHA、创建时间、到期时间、续租/释放状态。
+3. 首版不定义或要求 Lease；只有后续出现可复现且无法通过分支/worktree 隔离解决的共享写冲突时，才单独评估协调存储。
 4. 写入前比较 base SHA 与当前 SHA；发生变化必须重新读取、重放或人工解决，不允许盲目覆盖。
 5. 过期 lease 只表示协调声明失效，不代表可以删除其他 Agent 的工作；先检查工作树、分支和未提交改动。
 6. 同一任务的状态变更与证据更新必须串行化，避免 done 状态先于验证结果写入。
@@ -170,7 +170,7 @@ Checkpoint 最小字段：
 **安全边界**：
 
 - Git 分支/worktree 隔离是默认执行手段；lease 是协调层，不提供安全隔离或分布式事务。
-- 初版可采用仓库内轻量声明或人工协调；在没有可靠原子写入/锁服务前，不宣称具备强一致分布式锁。
+- 首版只记录 owner、write-scope 和 branch/worktree 隔离声明；不引入 Lease 服务、外部锁或仓库内锁协议。后续若评估协调存储，必须另行设计原子性、过期恢复和故障边界。
 - 无法确认资源 owner 或发现重叠写入时，暂停冲突范围，不暂停无关任务。
 
 ### 4.6 Handoff — 交接
@@ -240,7 +240,7 @@ work:
 code:
   branch: feature/example
   head_sha: "<full-commit-sha>"
-  worktree: dirty
+  worktree_state: observed_dirty
   uncommitted_paths: []
 checkpoint:
   work_state: in_progress
