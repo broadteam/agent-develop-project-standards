@@ -177,7 +177,7 @@ try {
   const leanConstitution = fs.readFileSync(path.join(project, '.spec/00-constitution.md'), 'utf8');
   const leanAgents = fs.readFileSync(path.join(project, 'AGENTS.md'), 'utf8');
   assert.match(leanConstitution, /关闭时更新 `\.spec\/01-architecture\.md` 或 PR 审查记录/);
-  assert.match(leanAgents, /关闭时在 `\.spec\/01-architecture\.md` 或 PR 审查记录中保存裁定/);
+  assert.match(leanAgents, /关闭时写入 `\.spec\/01-architecture\.md` 或 PR 审查记录/);
   const nodeGate = spawnSync(process.execPath, [path.join(project, '.standards/check-governance.cjs')], { encoding: 'utf8' });
   assert.equal(nodeGate.status, 0, nodeGate.stdout + nodeGate.stderr);
   const pythonGate = spawnSync(process.env.PYTHON || 'python3', [path.join(project, '.standards/check_governance.py')], { encoding: 'utf8' });
