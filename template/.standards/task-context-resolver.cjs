@@ -237,7 +237,11 @@ function resolveTaskContext(input, options = {}) {
   if (registryRelevant) add(optionalRead, '.spec/REGISTRY.md', '核对标识符、接口名、字段和数据实体登记');
 
   if (task.impact === 'cross_module' || task.impact === 'system') {
-    nextActions.push('检查涉及模块的允许依赖方向与所有权；如果项目配置了架构测试，必须执行对应测试。');
+    if (decisions.module_boundaries?.decision === 'disabled_by_project') {
+      nextActions.push('项目已关闭 module_boundaries：不执行该能力的专项门禁；如本次工作必须依赖模块边界约束，先请维护者启用该能力。');
+    } else {
+      nextActions.push('检查涉及模块的允许依赖方向与所有权；如果项目配置了架构测试，必须执行对应测试。');
+    }
   }
   if (task.multiple_agents && decisions.multi_agent?.decision === 'disabled_by_project') {
     nextActions.push('当前任务声明使用多个 Agent，但项目未启用 multi_agent 能力；先明确共享文件、任务认领与并发写入协调方式。');

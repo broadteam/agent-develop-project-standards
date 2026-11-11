@@ -94,6 +94,14 @@ try {
   assert.ok(overridden.warnings.some((x) => x.includes('task_tracking')));
   assert.ok(overridden.warnings.some((x) => x.includes('adr')));
 
+  const noBoundariesProfile = parseProfile(profileText);
+  noBoundariesProfile.capabilities.module_boundaries = 'off';
+  const boundariesOff = resolveTaskContext({
+    kind: 'module_change', risk: 'high', impact: 'cross_module', uncertainty: 'high'
+  }, { root, profile: noBoundariesProfile, registry });
+  assert.ok(boundariesOff.nextActions.some((x) => x.includes('已关闭 module_boundaries')));
+  assert.ok(!boundariesOff.nextActions.some((x) => x.includes('检查涉及模块的允许依赖方向')));
+
   const milestoneOnly = resolveTaskContext({
     kind: 'code_change', risk: 'low', impact: 'local', uncertainty: 'low', milestone_id: 'M1'
   }, { root, profile, registry });
