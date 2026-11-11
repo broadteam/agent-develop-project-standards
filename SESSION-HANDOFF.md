@@ -228,3 +228,19 @@
 ### 当前唯一下一步
 
 读取 PR #11 最新 Head，确认本次文档修订后的 Push/PR CI；然后将上述四项产品决策交由用户裁定。保持 PR #11 Open + Draft、PR #10 Open + Draft；不合并、不改 main、不 bump 版本、不打 tag。
+
+
+## SCP D0 第二轮边界审查（2026-11-12）
+
+- 已复核 PR #11 最新 Head `4ea88f0784af647e6b836f1afc8a46a5e76285ee`：Push + PR 共 16/16 checks 全部成功。该结论仅绑定该 SHA。
+- PR #11 仍 Open + Draft，Base `feat/governance-consistency-audit`，Base SHA `88c342536b7d421aafd0b313e07c6f2b1849eab0`。
+- 在首轮 D0 修订基础上继续发现并修正：通用 Agent 无法可靠观察 IDE 未落盘缓冲区；多个待用户决策不能压成单一枚举；审查结论也必须绑定 revision；SESSION-HANDOFF.md 应是可选入口；普通局部测试不应强制创建 V 记录；YAML 示例不得与尚未决定的机器格式冲突。
+- 对应设计修订提交：
+  - `c18c2d157d6e945afac156c1faf15362a72d6e4e`：澄清工作区可观察状态、决策列表、审查 freshness、可选 handoff 入口和按需 Evidence。
+  - `a2770ef992dafd1e823aa39eefb9cebc46ee427d`：统一 Schema 格式决策表述。
+- 上述两次提交之后的 CI 需要针对最新 Head 重新核验；不得沿用 `4ea88f0` 的绿灯作为后续 SHA 的验证。
+- D0 仍是 proposal / review_pending。四项产品决策尚未得到用户明确裁定，不开始 D1 Schema 冻结或 validator 实现。
+
+### 当前下一步
+
+现场核验 PR #11 最新 Head 的 CI；然后请用户裁定四项产品决策。未获明确决定前，不冻结协议、不增加门禁、不改 PR #10 或 main。
