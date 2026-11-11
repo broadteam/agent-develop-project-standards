@@ -60,17 +60,52 @@
 
 ## 第七阶段：3.0 一致性审查（进行中）
 
-- 发现 `.memory/MEMORY.md` 被部分文件过度描述为“唯一项目状态源”；修正为分域权威来源，MEMORY 只保留跨会话断点与稳定事实摘要。
-- 宪法“批量写入原子且一键回退”与初始化器实际只能对可捕获异常尽力回滚的边界不一致；改为明确恢复边界，不夸大事务保证。
-- 新任务/里程碑仅靠 `意图对齐` 字段 opt-in，删除字段即可绕过；新模板增加创建日期，校验器据此识别新记录，同时保留没有日期/模式的旧记录兼容。
-- 完成任务引用 V 证据时要求结果为 pass；里程碑引用的 V 证据必须与里程碑交付 Commit SHA 一致。
-- task-context resolver 将 project-profile 从 unconditional read 移到 optional read，避免每个任务都加载画像。
-- `AGENTS.md` 的初始安装体积仅给项目自有规则留下 486B，低于 `test-init` 要求的 1024B；已移除与 `ROUTER.md` 重复的文档地图和与 README/DEPLOY 重复的 Hook 操作说明，精简后的 AGENTS.md 源文件为 10,852 UTF-8 字节；初始化预算测试已确认安装后仍保留至少 1,024B 给项目自有规则。
-- 复查发现 README 设计边界与 CLIENTS.md 仍把 `.memory/` 说成全局权威；已同步修正 README、CLIENTS、SPEC-v2.0 与 PROJECT-ADAPTATION：各领域仓库文件为权威来源，客户端私有记忆只镜像 MEMORY §0 断点。
-- PROJECT-ADAPTATION 的固定上下文清单也已与 resolver 一致：project-profile 由工具读取计算，Agent 只在需要时加载相关字段。
-- 第一次 CI 明确暴露上述 AGENTS 预算失败（Ubuntu 四个矩阵任务）；按测试定义压缩 L0 入口后，最新 head `079cb271cfa1863ce4e4c6c4a9dd20ef88abfbfc` 的 CI run `42954213177` 在 Ubuntu/Windows × Node 22/24 × Python 3.11/3.13 的 8 个 job 全部通过。
-- 里程碑交付可能包含多个任务提交，校验器按交付记录中的 SHA 集合匹配 V 证据，不错误地要求所有 V 都绑定到单个 SHA；新增多 Commit 回归测试。
-- 最新 PR #10 head：`021f34b1d06fbdfa5abe42aad5d2567b2e785b23`；Actions run `42955377145` 已完成，8/8 job 全部成功。PR #10 仍为 Open + Draft，base 为 `feat/intent-alignment-review`，尚未合并；继续保持 PR #4–#10 的整体审查边界。
+### 已完成的统一性修复
+
+- **分域权威来源**：意图以 `.spec/intent/` 为权威，需求以 `.spec/requirements/INDEX.md` 为权威，任务状态以 `.spec/tasks/index.md` 为权威，验证以 `.spec/verification/INDEX.md` 为权威，架构决策以 `.spec/adr/` 为权威；`.memory/MEMORY.md` 只保留稳定事实摘要与跨会话断点。
+- **恢复边界**：修正宪法对多文件写入原子性和一键回退的过度承诺；初始化器只对可捕获异常提供 best-effort rollback，不承诺进程强杀/断电下的原子事务。
+- **意图对齐 opt-in**：新建任务/里程碑带创建日期，日期格式合法但缺少模式会失败；没有日期和模式的旧记录继续兼容。
+- **证据完整性**：done 任务需要 pass V 证据；里程碑 V 证据绑定其声明的交付 Commit SHA 集合，支持多 Commit。
+- **上下文成本**：task-context resolver 不再无条件读取完整 project-profile；画像字段按需加载。AGENTS 源模板当前为 12,056B / 12,288B，留有 232B；初始化预算测试要求安装后仍至少保留 1,024B 项目自有规则空间，并已通过。
+- **文档一致性**：README、CLIENTS、SPEC-v2.0、PROJECT-ADAPTATION 与 AGENTS/Constitution/MEMORY 对分域事实源的描述已同步；PROJECT-ADAPTATION 不再把 project-profile 作为每轮固定上下文。
+
+### 能力开关审查：已确认的规则模型
+
+**不可关闭的 core 契约**：安全与授权边界、原始意图基线/变更账本、需求索引、验证证据索引、统一规则入口与事实来源诚信。requirements、verification 和 intent continuity 没有独立的关闭开关；它们不应因关闭任务卡或里程碑而消失。
+
+**可选 toggle**：`task_tracking`、`roadmap`、`adr`、`module_boundaries`、`multi_agent`、`stack_rules`。其中 roadmap 依赖 task_tracking；`memory_mode`、`quality_gates`、`release_governance` 是 profile 档位，不是 off/on toggle。意图对齐不是独立全局开关，而是跟随已启用的任务/里程碑记录执行。
+
+### 能力开关交叉审查发现与修复
+
+1. **AGENTS 的复合能力块裁剪**：原 `cap:task_tracking,roadmap` 把两个独立能力绑在一起；现在分别渲染任务与里程碑指引，避免 task_tracking=on、roadmap=off 时一起删除。
+2. **ADR / stack_rules / module_boundaries 关闭后仍被引用**：AGENTS、ROUTER、Constitution、Architecture 的可选指引改为按能力渲染；ADR 关闭时，用户裁定仍然有效，记录可放任务/PR 审查记录；模块边界关闭时不再要求执行该能力专项门禁。
+3. **关闭能力后历史记录仍被强制校验**：Node/Python traceability 与 intent-alignment checker 接收 task_tracking/roadmap 状态；对应能力关闭时保留历史文件，但跳过相应索引、详情和对齐门禁。核心需求与验证证据仍继续校验。
+4. **roadmap 与 task_tracking 触发条件不一致**：milestone_planning 也触发 task_tracking auto；roadmap=on/auto 不得绕过 task_tracking=off 的依赖约束。
+5. **task_tracking 关闭导致原始意图丢失**：跨会话、高不确定性或高影响工作仍需读取 BASELINE 和 CHANGES，不再把意图恢复错误地绑定到任务卡能力。
+6. **task_tracking 关闭仍强制任务卡**：已有根目录 TODO/PLAN 文件不再被误排除白名单；关闭任务跟踪时不自动导入任务卡、不禁止项目原有唯一计划入口。对应根目录计划文件禁用规则也按能力裁剪。
+7. **task_tracking 关闭仍要求活跃需求必须有任务卡**：活跃需求的“必须有任务或 pass 证据”门禁仅在 task_tracking 启用时执行；需求标记 verified 时仍必须有有效 pass V 证据。
+8. **多 Agent 能力缺少可操作约定**：multi_agent 启用时提供最小协议：工作区/分支与写入范围声明、共享状态单写者、写入前刷新 Commit/文件、显式交接验证状态。它是 Agent 行为约定，不是分布式锁或机器可证明的并发安全保证。
+9. **能力依赖重复硬编码**：roadmap、stack_rules、release_governance 的依赖转由 capabilities 注册表声明，Node/Python profile validator 使用同一 resolver 语义。
+10. **能力关闭组合回归**：测试覆盖 all-off、task_tracking on + roadmap/ADR/stack_rules/module_boundaries off + multi_agent on、关闭后保留历史任务/里程碑、关闭后保留根目录计划文件，以及 Node/Python 追踪输出一致。
+
+### PR #10 最新状态与验证
+
+- 分支：`feat/governance-consistency-audit`。
+- 最新代码 Head：`2ba5d2d3f7736ba2e902a6a96bc417d38960b25a`。
+- Base：PR #9 的 `feat/intent-alignment-review`，Base SHA `c98c99a9f39693f893300e990cd6770064438e42`。
+- PR #10 仍为 Open + Draft，未合并；当前 31 个文件变更、17 个提交。
+- Push Actions run `42997557899`：8/8 Ubuntu/Windows × Node 22/24 × Python 3.11/3.13 全部通过。
+- Pull request Actions run `42997566716`：同一矩阵 8/8 全部通过。
+- 上述结果严格绑定 `2ba5d2d3...`；后续任何提交都必须重新核实其 CI，不得沿用这两个 run 的结论。
+- `main` 仍为 `02f8dde262455f15029a54694e129b05b70013a4`；本轮未修改 main。PR #4–#10 仍全部 Open + Draft，堆叠依赖顺序未改变。
+
+### 尚未完成
+
+- 第一优先级的实现修复和代表性组合测试已通过 CI，但仍需完成能力矩阵的文档全量复核，特别是 README、SPEC、ROUTER 与初始化器/检查器对所有开关组合的措辞是否完全一致；不能把当前代表性 fixture 当作所有可能组合均已穷尽。
+- 第二阶段：规则重复与冲突审查，重点查看 AGENTS、Constitution、SPEC、README、ROUTER、CHANGES、MEMORY、模板和工具是否重复维护同一规则。
+- 第三阶段：四类任务上下文成本审查（轻量维护、普通跟踪、跨会话持续开发、高风险架构/数据变更），量化必须/可选读取集与预算。
+- 第四阶段：升级兼容性审查，覆盖空项目初始化、已有项目升级、旧记录兼容、能力开关变更和人工存档恢复。
+- Session Continuity Protocol 仍是后续正式设计方向；本阶段不开始新增协议子系统。保留七个方向：Bootstrap、Context Freshness、Intent Continuity、Checkpoint、Concurrency Control、Handoff、Evidence Provenance。
 
 ## ChatGPT / Agent 跨会话恢复协议
 
