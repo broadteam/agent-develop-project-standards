@@ -104,7 +104,7 @@ mirrors = [".workbuddy-ai/memory/MEMORY.md"]
    禁止在适配文件里复制规则正文——一旦复制，两份必然走样。
 3. **加契约断言**：在 `tests/test-client-adapters.cjs` 里加一条，验证这个入口存在、指向的文件存在、且没有包含第二套规则正文。
 
-如果该客户端支持配置文件（如 `opencode.json` 的 `instructions`），可以顺带把 `.spec/02-conventions.md`、`.spec/stacks/<stack>.md` 列进去——但**不要把 `.spec/**` 全量塞进去**，那等于每次会话都加载整套规范，违背按需读取。
+如果该客户端支持配置文件（如 `opencode.json` 的 `instructions`），可以顺带把 `.spec/02-conventions.md` 列进去；仅当项目启用 `stack_rules` 时，再加入实际涉及的 `.spec/stacks/<stack>.md`——但**不要把 `.spec/**` 全量塞进去**，那等于每次会话都加载整套规范，违背按需读取。
 
 ## 5. 已知限制
 

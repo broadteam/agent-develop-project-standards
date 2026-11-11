@@ -8,6 +8,10 @@ const { spawnSync } = require('node:child_process');
 const root = path.resolve(__dirname, '..');
 const { resolveCapabilities } = require('../template/.standards/capability-resolver.cjs');
 const registry = JSON.parse(fs.readFileSync(path.join(root, 'template/policy/capabilities.json'), 'utf8'));
+const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
+const spec = fs.readFileSync(path.join(root, 'SPEC-v2.0.md'), 'utf8');
+const deploy = fs.readFileSync(path.join(root, 'DEPLOY.md'), 'utf8');
+const clients = fs.readFileSync(path.join(root, 'CLIENTS.md'), 'utf8');
 
 const profile = { capabilities: {
   task_tracking: 'off', roadmap: 'off', adr: 'auto', stack_rules: 'off',
@@ -128,8 +132,16 @@ try {
   assert.doesNotMatch(taskOnlyRouter, /\.spec\/adr\/README\.md/);
   assert.doesNotMatch(taskOnlyRouter, /\.spec\/stacks\//);
   assert.doesNotMatch(taskOnlyArchitecture, /模块依赖矩阵/, 'module_boundaries=off must remove its optional matrix instructions');
+  assert.match(taskOnlyAgents, /启用 `adr` 时 ADR 也采用单写者/, 'multi_agent rules must not assume ADR is enabled');
+  const taskOnlyConstitution = fs.readFileSync(path.join(taskOnlyProject, '.spec/00-constitution.md'), 'utf8');
+  assert.match(taskOnlyConstitution, /启用 `task_tracking` 时，任务状态以/, 'constitution must mark task state as optional');
+  assert.match(taskOnlyConstitution, /启用 `adr` 时，架构决策以/, 'constitution must mark ADR as optional');
   const taskOnlyGate = spawnSync(process.execPath, [path.join(taskOnlyProject, '.standards/check-governance.cjs')], { encoding: 'utf8' });
   assert.equal(taskOnlyGate.status, 0, taskOnlyGate.stdout + taskOnlyGate.stderr);
+  assert.match(readme, /关闭 `task_tracking` 或 `roadmap` 时，保留项目已有的计划\/历史文件/, 'README must describe disabled task/roadmap behavior');
+  assert.match(spec, /启用 `task_tracking` 时，`.spec\/tasks\/index\.md`/, 'SPEC must mark task index as optional');
+  assert.match(deploy, /关闭 `task_tracking` 时则不会导入这些文件/, 'DEPLOY must document task_tracking=off plan preservation');
+  assert.match(clients, /仅当项目启用 `stack_rules` 时/, 'CLIENTS must not recommend disabled stack files');
 
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });

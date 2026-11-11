@@ -93,9 +93,9 @@ node .standards/task-context-resolver.cjs --input .tmp/task-context.json --forma
 
 ### 项目目标连续性
 
-长期或跟踪型项目在开始实施前，应建立 `.spec/intent/BASELINE.md`：记录用户原始问题、目标、约束、Non-goals 与可验证成功判据。基线确认后不直接改写；后续补充、纠正、新增、范围/优先级变化和撤回等事项追加到 `CHANGES.md`。任务卡和里程碑通过 `Gnnn` / `Cnnn` 引用目标与变更，不复制整段需求或聊天记录。
+项目在开始实施前，应建立 `.spec/intent/BASELINE.md`：记录用户原始问题、目标、约束、Non-goals 与可验证成功判据。基线确认后不直接改写；后续补充、纠正、新增、范围/优先级变化和撤回等事项追加到 `CHANGES.md`。仅在启用 `task_tracking` / `roadmap` 时，对应任务卡和里程碑通过 `Gnnn` / `Cnnn` 引用目标与变更，不复制整段需求或聊天记录。
 
-只有影响目标、范围、验收、约束、优先级或关键决策的对话内容才进入变更账本；普通澄清和一次性排障不记录。跟踪任务恢复、里程碑收口和会话交接时必须回顾基线及相关变更。详见模板文件与 `AGENTS.md`。
+只有影响目标、范围、验收、约束、优先级或关键决策的对话内容才进入变更账本；普通澄清和一次性排障不记录。跨会话恢复与需求/计划变更时必须回顾基线及相关变更；启用任务跟踪或路线图时，相关任务/里程碑收口也要核对这些记录。详见模板文件与 `AGENTS.md`。
 
 为防止同一会话内的目标漂移，变更账本还定义了每轮对话的意图分类：继续、澄清、临时插单、明确变更或冲突待裁定。临时插单保留原任务恢复点；Agent 推断保持 pending；冲突只暂停有冲突的决策，不擅自重排整个计划。跨会话断点在 `.memory/MEMORY.md` §0 保留当前 G/R/T 指针、暂停原因与下一步。
 
@@ -255,7 +255,7 @@ project-standards/
 | `package.json` | Node | `src` / `lib` | `dist` |
 | 未识别 | Generic | `src` / `app` | `build` |
 
-检测到多技术栈时，脚本会提示人工确认，并将检测到的语言规范分别复制到 `.spec/stacks/`。`gov.toml [project]` 仍只记录一个主技术栈与默认构建配置，必须由维护者确认多栈项目的实际命令。
+检测到多技术栈时，脚本会提示人工确认；仅在启用 `stack_rules` 时，才将检测到的语言规范分别复制到 `.spec/stacks/`。`gov.toml [project]` 仍只记录一个主技术栈与默认构建配置，必须由维护者确认多栈项目的实际命令。
 
 ## 母模板与项目画像（2.0）
 
@@ -269,11 +269,12 @@ project-standards/
 
 ## 任务与归档规则
 
-- 当前任务的唯一状态源是 `.spec/tasks/index.md`。
-- 每张活跃任务卡必须有 `.spec/tasks/<ID>/card.md` 和 `log.md`。
-- `.spec/tasks/BOARD.md` 是派生视图，由 `node .standards/generate-board.cjs` 生成；治理检查会通过索引 SHA-256 标记检查其是否过期。
-- 一个波次完成后，将该波次任务目录整体移动到 `.spec/tasks/archive/W<n>/`，并更新归档索引；归档目录默认不参与活跃任务一致性扫描。
-- 里程碑同理：活跃索引与活跃目录对应，归档内容放入 `archive/`。
+以下约束仅对对应能力启用的项目生效；关闭能力不会删除既有文件，但不再要求新建或维护模板记录。
+
+- 启用 `task_tracking` 时，`.spec/tasks/index.md` 是活跃任务状态唯一来源；每张活跃卡有 `card.md` 和 `log.md`，`BOARD.md` 是由索引生成的派生视图，并由治理检查验证新鲜度。
+- 启用 `task_tracking` 时，一个波次完成后将任务目录移动到 `.spec/tasks/archive/W<n>/` 并更新归档索引；归档目录不参与活跃任务扫描。
+- 启用 `roadmap` 时，里程碑活跃索引与详情目录保持一致，归档内容放入 `archive/`；该能力依赖 `task_tracking`。
+- 关闭 `task_tracking` 或 `roadmap` 时，保留项目已有的计划/历史文件，不对其执行对应的模板索引、目录和归档门禁。
 
 ## 治理检查器
 
@@ -291,9 +292,9 @@ python3 .standards/check_governance.py
 - 根目录白名单与禁用命名；
 - 关键文档字节预算；
 - 必需文件；
-- 活跃任务 / 里程碑索引与目录双向一致；
-- 任务状态合法、ID 不重复、任务卡 `log.md` 存在；
-- BOARD 派生视图未过期。
+- 启用 `task_tracking` / `roadmap` 时，分别检查活跃任务/里程碑索引与目录双向一致；
+- 启用 `task_tracking` 时，检查任务状态、ID 唯一性、任务卡 `log.md` 与 BOARD 派生视图新鲜度；
+- 对关闭的可选能力保留历史文件，但跳过其专属索引、详情和归档门禁。
 
 ## Git Hook 与项目专属验证
 
@@ -303,7 +304,7 @@ python3 .standards/check_governance.py
 
 - `.memory/` 只维护跨会话断点与稳定事实摘要；意图、需求、任务、验证和架构决策分别以各自仓库权威文件为准，不要求客户端关闭其个人级记忆。
 - 工具自动维护的标准缓存（例如 Maven、Gradle、npm、Python 缓存）不等同于 Agent 在项目外创建项目文件。
-- 任务卡授权的是任务范围内的代码修改，不自动授权生产部署、Git Push、破坏性删除、数据库生产迁移或用户环境变更。
+- 启用 `task_tracking` 时，任务卡授权的是任务范围内的代码修改；关闭时以用户当次指令为修改范围。二者都不自动授权生产部署、Git Push、破坏性删除、数据库生产迁移或用户环境变更。
 - 模块依赖边界必须尽可能由架构测试、静态分析或构建规则执行；仅写在 Markdown 中不算机器保证。
 
 ## 一个原则
@@ -471,7 +472,7 @@ node tests/test-doc-links.cjs
 
 ### 自动追踪完整性检查
 
-长期/跨会话项目的追踪链由 `.standards/traceability-check.cjs` 与 `.standards/traceability_check.py` 校验，并集成到 Node/Python 治理入口。检查目标、需求、变更、任务、里程碑和验证证据的引用完整性；活跃目标/需求的工作承接；以及 `verified` 需求是否指向覆盖自身的有效 `pass` 证据（完整 Commit SHA 和具体证据位置）。模板中的示例占位行会被忽略。轻量维护工作可通过 `supporting:` 说明支撑关系，不需要机械创建需求。
+原始目标、需求与验证证据的核心追踪由 `.standards/traceability-check.cjs` 与 `.standards/traceability_check.py` 校验，并集成到 Node/Python 治理入口。核心检查验证目标、变更、需求与 V 证据的引用完整性，以及 `verified` 需求是否指向覆盖自身的有效 `pass` 证据（完整 Commit SHA 和具体证据位置）。仅在启用 `task_tracking` / `roadmap` 时，才额外检查任务/里程碑引用、状态承接和对应意图对齐门禁；关闭时保留历史记录但跳过这些可选门禁。模板中的示例占位行会被忽略。轻量维护工作可通过 `supporting:` 说明支撑关系，不需要机械创建需求。
 
 
 ### 长期意图连续性模拟测试
@@ -481,4 +482,4 @@ node tests/test-doc-links.cjs
 
 ### 项目意图对齐审查
 
-跟踪任务在进入 `in_progress` 前填写任务卡的「开工意图对齐」，进入 `review` / `done` 前填写「收口意图对齐」。收口要基于实际 diff、提交 SHA、测试与需求验收证据，区分 `aligned`、`justified_adjustment`、`user_confirmed_change` 和 `unresolved_drift`。未解决漂移不得标记任务 `done`；里程碑关闭前还需逐项对照目标成功判据、需求验收证据、包含任务状态与未解决漂移。旧任务卡/旧里程碑未显式 opt-in 时保持兼容；新模板默认 required。机器校验只检查字段完整性、有效引用和状态约束，不声称能自动证明代码在语义上符合用户意图。`tests/test-intent-alignment-review.cjs` 覆盖这些规则及 Node/Python 检查器一致性。
+启用 `task_tracking` 时，跟踪任务在进入 `in_progress` 前填写任务卡的「开工意图对齐」，进入 `review` / `done` 前填写「收口意图对齐」。收口要基于实际 diff、提交 SHA、测试与需求验收证据，区分 `aligned`、`justified_adjustment`、`user_confirmed_change` 和 `unresolved_drift`。未解决漂移不得标记任务 `done`。启用 `roadmap` 时，里程碑关闭前还需逐项对照目标成功判据、需求验收证据、包含任务状态与未解决漂移。关闭对应能力时保留历史记录但跳过专属门禁。机器校验只检查字段完整性、有效引用和状态约束，不声称能自动证明代码在语义上符合用户意图。`tests/test-intent-alignment-review.cjs` 覆盖这些规则及 Node/Python 检查器一致性。
