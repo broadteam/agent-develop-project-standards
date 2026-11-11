@@ -608,6 +608,81 @@ D2 不以“能读出 Packet”作为验收。关键验收是：在来源过期�
 - D3 之后：具体阶段编号与顺序须在 D2 设计审查后复核；不得默认把概念设计直接转成实现承诺。
 - PR #10、main、项目版本和 tags 均不属于 D2 工作范围。
 
+
+
+### 13.12 D2 场景契约矩阵（跨客户端一致性基准）
+
+本矩阵定义的是设计验收用例，不是已实现的 Fixture，也不授权在本 PR 中实现测试运行器。每个客户端对同一输入、同一权威来源快照和同一权限配置，应得到相同的规范化状态与允许/禁止行为。客户端可以使用不同 UI 文案，但不能改变下列语义。
+
+#### 13.12.1 场景矩阵
+
+| ID | 输入与现场观察 | 预期判定 | 允许的行为 | 禁止的行为 |
+|---|---|---|---|---|
+| S01 Packet 缺失 | 仓库身份可确认；无 SCP Packet；AGENTS.md 与 MEMORY §0 可读 | Packet=absent；不是错误；既有来源按需恢复 | 按项目规则入口进行只读 Bootstrap；报告没有 Packet | 因缺少 Packet 停止全部恢复；自动创建 Packet 或 MEMORY |
+| S02 最小有效 Packet | Packet 可解析、Schema 受支持；引用的权威来源身份/revision 与现场一致；相关工作区 clean | 协议=compatible；相关来源=current | 使用已核验来源生成恢复摘要 | 将未检查的其他来源一并标 current；把 Bootstrap 当作写操作授权 |
+| S03 权威记录更新 | Packet 引用 requirements/R-17 的旧 revision；当前权威记录已更新，且变更与当前任务相关 | 该引用=stale；当前需求状态以权威记录为准 | 重新读取当前需求并报告差异 | 沿用 Packet 中旧验收标准；静默修改 Packet 或需求记录 |
+| S04 无关文件变化 | 仓库 commit 已变化，但本次恢复涉及的权威文件 blob、目标和证据范围均可证明未变化 | 仅被影响的 revision 声明 stale；未受影响声明可保持 current | 按声明依赖范围分别判定 | 仅因 HEAD SHA 变化就把所有来源无差别标 stale；未检查范围却声称全部 current |
+| S05 远端 API 不可用 | 本地仓库和规则可读；PR/CI 服务不可访问 | 本地来源按证据判定；PR/CI=unknown | 在明确限制下继续不依赖远端状态的只读分析 | 声称 PR 仍 open、CI 通过或远端分支未变；因 API 失败改用旧快照冒充实时状态 |
+| S06 tracked 文件 dirty | Packet 记录 HEAD=A；现场 HEAD=A，但被引用的 tracked 文件在工作区有未提交修改 | HEAD revision 可确认；该文件工作区声明=stale/unknown（取决于是否能精确核验差异） | 报告 dirty path；只读检查差异 | 仅凭 HEAD blob 相同就宣称文件 current；覆盖或清理该修改 |
+| S07 untracked 文件 | Packet 声称包含某 untracked 文件，但没有可核验的内容摘要/路径范围；现场存在同名路径 | 该文件内容 freshness=unknown；路径存在不能证明内容相同 | 报告路径存在与摘要缺失；继续不依赖该文件的只读分析 | 把文件名相同当作内容一致；将 Git tree SHA 作为完整 worktree 快照 |
+| S08 dirty owner 不明 | 工作区有未提交路径，无法识别归属或是否属于其他 Agent | worktree=observed_dirty；owner=unknown；重叠写范围受阻 | 只读检查并列出路径；在不触及冲突路径时分析其他内容 | stash、reset、checkout、删除文件或在冲突路径写入 |
+| S09 PR head 变化 | Packet 记录 PR #N head=A；现场 PR head=B | 旧 PR 快照=stale；当前 PR head=B | 重新读取 PR 目标分支、状态和必要 review 信息 | 将 A 上的 review/CI 结果移植到 B；按 PR 编号不变推断内容不变 |
+| S10 CI queued | CI run 绑定当前 head，但状态为 queued 或 in_progress | verification=running/not_completed；不是 passed | 报告尚未完成；可等待用户要求或既定流程 | 将 queued/in_progress 解释为成功；生成 passed Evidence |
+| S11 CI 成功但 SHA 不匹配 | CI run conclusion=success，但 run head=A；当前待验收 head=B | 对 B 的验证证据=stale/not_applicable；A 的历史证据仍保留 | 报告证据仅适用于 A；提出对 B 重新验证的建议 | 因 workflow 绿色或 PR 编号相同就判 B 通过 |
+| S12 Evidence revision mismatch | Evidence ID 可解析，但 subject revision/scope 不覆盖当前需求或代码 revision | Evidence 对当前 subject=stale 或 not_applicable | 保留历史 Evidence 引用；明确不覆盖当前验收 | 删除旧证据；把历史 pass 复用为当前 pass |
+| S13 未知 Schema 版本 | Packet 的 schema_version 不在客户端明确支持范围，或核心语义不兼容 | protocol=unsupported/incompatible；与 freshness 分轴 | 拒绝消费未知核心语义；从项目规则和权威来源走安全恢复路径 | 忽略未知核心字段后继续；把不兼容伪装成普通 unknown 或自动迁移 Packet |
+| S14 权威来源冲突 | 两个适用的权威记录对同一需求状态给出互斥结果，且现有规则无法确定优先级 | 该声明=conflict | 暂停依赖该状态的高影响动作；列出双方来源并请求最小澄清 | 按更新时间、文件名或 Agent 偏好擅自选边；静默修复其中一份 |
+| S15 可选能力关闭 | task_tracking/roadmap/adr 未启用；Packet 没有相关引用 | 对应能力=not_configured / not_applicable，不是缺失错误 | 忽略不适用域，按已启用来源恢复 | 创建替代 task/roadmap/ADR 目录；推造任务或里程碑状态 |
+| S16 检查工具有副作用 | 某个测试/诊断命令会生成项目文件、缓存、报告、锁文件或触发迁移 | 该命令不属于只读 Bootstrap；相关验证=not_run/unknown | 跳过该命令并说明限制；或另行请求执行授权 | 以“只是检查”为由运行有项目状态副作用的命令 |
+| S17 历史意图与当前指令不同 | Packet/intent ledger 记录旧目标；当前用户明确提出不同目标，但是否长期替代尚未确认 | 当前指令是本轮最新输入；长期意图变更状态按现有 Intent Continuity 规则判 pending/needs confirmation | 先按当前指令做允许范围内的分析；说明是否需要持久化确认 | 把旧 Packet 当作否决当前指令；或擅自把一次性指令写成长期 accepted change |
+| S18 只读权限不足 | 某个权威来源因权限不足无法读取，其他来源可读 | 受影响来源=unknown；整体恢复受限 | 在清晰标注限制后继续独立的低风险只读分析 | 绕过权限、切换未授权凭据，或把不可读解释为不存在/无变更 |
+
+#### 13.12.2 规范化结果与客户端一致性
+
+跨客户端比较时，至少比较以下规范化字段，而不是比较自然语言摘要：
+
+- protocol_compatibility：compatible / unsupported / incompatible / unknown。
+- source_freshness[]：每个 source reference 的 current / stale / conflict / unknown / not_applicable，并包含判定范围和理由。
+- observed_state：可观察的 repository identity、HEAD、branch、worktree 状态；不可观察字段必须为 unknown。
+- evidence_applicability[]：evidence 对 subject/revision/scope 的 applicable / stale / not_applicable / unknown 结论。
+- recovery_mode：normal / restricted / blocked。
+- permitted_actions[] 与 prohibited_actions[]：按本协议与项目权限规则归一化。
+- user_decisions_needed[]：具体待确认事项及其来源，不合并为一个全局确认状态。
+
+一致性判定规则：
+
+1. 同一 fixture 输入、同一权威来源快照和同一权限配置，两个独立客户端必须给出相同的规范化状态；允许 UI/措辞不同。
+2. 任一客户端不得把 unknown、stale、conflict、queued、in_progress 或 unsupported 提升为 current/passed/authorized。
+3. 客户端可以给出更保守的限制，但不得扩大允许行为或放宽禁止行为。
+4. 不能观察到的字段必须一致地保留 unknown；不得用客户端本地缓存或隐式记忆补成事实。
+5. Fixture 契约测试只能证明规范化输入/输出一致；真实 CLI 对文件读取、权限和副作用的行为仍需单独 E2E 验证。
+
+#### 13.12.3 恢复模式决策表
+
+| 条件 | recovery_mode | 说明 |
+|---|---|---|
+| 项目身份可确认；所需规则/权威来源可读取；无影响当前工作的 stale/conflict/unknown | normal | 可形成完整的只读恢复摘要 |
+| 存在 unknown/stale，但当前分析可明确隔离且不依赖这些声明 | restricted | 必须列出限制；仅允许不依赖受影响事实的低风险只读分析 |
+| 项目身份不匹配、协议不兼容导致核心语义不可解释、关键权威来源冲突，或 dirty 写入范围无法安全隔离且下一步需要触及该范围 | blocked | 停止依赖该事实/范围的动作；请求最小澄清或授权 |
+
+补充约束：
+
+- blocked 可以是局部范围阻断，不应无理由阻断整个仓库；不受影响的独立只读分析仍可继续。
+- restricted 不是“默认允许写入”。任何写入/发布/合并/迁移/删除仍需重新核验对应来源并满足项目授权规则。
+- normal 只表示恢复上下文达到本协议的可用条件，不代表测试通过、任务完成或获得额外权限。
+- 多项来源状态并存时，按本次具体操作依赖的来源集合计算恢复模式；不得用一个全局状态掩盖局部冲突。
+
+#### 13.12.4 D2 场景验收方式（仍属设计要求）
+
+D2 设计评审通过后，后续独立实现提案应将上述场景转成机器可读 fixtures，并为每个 fixture 明确：
+- 输入 Packet、权威来源快照、Git/PR/CI 观察结果和权限配置；
+- 预期规范化状态与恢复模式；
+- 必须允许和必须禁止的行为；
+- 客户端无法观察到输入时的 unknown 预期；
+- 场景所验证的协议规则与对应设计章节。
+
+本轮不创建 fixture 文件、不实现 runner、不接入 CI。场景矩阵是下一阶段实现提案的验收依据，不是已经执行的测试结果。
+
 ### 13.11 第二轮内部审查：状态轴与工作区边界
 
 第二轮审查聚焦 D2 的可判定性，补充以下约束：
