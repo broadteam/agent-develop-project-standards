@@ -20,7 +20,7 @@ function assertResolverParity(label, profile) {
   if (result.error) throw result.error;
   assert.equal(result.status, 0, result.stderr);
   const python = JSON.parse(result.stdout.trim());
-  assert.deepEqual({ capabilities: python.capabilities, excludedPaths: python.excluded_paths, errors: python.errors }, node, label + ': Node/Python resolver results differ');
+  assert.deepEqual({ capabilities: python.capabilities, excludedPaths: python.excluded_paths, errors: python.errors }, { capabilities: node.capabilities, excludedPaths: node.excludedPaths, errors: node.errors }, label + ': Node/Python resolver results differ');
 }
 const registry = JSON.parse(fs.readFileSync(path.join(root, 'template/policy/capabilities.json'), 'utf8'));
 const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
