@@ -15,22 +15,22 @@ function write(rel, content) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, content, 'utf8');
 }
-function pythonErrors() {
+function pythonErrors(options = {}) {
   const script = [
     'import json, sys; sys.dont_write_bytecode = True',
     'from pathlib import Path',
     `sys.path.insert(0, ${JSON.stringify(path.resolve(__dirname, '../template/.standards'))})`,
     'from traceability_check import validate_traceability',
-    'print(json.dumps(validate_traceability(Path(sys.argv[1])), ensure_ascii=False))',
+    `print(json.dumps(validate_traceability(Path(sys.argv[1]), task_tracking=${options.taskTracking !== false ? 'True' : 'False'}, roadmap=${options.roadmap !== false ? 'True' : 'False'}), ensure_ascii=False))`,
   ].join('; ');
   const result = spawnSync(process.env.PYTHON || 'python3', ['-c', script, root], { encoding: 'utf8' });
   if (result.error) throw result.error;
   assert.equal(result.status, 0, result.stderr);
   return JSON.parse(result.stdout.trim());
 }
-function assertParity(label, expected = []) {
-  const nodeErrors = validateTraceability(root);
-  const pyErrors = pythonErrors();
+function assertParity(label, expected = [], options = {}) {
+  const nodeErrors = validateTraceability(root, options);
+  const pyErrors = pythonErrors(options);
   assert.deepEqual(nodeErrors, pyErrors, label + ': Node/Python results differ');
   if (expected.length) {
     for (const fragment of expected) assert.ok(nodeErrors.some(error => error.includes(fragment)), label + ': missing ' + fragment + '\n' + nodeErrors.join('\n'));
@@ -125,6 +125,7 @@ try {
   write('.spec/verification/INDEX.md', fs.readFileSync(path.join(root, '.spec/verification/INDEX.md'), 'utf8').replace('结果：pass', '结果：partial'));
   write('.spec/tasks/T1/card.md', fs.readFileSync(path.join(root, '.spec/tasks/T1/card.md'), 'utf8').replace('R001', '—'));
   assertParity('accepted requirement needs work item or evidence', ['活跃需求 R001 没有任务或通过的验证证据']);
+  assertParity('task-tracking-off does not require template task cards', [], { taskTracking: false, roadmap: false });
   console.log('test-traceability-governance: all cases passed');
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });

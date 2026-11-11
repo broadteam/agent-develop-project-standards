@@ -217,6 +217,14 @@ if (capabilityResolution.errors.length) {
   process.exit(1);
 }
 
+if (capabilityResolution.capabilities.task_tracking?.status === 'disabled') {
+  // No task-card import is performed when tracking is off. Existing plan files remain
+  // the project's chosen source of work and must stay in the root whitelist.
+  for (const name of planFiles) if (!allowedFiles.includes(name)) allowedFiles.push(name);
+  allowedFiles.sort();
+  replacements.ALLOWED_FILES = allowedFiles.join(' ');
+}
+
 // Refuse to follow project-owned symlinks while installing managed files.
 // A symlinked project root itself is allowed; links below that root are not.
 function assertSafeTargetFile(relPath) {
@@ -520,6 +528,16 @@ function walk(dir, rel = '') {
         content = content.replace(/^detected = \["generic"\]$/m, `detected = [${detected}]`);
       }
       if (relPath === 'gov.toml') {
+        if (capabilityResolution.capabilities.task_tracking?.status === 'disabled') {
+          const line = content.match(/^file_patterns = \[(.*)\]$/m);
+          if (line) {
+            const values = [...line[1].matchAll(/"((?:[^"\\]|\\.)*)"/g)]
+              .map((match) => JSON.parse('"' + match[1] + '"'));
+            const planPattern = '(?i)^(todo|plan|roadmap|next|next_steps|progress|notes|backlog|tasks|checklist|draft)([-_].*)?\\.md$';
+            const filtered = values.filter((value) => value !== planPattern);
+            content = content.replace(line[0], 'file_patterns = [' + filtered.map((value) => JSON.stringify(value)).join(', ') + ']');
+          }
+        }
         const tomlValues = { name: PROJECT_NAME, desc: PROJECT_DESC, language: STACK, framework: replacements.FRAMEWORK, package_manager: packageManager, src_dir: SRC_DIR, build_output: BUILD_OUTPUT };
         for (const [key, value] of Object.entries(tomlValues)) {
           content = content.replace(new RegExp(`^${key} = \".*\"$`, 'm'), `${key} = ${JSON.stringify(String(value))}`);

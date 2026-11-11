@@ -144,7 +144,9 @@
 几周至几个月、需要多个任务协同的阶段计划使用 `.spec/roadmap/<ID>/milestone.md`；先读 `roadmap/INDEX.md`，再读命中的里程碑。
 <!--/cap-->
 
-根目录仍禁止散落 `TODO.md` / `PLAN.md` / `PROGRESS.md`。启用相关能力时使用上述权威入口；关闭时沿用项目已有规划方式，不要把计划文件改名后散落在根目录。完整清单由 `gov.toml [forbid]` 和治理检查执行。
+<!--cap:task_tracking-->
+根目录禁止散落 `TODO.md` / `PLAN.md` / `PROGRESS.md`；使用 `.spec/tasks/` 作为唯一任务入口。完整清单由 `gov.toml [forbid]` 和治理检查执行。
+<!--/cap-->
 
 ---
 

@@ -123,7 +123,7 @@ def validate_traceability(root: Path, *, task_tracking: bool = True, roadmap: bo
         if req["status"] in {"accepted","in_progress","implemented","verified"}:
             has_task = any(req_id in refs["reqs"] for refs in task_refs.values())
             has_pass = any(v["result"] == "pass" and req_id in v["covers"] for v in evidence_records.values())
-            if not has_task and not has_pass:
+            if task_tracking and not has_task and not has_pass:
                 errors.append(f"追踪关系：活跃需求 {req_id} 没有任务或通过的验证证据")
         if req["status"] == "verified":
             declared = re.findall(r"V\d+", req.get("evidence", ""))

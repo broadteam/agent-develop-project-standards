@@ -54,6 +54,8 @@ try {
     .replace('adr = "auto"', 'adr = "off"')
     .replace('stack_rules = "auto"', 'stack_rules = "off"');
   fs.writeFileSync(path.join(project, 'project-profile.toml'), profileTemplate);
+  const existingPlan = path.join(project, 'TODO.md');
+  fs.writeFileSync(existingPlan, '# Existing project plan\\n\\nKeep this as the project-owned tracker.\\n');
   const run = spawnSync(process.execPath, [path.join(root, 'init.cjs'), project], { encoding: 'utf8' });
   assert.equal(run.status, 0, run.stdout + run.stderr);
   for (const rel of ['.spec/tasks', '.spec/roadmap', '.spec/adr', '.spec/stacks']) {
@@ -61,6 +63,10 @@ try {
   }
   const gov = fs.readFileSync(path.join(project, 'gov.toml'), 'utf8');
   const requiredFiles = gov.match(/^files = \[(.*)\]$/m)?.[1] ?? '';
+  assert.ok(fs.existsSync(existingPlan), 'existing root plan must not be migrated when task_tracking is off');
+  const allowedFiles = gov.match(/^allowed_files = \[(.*)\]$/m)?.[1] ?? '';
+  assert.match(allowedFiles, /TODO\\.md/, 'existing root plan must remain whitelisted when task_tracking is off');
+  assert.doesNotMatch(gov, /\\(\\?i\\)\\^\\(todo\\|plan\\|roadmap/, 'root-plan prohibition is disabled with task_tracking');
   assert.doesNotMatch(requiredFiles, /\.spec\/(tasks|roadmap|adr|stacks)\//);
   assert.ok(fs.existsSync(path.join(project, '.spec/00-constitution.md')), 'core rules must remain');
   assert.ok(fs.existsSync(path.join(project, '.spec/01-architecture.md')), 'base architecture guidance must remain');

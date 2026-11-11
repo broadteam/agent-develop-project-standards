@@ -85,7 +85,7 @@ function validateTraceability(root, options = {}) {
     if (['accepted','in_progress','implemented','verified'].includes(req.status)) {
       const hasTask=[...taskRefs.values()].some(ref=>ref.reqs.includes(id));
       const hasPass=[...evidenceRecords.values()].some(v=>v.result==='pass'&&v.covers.includes(id));
-      if (!hasTask && !hasPass) errors.push(`追踪关系：活跃需求 ${id} 没有任务或通过的验证证据`);
+      if (taskTracking && !hasTask && !hasPass) errors.push(`追踪关系：活跃需求 ${id} 没有任务或通过的验证证据`);
     }
     if (req.status==='verified') {
       const declared = req.evidence.match(/V\d+/g) || [];
