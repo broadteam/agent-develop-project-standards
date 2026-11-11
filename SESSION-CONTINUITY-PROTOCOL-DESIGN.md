@@ -699,3 +699,37 @@ D2 设计评审通过后，后续独立实现提案应将上述场景转成机�
 - 多 remote/fork 场景需以仓库平台的稳定 repository identity 或显式 upstream 映射区分 canonical repository 与工作 fork；仅凭 remote 名称不能认定项目身份。
 
 **第二轮审查结论：** 上述修订后，D2 的状态轴、旧项目兼容性和工作区 freshness 边界更加明确；未发现需要改变 D0 语义或 D1 Schema 的问题。dirty/untracked 摘要编码与多 remote identity 保留为 D2 实施前需与客户端能力一起验证的边界，不在本轮擅自扩展机器契约。
+
+### 13.13 Bootstrap 状态转移与判定顺序（规范化伪流程）
+
+本节把 B0–B7 和 §13.12 的场景契约合并为可供实现提案引用的状态转移说明。它是设计级算法，不规定具体语言、CLI、数据结构或实现框架。
+
+1. **Identify project**：读取当前仓库身份和根目录。若无法确认身份，标记 identity=unknown；若与 Packet 声明身份不匹配，不消费该 Packet。仍可按当前项目规则入口进行独立恢复。
+2. **Load mandatory rules**：读取 AGENTS.md 和项目规定的最小恢复入口；按任务分级和能力开关决定是否继续读取 Constitution、intent、requirements、verification、tasks、roadmap、ADR。读取失败的来源单独标 unknown。
+3. **Locate continuity hints**：读取可用的 MEMORY §0、handoff 和 Packet。Packet 缺失时继续；handoff/Packet 只用于定位权威来源和恢复 last-known 状态。
+4. **Check protocol compatibility**：解析 Packet 格式与 schema_version。无法解析则拒绝消费其机器字段；未知/不兼容版本标 unsupported/incompatible。此状态不能通过忽略字段、自动迁移或猜测默认值来消除。
+5. **Resolve authority**：对本次工作实际依赖的每个声明，读取其领域权威来源。先按领域规则确定权威来源，再比较内容；不得先按时间戳或文件新旧选边。
+6. **Observe live state**：按只读能力读取 Git/worktree、必要的 PR/CI 和 Evidence 现场信息。远端不可用、权限不足或无法观察的字段保留 unknown；不以缓存替代实时事实。
+7. **Evaluate each claim**：逐项比较来源身份、revision、范围和证据适用性，输出 current/stale/conflict/unknown/not_applicable。协议兼容性单独输出，不并入 freshness。
+8. **Calculate recovery mode for requested scope**：以本次拟进行的具体分析/操作所依赖的来源集合为范围，计算 normal/restricted/blocked。未知或冲突只阻断依赖它的范围；不得把局部问题扩大成全仓库阻断。
+9. **Apply permission gate**：恢复模式不等于操作授权。对任何后续写入或外部可见动作，仍须重新核验项目权限规则和当前用户授权；历史 Packet/决策摘要不能授予新权限。
+10. **Present recovery result**：分别输出 verified facts、last-known facts、inferences、unknowns、conflicts、user decisions needed、next safe action 和 forbidden/unauthorized actions。默认只在当前会话中呈现，不自动持久化。
+
+#### 状态判定顺序的约束
+
+- **身份检查先于 Packet 消费**：项目身份不匹配时，不能先读取 Packet 中的 task/intent/evidence 引用再决定是否可信。
+- **兼容性检查先于字段解释**：未知 Schema 核心语义不得进入普通字段 freshness 判定。
+- **权威来源识别先于新旧比较**：同一事实的多个来源若有明确权威优先级，按该优先级；若没有，标 conflict。
+- **范围匹配先于 revision 结论**：revision 一致但 evidence scope 不覆盖当前 subject，仍不能判 applicable/current。
+- **现场观察先于动态状态结论**：PR、CI、branch、worktree 等可变状态必须现场查询；现场无法查询则 unknown。
+- **授权检查独立于恢复状态**：即使所有来源 current 且 recovery_mode=normal，也不代表用户授权了写入、发布或不可逆动作。
+
+#### 失败分支的终止条件
+
+- Packet 不存在/损坏：停止消费 Packet；继续从项目权威入口恢复。
+- Packet 不兼容：停止消费 Packet 的未知核心语义；允许独立读取当前项目规则和权威来源。
+- 关键权威来源 conflict：停止依赖该声明的动作；保留冲突证据并请求澄清。
+- 来源 unknown：只允许与该来源无依赖关系的低风险只读分析；不得推断“没有变化”。
+- 只读检查本身需要副作用：停止该项检查并标记 not_run/unknown；不得为完成 Bootstrap 而绕过只读边界。
+- 项目身份无法确认：不得消费 Packet 或执行依赖项目身份的操作；仅可报告无法确认及所需信息。
+
