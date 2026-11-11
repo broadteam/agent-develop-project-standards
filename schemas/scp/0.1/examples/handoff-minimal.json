@@ -28,7 +28,6 @@
   },
   "checkpoint": {
     "work_state": "in_progress",
-    "workspace_state": "unknown",
     "verification_state": "not_run",
     "review_state": "not_reviewed",
     "decisions": [],
