@@ -77,6 +77,7 @@ function validateProfile(root) {
     for (const key of ['primary','framework','package_manager']) if (typeof profile.stack[key] !== 'string') errors.push(`stack.${key} 必须是字符串`);
     if (!Array.isArray(profile.stack.detected) || profile.stack.detected.some((v) => typeof v !== 'string')) errors.push('stack.detected 必须是字符串数组');
     else if (!profile.stack.detected.length) errors.push('stack.detected 不能为空；未知技术栈请使用 ["generic"]');
+    else if (profile.stack.detected.some((value) => !/^[a-z][a-z0-9-]*$/.test(value))) errors.push('stack.detected 每项必须是小写技术栈 ID（例如 php、node-web、generic）');
   }
   if (profile.capabilities) {
     for (const [name, definition] of Object.entries(registry.capabilities ?? {})) {
