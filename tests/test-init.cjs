@@ -111,6 +111,18 @@ try {
   assert.ok(
     agentsBudget - installedAgents >= 1024,
     `初始化后的 AGENTS.md 只留 ${agentsBudget - installedAgents}B 余量（${installedAgents}/${agentsBudget}B），至少要留 1024B 给项目自有规则`);
+  // Worst-case capability rendering must still leave project-owned rule space.
+  const multiAgentProject = path.join(tmp, 'multi-agent-context-budget');
+  fs.mkdirSync(multiAgentProject);
+  const multiAgentProfile = fs.readFileSync(path.join(root, 'template/project-profile.toml'), 'utf8')
+    .replace('multi_agent = "off"', 'multi_agent = "on"');
+  fs.writeFileSync(path.join(multiAgentProject, 'project-profile.toml'), multiAgentProfile);
+  const multiAgentInstalled = init(multiAgentProject);
+  assert.equal(multiAgentInstalled.status, 0, multiAgentInstalled.stdout + multiAgentInstalled.stderr);
+  const multiAgentGov = fs.readFileSync(path.join(multiAgentProject, 'gov.toml'), 'utf8');
+  const multiAgentBudget = Number(multiAgentGov.match(/^agents_bytes = (\d+)/m)[1]);
+  const multiAgentAgents = Buffer.byteLength(fs.readFileSync(path.join(multiAgentProject, 'AGENTS.md'), 'utf8').replace(/\r\n/g, '\n'), 'utf8');
+  assert.ok(multiAgentBudget - multiAgentAgents >= 1024, 'multi_agent=on leaves only ' + (multiAgentBudget - multiAgentAgents) + 'B for project-owned rules');
   // An unknown placeholder would ship to the user as a literal {{X}} marker: init only
   // substitutes known keys, so the installed tree is scanned instead of trusted.
   const leftovers = [];
