@@ -86,8 +86,8 @@
     "head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "worktree_state": "observed_dirty",
     "uncommitted_paths": [
-      "src/agent.ts",
-      "notes/changed.md"
+      "notes/changed.md",
+      "src/agent.ts"
     ],
     "observed_at": "2026-11-12T02:00:00Z",
     "branch_tracking": {
