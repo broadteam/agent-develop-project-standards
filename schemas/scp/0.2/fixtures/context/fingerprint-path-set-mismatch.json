@@ -2,7 +2,6 @@
   "contract": "scp-fixture-context",
   "context_version": "0.1.0",
   "fixture_id": "fingerprint-path-set-mismatch",
-  "execution_status": "design_only",
   "target": {
     "packet": {
       "path": "schemas/scp/0.2/fixtures/invalid/semantic/fingerprint-path-set-mismatch.json",
