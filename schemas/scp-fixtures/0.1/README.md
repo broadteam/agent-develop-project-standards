@@ -32,6 +32,12 @@ The Context is test-harness input. It is not an SCP Packet, project state source
 | local-git-contract | `../profiles/0.1/local-git-contract.json` | `b0fc0273870f4591e5a53a51db7d189c012c826c` |
 | provider-stub | `../profiles/0.1/provider-stub.json` | `7784c321f69e5f812b2bca22184ca13335c985e1` |
 
+## Provider contract evidence
+
+| Contract | File | Git blob SHA |
+|---|---|---|
+| github-rest-fixture-not-found-semantics/1 | `../providers/0.1/github-rest-not-found-contract.json` | `6573628ce89d1e9f0e43ad2ecc341dc99b29e887` |
+
 ## Driver contract descriptors
 
 The SHA-256 values below are calculated over the exact UTF-8 file bytes, including the final newline.
