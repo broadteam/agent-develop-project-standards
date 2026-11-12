@@ -165,3 +165,61 @@ If the process crashes at any phase, do not rewrite a previous manifest. A resum
 7. The manifest itself is externally content-addressed; no self-hash field is introduced.
 
 Until these criteria are reviewed, keep this document as a proposal. Do not create `run-manifest.schema.json`, Writer, store or CI gate.
+
+## 11. Adversarial review of outcome classification
+
+The following cases prevent the Run Manifest from conflating a client fail-closed result with a Harness observation failure.
+
+### 11.1 Expected unknown versus missing observation
+
+- If the Context intentionally supplies a deterministic 403/429/timeout/ambiguous-404 observation and expects the client to return source freshness unknown, a matching client result is **conformant**.
+- If the Context declares a required observation capability, but the Harness fails to collect/supply that observation, the run is **inconclusive** (or not_run if evaluation never began).
+- If the Context explicitly declares a capability not_applicable and expects that result, a matching client output may be conformant.
+- The manifest must record whether the unknown came from an intentional fixture input, a client decision, or a Harness collection failure.
+
+### 11.2 Client crash versus client disagreement
+
+- A completed client response that contradicts expected normalized output is non_conformant.
+- A client crash, timeout or malformed output before a complete normalized result is available is inconclusive (Harness failed/interrupted according to cause), not automatically non_conformant.
+- If the client returns a syntactically complete but semantically unsafe result (for example, promotes unknown identity to resolved), that is non_conformant.
+
+### 11.3 Cleanup after successful assertions
+
+- If semantic assertions pass and cleanup succeeds: conformant + healthy.
+- If semantic assertions pass but cleanup fails: conformant + failed; overall run not accepted; quarantine the disposable root.
+- If cleanup outcome itself cannot be observed: preserve cleanup_state=unknown and harness_outcome=failed/interrupted; do not reuse the resource.
+- Cleanup failure must not rewrite the actual client result or erase passed/failed assertion records.
+
+### 11.4 Retry and duplicate execution
+
+- A retry always has a new run_id and attempt identity, even when the exact same Context/Driver/Profile pins are reused.
+- A partial/interrupted manifest is terminal and never reopened for a retry.
+- The Harness store must enforce uniqueness of manifest identity; duplicate run_id is a storage failure, not an overwrite request.
+- A replayed event sequence under the same Context should be deterministic; if the observed snapshots differ, preserve separate manifests and classify according to the pinned event/capability inputs.
+
+### 11.5 Invalid Context or Registry resolution
+
+- Invalid/unsupported Context is rejected before fixture setup and client invocation; conformance outcome=not_run.
+- Missing blob, wrong Git blob SHA, profile mismatch, unregistered Driver, `contract_only` Driver or executable digest mismatch is not_run/unknown and must not proceed to the Client Under Test.
+- A Harness that executes anyway has violated the harness contract even if the client output looks correct.
+
+### 11.6 Multi-client comparison is a separate derived record
+
+Each client has its own immutable Run Manifest. A later comparison artifact may group manifests by identical Context/Packet/Schema/Profile/Driver pins and compare normalized actual results.
+
+The comparison artifact:
+- does not mutate or replace any per-client manifest;
+- records capability mismatches instead of silently comparing unlike environments;
+- never upgrades an individual inconclusive result to conformant;
+- is not a project Evidence record or authorization source.
+
+### 11.7 Minimum invariant
+
+A Run Manifest must always answer independently:
+1. What exact immutable inputs were selected?
+2. Which setup/stimulus/observation steps actually occurred?
+3. What did the client actually return?
+4. Which assertions passed, failed, were inconclusive or never ran?
+5. Did the Harness complete safely and clean up its disposable resources?
+
+If any answer is unavailable, record it as unknown/not_run/interrupted; do not infer it from the intended Context.
