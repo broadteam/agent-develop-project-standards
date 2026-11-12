@@ -8,6 +8,7 @@ These fixtures specify expected JSON Schema and semantic-validator behavior. The
 |---|---|---|
 | `../examples/checkpoint-minimal.json` | JSON Schema valid | Minimum checkpoint; no optional handoff, coordination, repository identity or fingerprint |
 | `../examples/handoff-with-identity-and-fingerprint.json` | JSON Schema valid; illustrative shape only | Fork checkout vs canonical, separate remotes, branch tracking, index/worktree digests and an untracked path. Semantic validation requires a fixture harness to resolve the synthetic `fixture://` references and provide matching file/index bytes; the placeholder digests are not evidence.
+| `../examples/handoff-partial-fingerprint.json` | JSON Schema valid | Per-path stable capture with one unreadable file; coverage is partial rather than complete |
 
 ## JSON Schema-invalid fixtures
 
