@@ -1178,7 +1178,7 @@ Checkpoint 操作的客户端结果至少应能归一化为以下独立维度；
 
 路径规范必须优先保证“不把不同路径误认成同一路径”，而不是尽可能兼容所有特殊路径：
 
-1. 路径相对于当前 Packet 的项目根目录，使用 / 分隔符；不写绝对路径、盘符、UNC 前缀或 URL 编码路径。
+1. 路径相对于当前 Git worktree root（repository root），使用 / 分隔符；不写绝对路径、盘符、UNC 前缀或 URL 编码路径。project.root 是仓库内项目位置，不改变 Git 路径的统一基准。
 2. 拒绝 NUL、空路径、空组件、. 和 .. 组件；任何路径不得逃出 project root。
 3. JSON 字符串按 UTF-8 编码；保留原始 Unicode 码点序列，不执行 NFC/NFD 归一化、不大小写折叠、不 percent-decode。跨平台消费者必须按精确路径匹配。
 4. POSIX 文件名含反斜杠、非法 UTF-8 字节或目标平台无法无歧义映射的路径，标记 unsupported；不将反斜杠悄悄改成斜杠。
@@ -1200,7 +1200,7 @@ Checkpoint 操作的客户端结果至少应能归一化为以下独立维度；
 - stage 1/2/3 冲突条目必须分别列出；若客户端无法读取所有 stage，则 entry unknown，不能将冲突压平为单个 stage 0。
 
 建议的只读采集顺序：
-1. 识别 project root、Git worktree root 和 HEAD；确认路径范围在 project root 内。
+1. 识别 Git worktree root、project.root 与 HEAD；status 和 Fingerprint 路径均以 Git worktree root 为基准，project.root 仅表示仓库内项目子目录，不截断整个工作树的 Git 状态范围。
 2. 读取 HEAD SHA、Git index 状态与 git status --porcelain=v2 -z --untracked-files=all 等价的机器接口；以 NUL 分隔解析路径，不解析面向人类显示的 quoting 输出。
 3. 构建 staged/unstaged/deleted/untracked 路径集合；rename 以 source/destination 两条路径纳入。
 4. 读取对应 index stage entries 和工作区对象，按路径生成摘要条目；ignored、secret-policy-excluded、特殊文件和 submodule 内部状态按前述规则处理。
@@ -1514,3 +1514,15 @@ git --no-optional-locks status --porcelain=v2 -z --untracked-files=all --ignore-
 - Git remote get-url 的 --push / --all 及 URL 操作约束：<https://git-scm.com/docs/git-remote>
 
 **校准结论：** remote 身份模型必须表达 Git 的有效 fetch/push 配置语义，不能仅把 URL 集合当作无方向的 remote 别名；Fingerprint 采集必须显式避免 git status 的可选 index 写回，才能符合 SCP 的只读边界。
+
+### 16.13 Remote 解析补充场景
+
+| ID | 场景 | 规范化预期 | 禁止推论/行为 |
+|---|---|---|---|
+| RI16 | 同一 remote 的 fetch URL 与 pushurl 不同传输协议/地址，但稳定 repository ID 相同 | checkout identity 可 resolved；保留不同 locator，确认 repository identity 相同 | 因 URL 字符串不同就判两个仓库 |
+| RI17 | 同一 remote 的 fetch target 与 push target 解析为不同稳定 repository ID | remote mapping conflict；默认 push 操作停止，要求修正 remote 配置或拆成两个 remote | 将该配置静默解释为“fetch upstream、push fork”的正常语义 |
+| RI18 | 一个 remote 配置多个 url，无 pushurl | 按 Git 语义记录第一个 fetch target 与全部有效 push targets；push targets 必须解析为同一仓库身份 | 只保存第一个 URL 并忽略其余 push 行为 |
+| RI19 | 一个 remote 配置 pushurl 列表 | 记录全部有效 push targets；若身份无法证明一致，push target resolution 为 conflict/unknown | 只检查第一条 pushurl |
+| RI20 | 当前分支 tracking upstream 与项目 canonical repository 不同 | 分别记录 branch tracking remote/merge ref 与项目 canonical relation | 将 branch.<name>.remote 直接等同 canonical repository |
+| RI21 | branch.<name>.pushRemote 或 remote.pushDefault 改变默认推送 remote | 记录 push remote 的解析来源；推送前重新解析当前配置 | 仅按 tracking upstream 决定默认 push 目标 |
+| RI22 | git remote URL 使用 insteadOf/pushInsteadOf 重写 | 通过 Git 展开后的有效 URL 观察，并保留配置来源/方向；身份仍优先按稳定 ID 判定 | 对未展开的原始 alias URL 直接作身份结论 |
