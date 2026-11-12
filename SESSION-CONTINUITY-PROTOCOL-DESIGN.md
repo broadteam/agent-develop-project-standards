@@ -1814,7 +1814,7 @@ Schema 与 Semantic Validator 的职责边界目前清晰，无需为本轮发�
 #### E. 验证状态与剩余限制
 
 - Schema 0.2.0 未因本轮 semantic audit 修改结构；此前的 Draft 2020-12 meta-schema 与实例验证记录仍适用于当时验证的 Schema 与 4 个正例、8 个 Schema-invalid、7 个 semantic-invalid vectors。
-- 本轮新增的 12 个 semantic vectors 尚未重新使用标准 Draft 2020-12 Validator 执行完整实例验证。它们由已验证 positive packet 定向变异而来，局部关键字子集检查不能替代标准验证；在正式重跑前，不宣称 19 个 semantic fixtures 均已标准验证为 Schema-valid。
+- 本轮新增的 12 个 semantic vectors 已用 Python jsonschema 4.26.0 的 Draft202012Validator + FormatChecker 重新验证；19/19 semantic Packet 均保持 Schema-valid。验证输入、Schema blob SHA 与当前 Fixture blob SHAs 记录在 `schemas/scp/0.2/fixtures/VALIDATION-REPORT.md`。
 - `SEMANTIC-CONTEXT.md` 是未来 Fixture Runner 的输入契约，不是已运行的 fixture 环境；provider API、submodule 状态和真实 Git index 内容仍未被实际创建/验证。
 - 尚未实现 Semantic Validator、Fixture Runner、真实 Git CLI E2E、跨平台文件系统测试、双客户端互操作或 CI Gate。
 - 这轮审查不冻结 D1、D2、D3。D1 0.2.0 继续是可审查 Draft；D0 保持已确认冻结。
@@ -1822,3 +1822,23 @@ Schema 与 Semantic Validator 的职责边界目前清晰，无需为本轮发�
 #### F. 下一步
 
 首选下一步是对当前 19 个 semantic vectors 重新运行标准 Draft 2020-12 实例验证，并将所有结果固定到当前 Schema blob SHA；然后单独审查 semantic-context 的可执行性设计。未获额外授权前仍不实现 Validator、Writer 或 CI Gate。
+
+### 17.16 当前 Fixture 全量 Schema 验证完成（2026-11-12）
+
+已针对固定 Schema blob `0ab451634283385b5ffa7f028fa7f4a0e6b41cc8` 完成标准 Draft 2020-12 验证复核：
+
+- Python `jsonschema 4.26.0`，使用 `Draft202012Validator.check_schema` 验证 meta-schema：PASS。
+- `Draft202012Validator(schema, format_checker=FormatChecker())` 启用 date-time format assertion。
+- Positive：4/4 通过。
+- JSON Schema-invalid：8/8 被拒绝。
+- Semantic-invalid：19/19 保持 Schema-valid，等待 Semantic Validator / companion context 判定其预期语义失败或降级。
+- Format probe：合法 RFC 3339 时间接受，`2026-13-40T30:70:70Z` 拒绝。
+- 每个 fixture 的 blob SHA 与分组结果见 `schemas/scp/0.2/fixtures/VALIDATION-REPORT.md`。
+
+验证期间发现原 `branch-state-code-branch-mismatch.json` 的 Packet 自身声明 detached，却同时保留非空 branch；这已被 Schema 的根级条件直接拒绝，不适合作为 semantic-only case。现已改为 Packet 声称 attached，companion live Git observation 返回 detached HEAD，从而保留为真正依赖现场状态的 semantic case。
+
+CI 说明：PR Head 对应的 16 个 Standards CI checks 已完成且全部 success；但 `.github/workflows/standards-ci.yml` 只执行语法和回归测试，不运行 SCP Schema 验证。上面的 Draft 2020-12 结果来自独立标准 Validator 运行，不是由当前 CI 产生。
+
+本轮没有修改 Schema 0.2.0，仍使用 blob SHA `0ab451634283385b5ffa7f028fa7f4a0e6b41cc8`。该验证只证明 JSON Schema 结构与 format 层，不证明 semantic fixtures 的 live context 已执行，也不实现 Semantic Validator。
+
+D1 0.2.0 仍为 Draft，不冻结；D2、D3 不变；D0 继续保持已确认冻结。
