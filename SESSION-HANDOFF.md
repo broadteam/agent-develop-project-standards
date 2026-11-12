@@ -799,7 +799,7 @@
 ### 本轮检查与限制
 
 - Schema、正例、负例 JSON 文件均通过 JSON 解析；Schema 正则表达式可被 JavaScript RegExp 编译。
-- 本轮自编写的有限结构/条件检查中，两个正例无错误；六个 Schema 级反例按预期被拒绝；六个 semantic 级反例通过结构层检查。
+- 本轮自编写的有限结构/条件检查中，两个正例无错误；八个 Schema 级反例按预期被拒绝；六个 semantic 级反例通过结构层检查。
 - 上述不是正式 JSON Schema Draft 2020-12 验证器结果；尚未执行 meta-schema/instance 标准验证或 date-time format assertion。
 - Semantic validator、fixture runner、CLI/E2E、Writer 和 CI Gate 均未实现。
 - 示例中的 identity ID 与 digest 为 synthetic placeholders，不是来自真实 Git provider 或 worktree 的证明。
