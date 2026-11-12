@@ -1224,14 +1224,7 @@ Path identity：
 
 设计判断：该模型只描述测试刺激和预期，不保存项目 tasks/requirements/ADR/Evidence，不构成第二套项目状态源。真实项目状态仍由现有权威文件负责。
 
-尚待用户审查的 5 项决定：
-1. 独立 Context Contract/version namespace；
-2. typed declarative observation + allow-listed driver；
-3. run manifest 与输入 context 分离；
-4. reason codes 仅测试层；
-5. capability profiles 内嵌或以 immutable ref + SHA 引用。
-
-在决策获批准前，不创建 Context Schema、machine context instances 或 Runner。当前 4 / 9 / 19 Fixture inventory 不变；Packet Schema 0.2.0 不变；D1/D2/D3 未冻结。
+**历史待决策清单（已被后续用户批准取代）：**五项决策已获批准，Context Schema 0.1.0 Draft 与三个 design-only Context instances 已创建；没有创建 Runner 或 machine execution result。
 
 ## Fixture Context Contract 开放边界的推荐方案（2026-11-12）
 
