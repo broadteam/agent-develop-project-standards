@@ -1697,3 +1697,23 @@ Schema 0.2.0 核心对象的具体表达：
 3. 修订设计文档、Schema、examples、fixtures 和兼容性说明之间的任何不一致。
 4. 检查最新 PR Head 对应 CI；pending 只记录状态，不替代本地验证。
 5. 完成审查后仍保持 Draft，提交 D1 0.2.0 待批准版本；不实现 Validator/Writer/CI Gate，除非另行获得授权。
+
+### 17.11 第二轮一致性复核：Schema、示例与语义约束
+
+在第一轮结构检查后，又对 remote 状态、branch tracking、Fingerprint complete/partial 和示例排序作了收紧：
+
+- `fetch_state=resolved` / `push_state=resolved` 只表示 Git 有效配置目标已被无歧义选出；目标的稳定性仍由 `identity_target.basis` 区分。locator-only target 仍然是 provisional。
+- `branch_tracking.push.resolution_basis` 仅保留 Git 默认 remote 解析来源：`branch_push_remote`、`remote_push_default`、`branch_upstream`、`default_remote`。不把 project policy 混作 Git 默认推送规则，也不表示 refspec 或授权。
+- `worktree.state=unreadable` 可保留已观察到的 kind/mode，但不得提供 digest；该状态不能属于 `coverage=complete`。
+- `coverage=complete` 在 Schema 层限定为 per-path stable，并要求工作区条目是 regular file、symlink 或明确 absent；index 不允许 gitlink mode。gitlink、unsupported、unreadable 只能落入 partial/unknown。
+- `project.project_id` 增加 URI scheme pattern；完整 URI 语义仍由验证器/配置规范检查。
+- 正例 fingerprint entries 已按 UTF-8 路径排序；partial 正例使用 unreadable 条目展示稳定扫描但不完整覆盖。
+- Schema 级反例增加：complete + unreadable、complete + gitlink、错误 schema_version、未知 core field。当前共 8 个 Schema-invalid cases 和 6 个 semantic-invalid cases。
+
+复核结果：
+- 三个正例：最小 checkpoint、complete fingerprint handoff、partial fingerprint handoff，在本轮自编写的结构/条件子集检查中无错误。
+- 八个 Schema-invalid cases：均触发预期局部约束。
+- 六个 semantic-invalid cases：均保持 Schema-valid，便于后续 semantic validator 单独拒绝。
+- 所有 Schema pattern 均可由 JavaScript RegExp 编译；所检查样例使用到的本地 refs 均可解析。
+
+边界仍不变：上述不是官方 Draft 2020-12 验证器，也没有运行 meta-schema、标准实例验证或 format-assertion 测试。需要在正式验证工具可用的环境中完成该步骤，当前不能把 Schema 草案标记为正式验证通过。
