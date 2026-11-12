@@ -1215,7 +1215,7 @@ Path identity：
 
 - Contract 名称：`scp-fixture-context`。
 - 建议版本：`0.1.0`，独立于 Packet schema_version 0.2.0。
-- 建议路径：`schemas/scp-fixtures/0.1/fixture-context.schema.json`，尚未创建该 Schema。
+- 初始建议路径：`schemas/scp-fixtures/0.1/fixture-context.schema.json`；该 Schema 已在后续批准后创建，当前状态和 SHA 见文末最新 Context 0.1.0 状态章节。
 - JSON Schema Draft 2020-12 是接受后唯一机器契约；Markdown 仅为人类审查说明。
 - Context 固定 Packet/Schema blob SHA、profiles/capabilities、deterministic clock、allow-listed setup driver ID、stimulus/events、companion observations 和 expected normalized D2 outputs。
 - 不允许任意 shell/script、不允许真实凭据、不允许用户真实仓库；所有 setup mutation 仅在 disposable fixture root。
@@ -1240,7 +1240,7 @@ Path identity：
 - Capability profile 必须 pin `profile_id`、`profile_version`、`profile_blob_sha`。
 - Context 自身 SHA 由 run manifest 外部绑定，避免自引用。
 
-未来正式 Context Schema 的验收条件见 `CONTEXT-CONTRACT-DESIGN.md` §14。当前仍不创建 Context Schema 或机器 Context 实例；`SEMANTIC-CONTEXT.md` 保持唯一人类 fixture catalog。当前 4 / 9 / 19 inventory 与 Packet Schema 0.2.0 不变，不形成第二套项目状态源。
+未来 Context Contract 冻结/生产采用条件见 `CONTEXT-CONTRACT-DESIGN.md` §14。上述“不创建 Schema/机器实例”是批准前的历史状态，已由后续 §17.25 和本 Handoff 的 Context 0.1.0 最新章节取代。`SEMANTIC-CONTEXT.md` 仍是人类 review catalog；机器 Context 只描述测试输入和预期，不形成第二套项目状态库。
 
 ## Fixture Context Schema 0.1.0 Draft 已创建并完成标准 Schema 验证（2026-11-12）
 
@@ -1293,3 +1293,25 @@ Context Schema 独立于 Packet 0.2.0，不添加 Packet fields。
 ### 下一步（唯一首选）
 
 审查 Context Schema 与 Compatibility 之间的 cross-field 语义遗漏，并确定 Run Manifest 的最小字段/生命周期（仍然先设计，不创建 Runner/Writer）。随后再决定 0.1.0 是否可以冻结为 Context Contract 的正式机器契约；在双 Harness Adapter 互操作标准未完成前，不用于生产 Gate。
+
+## Context 0.1.0 引用完整性复核（2026-11-12）
+
+三个 Context 样例的 `target.repository_revision` 已统一为：
+
+`1670320ea980368ed74cd4edd11cba4297467bde`
+
+已读取该 revision 的 Git tree，确认它包含三份样例引用的 Packet fixture、Packet Schema、三个 Capability Profile、三个 Driver descriptor 和 Provider authority evidence artifact。逐项校验：
+- 三份 Packet Git blob SHA 均与 Context `target.packet.blob_sha` 相符。
+- Packet Schema Git blob SHA 与 Context `target.packet_schema.blob_sha` 相符。
+- Profile Git blob SHA 与 `profile_blob_sha` 相符。
+- 三个 Driver descriptor 在该 revision 中存在；其 exact UTF-8 bytes SHA-256 与 `driver_bundle_sha256` 相符。
+- Provider contract Git blob SHA 与 `not_found_authority_evidence.blob_sha` 相符。
+
+重要区分：
+- Git blob SHA 用于定位仓库中的精确文件对象。
+- Driver `driver_bundle_sha256` 是 exact descriptor bytes 的 SHA-256。
+- 这三个 Driver 仍为 `contract_only`；即使哈希匹配，也不能执行。
+
+当前 Context Schema SHA：`9348e22ac0ee450ce6689cec4fb87f0aa985104c`。当前 3 个正例和 5 个负例均经 Python `jsonschema 4.26.0` 标准 Draft 2020-12 Validator + `FormatChecker()` 验证，实际 Git blob SHA 与重新计算的 canonical JSON Blob SHA 相符。细节见 `schemas/scp-fixtures/0.1/VALIDATION-REPORT.md`。
+
+本次引用复核未改变 Context Schema 或 Packet Schema，也未增加 Context/Packet Fixture 数量。
