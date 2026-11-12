@@ -1642,10 +1642,57 @@ repository_identity 可按 §16.2 定义，semantic validation 至少包括：
 - 结构化 repository identity，显式分离 checkout/canonical/remote mapping；branch tracking 单独建模。
 - 两者作为一个版本批次评估 0.2.0；旧 0.1.0 保持不可变。
 
-**仍需用户确认的产品/语义边界：**
-1. 是否接受对 dirty worktree 使用 index + worktree 双层摘要，而不是仅摘要当前文件系统内容。
-2. 是否接受首版不提供 submodule 内部工作区的递归 fingerprint；遇到 dirty submodule 时 coverage=partial/unknown。
-3. 是否接受仅有 normalized locator 的 repository identity 为 provisional，不能用于跨 fork/迁移或依赖稳定身份的写操作。
-4. 是否接受项目 canonical repository 必须来自项目显式配置或可验证平台关系，绝不按 origin/upstream remote 名称自动推断。
+**用户已于 2026-11-12 明确批准的四项语义边界：**
+1. Dirty worktree 使用 index + worktree 双层摘要，而非只摘要当前文件系统内容。
+2. 首版不递归 fingerprint submodule 内部工作区；dirty/unobservable submodule 使 coverage 降为 partial/unknown。
+3. 仅有 normalized locator 的 repository identity 是 provisional，不能用于证明跨 fork/迁移关系或授权依赖稳定身份的写操作。
+4. Canonical repository 必须来自项目显式配置或可验证平台关系，不能按 origin/upstream remote 名称自动推断。
 
-**审查结论：** 两套候选模型在当前设计层面可以组合，未发现必须改变 D0 语义或 D3 操作结果轴的结构性冲突；但由于上述四项仍需用户确认，且真实跨平台/跨客户端行为尚未验证，当前只适合进入“Schema 0.2.0 草案准备”，不适合直接创建并宣称冻结。D1、D2、D3 均继续保持未冻结。
+**审查结论：** 用户已批准上述设计方向。本轮已创建 Schema 0.2.0 Draft、最小与完整示例、兼容性说明及正反例契约。该批准仅允许形成草案，不等于批准冻结，也不表示正式 JSON Schema 验证、semantic validator、跨平台 CLI E2E 或双客户端互操作已经通过。D1、D2、D3 仍保持未冻结。
+
+### 17.8 Schema 0.2.0 Draft 实体化记录
+
+根据用户于 2026-11-12 对四项语义边界的明确批准，已在 PR #11 新增以下草案文件：
+
+- `schemas/scp/0.2/continuity-packet.schema.json`
+- `schemas/scp/0.2/COMPATIBILITY.md`
+- `schemas/scp/0.2/examples/checkpoint-minimal.json`
+- `schemas/scp/0.2/examples/handoff-with-identity-and-fingerprint.json`
+- `schemas/scp/0.2/fixtures/README.md`
+- `schemas/scp/0.2/fixtures/invalid/schema/` 下 4 个 Schema 级负例。
+- `schemas/scp/0.2/fixtures/invalid/semantic/` 下 6 个 semantic-validator 级负例。
+
+Schema 0.2.0 核心对象的具体表达：
+- `project.repository_identity`：`observed_at`、`checkout`、可选 `canonical`、可选 `remote_mappings`、必需 `source_refs`。
+- Identity target：`namespace`、依据 `basis` 条件提供的稳定 `id` 或 locator；normalized-locator-only 禁止出现稳定 id。
+- Remote mapping：`remote_name`、`fetch_state/fetch_target`、`push_state/push_targets`、`relation_to_canonical`。状态表达 Git 配置目标是否可唯一解析；identity 强弱另由 target.basis 表达。
+- `code.branch_tracking`：`branch_state`、独立的 upstream 状态与 push 目标状态；configured/resolved 条件要求对应 remote/ref/resolution basis。
+- `code.worktree_fingerprint`：固定 fingerprint format/scope/算法/path encoding；保留扫描窗口、coverage、observation、逐路径 entries。
+- Index entry 保留 stage、Git mode 与 SHA-256 内容摘要；gitlink 仅保留 commit OID，不伪装成内容摘要。
+- Worktree entry 区分 present/absent/unreadable；普通文件与符号链接要求摘要；不可读/不支持/gitlink 条目不能出现在 complete coverage 的完整范围中。
+- Fingerprint paths 使用 Git worktree root 相对路径；基础 JSON Schema pattern 拒绝常见绝对路径、盘符、重复/尾随分隔符、dot/dot-dot 组件、反斜杠及 ASCII 控制字符。平台 Unicode/大小写碰撞仍由 semantic validator 处理。
+
+### 17.9 本轮草案审查结果与未验证事项
+
+已完成的本地结构检查：
+- Schema 文件可被 JSON parser 解析；本轮样例所走到的本地 `$ref` 路径均可解析。
+- Schema 中的正则表达式均可由 JavaScript RegExp 编译。
+- 两个正例在本轮编写的结构/条件子集检查中无错误。
+- 四个 Schema 级负例分别触发预期约束：dirty 无路径、complete + changed capture、locator-only 携带 ID、路径越界/不规范。
+- 六个 semantic 级负例均通过结构层检查，符合“JSON Schema 不能单独证明这些跨字段/现场关系”的预期。
+
+重要限制：
+- 上述是本轮脚本做的 JSON 解析、引用/正则检查及有限结构/条件检查，不是正式 JSON Schema Draft 2020-12 验证器的合规性报告。
+- 尚未运行标准 Draft 2020-12 meta-schema/instance validator，也没有正式验证 date-time format assertion。
+- Semantic fixtures 仍是测试契约；重复 remote/path/stage、路径集合对应、canonical relation、凭据清洗、实际 digest 来源等没有 Validator 实现。
+- 完整示例使用 synthetic identity/摘要值，仅说明字段形状；没有与真实 Git provider API 或真实临时 worktree 内容绑定，不能作为真实性证据。
+- 尚未验证 Windows/macOS/Linux、Git LFS、sparse checkout、merge conflict、submodule、多 worktree、权限和扫描竞态。
+- CI 的 queued/in_progress 仍不得称通过。
+
+### 17.10 下一步审查顺序
+
+1. 完成 Schema 0.2.0 的正式 Draft 2020-12 meta-schema 和 positive/negative instance validation；确认 format assertion 的配置要求。
+2. 对照 §17.2/§17.3 逐字段检查所有语义是否存在表达缺口，重点检查 remote push multi-target、gitlink、partial fingerprint、detached branch 和 URI/locator 处理。
+3. 修订设计文档、Schema、examples、fixtures 和兼容性说明之间的任何不一致。
+4. 检查最新 PR Head 对应 CI；pending 只记录状态，不替代本地验证。
+5. 完成审查后仍保持 Draft，提交 D1 0.2.0 待批准版本；不实现 Validator/Writer/CI Gate，除非另行获得授权。
