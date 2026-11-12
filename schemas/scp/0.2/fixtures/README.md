@@ -46,7 +46,7 @@ These examples intentionally satisfy the JSON shape but violate relationships re
 | `invalid/semantic/remote-fetch-push-identity-mismatch.json` | A resolved remote fetch target and push target have different stable repository identities |
 | `invalid/semantic/multiple-push-targets-different-identities.json` | One remote's effective push target list resolves to more than one repository identity |
 | `invalid/semantic/branch-tracking-unknown-remote.json` | Configured branch upstream names a remote absent from the observed remote mappings |
-| `invalid/semantic/branch-state-code-branch-mismatch.json` | Branch tracking says detached while `code.branch` still names an attached branch |
+| `invalid/semantic/branch-state-code-branch-mismatch.json` | Packet reports an attached branch while companion live Git observation reports detached HEAD |
 | `invalid/semantic/credentialed-project-repository.json` | `project.repository` contains URL userinfo/credential material and must be rejected/redacted |
 | `invalid/semantic/gitlink-pointer-mismatch.json` | Index gitlink OID and checked-out submodule HEAD OID differ while the Packet claims complete coverage |
 | `invalid/semantic/identity-source-reference-unresolvable.json` | Referenced provider identity source cannot be resolved at the required revision; identity must remain unknown, not resolved |
