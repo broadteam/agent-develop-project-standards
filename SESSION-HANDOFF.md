@@ -1342,3 +1342,18 @@ Context Schema 独立于 Packet 0.2.0，不添加 Packet fields。
 不存真实凭据、token、cookie、authorization header、未脱敏 secret diff、原始工作区文件内容或非 fixture 路径数据。优先存脱敏 artifact ref/hash。Manifest 是单次测试证据，不是项目 Evidence、权限或状态源。
 
 当前只有设计文档；没有 Run Manifest Schema、Writer、Store、Runner、Adapter 或 CI Gate。下一步先审查双 outcome 语义、cleanup/quarantine、interrupted/retry 与最小字段，再决定是否值得独立 Schema。
+
+## Run Manifest 状态分类反例审查补充（2026-11-12）
+
+对 `RUN-MANIFEST-DESIGN.md` 新增 §11，修正几类容易混淆的执行结果：
+
+- Context 有意注入 Provider 403/429/timeout/ambiguous-404，且预期客户端返回 unknown：匹配时应为 conformant。
+- Harness 本身未提供 Context 必须的观察输入：inconclusive/not_run，不是 client pass。
+- Client 返回完整但与预期矛盾的 normalized result：non_conformant。
+- Client 崩溃/超时/格式错误导致无完整结果：inconclusive，Harness failed/interrupted。
+- 清理失败与语义断言分离：可保留 conformant + harness failed，但整体 run 不接受，资源隔离/quarantine。
+- retry 创建新 run_id；interrupted manifest 终态不可重开。
+- Context/Registry/Blob/Driver preflight 不通过时在 Client invocation 前拒绝。
+- 多客户端比较报告为独立派生记录，不改写单个 Manifest，不得将 inconclusive 升级为 conformant。
+
+本轮不新增 Packet/Context 字段，也未创建 Run Manifest Schema/Writer/Store/Runner。
