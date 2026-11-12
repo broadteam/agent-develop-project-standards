@@ -186,3 +186,47 @@ One client may downgrade a claim further when its observation capability is weak
 5. Whether normalized reason codes should be part of the SCP protocol or remain test-harness-only.
 
 These are design decisions. This document does not authorize implementation or adding CI gates.
+
+## 10. Proposed next semantic vectors (not part of the current 19)
+
+The following gaps emerged from cross-platform and failure-mode review. They are proposals for a later fixture inventory expansion; they do not change the current 4 / 9 / 19 counts.
+
+### A. Fingerprint re-enumeration race
+
+**Candidate ID:** `fingerprint-reenumeration-race`
+
+- Profile: `local_git` + `fault_injection`.
+- Prepare an isolated repository with one dirty path and a Packet that claims `coverage=complete`, `observation=per_path_stable`.
+- After the initial status enumeration and during fingerprint capture, deterministically add an untracked non-ignored path or mutate the index; do so before the final HEAD/index/status re-enumeration.
+- The final observation must detect that the path set or index snapshot changed during capture.
+- Expected result: reject/downgrade the complete/current claim; return stale/conflict/unknown for the affected fingerprint scope. Never pass by relying only on the first status result or timestamps.
+- The test must use a deterministic hook/barrier, not sleep. The hook may modify only the disposable fixture root.
+
+### B. File identity replacement during digest read
+
+**Candidate ID:** `fingerprint-file-object-replaced-during-read`
+
+- Profile: `local_git` + `fault_injection`.
+- During streaming SHA-256 of a regular file, replace the path with a different inode/object or change its contents between pre-read and post-read checks.
+- Expected result: the affected entry is unknown/changed-during-capture; complete coverage is rejected or downgraded. Do not combine bytes from two file objects into one digest.
+- The adapter should assert object identity using the strongest portable file-handle/path metadata available; where the OS cannot provide a reliable check, capability is insufficient and the result is unknown.
+
+### C. Case and Unicode path alias collision
+
+**Candidate ID:** `fingerprint-path-alias-collision`
+
+- Profile: `filesystem_profile` plus a declared case-sensitive/case-insensitive and Unicode-normalizing/non-normalizing capability profile.
+- Supply distinct UTF-8 path strings such as `src/Foo.ts` and `src/foo.ts`, or NFC/NFD spellings of the same visible name. The fixture must declare the actual byte sequences, not only rendered glyphs.
+- Expected result: on a target filesystem where the two names alias or cannot be represented distinctly, mark the relevant path identity ambiguous/conflict and coverage partial/unknown. Never case-fold, Unicode-normalize or silently choose one path.
+- On a filesystem that can represent both distinctly, exact path identities remain separate; client output must identify the tested capability profile.
+
+### D. Provider authorization failure versus authoritative not-found
+
+**Candidate ID:** `identity-source-permission-denied`
+
+- Profile: `provider_stub`.
+- Reuse the same referenced repository source with separate deterministic responses: 403/permission denied, 404 authoritative not-found, 429/rate-limited and timeout.
+- Expected result: 403/429/timeout produce unknown/not_run as appropriate; only an authoritative 404 may support not-found for that exact source at that exact revision. Neither failure nor hidden visibility may be converted into proof that the repository does not exist.
+- This complements `identity-source-reference-unresolvable`, which currently covers authoritative not-found only.
+
+These vectors should be added only after the current fixture context is accepted as the shared execution baseline. They require no new Packet fields; they exercise observation integrity, capability reporting and fail-closed semantics.
