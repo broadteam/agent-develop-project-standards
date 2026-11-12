@@ -714,3 +714,49 @@
 ### 下一步（唯一首选）
 
 将 §15 Worktree Fingerprint 与 §16 Repository Identity 合并进行一次整体 D1 0.2.0 候选契约审查：检查必填/可选条件、semantic validator 边界、跨客户端规范化输出与版本兼容策略；形成“可进入 Schema 草案 / 仍需用户裁定 / 留待实现验证”的分层清单。完成后向用户提交明确的模型确认请求；未获批准前不创建 0.2.0 Schema。
+
+## D1 Schema 0.2.0 联合候选契约审查（2026-11-12）
+
+### 本轮交付
+
+在 SESSION-CONTINUITY-PROTOCOL-DESIGN.md §17 增加 D1 0.2.0 联合候选契约审查，合并 §15 Worktree Fingerprint 与 §16 Repository Identity / Upstream Mapping：
+
+- 候选核心字段增量：project.repository_identity、code.worktree_fingerprint、code.branch_tracking，均 optional。
+- 明确 project.repository 仅为描述性 locator；project.project_id（若使用）为逻辑项目的 stable namespaced URI，不是 provider repository ID。
+- 定义 fingerprint 的格式、覆盖范围、时间窗口、path base、index stages、mode、digest、coverage/observation 及语义校验边界。
+- 定义 repository identity 的 namespace/id/basis、checkout/canonical、remote mappings、fetch/push 目标一致性、branch tracking 与凭据清除规则。
+- 定义 D2/D3 对三项新字段的现场核验和使用边界。
+- 根据现有 COMPATIBILITY.md，新增 optional core fields 也不能原地进入 strict 0.1.0；如果获批准，应统一评估 0.2.0，0.1.0 保持不可变。
+- 明确 Schema 0.2.0 可表达什么、semantic validator 必须验证什么，以及真实跨平台/跨客户端 E2E 仍需验证什么。
+
+### 联合审查结论
+
+**设计结构上可组合，暂时可进入 Schema 0.2.0 草案准备，但尚不适合直接创建并冻结。**
+
+当前仍需用户明确确认四项语义边界：
+1. Dirty worktree 使用 index + worktree 双层摘要，不仅摘要当前文件系统内容。
+2. 首版不递归 fingerprint submodule 内部工作区；遇到 dirty submodule 时 coverage=partial/unknown。
+3. 仅有 normalized locator 的 Repository Identity 是 provisional，不能用于跨 fork/迁移或依赖稳定身份的写操作。
+4. Canonical repository 必须来自项目显式配置或可验证平台关系，不按 origin/upstream remote 名称推断。
+
+### 范围与冻结状态
+
+- D0 语义继续维持已确认冻结。
+- D1 Schema 0.1.0 尚未冻结；没有修改 schema、COMPATIBILITY.md 或 JSON example，也没有创建 0.2.0 文件。
+- D2、D3 均尚未冻结；文档审查不代表机器验证、Writer E2E 或跨客户端兼容性通过。
+- 未实现 Validator、Writer、Fixture Runner、CLI/E2E 或 CI Gate。
+- 未修改 PR #10、main、项目版本或 tags；未合并或关闭任何 PR。
+
+### 本轮提交
+
+- Repository Identity 候选：527c0ca0271238ab6d81d94006fa6410927a30aa。
+- Remote / branch tracking 语义校准：cfd89109663fa96a7f0192894c25bd031bd53d1d。
+- Fetch/push 映射修正：9aa1d89a2bf6c7d231b4728d424ca46446d26ed8。
+- D2 identity/path scope 修订：c6a82182efb8a1848860adc3f53db855be5913b0。
+- 章节顺序修复：7b2970c93eac7da64bf82b9aa47e411244633174。
+- D1 0.2.0 联合契约审查：9e6d1acef0e7f1b49e1e527056fd5e76cc1ce504。
+- 本 Handoff 更新后，需现场核对最新 PR #11 Head 和该 SHA 的 CI。
+
+### 下一步（唯一首选）
+
+先向用户提交上述四项语义边界的确认；若获批准，再把已经审查的候选模型映射为正式 Schema 0.2.0、更新最小正/负例与兼容性文档，并对 JSON Schema + semantic validator 的测试契约进行独立审查。未获批准前不修改 Schema 文件。
