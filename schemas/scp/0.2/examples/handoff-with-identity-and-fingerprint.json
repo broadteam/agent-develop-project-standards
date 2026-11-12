@@ -65,7 +65,8 @@
         }
       ],
       "source_refs": [
-        ".standards/repository-identity.json"
+        "fixture://provider/github.com/repos/checkout-123",
+        "fixture://provider/github.com/repos/canonical-456"
       ]
     }
   },
