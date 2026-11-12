@@ -1770,7 +1770,7 @@ Schema 与 Semantic Validator 的职责边界目前清晰，无需为本轮发�
 | 类型 | 数量 | 含义 |
 |---|---:|---|
 | Positive | 4 | 最小 checkpoint、普通文件 complete fingerprint、partial/unreadable fingerprint、clean gitlink + attached/unknown branch config |
-| JSON Schema-invalid | 8 | 应由标准 Draft 2020-12 Validator 在结构层拒绝 |
+| JSON Schema-invalid | 9 | 应由标准 Draft 2020-12 Validator 在结构层拒绝 |
 | Semantic-invalid | 19 | JSON 结构保持有效，但必须由 semantic/context 层拒绝、降级或标记 unknown |
 
 19 个 semantic vectors 分组：
@@ -1857,3 +1857,34 @@ D1 0.2.0 仍为 Draft，不冻结；D2、D3 不变；D0 继续保持已确认冻
 - 留出 5 个实现前设计问题：companion-context 是否机器可读、Git fixture bundles 分发、OS/filesystem profile 基线、fault-injection API、reason codes 是否进入协议。
 
 本节仅确认未来 Fixture Runner 的设计约束，不实现 Validator、Runner、CLI adapter 或 CI Gate。
+
+### 17.18 Gitlink 完整覆盖边界收紧与第二次全量 Schema 验证（2026-11-12）
+
+进一步语义复核发现：如果 index 中存在 mode `160000` gitlink，但 worktree submodule 路径已经缺失，原 Schema 仍可能让生产者声明 `coverage=complete`。这与“missing/uninitialized submodule 必须降级”的协议语义不一致。
+
+已在 `schemas/scp/0.2/continuity-packet.schema.json` 增加 complete-coverage 局部条件：
+- index_entries 中出现 gitlink mode 160000 时，worktree 必须是 present + kind=gitlink + mode=160000，并包含 gitlink_commit。
+- worktree 声明 kind=gitlink 时，index_entries 必须包含对应 gitlink mode 160000。
+- index 与 worktree commit pointer 是否相等、submodule 是否初始化/clean，仍由现场 Semantic Validator 检查；Schema 不承担对 Git 现场事实的证明。
+
+新增结构负例：
+- `schemas/scp/0.2/fixtures/invalid/schema/complete-with-missing-gitlink-worktree.json`
+
+当前 Fixture Inventory：
+- Positive：4。
+- JSON Schema-invalid：9。
+- Semantic-invalid：19。
+
+对新 Schema blob `a2f2097a17c08bf0a2ae733ab43a8f1919b48813` 重新执行 Python `jsonschema 4.26.0` 的 Draft 2020-12 meta-schema/instance 验证，显式启用 `FormatChecker()`：
+- `Draft202012Validator.check_schema`：PASS。
+- Positive：4/4 PASS。
+- Schema-invalid：9/9 REJECTED。
+- Semantic-invalid：19/19 Schema-valid。
+- Format assertion：合法 RFC 3339 通过；`2026-13-40T30:70:70Z` 被拒绝。
+- 文件级 Schema/Fixture blob SHA 固定在 `schemas/scp/0.2/fixtures/VALIDATION-REPORT.md`。
+
+同时新增 `SEMANTIC-EXECUTION-CONTRACT.md`，规范未来 Fixture Runner 的 Prepare / Observe / Evaluate / Assert-Cleanup 四阶段、环境 profiles、只读观察边界、确定性时钟与故障注入、双客户端规范化比较。该文件仍是设计契约，不代表 Runner 已实现。
+
+CI 说明：当前 Standards CI workflow 的全绿结果不包含 SCP Schema 验证；Draft 2020-12 结果来自独立 Validator 运行。此次 Schema 修订没有授权实现 Semantic Validator、Fixture Runner、Writer 或 CI Gate。
+
+冻结状态不变：D0 保持已确认冻结；D1 0.2.0 仍是 Draft；D2、D3 均未冻结。
