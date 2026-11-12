@@ -570,3 +570,26 @@
 - 第二轮修订提交：f8210cdaa38c4f62752f2b8f69f67590c34fc607。
 - D3 仍未冻结；未创建机器 Fixture、Writer、Validator 或 E2E。
 
+## D3 第三轮故障语义审查修订（2026-11-12）
+
+### 本轮交付
+
+- 在 `SESSION-CONTINUITY-PROTOCOL-DESIGN.md` §14.12.1 将 `write_result` 增加 `unknown`，并明确区分 `failed`（已确认未成功）、`unknown`（无法确认是否已落盘）和 `not_attempted`（未执行写入）。
+- 新增 C21：写入请求超时/连接中断且确认丢失时，先回读原目标并校验预期内容；禁止将无确认等同失败后盲目重试，也禁止将请求已发送等同 written。
+- 新增 §14.14，记录第三轮故障语义审查和修订结论。
+
+### 审查边界
+
+- 本轮修复的是客户端操作结果契约，不是 Packet Schema 字段；未修改 D1 Schema、COMPATIBILITY.md 或 JSON example。
+- 未实现 Writer、Validator、Fixture Runner、故障注入或真实 CLI E2E；文档审查不代表跨客户端互操作已验证。
+- D1 Schema 0.1.0、D2、D3 均未标记冻结，仍需各自独立审查和用户决策。
+- 未修改 PR #10、main、项目版本或 tags；未合并或关闭任何 PR。
+
+### 提交
+
+- D3 故障语义修订：`0969e07a5f19377982ccda765dc0c2d4a3957528`。
+- 更新本 Handoff 后会产生新的 PR #11 Head；必须重新核验该 Head 对应 CI，不得沿用前一提交的检查结果。
+
+### 下一步（唯一首选）
+
+对 D3 做冻结候选审查：逐项核对 §14.1–§14.14、C01–C21、D0 决策和 D1 Schema 边界，整理明确的通过项、未解决项和实现验证缺口；只提交冻结建议，不自动冻结。dirty/untracked 摘要稳定编码和多 remote/fork repository identity/upstream 映射仍需在 D1/D2 适当阶段单独解决。
