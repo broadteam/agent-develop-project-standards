@@ -526,3 +526,34 @@
 - D3 收敛修订提交：fab15b6797422d309ebdc2243e548a70bdc5d86d。
 - D3 当前仍为概念草案，尚未冻结；该审查不是跨客户端或真实 Writer 验证。
 
+
+## D3 Checkpoint 场景契约矩阵（2026-11-12）
+
+### 本轮交付
+
+在 SESSION-CONTINUITY-PROTOCOL-DESIGN.md 新增 §14.12.1–§14.12.4：
+
+- 定义生成/消费过程的规范化结果维度：persistence_decision、target_resolution、preflight_state、write_result、packet_usability、recovery_freshness。它们是客户端操作结果，不是新增 Packet 字段或第二套持久化账本。
+- 新增 20 个 Checkpoint 场景 C01–C20，覆盖不需要保存、正常阶段收口、用户拒绝、旧入口兼容、目标歧义、项目身份不匹配、写前基线变化、并发修改、隔离/共享 Agent 写入、dirty/untracked、来源不可读、写入失败/中断、重复写入抑制、过期 Packet、Schema 不兼容、原子写能力不足和跨客户端消费。
+- 明确生成决策、写入结果、接收方恢复是三个独立阶段，不能合并为单一 success。
+- 明确 Fixture 契约测试与真实 Writer E2E 的证明边界；本轮没有创建机器 Fixture、Runner 或执行测试。
+
+### 设计约束复核
+
+- 继续遵循 D0：不按对话轮数或时间自动保存；用户拒绝/权限不足时不写入。
+- 不创建新的默认 Packet 目录/索引；目标必须来自既有入口或明确配置。
+- 不按时间戳/文件名选择最新 Packet；不使用 last-write-wins。
+- 写入成功必须可确认并可回读；失败/中断不得宣称 written。
+- Packet 结构可用不等于 freshness current；接收端必须复用 D2 Bootstrap。
+- 未修改 D1 Schema、COMPATIBILITY.md 或 JSON example；未实现 Writer、Validator、Fixture Runner、CLI/E2E 或 CI Gate。
+- D1 Schema 0.1.0、D2、D3 均未标记冻结；各自需要独立评审/用户决策。
+
+### 提交记录
+
+- D3 场景契约矩阵提交：eea732ba0a0893aeb43736e63b1dd2b5d9ad053f。
+- 本 Handoff 更新会产生新的 PR #11 Head；必须重新读取最新 PR Head 并核验该 SHA 对应 CI，不得沿用旧提交检查状态。
+
+### 下一步（唯一首选）
+
+对 D3 §14.1–§14.12 做第二轮独立一致性审查，重点检查规范化结果维度是否存在重叠/不可判定，20 个场景是否遗漏重要写入竞态，以及 Schema 0.1.0 是否被任何场景隐式要求扩展。若通过，再整理 D3 冻结候选结论；是否冻结仍由用户明确决定。
+
