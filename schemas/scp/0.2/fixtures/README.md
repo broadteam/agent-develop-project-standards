@@ -17,6 +17,8 @@ These fixtures specify expected JSON Schema and semantic-validator behavior. The
 | `invalid/schema/fingerprint-complete-changed-capture.json` | Complete coverage cannot claim changed-during-capture |
 | `invalid/schema/locator-only-identity-with-id.json` | Locator-only identity must not contain a stable ID |
 | `invalid/schema/path-escapes-worktree.json` | Fingerprint path escapes root / is not portable |
+| `invalid/schema/complete-with-unreadable-entry.json` | Complete coverage cannot include an unreadable path |
+| `invalid/schema/complete-with-gitlink-entry.json` | Complete coverage cannot include a gitlink index entry |
 
 ## Semantic-invalid fixtures
 
