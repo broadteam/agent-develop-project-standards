@@ -1,6 +1,6 @@
 # SCP 0.2.0 Fixture Contract (Draft)
 
-These fixtures specify expected JSON Schema and semantic-validator behavior. They are not an executable validator suite yet.
+These fixtures specify expected JSON Schema and semantic-validator behavior. They are not an executable validator suite yet. Semantic-invalid JSON files require companion repository/configuration context described in [SEMANTIC-CONTEXT.md](./SEMANTIC-CONTEXT.md); the Packet alone cannot prove live Git or provider facts.
 
 ## Positive fixtures
 
@@ -53,3 +53,4 @@ These examples intentionally satisfy the JSON shape but violate relationships re
 - Unknown schema or fingerprint format is unsupported/incompatible, never silently interpreted.
 - Partial/unknown fingerprint can support per-entry observations only where independently verifiable; it cannot establish whole-worktree current.
 - Fixture pass is not evidence of real CLI/filesystem behavior or cross-client E2E compatibility.
+- A semantic fixture without its required companion context is not a pass; classify it as not_run/unknown.
