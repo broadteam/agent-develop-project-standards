@@ -223,3 +223,99 @@ A Run Manifest must always answer independently:
 5. Did the Harness complete safely and clean up its disposable resources?
 
 If any answer is unavailable, record it as unknown/not_run/interrupted; do not infer it from the intended Context.
+
+## 12. Second-round review: retry identity, interruption trust and cleanup ownership
+
+### 12.1 Run identity and retry lineage
+
+A run attempt needs both a unique identity and a way to group retries:
+
+- `run_id`: globally unique for one attempt; never reused.
+- `retry_group_id`: stable identifier for the logical request/retry lineage.
+- `attempt_number`: positive integer, starts at 1 and increases monotonically within one retry group.
+- `retry_of`: optional immutable reference to the immediately preceding attempt manifest (path/URI + digest); absent for attempt 1.
+- `context_blob_sha`: every attempt pins the same exact Context unless the caller explicitly starts a different logical test request.
+
+Rules:
+1. A retry is a new attempt, not a continuation or mutation of an interrupted manifest.
+2. Duplicate `run_id` is a storage conflict; never overwrite, merge or append into an existing manifest.
+3. A retry may use the same Context and exact artifact pins, but it must record any changed measured capability, client/adapter version or Harness version; results from unlike environments are not exact replays.
+4. `attempt_number` ordering is scoped to one retry group, not globally comparable.
+5. `retry_of` must resolve to the immediately preceding finalized/terminal attempt in the same retry group. If that reference is unavailable, keep the new attempt independent and record lineage as unknown; do not infer it from timestamps or filenames.
+6. A previous non-conformant, inconclusive or interrupted attempt is never erased by a later conformant retry. Aggregation may report the latest attempt and the full history separately, but may not rewrite old records.
+
+The Harness must distinguish an intentional retry (new run ID, same retry group) from duplicate event delivery inside one active attempt. Event idempotency keys belong to the temporary Harness execution journal; they do not change the immutable manifest identity.
+
+### 12.2 Interruption and partial-result trust
+
+A partial manifest is not a weaker form of completed conformance. It is a terminal record of what was durably observed before interruption.
+
+- Before a complete normalized client result exists, `conformance_outcome` is `not_run` if evaluation did not start, otherwise `inconclusive`.
+- If the complete normalized client result and all applicable assertions were durably recorded, but the process stops before cleanup/finalization, the semantic `conformance_outcome` may remain conformant/non_conformant; `harness_outcome` is interrupted/failed and the overall run is not accepted until cleanup is resolved.
+- An assertion subset that all passed cannot make the run conformant when other required assertions never ran.
+- A missing final manifest is not proof that the client did or did not pass. The external CI/Harness event ledger may prove an attempt started, but it does not substitute for a complete Run Manifest.
+- A terminal partial manifest must declare which lifecycle phases completed, which assertions did not run, the last durable event sequence and whether cleanup is pending/unknown.
+- Resuming after interruption creates a new attempt. The new attempt may reuse the same immutable Context and fixture recipe, but it must rebuild or independently verify the disposable fixture state; it must not trust a partially mutated worktree as a valid initial state.
+
+Do not promote partial evidence to a full result because a process exit code is zero, a CI job was cancelled after tests, or the last visible assertion passed.
+
+### 12.3 Cleanup ownership and quarantine
+
+Cleanup is a security-sensitive destructive operation, even when it targets a temporary directory.
+
+A Harness may delete a root only when all are true:
+- the root was created by this Harness attempt;
+- its canonical resolved path is beneath the Harness-owned temporary parent;
+- an ownership marker matches the exact `run_id` and disposable-root ID;
+- no symlink/reparse-point traversal redirects deletion outside the owned root;
+- the cleanup target is not the user's checkout, worktree, home directory or project path.
+
+If ownership cannot be proven, do **not** delete. Record `cleanup_state=unknown` or `failed`, quarantine the resource reference and require external operator review. A manifest is untrusted input and must never be allowed to nominate an arbitrary cleanup path.
+
+Cleanup should be idempotent for the same owned root. A repeated cleanup request may verify the root is already absent; it must not broaden deletion scope or follow a path that has changed since preflight.
+
+For cleanup failure:
+- preserve the actual client result and assertion outcomes;
+- set Harness outcome failed/interrupted as appropriate;
+- mark the root quarantined/unavailable for reuse;
+- do not start a retry using that root;
+- any later garbage collection requires a separate ownership check and policy, not a client-provided path.
+
+### 12.4 Diagnostic artifact and Evidence boundary
+
+Run artifacts are not project Evidence and must not be stored under the project's authoritative Evidence directory.
+
+- A manifest may reference only Harness-owned artifact-store objects using immutable URI/path + digest + artifact kind.
+- By default, store normalized state, event IDs, snapshot IDs, Git OIDs/digests, capability values and sanitized diagnostics; do not copy file contents, full diffs or user working-tree files.
+- A raw artifact may be retained only if the fixture explicitly requires it, it originated inside the disposable root, it passed secret/credential scanning and sanitization before persistence, and its scope/access policy is explicit.
+- Redaction must happen before persistence. A later “redacted copy” does not make storing the original secret-safe.
+- The manifest itself must not include access tokens, cookies, authorization headers, private keys, credential-bearing remote URLs or arbitrary environment variables.
+- Do not point Run Manifest artifacts at project `evidence_refs`, project task/ADR files or user repository paths. A fixture's expected result may refer to a Packet claim; the actual diagnostic artifact belongs to the Harness artifact namespace.
+- Artifact retention/deletion follows Harness policy. Expired artifact references become unavailable/unknown; they must not silently fall back to copies in the project repository.
+
+This keeps the test execution record separate from the project's source-of-truth evidence model.
+
+### 12.5 D2 recovery and permission boundary
+
+The Run Manifest records what the client returned for each operation scope; it does not execute, grant or extend those actions.
+
+- `recovery_mode` and permitted/prohibited actions in actual normalized output are conformance data only.
+- `blocked` for an identity-dependent push does not necessarily block an unrelated local read-only operation; compare at the same operation-scope granularity as the Context.
+- A `restricted` result is not write permission. The Harness never invokes client production write APIs as part of a semantic fixture.
+- `normal` means the client found required sources usable for the named scope; it does not authorize a real repository write.
+- The Context's expected actions are assertions, not commands. The Run Manifest's actual actions are observations, not instructions.
+- If actual output omits a required operation scope, that assertion is inconclusive/not_run; it must not inherit another scope's recovery mode.
+
+A multi-client comparison is meaningful only for the same Context/Packet/Schema/Driver/Profile/provider-contract pins and equivalent measured capability/permission profiles. If those inputs differ, report a capability/input mismatch or compare only explicitly common claims; do not average or silently normalize unlike environments.
+
+### 12.6 Second-round review decision
+
+The Run Manifest design now has explicit boundaries for:
+- globally unique run IDs and retry lineage;
+- terminal partial/interrupted attempts;
+- separate conformance and Harness health axes;
+- safe cleanup ownership and quarantine;
+- immutable, sanitized Harness artifacts separate from project Evidence;
+- operation-scoped D2 recovery output that never acts as authorization.
+
+These additions do not require new SCP Packet or Fixture Context fields. They refine the future Run Manifest contract only. The Run Manifest remains design-only; no JSON Schema, Writer, Store, Runner, artifact service or CI gate is authorized or created by this review.
