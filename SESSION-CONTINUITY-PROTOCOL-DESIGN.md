@@ -1573,7 +1573,7 @@ worktree_fingerprint 可按 §15.7 的对象模型定义，语义校验至少包
 5. index_entries 按 stage 排序且 stage 不重复；普通非冲突路径只允许 stage 0，unmerged 路径只允许适用的 stage 1/2/3，不允许同时把 stage 0 与冲突 stages 当成同一正常状态。
 6. 每个 index stage 的 mode 与 digest 必须来自实际 index entry/blob；Git object ID 只用于定位，不作为 SHA-256 内容摘要。
 7. worktree.state=present 时，kind/mode 按可观察情况提供；普通文件/符号链接必须提供 digest；symlink digest 是链接目标原始字节。absent 不得有 digest；unreadable 不得伪造内容摘要。
-8. kind=gitlink 或 unsupported、secret exclusion、路径无法表示、特殊文件不可摘要等均不能被计入完整 coverage；允许局部比较，但必须使 coverage=partial/unknown。
+8. kind=gitlink 可以只记录 index/worktree 的 submodule commit pointer，不递归摘要内部文件；只有现场 Git status 证明该 submodule 已初始化、检出指针匹配且内部 clean 时，才可计入 complete coverage。dirty、缺失、未初始化或不可观察的 submodule 必须使 coverage=partial/unknown。unsupported、secret exclusion、路径无法表示、特殊文件不可摘要同样降级。
 9. coverage=complete 必须同时满足 observation=per_path_stable，且 entries.path 集合与 code.uncommitted_paths 集合严格相等；coverage=partial 时 entries 只能是该路径集合的子集；coverage=unknown 时不得声称任何整体完整性。
 10. observation=changed_during_capture 时 coverage 不得为 complete；扫描期间 HEAD/index/status 改变后必须重试或降级。
 11. 若 head_sha 为 null 或 worktree_state=unknown，不允许 coverage=complete。
@@ -1670,7 +1670,7 @@ Schema 0.2.0 核心对象的具体表达：
 - `code.branch_tracking`：`branch_state`、独立的 upstream 状态与 push 目标状态；configured/resolved 条件要求对应 remote/ref/resolution basis。
 - `code.worktree_fingerprint`：固定 fingerprint format/scope/算法/path encoding；保留扫描窗口、coverage、observation、逐路径 entries。
 - Index entry 保留 stage、Git mode 与 SHA-256 内容摘要；gitlink 仅保留 commit OID，不伪装成内容摘要。
-- Worktree entry 区分 present/absent/unreadable；普通文件与符号链接要求摘要；不可读/不支持/gitlink 条目不能出现在 complete coverage 的完整范围中。
+- Worktree entry 区分 present/absent/unreadable；普通文件与符号链接要求摘要；gitlink 只记录 commit pointer，complete coverage 需另由现场检查证明子模块已初始化且 clean；不可读/不支持条目不能出现在 complete coverage 的完整范围中。
 - Fingerprint paths 使用 Git worktree root 相对路径；基础 JSON Schema pattern 拒绝常见绝对路径、盘符、重复/尾随分隔符、dot/dot-dot 组件、反斜杠及 ASCII 控制字符。平台 Unicode/大小写碰撞仍由 semantic validator 处理。
 
 ### 17.9 本轮草案审查结果与未验证事项
@@ -1678,7 +1678,7 @@ Schema 0.2.0 核心对象的具体表达：
 已完成的本地结构检查：
 - Schema 文件可被 JSON parser 解析；本轮样例所走到的本地 `$ref` 路径均可解析。
 - Schema 中的正则表达式均可由 JavaScript RegExp 编译。
-- 三个正例（最小 checkpoint、complete fingerprint、partial fingerprint）在本轮编写的结构/条件子集检查中无错误。
+- 四个正例（最小 checkpoint、complete fingerprint、partial fingerprint、clean gitlink pointer + unknown branch config）在本轮编写的结构/条件子集检查中无错误。
 - 八个 Schema 级负例分别触发预期约束：dirty 无路径、complete + changed capture、locator-only 携带 ID、路径越界/不规范。
 - 六个 semantic 级负例均通过结构层检查，符合“JSON Schema 不能单独证明这些跨字段/现场关系”的预期。
 
@@ -1705,15 +1705,25 @@ Schema 0.2.0 核心对象的具体表达：
 - `fetch_state=resolved` / `push_state=resolved` 只表示 Git 有效配置目标已被无歧义选出；目标的稳定性仍由 `identity_target.basis` 区分。locator-only target 仍然是 provisional。
 - `branch_tracking.push.resolution_basis` 仅保留 Git 默认 remote 解析来源：`branch_push_remote`、`remote_push_default`、`branch_upstream`、`default_remote`。不把 project policy 混作 Git 默认推送规则，也不表示 refspec 或授权。
 - `worktree.state=unreadable` 可保留已观察到的 kind/mode，但不得提供 digest；该状态不能属于 `coverage=complete`。
-- `coverage=complete` 在 Schema 层限定为 per-path stable，并要求工作区条目是 regular file、symlink 或明确 absent；index 不允许 gitlink mode。gitlink、unsupported、unreadable 只能落入 partial/unknown。
+- `coverage=complete` 在 Schema 层限定为 per-path stable，并允许 regular file、symlink、明确 absent，以及具有 commit pointer 的 gitlink。gitlink 是否可计入 complete 由现场 Semantic Validator 检查子模块已初始化且 clean；unsupported/unreadable 必须降级。
 - `project.project_id` 增加 URI scheme pattern；完整 URI 语义仍由验证器/配置规范检查。
 - 正例 fingerprint entries 已按 UTF-8 路径排序；partial 正例使用 unreadable 条目展示稳定扫描但不完整覆盖。
-- Schema 级反例增加：complete + unreadable、complete + gitlink、错误 schema_version、未知 core field。当前共 8 个 Schema-invalid cases 和 6 个 semantic-invalid cases。
+- Schema 级反例增加：complete + unreadable、complete + gitlink、错误 schema_version、未知 core field。当前共 8 个 Schema-invalid cases 和 7 个 semantic-invalid cases。
 
 复核结果：
-- 三个正例：最小 checkpoint、complete fingerprint handoff、partial fingerprint handoff，在本轮自编写的结构/条件子集检查中无错误。
+- 四个正例：最小 checkpoint、complete fingerprint handoff、partial fingerprint handoff、clean gitlink + unknown branch config，在本轮自编写的结构/条件子集检查中无错误。
 - 八个 Schema-invalid cases：均触发预期局部约束。
+- 七个 semantic-invalid cases：均保持 Schema-valid；新增 dirty-submodule case 需要 fixture 现场观察判定，不能仅凭 Packet 字段判断。
 - 六个 semantic-invalid cases：均保持 Schema-valid，便于后续 semantic validator 单独拒绝。
 - 所有 Schema pattern 均可由 JavaScript RegExp 编译；所检查样例使用到的本地 refs 均可解析。
 
 边界仍不变：上述不是官方 Draft 2020-12 验证器，也没有运行 meta-schema、标准实例验证或 format-assertion 测试。需要在正式验证工具可用的环境中完成该步骤，当前不能把 Schema 草案标记为正式验证通过。
+
+### 17.12 第三轮边界校准：branch tracking unknown 与 gitlink pointer
+
+正式 Draft 2020-12 验证前的语义复核发现两处过度约束并修订：
+
+1. 已知当前分支处于 attached，不代表一定能读取 branch.<name>.remote 配置。权限、配置读取失败时必须能表达 `branch_state=attached` + `upstream.state=unknown`，不能强迫客户端猜测 configured/not_configured。
+2. “不递归 fingerprint submodule 内部工作区”不等于“不能记录 gitlink”。Schema 现在允许 index/worktree 记录 mode 160000 与 gitlink commit pointer。只有现场 Git status 能证明 submodule 已初始化、指针匹配且内部 clean 时，gitlink 才能参与 complete coverage；dirty、缺失、未初始化或无法观察仍必须降为 partial/unknown。
+
+新增正例：`handoff-clean-gitlink-fingerprint.json`，同时覆盖 clean gitlink pointer 与 attached branch 的 unknown upstream/push 配置。原 `complete-with-gitlink-entry.json` 改为缺失 gitlink_commit 的结构负例，不再错误表达“gitlink 一律不能 complete”。
