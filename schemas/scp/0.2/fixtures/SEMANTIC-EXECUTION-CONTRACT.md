@@ -389,3 +389,91 @@ Retain file-object replacement and path-alias collision as two-layer tests:
 Do not let a missing native capability masquerade as a passing test. Its result is `not_applicable` or `unknown` according to whether the profile intentionally excludes that capability or the client was expected to provide it but could not.
 
 The current inventory remains unchanged: 4 positive / 9 JSON Schema-invalid / 19 semantic-invalid. These are dispositions for a future fixture revision, not new fixtures or an implementation authorization.
+
+## 15. Proposed next-version case IDs and native capability matrix
+
+This section converts the admission decision into a reviewable candidate inventory. None of these cases is part of the current 4 / 9 / 19 inventory.
+
+### 15.1 Deterministic semantic fixture candidates
+
+#### Re-enumeration race — promote
+
+Use a harness-controlled observation adapter for the deterministic semantic contract test. It returns an initial Git observation matching the Packet, applies a declared event to the disposable repository model, then returns a final observation. A separate adapter E2E test may place a barrier around real Git CLI calls.
+
+| Candidate case ID | Event between initial and final observations | Required assertion |
+|---|---|---|
+| `fingerprint-reenumeration-race-untracked-added` | Add a non-ignored untracked path | Old Packet fingerprint stale; current capture unknown/changed; no complete coverage |
+| `fingerprint-reenumeration-race-index-changed` | Change an index stage/blob while preserving the original worktree path | Old Packet index claim stale; current capture unknown/changed; do not combine old index and new worktree state |
+| `fingerprint-reenumeration-race-head-changed` | Change observed HEAD/revision in the disposable repository | Baseline mismatch; old fingerprint stale, current observation unknown until a new bounded stable capture |
+
+The deterministic contract adapter must expose the two observation snapshots and event sequence explicitly. A client that has no observation hook can still run the semantic evaluator fixture; its real Git observer requires a separate E2E harness.
+
+#### Provider response matrix — promote
+
+Keep the current `identity-source-reference-unresolvable` as the authoritative-not-found case. Add these response-class cases:
+
+| Candidate case ID | Stub response | Expected source freshness | Expected identity state |
+|---|---|---|---|
+| `identity-source-forbidden` | Authenticated 403 | unknown | unknown/unresolved |
+| `identity-source-rate-limited` | 429 | unknown | unknown/unresolved |
+| `identity-source-timeout` | Timeout/transport failure | unknown | unknown/unresolved |
+| `identity-source-ambiguous-not-found` | Unauthenticated or visibility-ambiguous 404 | unknown | unknown/unresolved |
+
+Every provider stub record is keyed by namespace + resource ID + requested revision + principal + authentication state + response class. Only the already-defined authoritative 404 companion case may mark that exact source reference stale. These fixtures must not use real credentials or network access.
+
+### 15.2 Virtual observer-contract cases for platform-dependent behavior
+
+These are deterministic contract tests, not assertions that every operating system exposes the same native capability.
+
+**File-object identity**
+
+| Candidate case ID | Virtual observation sequence | Expected result |
+|---|---|---|
+| `fingerprint-file-object-replaced-contract` | handle=A, path=A before read; handle=A, path=B after read | Affected entry unknown; path no longer names the object whose bytes were hashed |
+| `fingerprint-file-mutated-in-place-contract` | handle=A/path=A before and after; adapter explicitly reports content changed during read | Affected entry unknown; object identity equality must not override a content-mutation signal |
+| `fingerprint-file-identity-unavailable-contract` | adapter reports identity observation unavailable | Affected entry unknown; do not infer stability from matching path string |
+
+The adapter must not assume inode/file ID is a content version. If the platform cannot detect concurrent in-place mutation with sufficient confidence, it must return unavailable/unknown. A double-read can detect some changes but does not create an atomic snapshot guarantee.
+
+**Path identity**
+
+| Candidate case ID | Declared profile and relation | Expected result |
+|---|---|---|
+| `fingerprint-path-case-alias-contract` | Case-insensitive profile; `src/Foo.ts` and `src/foo.ts` map to same filesystem identity | conflict/ambiguous; do not merge silently |
+| `fingerprint-path-unicode-alias-contract` | Unicode-normalizing profile; exact NFC and NFD byte sequences map to same filesystem identity | conflict/ambiguous; preserve both input byte sequences in diagnostics safely |
+| `fingerprint-path-distinct-control-contract` | Profile proves both paths resolve to distinct filesystem identities | Keep separate exact paths; no conflict |
+| `fingerprint-path-equivalence-unavailable-contract` | Profile cannot determine equivalence | unknown; never assume distinct or aliasing |
+
+These virtual cases provide deterministic cross-client semantics. They do not replace native filesystem E2E.
+
+### 15.3 Native filesystem capability conformance matrix
+
+A native E2E run must report capabilities measured for the actual mounted test root, not inferred from `platform=windows/macOS/linux`.
+
+| Capability dimension | Required probe result | If capability is present | If unavailable or inconclusive |
+|---|---|---|---|
+| Case equivalence | Case-sensitive / case-insensitive / unknown | Test exact path pair behavior against the declared relation | Mark native alias case not_applicable only when intentionally unsupported; otherwise unknown |
+| Unicode equivalence | normalization-preserving / normalization-aliasing / unknown | Test declared NFC/NFD byte pair | Do not normalize; affected claim unknown |
+| Stable object identity | reliable token / best-effort / unavailable | Compare open-handle identity with path identity before/after replacement | Entry unknown; no complete fingerprint claim |
+| In-place mutation visibility | reliable change signal / best-effort / unavailable | Inject content mutation and assert invalidation | Entry unknown when mutation cannot be excluded |
+| Symlink support | supported / unsupported / policy-disabled | Verify lstat/readlink semantics without following target | Symlink entry not_applicable/unknown; do not reinterpret as regular file |
+| Executable-bit visibility | reliable / unreliable / unavailable | Compare Git mode and observed executable semantics | Mode unknown; affected entry cannot be promoted to complete current when executable semantics matter |
+
+Native test setup must:
+- Create all probe objects below a disposable fixture root.
+- Record filesystem type/mount profile only as descriptive metadata; the measured capability values are normative test inputs.
+- Avoid modifying global mount, OS or Git configuration.
+- Preserve exact path bytes in the fixture manifest; never rely on terminal rendering for NFC/NFD distinction.
+- Report unsupported capabilities distinctly from failed assertions.
+
+### 15.4 Proposed next inventory composition
+
+If this proposal is later accepted as the next fixture revision, the candidate semantic set would add:
+- 3 deterministic re-enumeration race cases;
+- 4 deterministic provider response cases;
+- 3 virtual file-object observation cases;
+- 4 virtual path-equivalence cases.
+
+This is 14 candidate contract cases, in addition to the existing 19 semantic vectors. Native OS/filesystem E2E profiles are a separate matrix and must not be counted as additional Packet fixtures.
+
+No candidates are added to the current inventory by this document. Admission requires a separate review of the companion-context format, deterministic adapter API and expected normalized result codes. Schema 0.2.0 remains unchanged.
