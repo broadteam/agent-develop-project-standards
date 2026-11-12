@@ -1,0 +1,15 @@
+{
+  "contract": "scp-fixture-capability-profile",
+  "profile_id": "provider-stub",
+  "profile_version": "0.1.0",
+  "profile_kind": "portable_contract",
+  "supported_profiles": [
+    "provider_stub"
+  ],
+  "capabilities": [
+    "resolve_synthetic_provider_identity",
+    "inject_provider_response_classes"
+  ],
+  "network_access": "disabled",
+  "credential_mode": "synthetic_only"
+}
