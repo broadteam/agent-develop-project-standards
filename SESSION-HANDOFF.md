@@ -1232,3 +1232,19 @@ Path identity：
 5. capability profiles 内嵌或以 immutable ref + SHA 引用。
 
 在决策获批准前，不创建 Context Schema、machine context instances 或 Runner。当前 4 / 9 / 19 Fixture inventory 不变；Packet Schema 0.2.0 不变；D1/D2/D3 未冻结。
+
+## Fixture Context Contract 开放边界的推荐方案（2026-11-12）
+
+对 `CONTEXT-CONTRACT-DESIGN.md` 的 5 项待决策形成推荐：
+1. 接受独立 `scp-fixture-context/0.1.0`，与 Packet 0.2.0 分开版本化。
+2. 接受 typed declarative observations + allow-listed driver IDs；禁止任意 shell/script。
+3. 接受 immutable Context 与每次独立 run manifest 分离，actual result 不回写 Context。
+4. `scp.fixture.*` reason codes 仅作为 Fixture Conformance vocabulary，不进入 Packet/runtime API。
+5. Capability profiles 使用 immutable reference + blob SHA；第一版不开放 per-fixture 自由 override。
+
+补充 pinning：
+- Setup driver 必须同时 pin `driver_id`、`driver_contract_version`、`driver_bundle_sha256`，不能仅依赖可变 ID 或版本文字。
+- Capability profile 必须 pin `profile_id`、`profile_version`、`profile_blob_sha`。
+- Context 自身 SHA 由 run manifest 外部绑定，避免自引用。
+
+未来正式 Context Schema 的验收条件见 `CONTEXT-CONTRACT-DESIGN.md` §14。当前仍不创建 Context Schema 或机器 Context 实例；`SEMANTIC-CONTEXT.md` 保持唯一人类 fixture catalog。当前 4 / 9 / 19 inventory 与 Packet Schema 0.2.0 不变，不形成第二套项目状态源。
