@@ -1008,3 +1008,44 @@ Design §17.15 已整理 13 组规则：协议兼容、Repository Identity、Rem
 5. Reason codes 是否为测试层专用，还是未来协议字段。
 
 范围边界：本次只增加设计文档，不实现 Semantic Validator、Fixture Runner、CLI adapter、Writer 或 CI Gate；D1/D2/D3 仍未冻结。
+
+## Gitlink complete-coverage 结构约束与再次全量验证（2026-11-12）
+
+### Schema 收紧
+
+新增完整覆盖约束，防止 index gitlink 存在但 worktree submodule 路径缺失时被误报为 complete：
+
+- index_entries 含 mode 160000，则 worktree 必须 present + gitlink + mode 160000，并提供 gitlink_commit。
+- worktree kind=gitlink，则 index_entries 也必须有 mode 160000。
+- index OID 与 checkout HEAD OID 是否一致、submodule 是否初始化且 clean，仍由现场 semantic 层验证。
+- 新增 Schema-invalid fixture：`fixtures/invalid/schema/complete-with-missing-gitlink-worktree.json`。
+
+### 当前验证结果
+
+- Schema blob SHA：`a2f2097a17c08bf0a2ae733ab43a8f1919b48813`。
+- 标准 Draft 2020-12 meta-schema：PASS。
+- Python `jsonschema 4.26.0` + `FormatChecker()`。
+- Positive：4/4 PASS。
+- JSON Schema-invalid：9/9 REJECTED。
+- Semantic-invalid：19/19 Schema-valid。
+- 合法 RFC 3339 date-time 接受，`2026-13-40T30:70:70Z` 拒绝。
+- 文件级 blob IDs 与验证说明已更新至 `schemas/scp/0.2/fixtures/VALIDATION-REPORT.md`。
+
+### 文档同步
+
+- `README.md` Fixture inventory 更新为 4 / 9 / 19，并链接 Validation Report 与 Semantic Execution Contract。
+- `COMPATIBILITY.md` 明确完整 Fingerprint 中 index/worktree 的 gitlink 存在条件。
+- Design §17.18 记录这轮 schema 收紧和第二次全量验证。
+- `SEMANTIC-EXECUTION-CONTRACT.md` 已新增，定义未来 Runner 的隔离准备、只读观察、语义规范化、断言清理和双客户端对照边界；仍未实现 Runner。
+
+### 冻结与授权边界
+
+- D0 仍保持已确认冻结。
+- D1 0.2.0 继续是 Draft；Schema 验证通过不代表 D1 整体冻结。
+- D2、D3 不变，均未冻结。
+- 未实现 Semantic Validator、Fixture Runner、Writer 或 CI Gate。
+- PR #10、main、项目版本和 tags 未修改；未合并、关闭或转 Ready-for-review。
+
+### 下一步（唯一首选）
+
+继续审查 `SEMANTIC-EXECUTION-CONTRACT.md` 的跨平台确定性和 19 个 fixture 的 companion context 完整性，优先补充 re-enumeration race / filesystem alias 等未覆盖故障场景的测试设计；仍先形成设计与契约，不启动 Runner 或 CI 门禁实现，除非另获授权。
