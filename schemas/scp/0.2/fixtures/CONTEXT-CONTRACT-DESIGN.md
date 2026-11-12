@@ -1,6 +1,6 @@
 # SCP Semantic Fixture Context Contract — Design Proposal
 
-**Status:** Approved design direction; Context Schema 0.1.0 is being drafted separately. This document remains the design rationale, not the machine contract itself or an implementation authorization.
+**Status:** Approved design direction; Context Schema 0.1.0 Draft has been created. This document remains the design rationale, not the machine contract itself or an implementation authorization.
 
 ## 1. Problem statement
 
@@ -312,3 +312,36 @@ On 2026-11-12, the user approved all five recommendations in §13:
 This approval authorizes creation of the first reviewable JSON Schema Draft 2020-12 and a small number of context examples/negative schema fixtures. It does not authorize a Fixture Runner, Semantic Validator, client adapter, run-manifest writer or CI gate.
 
 The Context Schema must remain a test-only contract and must not add fields to SCP Continuity Packet 0.2.0.
+
+The initial Draft 0.1.0 is now at `schemas/scp-fixtures/0.1/fixture-context.schema.json`; examples and validation are listed in its `README.md` and `VALIDATION-REPORT.md`. The three Driver descriptors referenced by current examples are explicitly `contract_only`, so the examples are schema-valid but not runnable.
+
+## 16. Context Schema 0.1.0 Draft implementation record
+
+The user-approved design has been materialized as a separate Draft 2020-12 schema:
+
+- `schemas/scp-fixtures/0.1/fixture-context.schema.json`
+- `schemas/scp-fixtures/0.1/README.md`
+- `schemas/scp-fixtures/0.1/VALIDATION-REPORT.md`
+
+The schema requires:
+- exact Packet and Packet Schema artifact references (repository-relative path + Git blob SHA) and a source repository commit;
+- declared profile types, deterministic clock, and immutable capability profile reference;
+- setup Driver ID, driver contract version and SHA-256 bundle pin;
+- disposable-root isolation, local-stub/disabled network and synthetic-only credentials;
+- typed, discriminated stimulus events and companion observations (Git snapshots, filesystem identity, path equivalence, provider lookup and permission);
+- claim-level freshness/applicability plus separate identity/path/fingerprint state axes;
+- operation-scoped recovery mode and permitted/prohibited action lists.
+
+The Context Schema deliberately has no `execution_status` field. A Context must not declare itself runnable; the external Harness Registry determines whether the exact driver/profile artifacts are available and executable. Actual execution result and readiness belong in the separate Run Manifest.
+
+Three positive Context examples are schema-valid and five negative Context examples are rejected. The Driver descriptors they reference are `contract_only`, not executable packages. Their SHA values pin the exact declarative descriptor bytes; no Runner exists.
+
+The first schema draft passed Draft 2020-12 meta-schema validation using Python `jsonschema 4.26.0` with `FormatChecker()`. The separate validation report pins the schema blob SHA and sample blob IDs.
+
+### 16.1 Remaining boundaries
+
+- Capability Profile files are immutable JSON references; their registry-level semantics are still a Harness-owned contract, not a frozen public API.
+- Driver descriptor files are allow-list metadata only. An executable Driver bundle must be separately registered and pinned before a context can be run.
+- Run Manifest shape is still conceptual; no Run Manifest Schema is created.
+- No context migration tool, validator CLI, fixture runner, client adapter or CI gate is implemented.
+- Context Contract 0.1.0 remains Draft; acceptance/freeze requires the §14 criteria, including two independent harness adapters producing identical normalized input observations.
