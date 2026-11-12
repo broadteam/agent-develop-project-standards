@@ -1950,3 +1950,45 @@ CI 说明：当前 Standards CI workflow 的全绿结果不包含 SCP Schema 验
 这四类均不要求增加 Packet Schema 字段。前两类可作为确定性语义 Fixture 纳入下一版；后两类必须把协议行为测试与平台能力测试分层，避免将平台无法提供的能力误判为客户端语义错误，或反过来把未验证能力当作通过。
 
 当前 inventory 仍是 4 positive / 9 Schema-invalid / 19 semantic-invalid。上述仅为下一版候选纳入决策，不新增当前 Fixture、不启动 Validator/Runner，也不构成 D1 冻结批准。
+
+### 17.21 下一版 Semantic Fixture 候选 ID 与平台能力矩阵
+
+根据 §17.20 的纳入判断，进一步形成候选 case ID，不改变当前 Fixture Inventory。
+
+**建议纳入下一版的确定性 semantic cases：**
+
+- Re-enumeration race：
+  - `fingerprint-reenumeration-race-untracked-added`
+  - `fingerprint-reenumeration-race-index-changed`
+  - `fingerprint-reenumeration-race-head-changed`
+- Provider response matrix：
+  - `identity-source-forbidden`
+  - `identity-source-rate-limited`
+  - `identity-source-timeout`
+  - `identity-source-ambiguous-not-found`
+
+这 7 个 case 可以通过确定性的 observation snapshots / event sequence / local provider stub 执行，不需要真实 provider 或用户凭据。现有 `identity-source-reference-unresolvable` 继续代表 authenticated authoritative-not-found，不重复增加同义用例。
+
+**平台依赖场景拆分为虚拟契约与原生 E2E：**
+
+- File object：
+  - `fingerprint-file-object-replaced-contract`
+  - `fingerprint-file-mutated-in-place-contract`
+  - `fingerprint-file-identity-unavailable-contract`
+- Path identity：
+  - `fingerprint-path-case-alias-contract`
+  - `fingerprint-path-unicode-alias-contract`
+  - `fingerprint-path-distinct-control-contract`
+  - `fingerprint-path-equivalence-unavailable-contract`
+
+这些虚拟契约由 execution adapter 显式提供 handle/path identity 和 path-equivalence relation。原生 OS/filesystem E2E 另按实际挂载点测量 case sensitivity、Unicode behavior、文件对象 identity、in-place mutation detection、symlink 和 executable-bit 能力；不能只按 Windows/macOS/Linux 名称推断。
+
+**原生平台能力处理原则：**
+- 明确支持且应提供的能力，测试失败即失败。
+- profile 明确不支持的能力可标 not_applicable。
+- 预期支持但探测失败、能力结果不确定或观察不足，必须 unknown。
+- 不得将 not_applicable/unknown 当作 pass；也不得为使测试通过而静默修改路径、模式或内容。
+
+当前建议的下一版候选扩展共 14 个 contract cases（7 个确定性 semantic cases + 3 个文件对象 virtual cases + 4 个路径 identity virtual cases）；native E2E profile matrix 独立统计，不计作 Packet fixtures。
+
+当前状态继续保持 4 positive / 9 Schema-invalid / 19 semantic-invalid。Schema SHA `a2f2097a17c08bf0a2ae733ab43a8f1919b48813` 未变化。该候选列表仍需单独评审 companion-context machine representation、adapter API 与 reason codes；没有创建新 Packet fixture，也没有授权实现。
