@@ -1821,7 +1821,7 @@ Schema 与 Semantic Validator 的职责边界目前清晰，无需为本轮发�
 
 #### F. 下一步
 
-首选下一步是对当前 19 个 semantic vectors 重新运行标准 Draft 2020-12 实例验证，并将所有结果固定到当前 Schema blob SHA；然后单独审查 semantic-context 的可执行性设计。未获额外授权前仍不实现 Validator、Writer 或 CI Gate。
+该阶段已通过 `SEMANTIC-EXECUTION-CONTRACT.md` 形成统一四阶段与环境 profile 草案。后续应优先评估 §17.19 提出的 re-enumeration race、文件对象替换、路径别名与 Provider 权限差异四类测试是否进入下一版 Fixture Inventory；未获额外授权前仍不实现 Semantic Validator、Fixture Runner、Writer 或 CI Gate。
 
 ### 17.16 当前 Fixture 全量 Schema 验证完成（2026-11-12）
 
@@ -1888,3 +1888,14 @@ D1 0.2.0 仍为 Draft，不冻结；D2、D3 不变；D0 继续保持已确认冻
 CI 说明：当前 Standards CI workflow 的全绿结果不包含 SCP Schema 验证；Draft 2020-12 结果来自独立 Validator 运行。此次 Schema 修订没有授权实现 Semantic Validator、Fixture Runner、Writer 或 CI Gate。
 
 冻结状态不变：D0 保持已确认冻结；D1 0.2.0 仍是 Draft；D2、D3 均未冻结。
+
+### 17.19 下一批语义测试缺口（提案，不计入当前 Fixture Inventory）
+
+对 `SEMANTIC-EXECUTION-CONTRACT.md` 的跨平台确定性和故障注入边界复核后，提出四个候选向量：
+
+1. **Fingerprint re-enumeration race**：初次 status 枚举后、最终重读前新增 untracked 路径或改变 index；必须识别 path set/index 快照变化，不允许 complete/current。
+2. **File object replacement during digest read**：文件流式摘要期间替换路径 inode/对象或修改内容；受影响 entry 变 unknown/changed-during-capture，不可把两个文件对象的字节拼为一个 digest。
+3. **Case/Unicode path alias collision**：在大小写不敏感或 Unicode normalization aliasing 的文件系统 profile 下，两个不同路径字节串实际映射到同一对象；不得静默折叠，相关声明降为 ambiguous/conflict，coverage partial/unknown。
+4. **Provider authorization vs not-found**：分别注入 403、429、timeout 与 authoritative 404；只有可确认的 authoritative not-found 才能表达该 source 在对应 revision 不存在，权限/限流/超时必须 unknown/not_run。
+
+这些候选项均可使用现有 Packet 字段与 D2/D1 状态轴，不要求新增 Schema 字段。建议先评估其 companion context 是否能确定性描述，再决定是否纳入 Fixture Inventory；本轮仍保持 4 positive / 9 Schema-invalid / 19 semantic-invalid，不提前计数，也不实现 Runner。
