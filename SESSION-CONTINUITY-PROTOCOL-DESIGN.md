@@ -2047,3 +2047,19 @@ CI 说明：当前 Standards CI workflow 的全绿结果不包含 SCP Schema 验
 5. Capability profiles 内嵌还是以不可变 ID + SHA 外部引用。
 
 在这些边界获批准前，不创建 `fixture-context.schema.json`、机器 Context instances 或 Runner；当前 4 / 9 / 19 inventory 不变，Packet Schema 0.2.0 不变，D1/D2/D3 仍未冻结。
+
+### 17.24 Fixture Context Contract 的最小治理决策建议
+
+对 §17.23 的 5 项开放边界进一步评估，推荐如下（仍待用户审查，不视为已批准）：
+
+1. **独立 Contract/version namespace：接受。** 建议 `scp-fixture-context/0.1.0`，与 Packet 0.2.0 独立演进。
+2. **Typed declarative observations + allow-listed driver：接受。** Context 不允许任意 shell/脚本；driver ID 必须在 harness registry 允许列表内。
+3. **Run manifest 分离：接受。** 输入 Context immutable；每次客户端执行单独生成 run manifest，不写回 Context。
+4. **Reason codes 仅测试层：接受。** `scp.fixture.*` 只用于 Fixture Conformance，不加入 Packet 或 SCP runtime API。
+5. **Capability profile immutable ref + SHA：接受。** 首版不允许 fixture 级自由覆盖，能力差异通过另一个 immutable profile 表达。
+
+新增一个必要的完整性约束：setup driver 除 `driver_id` 外还必须 pin `driver_contract_version` 与 `driver_bundle_sha256`；仅写 `driver_revision=1` 无法确保代码内容可复现。Capability profile 同样 pin `profile_id`、`profile_version` 与 `profile_blob_sha`。Context 自身 SHA 由外部 run manifest pin，不能写入自身造成自引用。
+
+未来正式 Context Schema 的创建门槛见 `CONTEXT-CONTRACT-DESIGN.md` §14，包括所有引用不可变可解析、事件确定性、观察记录类型化、expected output 按 claim/scope 表达、无凭据/任意代码、缺输入 fail-closed、标准 Draft 2020-12 验证和两个独立 Harness adapter 对同一 Context 得到一致输入观察。
+
+当前仍不创建 Context Schema/机器实例；`SEMANTIC-CONTEXT.md` 暂时是唯一人类 Fixture Catalog。该提案没有形成第二套项目状态库，不改变 4 / 9 / 19 inventory，也不修改 Packet Schema 0.2.0。
