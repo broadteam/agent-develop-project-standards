@@ -921,7 +921,7 @@ Checkpoint 操作的客户端结果至少应能归一化为以下独立维度；
 | `write_authorization` | `permitted` / `not_permitted` / `unknown` / `not_required` | 当前项目规则、用户指令和能力配置是否允许写入 |
 | `target_resolution` | `resolved` / `missing` / `ambiguous` / `not_configured` | 是否能从权威入口唯一确定写入目标 |
 | `preflight_state` | `ready` / `stale` / `conflict` / `unknown` / `not_run` | 项目身份、基线、引用和工作区前置核验结果 |
-| `write_result` | `written` / `not_written` / `failed` / `conflict` / `not_attempted` | 持久化动作的实际结果；conflict 表示写入时检测到目标版本竞态 |
+| `write_result` | `written` / `not_written` / `failed` / `conflict` / `unknown` / `not_attempted` | 持久化动作的实际结果；`failed` 表示已确认未成功，`unknown` 表示无法确认是否已落盘，`conflict` 表示写入时检测到目标版本竞态 |
 | `packet_usability` | `usable_as_last_known` / `unusable` / `unknown` | 结构和身份检查后是否可作为恢复线索；不代表 freshness current |
 | `recovery_freshness` | 复用 D2 的逐来源 `current/stale/conflict/unknown` | 接收方现场核验后的来源状态，不由写入者自我声明 |
 
@@ -951,6 +951,7 @@ Checkpoint 操作的客户端结果至少应能归一化为以下独立维度；
 | C18 | Packet Schema 未知/不兼容，或项目身份无法建立 | `unusable`；从既有入口恢复 | 停止解释未知机器字段 | 忽略未知核心字段后继续自动写入/执行 |
 | C19 | 项目规则要求特定原子写入能力，但当前工具不支持 | write `not_attempted` 或 `failed` | 报告能力缺失，提供会话内摘要 | 降级为可能留下半文件的非原子写入并宣称成功 |
 | C20 | 写入成功后，接收方在另一个会话/客户端消费 Packet | packet `usable_as_last_known`；必须重新 Bootstrap | 核验身份、兼容性、权威来源、现场状态与权限 | 继承生成者的权限、freshness 或“已完成”判断 |
+| C21 | 写入请求超时/连接中断，调用方未收到确认，但目标可能已完整落盘 | write `unknown`；不得直接重试或宣称失败/成功 | 先按原目标和预期内容回读并校验；确认完整匹配后才报告 written，确认不存在/不完整后再按授权重试 | 将无确认等同失败并盲目重试，造成重复/覆盖；或将请求已发送等同 written |
 
 #### 14.12.3 跨客户端一致性要求
 
@@ -989,3 +990,20 @@ Checkpoint 操作的客户端结果至少应能归一化为以下独立维度；
 
 **审查结论：** 修订后，D3 的规范化结果轴与场景契约在当前设计抽象层面保持可区分；没有发现需要修改 D0 或 D1 Schema 的新阻断项。该结论仍属于文档审查，不是机器 Fixture、Writer E2E 或跨客户端互操作测试结果。D3 尚未冻结。
 
+### 14.14 D3 第三轮故障语义审查
+
+对 §14.12 的规范化结果和 C01–C21 做故障语义复核，重点检查写入调用的失败确认与结果不确定是否被混淆。
+
+发现并修订一处契约缺口：
+
+- 原 `write_result` 枚举没有 `unknown`，但 C14/C15 已要求在工具报错、连接中断或可能部分落盘且无法确认结果时表达 `unknown`。这会使场景预期无法由规范化结果直接表示。现将 `unknown` 纳入 `write_result`，并区分：`failed` 是已确认未成功；`unknown` 是无法确认是否已持久化；`not_attempted` 是没有执行写入。
+- 新增 C21：写入请求超时或确认丢失时，必须先回读原目标并核验预期内容，不能把无确认等同失败后盲目重试，也不能把请求已发送等同写入成功。
+- C14/C15 的 `failed/unknown` 现在均可由规范化枚举表达；接收方仍须按 D2 Bootstrap 检查结构、身份和 freshness。
+
+其余复核：
+- `persistence_need`、`write_authorization`、`target_resolution`、`preflight_state`、`write_result`、`packet_usability`、`recovery_freshness` 仍是不同阶段/状态轴，不应合并。
+- 写入结果不确定时，不能通过生成新时间戳或更换 Packet ID 绕过回读核验；也不能自动删除、覆盖或清理目标。
+- 本轮仍未发现必须修改 D1 Schema 的新需求；新增的是客户端操作结果语义和场景，不是 Packet 持久化字段。
+- 本轮属于文档一致性审查，不是 Writer 实现、故障注入、机器 Fixture 或跨客户端 E2E。
+
+**审查结论：** 修订后，写入已确认失败与写入结果未知可以被独立表达；C01–C21 覆盖当前设计定义的主要生成、竞态、异常和消费路径。D3 仍未冻结。
