@@ -2,7 +2,7 @@
 
 These fixtures specify expected JSON Schema and semantic-validator behavior. They are not an executable validator suite yet. Semantic-invalid JSON files require companion repository/configuration context described in [SEMANTIC-CONTEXT.md](./SEMANTIC-CONTEXT.md); the Packet alone cannot prove live Git or provider facts.
 
-**Current inventory:** 4 positive examples, 8 JSON Schema-invalid fixtures, and 19 semantic-invalid vectors. The standard Draft 2020-12 validation results and pinned fixture blob IDs are recorded in [VALIDATION-REPORT.md](./VALIDATION-REPORT.md). The proposed test lifecycle and environment profiles are in [SEMANTIC-EXECUTION-CONTRACT.md](./SEMANTIC-EXECUTION-CONTRACT.md).
+**Current inventory:** 4 positive examples, 9 JSON Schema-invalid fixtures, and 19 semantic-invalid vectors. The standard Draft 2020-12 validation results and pinned fixture blob IDs are recorded in [VALIDATION-REPORT.md](./VALIDATION-REPORT.md). The proposed test lifecycle and environment profiles are in [SEMANTIC-EXECUTION-CONTRACT.md](./SEMANTIC-EXECUTION-CONTRACT.md).
 
 ## Positive fixtures
 
@@ -23,6 +23,7 @@ These fixtures specify expected JSON Schema and semantic-validator behavior. The
 | `invalid/schema/path-escapes-worktree.json` | Fingerprint path escapes root / is not portable |
 | `invalid/schema/complete-with-unreadable-entry.json` | Complete coverage cannot include an unreadable path |
 | `invalid/schema/complete-with-gitlink-entry.json` | Gitlink index entry requires a `gitlink_commit`; it is not a file-content digest |
+| `invalid/schema/complete-with-missing-gitlink-worktree.json` | Complete coverage cannot include an indexed gitlink whose worktree submodule path is absent |
 | `invalid/schema/wrong-schema-version.json` | Instance version must match the 0.2.0 schema |
 | `invalid/schema/unknown-core-field.json` | Unknown fields in strict core objects are rejected |
 
