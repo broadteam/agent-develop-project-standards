@@ -48,7 +48,11 @@
         "principal_id": "fixture-principal-01",
         "authentication_state": "accepted",
         "provider_contract_revision": "github-rest-fixture-contract/1",
-        "not_found_authority": true
+        "not_found_authority": true,
+        "not_found_authority_evidence": {
+          "path": "schemas/scp-fixtures/providers/0.1/github-rest-not-found-contract.json",
+          "blob_sha": "6573628ce89d1e9f0e43ad2ecc341dc99b29e887"
+        }
       }
     ]
   },
@@ -62,7 +66,11 @@
       "authentication_state": "accepted",
       "response_class": "authoritative_not_found",
       "provider_contract_revision": "github-rest-fixture-contract/1",
-      "not_found_authority": true
+      "not_found_authority": true,
+      "not_found_authority_evidence": {
+        "path": "schemas/scp-fixtures/providers/0.1/github-rest-not-found-contract.json",
+        "blob_sha": "6573628ce89d1e9f0e43ad2ecc341dc99b29e887"
+      }
     }
   ],
   "expected": {
