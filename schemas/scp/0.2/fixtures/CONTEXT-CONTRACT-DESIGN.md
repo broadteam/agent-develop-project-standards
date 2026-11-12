@@ -356,3 +356,15 @@ The accompanying `schemas/scp-fixtures/0.1/COMPATIBILITY.md` defines cross-recor
 After the schema refinement, the current schema blob is `9348e22ac0ee450ce6689cec4fb87f0aa985104c`. Python `jsonschema 4.26.0` `Draft202012Validator.check_schema` passed with `FormatChecker()`; representative Context positives/negatives and format/extension probes were re-run. The latest detailed counts and scope are in `schemas/scp-fixtures/0.1/VALIDATION-REPORT.md`.
 
 This remains a schema/design review. The current Driver descriptors are still `contract_only`; the Registry and Runner do not exist. Context Schema 0.1.0 remains Draft.
+
+## 18. Run Manifest design status
+
+The first design-only Run Manifest lifecycle is recorded in `schemas/scp-fixtures/0.1/RUN-MANIFEST-DESIGN.md`.
+
+The proposal distinguishes:
+- **Conformance outcome**: whether the client result matches the pinned Context expectations;
+- **Harness outcome**: whether setup, stimulus, observation, evaluation and cleanup infrastructure completed reliably.
+
+These are independent axes. A client may be semantically conformant while cleanup fails; in that case the Harness outcome is failed, the run is not accepted, and the disposable root is quarantined. Retries create new manifests; prior manifests are never overwritten. Expected results remain in Context; actual normalized result and event/snapshot references belong in the manifest.
+
+This remains a design proposal. No Run Manifest Schema, Writer, store, CI integration or Runner is created. The two independent Harness Adapter criterion in §14 still applies before Context Contract freeze/production adoption.
