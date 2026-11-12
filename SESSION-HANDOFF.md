@@ -945,3 +945,45 @@ Design §17.15 已整理 13 组规则：协议兼容、Repository Identity、Rem
 ### 下一步（唯一首选）
 
 在当前 Schema blob SHA 固定后，对全部 4 个 positive、8 个 Schema-invalid、19 个 semantic-invalid instances 重新运行标准 Draft 2020-12 Validator（包括 FormatChecker），将验证报告绑定到准确的 Schema SHA 和 Fixture SHA。只有 19 个语义向量确认 Schema-valid 后，才继续将 semantic-context 逐项审查为可执行 Fixture Runner 契约。不得实现 Validator/Writer/CI Gate，除非用户另行授权。
+
+## 0.2.0 全量 Fixture Draft 2020-12 验证完成（2026-11-12）
+
+### 标准验证结果
+
+已在 Python `jsonschema 4.26.0` 中对固定 Schema blob 执行标准验证：
+
+- Schema：`schemas/scp/0.2/continuity-packet.schema.json`
+- Schema blob SHA：`0ab451634283385b5ffa7f028fa7f4a0e6b41cc8`
+- `Draft202012Validator.check_schema`：PASS。
+- 标准实例验证使用 `FormatChecker()`。
+- Positive：4/4 PASS。
+- JSON Schema-invalid：8/8 REJECTED。
+- Semantic-invalid：19/19 Schema-valid，按设计交由 Semantic Validator / companion context 判断。
+- Format probe：合法 RFC 3339 接受；`2026-13-40T30:70:70Z` 拒绝。
+
+固定的文件级 SHA 和验证解释写入 `schemas/scp/0.2/fixtures/VALIDATION-REPORT.md`。README 和 COMPATIBILITY.md 已增加报告引用。
+
+### 验证期间的 Fixture 修正
+
+`branch-state-code-branch-mismatch.json` 原先通过 Packet 内部状态（detached + 非空 branch）自相矛盾来制造语义失败；但 Schema 的根级条件已能拒绝这种实例，因此它不是 semantic-only fixture。
+
+现已把 Packet 改为声明 attached branch，配套 `SEMANTIC-CONTEXT.md` 则提供 live Git 返回 detached HEAD 的 companion observation。这样 JSON Schema 保持通过，语义层必须将 last-known branch observation 标 stale/conflict。
+
+### CI 与标准验证的区别
+
+- PR 当前 16 个 Standards CI checks 全部 success。
+- 已检查 `.github/workflows/standards-ci.yml`：只运行语法与回归测试，不运行 SCP JSON Schema validation。
+- 本节的 Draft 2020-12 验证是独立 Python Validator 运行；不是由现有 CI 产生。
+- Semantic Validator、Fixture Runner、Git/provider fixture environment、跨平台 CLI E2E、双客户端互操作和 CI Gate 均未实现。
+
+### 本轮范围及冻结状态
+
+- Schema 0.2.0 没有修改，blob SHA 仍是 `0ab451634283385b5ffa7f028fa7f4a0e6b41cc8`。
+- 当前全量 Fixture inventory：4 positive / 8 JSON Schema-invalid / 19 semantic-invalid。
+- D1 Schema 0.2.0 继续保持 Draft；标准验证通过不是 D1 整体冻结。
+- D2、D3 状态不变；D0 仍为唯一已确认冻结阶段。
+- PR #10、main、项目版本和 tags 未修改；没有合并、关闭或转 Ready-for-review。
+
+### 下一步（唯一首选）
+
+审查 `schemas/scp/0.2/fixtures/SEMANTIC-CONTEXT.md` 是否已足以转化为未来 Fixture Runner 的确定性测试输入契约。逐个定义 fixture setup、只读 observation、预期 normalized result、失败/权限不足降级；仍先做设计审查，不实现 Semantic Validator、Fixture Runner 或 CI Gate，除非另获授权。
