@@ -1591,7 +1591,94 @@
                         ]
                       }
                     }
-                  }
+                  },
+                  "allOf": [
+                    {
+                      "if": {
+                        "properties": {
+                          "index_entries": {
+                            "contains": {
+                              "properties": {
+                                "mode": {
+                                  "const": "160000"
+                                }
+                              },
+                              "required": [
+                                "mode"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "index_entries"
+                        ]
+                      },
+                      "then": {
+                        "properties": {
+                          "worktree": {
+                            "properties": {
+                              "state": {
+                                "const": "present"
+                              },
+                              "kind": {
+                                "const": "gitlink"
+                              },
+                              "mode": {
+                                "const": "160000"
+                              }
+                            },
+                            "required": [
+                              "state",
+                              "kind",
+                              "mode",
+                              "gitlink_commit"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "worktree"
+                        ]
+                      }
+                    },
+                    {
+                      "if": {
+                        "properties": {
+                          "worktree": {
+                            "properties": {
+                              "kind": {
+                                "const": "gitlink"
+                              }
+                            },
+                            "required": [
+                              "kind"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "worktree"
+                        ]
+                      },
+                      "then": {
+                        "properties": {
+                          "index_entries": {
+                            "contains": {
+                              "properties": {
+                                "mode": {
+                                  "const": "160000"
+                                }
+                              },
+                              "required": [
+                                "mode"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "index_entries"
+                        ]
+                      }
+                    }
+                  ]
                 }
               }
             }
