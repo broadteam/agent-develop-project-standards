@@ -1992,3 +1992,34 @@ CI 说明：当前 Standards CI workflow 的全绿结果不包含 SCP Schema 验
 当前建议的下一版候选扩展共 14 个 contract cases（7 个确定性 semantic cases + 3 个文件对象 virtual cases + 4 个路径 identity virtual cases）；native E2E profile matrix 独立统计，不计作 Packet fixtures。
 
 当前状态继续保持 4 positive / 9 Schema-invalid / 19 semantic-invalid。Schema SHA `a2f2097a17c08bf0a2ae733ab43a8f1919b48813` 未变化。该候选列表仍需单独评审 companion-context machine representation、adapter API 与 reason codes；没有创建新 Packet fixture，也没有授权实现。
+
+### 17.22 候选 Adapter Contract 反例审查结论
+
+针对 §17.21 的 14 个候选 case，对测试机制本身进行反例审查，避免“测试框架的假设”被误当成协议事实。详细条件见 `SEMANTIC-EXECUTION-CONTRACT.md` §16。
+
+1. **Event barrier**
+   - 确定性 semantic test 必须使用显式初始/最终 observation snapshot ID 和有序 event log，至少区分 initial observation complete、mutation applied、final observation started/completed。
+   - 这可证明 Semantic Evaluator 如何处理两个不同观察；真实 CLI observer 是否在正确位置执行最终重读，仍需单独 observer E2E。禁止 sleep/polling timing tests。
+
+2. **File identity**
+   - 分离 open-handle identity、current path identity、content stability 三个观察。
+   - handle=A/path=A，替换后 handle=A/path=B，当前路径摘要必须 unknown；不能把 handle A 的 digest 当作 path B 的 digest。
+   - 同一 handle/path identity 仍可能发生原地内容变化；identity token、size 或粗粒度 mtime 都不是内容锁。无法可靠检测时必须 unknown。
+
+3. **Path equivalence**
+   - profile 不能只写 OS 名称；必须给精确 UTF-8 bytes/code points、case 与 Unicode capability、pairwise same_object/distinct_objects/cannot_determine 观察以及 profile revision。
+   - 不定义隐式、跨平台通用的 case-fold 或 Unicode normalize 算法。协议路径身份仍是原始 UTF-8 path；filesystem equivalence 是另一项观察。
+   - 无法确定关系时为 unknown，不能假定 distinct。
+
+4. **Provider authoritative 404**
+   - 至少需要 provider/API contract revision、精确 resource ID/revision/scope、已认证 principal、认证成功及 endpoint 不会对该 principal 隐藏资源的契约证据，并显式标记 authoritative_not_found。
+   - 缺少任何前提都应降为 ambiguous_not_found / unknown。不能凭 HTTP 404、响应文字或本地缓存缺失推断资源不存在。
+   - Fixture 不保存 token、cookie 或 authorization header。
+
+#### 审查决议
+
+- 四类机制在显式 companion input 下均能形成确定性语义契约。
+- 其中 event barrier + Provider Stub 可作为确定性 Semantic Fixture；File identity 和 Path equivalence 的虚拟契约可作为 client conformance fixture，但必须另做原生 OS/filesystem E2E。
+- 原生能力不支持且 profile 明确声明时为 not_applicable；预期能力无法测量时为 unknown；两者均不能当作 pass。
+- 上述方案不新增 Packet 字段，不修改 Schema 0.2.0，不改变当前 4 positive / 9 Schema-invalid / 19 semantic-invalid 数量。
+- 14 个候选 case 仍未纳入当前 Fixture Inventory；需要单独批准 companion-context 机器表示、adapter API 和 reason-code 边界后再扩充。
