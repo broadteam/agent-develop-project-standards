@@ -2081,3 +2081,23 @@ Schema 设计要点：
 边界：上述验证只覆盖 Context JSON Schema 形状与格式，不证明 Profile/Driver Registry、provider stub、Git fixture、真实客户端观察或 Run Manifest 实际存在。Current driver descriptors 均是 `contract_only`，不能运行。
 
 Context Schema 0.1.0 仍为 Draft；§14 的两套独立 Harness Adapter 一致性标准仍是冻结/生产采用门槛。没有实现 Validator、Runner、Registry、Client Adapter、Run Manifest Writer 或 CI Gate。D0 保持已确认冻结；D1、D2、D3 未冻结。
+
+### 17.26 Run Manifest 最小模型与生命周期设计
+
+新增 `schemas/scp-fixtures/0.1/RUN-MANIFEST-DESIGN.md`，完成 Context 输入契约之后的执行证据模型设计，仍不创建机器 Schema 或 Writer。
+
+关键裁定：
+1. **一轮一份、不可变**：一个 Manifest 只描述一个 Client + Adapter + Harness attempt；同一 Context 的多个客户端/重试分别生成不同 Manifest，不覆盖旧结果。
+2. **输入输出分离**：Context 固定 Packet/Schema/Profile/Driver/Provider artifact 输入；Manifest 记录 Context 自身 Blob SHA、实际 event/observation、client/adapter/harness 版本、actual normalized output、assertion 与 cleanup。实际结果永不写回 Context。
+3. **双状态轴**：
+   - `conformance_outcome`：conformant / non_conformant / inconclusive / not_run，描述 Client 与预期的符合性。
+   - `harness_outcome`：healthy / failed / interrupted / not_started，描述测试基础设施运行状态。
+   清理失败时，语义断言即使通过也只能是 conformant + harness failed；整体运行不接受并隔离 disposable root。
+4. **生命周期状态轴分开**：setup、stimulus、observation、evaluation、cleanup 分别记录；不能用一个 success 布尔值吞掉部分成功/中断。
+5. **数据最小化**：默认不存文件原始内容、secret-bearing diff、token、cookie、authorization header 或用户工作区数据；优先引用经脱敏的不可变 observation artifact。
+6. **重试和中断**：重试新建 run_id/manifest；中断只可生成 terminal interrupted record，不能把部分执行补写成 completed。
+7. **信任边界**：Manifest 是一次测试的证据，不是项目 Evidence、任务状态或权限授予；Harness 对输入/Client 输出均按不可信数据处理。
+
+Manifest 自身 digest 由外部存储计算，不能在内容内自引用。Expected output 继续留在 Context，actual result 留在 Manifest；多客户端对照报告是第三种独立派生物，不回写任一 Manifest。
+
+本节未创建 `run-manifest.schema.json`、Writer、Store、Runner、Client Adapter 或 CI Gate。Context 0.1.0 仍为 Draft，D1/D2/D3 未冻结；需先评审双 outcome 语义、生命周期、重试和 cleanup/quarantine 后，才考虑形成机器 Schema。
