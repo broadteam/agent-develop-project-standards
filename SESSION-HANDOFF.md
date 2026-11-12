@@ -1208,3 +1208,27 @@ Path identity：
 ### 下一步（唯一首选）
 
 对 companion-context machine representation、adapter API 和 reason-code 边界做一次取舍审查：优先设计最小、可版本化且不成为第二套项目状态数据库的 Fixture Context Contract；明确哪些字段是 harness input、哪些是 live observation、哪些是 normalized output。通过该设计审查前，不扩充 Packet fixtures、不实现 Runner/Validator/CI Gate。
+
+## 独立 Semantic Fixture Context Contract 设计提案（2026-11-12）
+
+新增 `schemas/scp/0.2/fixtures/CONTEXT-CONTRACT-DESIGN.md`，提议将未来 companion context 设计为独立机器契约，而不扩展 SCP Packet：
+
+- Contract 名称：`scp-fixture-context`。
+- 建议版本：`0.1.0`，独立于 Packet schema_version 0.2.0。
+- 建议路径：`schemas/scp-fixtures/0.1/fixture-context.schema.json`，尚未创建该 Schema。
+- JSON Schema Draft 2020-12 是接受后唯一机器契约；Markdown 仅为人类审查说明。
+- Context 固定 Packet/Schema blob SHA、profiles/capabilities、deterministic clock、allow-listed setup driver ID、stimulus/events、companion observations 和 expected normalized D2 outputs。
+- 不允许任意 shell/script、不允许真实凭据、不允许用户真实仓库；所有 setup mutation 仅在 disposable fixture root。
+- Context 是测试输入；actual run manifest 独立记录 client/adapter version、observation/event log、normalized result、assertions/cleanup，不回写 Context。
+- `scp.fixture.*` reason codes 暂仅属 fixture conformance vocabulary，不进入 Packet Schema/runtime API。
+
+设计判断：该模型只描述测试刺激和预期，不保存项目 tasks/requirements/ADR/Evidence，不构成第二套项目状态源。真实项目状态仍由现有权威文件负责。
+
+尚待用户审查的 5 项决定：
+1. 独立 Context Contract/version namespace；
+2. typed declarative observation + allow-listed driver；
+3. run manifest 与输入 context 分离；
+4. reason codes 仅测试层；
+5. capability profiles 内嵌或以 immutable ref + SHA 引用。
+
+在决策获批准前，不创建 Context Schema、machine context instances 或 Runner。当前 4 / 9 / 19 Fixture inventory 不变；Packet Schema 0.2.0 不变；D1/D2/D3 未冻结。
