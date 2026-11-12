@@ -80,3 +80,11 @@ See [RUN-MANIFEST-DESIGN.md](./RUN-MANIFEST-DESIGN.md) for the proposed immutabl
 See [VALIDATION-REPORT.md](./VALIDATION-REPORT.md) for the pinned Schema SHA, tool version, positive/negative instance results and artifact blob IDs.
 
 Validation does not mean a Harness exists or any Git/provider operation was executed. The Context Schema is not wired into the repository's existing Standards CI workflow.
+
+## Run Manifest design status
+
+The field mapping, Context 0.1.0 cross-record rules and review vectors are recorded in [RUN-MANIFEST-DESIGN.md](./RUN-MANIFEST-DESIGN.md) §§13–16 and [COMPATIBILITY.md](./COMPATIBILITY.md) §10.
+
+Current disposition: **design candidate complete; Schema gate not met**. No `run-manifest.schema.json`, Writer, Store, finalizer, Harness/Client Adapter, Runner or CI Gate exists. The main blockers are the absence of two independent Harness implementations emitting equivalent normalized results, executable Driver/Registry infrastructure, and executable redaction/cleanup negative tests. The examples in §§15 are design review vectors, not schema-valid fixtures or execution evidence.
+
+This review does not change Context 0.1.0 or Packet 0.2.0 fields and does not freeze either contract.
