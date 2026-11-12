@@ -1,0 +1,1074 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/broadteam/agent-develop-project-standards/blob/main/schemas/scp-fixtures/0.1/fixture-context.schema.json",
+  "title": "SCP Semantic Fixture Context 0.1.0",
+  "description": "Test-only immutable companion input for SCP Packet conformance fixtures. Not a runtime Packet, project state source, authorization token, or executable script.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "context_version",
+    "fixture_id",
+    "execution_status",
+    "target",
+    "environment",
+    "setup",
+    "stimulus",
+    "companion_observations",
+    "expected"
+  ],
+  "properties": {
+    "contract": {
+      "const": "scp-fixture-context"
+    },
+    "context_version": {
+      "const": "0.1.0"
+    },
+    "fixture_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,127}$"
+    },
+    "execution_status": {
+      "enum": [
+        "design_only",
+        "ready"
+      ]
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "packet",
+        "packet_schema",
+        "repository_revision"
+      ],
+      "properties": {
+        "packet": {
+          "$ref": "#/$defs/artifact_ref"
+        },
+        "packet_schema": {
+          "$ref": "#/$defs/artifact_ref"
+        },
+        "repository_revision": {
+          "type": "string",
+          "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$"
+        }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profiles",
+        "clock",
+        "capability_profile"
+      ],
+      "properties": {
+        "profiles": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "packet_only",
+              "local_git",
+              "local_git_submodule",
+              "provider_stub",
+              "filesystem_profile",
+              "fault_injection"
+            ]
+          }
+        },
+        "clock": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "capability_profile": {
+          "$ref": "#/$defs/profile_ref"
+        }
+      }
+    },
+    "setup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "driver",
+        "isolation"
+      ],
+      "properties": {
+        "driver": {
+          "$ref": "#/$defs/driver_ref"
+        },
+        "isolation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "root_scope",
+            "network_access",
+            "credential_mode"
+          ],
+          "properties": {
+            "root_scope": {
+              "const": "harness_disposable"
+            },
+            "network_access": {
+              "enum": [
+                "disabled",
+                "local_stub_only"
+              ]
+            },
+            "credential_mode": {
+              "const": "synthetic_only"
+            }
+          }
+        }
+      }
+    },
+    "stimulus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "events"
+      ],
+      "properties": {
+        "events": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/event_observation"
+              },
+              {
+                "$ref": "#/$defs/event_mutation"
+              },
+              {
+                "$ref": "#/$defs/event_provider"
+              },
+              {
+                "$ref": "#/$defs/event_path_relation"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "companion_observations": {
+      "type": "array",
+      "maxItems": 128,
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/git_snapshot"
+          },
+          {
+            "$ref": "#/$defs/filesystem_identity"
+          },
+          {
+            "$ref": "#/$defs/path_relation"
+          },
+          {
+            "$ref": "#/$defs/provider_observation"
+          },
+          {
+            "$ref": "#/$defs/permission_observation"
+          }
+        ]
+      }
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "packet_schema_validation",
+        "protocol_compatibility",
+        "claims",
+        "recovery"
+      ],
+      "properties": {
+        "packet_schema_validation": {
+          "enum": [
+            "valid",
+            "invalid",
+            "unsupported"
+          ]
+        },
+        "protocol_compatibility": {
+          "enum": [
+            "compatible",
+            "unsupported",
+            "incompatible",
+            "unknown"
+          ]
+        },
+        "claims": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 128,
+          "items": {
+            "$ref": "#/$defs/claim"
+          }
+        },
+        "recovery": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "items": {
+            "$ref": "#/$defs/recovery"
+          }
+        }
+      }
+    },
+    "notes": {
+      "type": "string",
+      "maxLength": 4000
+    },
+    "extensions": {
+      "type": "object",
+      "patternProperties": {
+        "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9-]*)+$": {}
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "artifact_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "blob_sha"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "pattern": "^(?!/)(?![A-Za-z]:)(?!.*//)(?!.*\\/$)(?!.*(?:^|/)\\.(?:/|$))(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)(?!.*[\\u0000-\\u001F]).+$"
+        },
+        "blob_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        }
+      }
+    },
+    "profile_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile_id",
+        "profile_version",
+        "profile_blob_sha"
+      ],
+      "properties": {
+        "profile_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9.-]{1,95}$"
+        },
+        "profile_version": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+        },
+        "profile_blob_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        }
+      }
+    },
+    "driver_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "driver_id",
+        "driver_contract_version",
+        "driver_bundle_sha256"
+      ],
+      "properties": {
+        "driver_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9-]*){1,7}$",
+          "maxLength": 160
+        },
+        "driver_contract_version": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+        },
+        "driver_bundle_sha256": {
+          "type": "string",
+          "pattern": "^sha-256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "event_observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sequence",
+        "event",
+        "phase",
+        "snapshot_id"
+      ],
+      "properties": {
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "event": {
+          "const": "observation_completed"
+        },
+        "phase": {
+          "enum": [
+            "initial",
+            "intermediate",
+            "final"
+          ]
+        },
+        "snapshot_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      }
+    },
+    "event_mutation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sequence",
+        "event",
+        "mutation",
+        "target_path"
+      ],
+      "properties": {
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "event": {
+          "const": "mutation_applied"
+        },
+        "mutation": {
+          "enum": [
+            "add_untracked",
+            "change_index",
+            "change_head",
+            "remove_path",
+            "replace_path_object",
+            "mutate_same_object"
+          ]
+        },
+        "target_path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024,
+          "pattern": "^(?!/)(?![A-Za-z]:)(?!.*//)(?!.*\\/$)(?!.*(?:^|/)\\.(?:/|$))(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)(?!.*[\\u0000-\\u001F]).+$"
+        },
+        "mutation_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mutation": {
+                "enum": [
+                  "add_untracked",
+                  "remove_path",
+                  "replace_path_object",
+                  "mutate_same_object"
+                ]
+              }
+            },
+            "required": [
+              "mutation"
+            ]
+          },
+          "then": {
+            "required": [
+              "target_path"
+            ]
+          }
+        }
+      ]
+    },
+    "event_provider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sequence",
+        "event",
+        "response_class",
+        "provider_namespace",
+        "resource_id",
+        "principal_id"
+      ],
+      "properties": {
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "event": {
+          "const": "provider_response"
+        },
+        "response_class": {
+          "enum": [
+            "success",
+            "forbidden",
+            "rate_limited",
+            "timeout",
+            "authoritative_not_found",
+            "ambiguous_not_found"
+          ]
+        },
+        "provider_namespace": {
+          "type": "string",
+          "format": "uri"
+        },
+        "resource_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "requested_revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "principal_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "authentication_state": {
+          "enum": [
+            "accepted",
+            "rejected",
+            "not_authenticated",
+            "unknown"
+          ]
+        },
+        "provider_contract_revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "not_found_authority": {
+          "type": "boolean"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "response_class": {
+                "const": "authoritative_not_found"
+              }
+            },
+            "required": [
+              "response_class"
+            ]
+          },
+          "then": {
+            "properties": {
+              "authentication_state": {
+                "const": "accepted"
+              },
+              "not_found_authority": {
+                "const": true
+              }
+            },
+            "required": [
+              "authentication_state",
+              "provider_contract_revision",
+              "not_found_authority"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "response_class": {
+                "const": "ambiguous_not_found"
+              }
+            },
+            "required": [
+              "response_class"
+            ]
+          },
+          "then": {
+            "properties": {
+              "not_found_authority": {
+                "const": false
+              }
+            },
+            "required": [
+              "not_found_authority"
+            ]
+          }
+        }
+      ]
+    },
+    "event_path_relation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sequence",
+        "event",
+        "path_a_utf8_base64",
+        "path_b_utf8_base64",
+        "relation"
+      ],
+      "properties": {
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "event": {
+          "const": "filesystem_relation_observed"
+        },
+        "path_a_utf8_base64": {
+          "type": "string",
+          "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
+        },
+        "path_b_utf8_base64": {
+          "type": "string",
+          "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
+        },
+        "relation": {
+          "enum": [
+            "same_object",
+            "distinct_objects",
+            "cannot_determine"
+          ]
+        },
+        "profile_revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      }
+    },
+    "git_snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "snapshot_id",
+        "head_sha",
+        "index_snapshot_sha256",
+        "status_paths"
+      ],
+      "properties": {
+        "kind": {
+          "const": "git_snapshot"
+        },
+        "snapshot_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "head_sha": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "index_snapshot_sha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^sha-256:[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status_paths": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "pattern": "^(?!/)(?![A-Za-z]:)(?!.*//)(?!.*\\/$)(?!.*(?:^|/)\\.(?:/|$))(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)(?!.*[\\u0000-\\u001F]).+$"
+          }
+        },
+        "branch": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "filesystem_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "path_utf8_base64",
+        "identity_quality",
+        "handle_identity_before",
+        "path_identity_before",
+        "handle_identity_after",
+        "path_identity_after",
+        "content_changed_during_read"
+      ],
+      "properties": {
+        "kind": {
+          "const": "filesystem_path_identity"
+        },
+        "path_utf8_base64": {
+          "type": "string",
+          "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
+        },
+        "identity_quality": {
+          "enum": [
+            "exact",
+            "best_effort",
+            "insufficient",
+            "unavailable"
+          ]
+        },
+        "handle_identity_before": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        },
+        "path_identity_before": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        },
+        "handle_identity_after": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        },
+        "path_identity_after": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        },
+        "content_changed_during_read": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "identity_quality": {
+                "const": "unavailable"
+              }
+            },
+            "required": [
+              "identity_quality"
+            ]
+          },
+          "then": {
+            "properties": {
+              "handle_identity_before": {
+                "type": "null"
+              },
+              "path_identity_before": {
+                "type": "null"
+              },
+              "handle_identity_after": {
+                "type": "null"
+              },
+              "path_identity_after": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "path_relation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "path_a_utf8_base64",
+        "path_b_utf8_base64",
+        "case_equivalence",
+        "unicode_equivalence",
+        "filesystem_identity_relation"
+      ],
+      "properties": {
+        "kind": {
+          "const": "path_equivalence"
+        },
+        "path_a_utf8_base64": {
+          "type": "string",
+          "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
+        },
+        "path_b_utf8_base64": {
+          "type": "string",
+          "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
+        },
+        "case_equivalence": {
+          "enum": [
+            "case_sensitive",
+            "case_insensitive",
+            "unknown"
+          ]
+        },
+        "unicode_equivalence": {
+          "enum": [
+            "normalization_preserving",
+            "normalizing",
+            "unknown"
+          ]
+        },
+        "filesystem_identity_relation": {
+          "enum": [
+            "same_object",
+            "distinct_objects",
+            "cannot_determine"
+          ]
+        },
+        "profile_revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      }
+    },
+    "provider_observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "provider_namespace",
+        "resource_id",
+        "requested_revision",
+        "principal_id",
+        "authentication_state",
+        "response_class",
+        "provider_contract_revision",
+        "not_found_authority"
+      ],
+      "properties": {
+        "kind": {
+          "const": "provider_lookup"
+        },
+        "provider_namespace": {
+          "type": "string",
+          "format": "uri"
+        },
+        "resource_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "requested_revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "principal_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "authentication_state": {
+          "enum": [
+            "accepted",
+            "rejected",
+            "not_authenticated",
+            "unknown"
+          ]
+        },
+        "response_class": {
+          "enum": [
+            "success",
+            "forbidden",
+            "rate_limited",
+            "timeout",
+            "authoritative_not_found",
+            "ambiguous_not_found"
+          ]
+        },
+        "provider_contract_revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "not_found_authority": {
+          "type": "boolean"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "response_class": {
+                "const": "authoritative_not_found"
+              }
+            },
+            "required": [
+              "response_class"
+            ]
+          },
+          "then": {
+            "properties": {
+              "authentication_state": {
+                "const": "accepted"
+              },
+              "not_found_authority": {
+                "const": true
+              }
+            },
+            "required": [
+              "authentication_state",
+              "provider_contract_revision",
+              "not_found_authority"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "response_class": {
+                "const": "ambiguous_not_found"
+              }
+            },
+            "required": [
+              "response_class"
+            ]
+          },
+          "then": {
+            "properties": {
+              "not_found_authority": {
+                "const": false
+              }
+            },
+            "required": [
+              "not_found_authority"
+            ]
+          }
+        }
+      ]
+    },
+    "permission_observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "source_ref",
+        "permission_state"
+      ],
+      "properties": {
+        "kind": {
+          "const": "permission_observation"
+        },
+        "source_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "permission_state": {
+          "enum": [
+            "readable",
+            "forbidden",
+            "not_configured",
+            "unknown"
+          ]
+        }
+      }
+    },
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claim_ref",
+        "freshness",
+        "applicability"
+      ],
+      "properties": {
+        "claim_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "freshness": {
+          "enum": [
+            "current",
+            "stale",
+            "conflict",
+            "unknown"
+          ]
+        },
+        "applicability": {
+          "enum": [
+            "applicable",
+            "not_applicable",
+            "not_configured",
+            "unknown"
+          ]
+        },
+        "identity_state": {
+          "enum": [
+            "resolved",
+            "provisional",
+            "ambiguous",
+            "conflict",
+            "unknown"
+          ]
+        },
+        "path_identity_state": {
+          "enum": [
+            "unique",
+            "ambiguous",
+            "conflict",
+            "unknown"
+          ]
+        },
+        "fingerprint_coverage": {
+          "enum": [
+            "complete",
+            "partial",
+            "unknown"
+          ]
+        },
+        "observation_consistency": {
+          "enum": [
+            "stable",
+            "changed_during_capture",
+            "unknown"
+          ]
+        },
+        "reason_codes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^scp\\.fixture\\.[a-z0-9][a-z0-9._-]*$"
+          }
+        }
+      }
+    },
+    "recovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation_scope",
+        "recovery_mode",
+        "permitted_actions",
+        "prohibited_actions"
+      ],
+      "properties": {
+        "operation_scope": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "recovery_mode": {
+          "enum": [
+            "normal",
+            "restricted",
+            "blocked"
+          ]
+        },
+        "permitted_actions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9._:-]*$"
+          }
+        },
+        "prohibited_actions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9._:-]*$"
+          }
+        },
+        "user_decisions_needed": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "recovery_mode": {
+                "const": "blocked"
+              }
+            },
+            "required": [
+              "recovery_mode"
+            ]
+          },
+          "then": {
+            "properties": {
+              "prohibited_actions": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "execution_status": {
+            "const": "ready"
+          }
+        },
+        "required": [
+          "execution_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "notes": {
+            "not": {
+              "pattern": "(?i)not implemented|unresolved|placeholder|design only"
+            }
+          }
+        }
+      }
+    }
+  ]
+}
