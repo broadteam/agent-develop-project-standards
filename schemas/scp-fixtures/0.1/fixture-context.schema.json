@@ -431,6 +431,9 @@
         },
         "not_found_authority": {
           "type": "boolean"
+        },
+        "not_found_authority_evidence": {
+          "$ref": "#/$defs/artifact_ref"
         }
       },
       "allOf": [
@@ -457,7 +460,8 @@
             "required": [
               "authentication_state",
               "provider_contract_revision",
-              "not_found_authority"
+              "not_found_authority",
+              "not_found_authority_evidence"
             ]
           }
         },
@@ -466,6 +470,33 @@
             "properties": {
               "response_class": {
                 "const": "ambiguous_not_found"
+              }
+            },
+            "required": [
+              "response_class"
+            ]
+          },
+          "then": {
+            "properties": {
+              "not_found_authority": {
+                "const": false
+              }
+            },
+            "required": [
+              "not_found_authority"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "response_class": {
+                "enum": [
+                  "success",
+                  "forbidden",
+                  "rate_limited",
+                  "timeout"
+                ]
               }
             },
             "required": [
@@ -493,7 +524,8 @@
         "event",
         "path_a_utf8_base64",
         "path_b_utf8_base64",
-        "relation"
+        "relation",
+        "profile_revision"
       ],
       "properties": {
         "sequence": {
@@ -697,7 +729,8 @@
         "path_b_utf8_base64",
         "case_equivalence",
         "unicode_equivalence",
-        "filesystem_identity_relation"
+        "filesystem_identity_relation",
+        "profile_revision"
       ],
       "properties": {
         "kind": {
@@ -803,6 +836,9 @@
         },
         "not_found_authority": {
           "type": "boolean"
+        },
+        "not_found_authority_evidence": {
+          "$ref": "#/$defs/artifact_ref"
         }
       },
       "allOf": [
@@ -829,7 +865,8 @@
             "required": [
               "authentication_state",
               "provider_contract_revision",
-              "not_found_authority"
+              "not_found_authority",
+              "not_found_authority_evidence"
             ]
           }
         },
@@ -838,6 +875,33 @@
             "properties": {
               "response_class": {
                 "const": "ambiguous_not_found"
+              }
+            },
+            "required": [
+              "response_class"
+            ]
+          },
+          "then": {
+            "properties": {
+              "not_found_authority": {
+                "const": false
+              }
+            },
+            "required": [
+              "not_found_authority"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "response_class": {
+                "enum": [
+                  "success",
+                  "forbidden",
+                  "rate_limited",
+                  "timeout"
+                ]
               }
             },
             "required": [
