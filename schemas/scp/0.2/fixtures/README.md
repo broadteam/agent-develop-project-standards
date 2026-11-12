@@ -2,6 +2,8 @@
 
 These fixtures specify expected JSON Schema and semantic-validator behavior. They are not an executable validator suite yet. Semantic-invalid JSON files require companion repository/configuration context described in [SEMANTIC-CONTEXT.md](./SEMANTIC-CONTEXT.md); the Packet alone cannot prove live Git or provider facts.
 
+**Current inventory:** 4 positive examples, 8 JSON Schema-invalid fixtures, and 19 semantic-invalid vectors.
+
 ## Positive fixtures
 
 | File | Expected | Coverage |
