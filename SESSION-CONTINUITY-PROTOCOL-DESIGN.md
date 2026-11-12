@@ -1540,3 +1540,112 @@ git --no-optional-locks status --porcelain=v2 -z --untracked-files=all --ignore-
 | RI20 | 当前分支 tracking upstream 与项目 canonical repository 不同 | 分别记录 branch tracking remote/merge ref 与项目 canonical relation | 将 branch.<name>.remote 直接等同 canonical repository |
 | RI21 | branch.<name>.pushRemote 或 remote.pushDefault 改变默认推送 remote | 记录 push remote 的解析来源；推送前重新解析当前配置 | 仅按 tracking upstream 决定默认 push 目标 |
 | RI22 | git remote URL 使用 insteadOf/pushInsteadOf 重写 | 通过 Git 展开后的有效 URL 观察，并保留配置来源/方向；身份仍优先按稳定 ID 判定 | 对未展开的原始 alias URL 直接作身份结论 |
+
+## 17. D1 Schema 0.2.0 联合候选契约审查
+
+本节把 §15 Worktree Fingerprint 与 §16 Repository Identity 合并审查，判断是否可以进入 Schema 草案。这里仍是候选设计与审查结论，不创建 Schema 文件，不代表用户批准。
+
+### 17.1 建议的核心字段增量
+
+若用户批准两套模型，建议将以下三个对象作为一个版本批次纳入候选 Schema 0.2.0：
+
+| 位置 | 候选字段 | 必需性 | 目的 |
+|---|---|---|---|
+| project | repository_identity | optional | 识别 checkout repository、canonical repository 和 remote fetch/push mapping |
+| code | worktree_fingerprint | optional | 对 Git status 可见的 dirty paths 分别核验 index 与 worktree 内容 |
+| code | branch_tracking | optional | 区分当前分支的 tracking upstream 与默认 push remote |
+
+保留现有字段的边界：
+- project.repository 继续作为描述性 locator/项目仓库标签，不再承担稳定 identity 比较。
+- project.project_id 若被填写，定义为项目显式配置的稳定 namespaced URI；它标识逻辑项目，不是仓库 provider ID。未配置时省略，不能从 URL、remote alias 或目录名自动生成。
+- project.root 继续定位逻辑项目在仓库中的子目录；Git path 与 fingerprint path 始终相对于 Git worktree root。
+- code.head_sha、branch、worktree_state、uncommitted_paths 继续保留；fingerprint 是额外内容证据，不取代它们。
+- D3 的 persistence_need、write_authorization、target_resolution、preflight_state、write_result 等是客户端操作结果，不进入 Packet Schema。
+
+### 17.2 Fingerprint 字段约束候选
+
+worktree_fingerprint 可按 §15.7 的对象模型定义，语义校验至少包括：
+
+1. format、scope、digest_algorithm、path_encoding 必须是消费者明确支持的值；未知 fingerprint format 不得猜测解释。
+2. started_at、completed_at 使用 RFC 3339 date-time，且 completed_at 不早于 started_at。
+3. digest_algorithm 首版固定 sha-256；每个 digest 必须符合 sha-256:<64 lowercase hex>，输入为原始字节，不执行文本转换。
+4. path 相对于 Git worktree root，严格 UTF-8、POSIX slash、无绝对路径/盘符/UNC/空组件/dot/dot-dot；路径在 entries 中唯一并按 UTF-8 字节序排序。
+5. index_entries 按 stage 排序且 stage 不重复；普通非冲突路径只允许 stage 0，unmerged 路径只允许适用的 stage 1/2/3，不允许同时把 stage 0 与冲突 stages 当成同一正常状态。
+6. 每个 index stage 的 mode 与 digest 必须来自实际 index entry/blob；Git object ID 只用于定位，不作为 SHA-256 内容摘要。
+7. worktree.state=present 时，kind/mode 按可观察情况提供；普通文件/符号链接必须提供 digest；symlink digest 是链接目标原始字节。absent 不得有 digest；unreadable 不得伪造内容摘要。
+8. kind=gitlink 或 unsupported、secret exclusion、路径无法表示、特殊文件不可摘要等均不能被计入完整 coverage；允许局部比较，但必须使 coverage=partial/unknown。
+9. coverage=complete 必须同时满足 observation=per_path_stable，且 entries.path 集合与 code.uncommitted_paths 集合严格相等；coverage=partial 时 entries 只能是该路径集合的子集；coverage=unknown 时不得声称任何整体完整性。
+10. observation=changed_during_capture 时 coverage 不得为 complete；扫描期间 HEAD/index/status 改变后必须重试或降级。
+11. 若 head_sha 为 null 或 worktree_state=unknown，不允许 coverage=complete。
+12. code.worktree_state=observed_dirty 但未提供 fingerprint 仍允许作为低保真 Packet；接收方只能确认 last-known HEAD/路径集合，不得将这些 dirty path 内容判 current。
+13. clean worktree 不要求生成空 fingerprint；若生产者选择保留空 fingerprint，entries 必须为空且与 uncommitted_paths 一致。
+
+需要注意：JSON Schema 可校验大部分字段形状、枚举、格式与条件，但路径安全规范、entry path 集合对应、Git stage 与真实对象、digest 来源、coverage 声明真实性必须由 semantic validator/现场 Bootstrap 检查，不能把 schema-valid 等同 verified。
+
+### 17.3 Repository Identity 字段约束候选
+
+repository_identity 可按 §16.2 定义，semantic validation 至少包括：
+
+1. namespace + id 才构成稳定身份；namespace 必须隔离不同 Git service instance；相同 id 不同 namespace 不相等。
+2. basis=provider_native_id 或 project_config 时必须有 namespace 和稳定 id；basis=normalized_locator_only 时只能形成 provisional identity，不得声称稳定 ID。
+3. checkout 与 canonical 可以相同或不同；若 canonical 未配置则省略，不能默认选择 origin。
+4. remote_mappings 每个 remote_name 作为一个本地配置实体唯一出现；remote_name 只是本地 alias，不作为身份。
+5. 每个 remote 的 fetch_target 表示有效 fetch 目标；push_targets 表示 Git 配置下有效 push 目标集合。fetch 与 push locator 可不同，但稳定 identity 应指向同一仓库；身份冲突时 remote mapping 为 conflict。
+6. 同一 remote 多 url 时 fetch 的有效目标按 Git 规则解析；push_targets 保留实际有效集合。多个 push_targets 若身份不一致，不得继续声称该 remote 指向单一仓库。
+7. relation_to_canonical=canonical 必须与 canonical identity 相同；fork_of_canonical/mirror_of_canonical 必须由平台关系或项目显式配置支持；其他关系不得推断。
+8. branch_tracking.upstream_remote_name / merge_ref 与项目 canonical identity 分离；push_remote_name 按当前 branch-specific 配置解析。引用不存在或映射不唯一时为 unknown/ambiguous。
+9. URL locator 必须先清除 userinfo、token、密码、签名 query 和 fragment；禁止把凭据写入 Packet 或日志。
+10. repository_identity 内的 observed_at 与来源配置 revision 必须可追溯；消费端重新读取当前 Git config/平台身份，不直接信任旧 remote mapping。
+11. 如果 Packet checkout identity、项目显式配置与平台稳定 ID 矛盾，身份状态为 conflict；不按时间戳或 remote 列表顺序选边。
+12. repository_identity 可选；本地-only、离线或未配置项目仍可通过既有规则入口恢复，但依赖仓库身份的高影响操作不得在 identity=unknown/ambiguous 时执行。
+
+### 17.4 D1 0.2.0 与 D2/D3 的跨阶段一致性矩阵
+
+| 断言 | Schema 0.2.0 提供的结构证据 | D2 现场核验 | D3 使用边界 |
+|---|---|---|---|
+| Packet 属于当前 checkout | repository_identity.checkout/canonical/remotes | 重新解析当前 checkout、remote、project config 和平台 ID | 写入前必须确认项目与 checkout identity；不从 Packet 授权 |
+| Fork 与 canonical 关系明确 | checkout/canonical/relation_to_canonical | 验证 explicit mapping/provider relation | 不把 canonical 相同误作 checkout fingerprint 可跨 fork 复用 |
+| 分支 tracking 与 push remote 明确 | branch_tracking | 读取当前 branch config 与 remote effective URLs | 每次 push 操作前重新解析，不沿用 Packet 目标 |
+| Dirty path 内容可比较 | worktree_fingerprint.entries | 对当前 index/worktree 对应路径重新计算并比较 | C11/C12 只消费 D2 的逐声明结果 |
+| Fingerprint 覆盖完整 | coverage + observation + entries | 对照 status 路径集合、HEAD/index/status 和逐文件结果 | 不将 partial/unknown 提升为完整恢复 |
+| Evidence 当前可用 | evidence_refs + provenance | 按 subject/revision/scope/actor/result 重新解析 | 不把历史 passed 作为当前验收 |
+| 是否允许持久化/写入 | 不由 Packet Schema 表达 | 检查本轮用户授权与项目规则 | 由 D3 操作流程独立决策；write_result 不写入 Packet |
+
+### 17.5 Schema Version 与旧 Packet 兼容
+
+按现有 COMPATIBILITY.md 的规则：
+- 0.1.0 的 core objects 使用 additionalProperties=false；0.1.0 消费者必须拒绝新增的 repository_identity、worktree_fingerprint、branch_tracking。
+- 即使三个对象都是 optional，它们仍是新增核心字段；不能原地修改 0.1.0。
+- 若用户批准，建议一次性创建 0.2.0，避免 fingerprint 与 repository identity 拆成多个相互不兼容的小版本。
+- 0.2.0 消费者可以继续支持 0.1.0；消费 0.1.0 时 identity/fingerprint 记为 not_provided/unknown，不得伪造稳定 identity 或 dirty-path current。
+- 0.1.0 消费者遇到 0.2.0 不得忽略新增核心字段后继续执行协议驱动写入；按现有规则进入只读/人工 fallback。
+- 0.2.0 不要求未采用 SCP 的旧项目迁移，也不自动创建 project identity 配置或 Packet 文件。
+- Schema version 与项目整体版本独立；本提案不要求 bump 项目 3.0/其他版本，不打 Tag。
+
+### 17.6 需要独立实现验证的事项
+
+以下不是设计文档本身能够证明的内容：
+- Linux/macOS/Windows 对 Unicode、路径大小写、符号链接、executable bit 和特殊文件的实际观察一致性。
+- Git status porcelain v2 不同受支持版本对 submodule、rename/copy、untracked 和 NUL path 的实际输出兼容性。
+- --no-optional-locks 在目标客户端封装下是否真正避免项目状态副作用。
+- LFS pointer 与 smudged worktree 内容、sparse checkout、多个 worktree、submodule、unmerged index stages 的实测。
+- GitHub/GitLab/self-hosted provider ID 的读取权限、ID 稳定性、镜像迁移及 SSH/HTTPS locator 等价关系。
+- 两个独立 Agent 客户端使用相同 fixture 与相同现场输入时，identity/fingerprint/recovery 规范化结果是否一致。
+- 失败/中断时 Writer 是否能按 D3 C14/C15/C21 回读、确认与安全降级。
+
+这些事项应进入后续 Fixture/CLI E2E 与真实故障注入计划，不应被写成“设计已通过”或“跨客户端已兼容”。
+
+### 17.7 联合审查结论与当前决策状态
+
+**当前可以进入 Schema 草案的设计方向：**
+- 逐路径 SHA-256 fingerprint，显式分离 HEAD/index/worktree，允许 partial/unknown；路径以 Git worktree root 为基准。
+- 结构化 repository identity，显式分离 checkout/canonical/remote mapping；branch tracking 单独建模。
+- 两者作为一个版本批次评估 0.2.0；旧 0.1.0 保持不可变。
+
+**仍需用户确认的产品/语义边界：**
+1. 是否接受对 dirty worktree 使用 index + worktree 双层摘要，而不是仅摘要当前文件系统内容。
+2. 是否接受首版不提供 submodule 内部工作区的递归 fingerprint；遇到 dirty submodule 时 coverage=partial/unknown。
+3. 是否接受仅有 normalized locator 的 repository identity 为 provisional，不能用于跨 fork/迁移或依赖稳定身份的写操作。
+4. 是否接受项目 canonical repository 必须来自项目显式配置或可验证平台关系，绝不按 origin/upstream remote 名称自动推断。
+
+**审查结论：** 两套候选模型在当前设计层面可以组合，未发现必须改变 D0 语义或 D3 操作结果轴的结构性冲突；但由于上述四项仍需用户确认，且真实跨平台/跨客户端行为尚未验证，当前只适合进入“Schema 0.2.0 草案准备”，不适合直接创建并宣称冻结。D1、D2、D3 均继续保持未冻结。
