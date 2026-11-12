@@ -286,7 +286,7 @@ This makes the exact input set reproducible without embedding self-referential h
 
 ## 14. Acceptance criteria for a future Context Schema
 
-A formal `fixture-context.schema.json` should not be created until all criteria below are met:
+A formal Context Contract must not be frozen, marked runnable or adopted as a conformance gate until all criteria below are met. The initial reviewable Draft Schema may be created before cross-client harness adapters exist:
 
 1. Top-level contract/version/fixture ID and all referenced Packet/Schema/driver/profile revisions are immutable and resolvable.
 2. All event sequences are explicitly ordered and do not depend on wall-clock timing.
@@ -297,7 +297,7 @@ A formal `fixture-context.schema.json` should not be created until all criteria 
 7. JSON Schema Draft 2020-12 meta-schema and positive/negative context instances have a separately pinned validation report.
 8. Two independently implemented harness adapters can load the same Context and produce identical normalized input observations before client evaluation.
 
-Until these criteria and the five recommendations are reviewed, retain `SEMANTIC-CONTEXT.md` as the human-readable review catalog and do not create a parallel machine inventory.
+The five design recommendations were approved on 2026-11-12 and the initial reviewable Context Schema Draft 0.1.0 has been created. `SEMANTIC-CONTEXT.md` remains the human-readable review catalog; the JSON Context instances are a pinned machine representation of the same test vectors, not a second project-state inventory. They describe only test inputs/expected outputs and do not create project requirements, tasks, ADRs or Evidence.
 
 ## 15. User decision and drafting authorization
 
@@ -345,3 +345,19 @@ The first schema draft passed Draft 2020-12 meta-schema validation using Python 
 - Run Manifest shape is still conceptual; no Run Manifest Schema is created.
 - No context migration tool, validator CLI, fixture runner, client adapter or CI gate is implemented.
 - Context Contract 0.1.0 remains Draft; acceptance/freeze requires the §14 criteria, including two independent harness adapters producing identical normalized input observations.
+
+## 17. Provider authority evidence and semantic cross-reference refinement
+
+The first Schema draft was tightened after an adversarial review:
+
+- `event_path_relation.profile_revision` and `path_relation.profile_revision` are now required, so every path-equivalence observation is tied to the exact capability profile revision it used.
+- `authoritative_not_found` provider events and observations now require `not_found_authority_evidence`, an immutable artifact reference (repository-relative path + Git blob SHA).
+- The evidence must establish the exact provider namespace/contract revision, authentication requirements, exact resource/revision scope and visibility-masking behavior.
+- `not_found_authority=true` alone is insufficient. For success/forbidden/rate_limited/timeout and ambiguous_not_found response classes, authority must be false.
+- Added synthetic fixture contract `schemas/scp-fixtures/providers/0.1/github-rest-not-found-contract.json`, Git blob SHA `6573628ce89d1e9f0e43ad2ecc341dc99b29e887`. It describes only the isolated local stub and makes no claim about the real GitHub API.
+
+The accompanying `schemas/scp-fixtures/0.1/COMPATIBILITY.md` defines cross-record rules that JSON Schema cannot express alone: unique/strictly increasing event sequence, matching provider event/observation records, profile and Driver allow-list compatibility, unique claim/scope identifiers, disjoint permitted/prohibited actions, and operation-scoped normal/restricted/blocked semantics.
+
+After the schema refinement, the current schema blob is `9348e22ac0ee450ce6689cec4fb87f0aa985104c`. Python `jsonschema 4.26.0` `Draft202012Validator.check_schema` passed with `FormatChecker()`; representative Context positives/negatives and format/extension probes were re-run. The latest detailed counts and scope are in `schemas/scp-fixtures/0.1/VALIDATION-REPORT.md`.
+
+This remains a schema/design review. The current Driver descriptors are still `contract_only`; the Registry and Runner do not exist. Context Schema 0.1.0 remains Draft.
