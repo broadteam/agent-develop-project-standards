@@ -120,8 +120,7 @@
           "index_entries": [
             {
               "stage": 0,
-              "mode": "160000",
-              "gitlink_commit": "cccccccccccccccccccccccccccccccccccccccc"
+              "mode": "160000"
             }
           ],
           "worktree": {
