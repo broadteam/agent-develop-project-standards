@@ -1053,7 +1053,64 @@
             }
           ]
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "branch_state": {
+                "const": "detached"
+              }
+            },
+            "required": [
+              "branch_state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "upstream": {
+                "properties": {
+                  "state": {
+                    "const": "not_applicable"
+                  }
+                },
+                "required": [
+                  "state"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "branch_state": {
+                "const": "attached"
+              }
+            },
+            "required": [
+              "branch_state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "upstream": {
+                "properties": {
+                  "state": {
+                    "enum": [
+                      "configured",
+                      "not_configured"
+                    ]
+                  }
+                },
+                "required": [
+                  "state"
+                ]
+              }
+            }
+          }
+        }
+      ]
     },
     "index_entry": {
       "type": "object",
@@ -1277,7 +1334,10 @@
                 "const": "160000"
               },
               "digest": false
-            }
+            },
+            "required": [
+              "gitlink_commit"
+            ]
           }
         },
         {
