@@ -2149,3 +2149,40 @@ Manifest 自身 digest 由外部存储计算，不能在内容内自引用。Exp
    - 仅对同一 Context/Packet/Schema/Driver/Profile/provider pins 及等价 capability/permission profile 作严格比较；环境不同则报告 mismatch，或只比较明确共同的 claim，不平均结果。
 
 本轮未发现需要向 Packet 或 Fixture Context 新增字段的理由。Run Manifest 仍仅为设计；未创建 Schema、Writer、Store、Runner、artifact service 或 CI Gate。
+
+### 17.29 Run Manifest 最小机器字段与 Context 跨记录契约审查（2026-11-12）
+
+本轮根据 §17.28 的后续任务，完成了 Run Manifest 最小字段候选、Context 0.1.0 字段映射、稳定断言身份和正反例审查。详细定义见：
+
+- `schemas/scp-fixtures/0.1/RUN-MANIFEST-DESIGN.md` §§13–16
+- `schemas/scp-fixtures/0.1/COMPATIBILITY.md` §10
+
+#### 本轮设计收敛
+
+1. Manifest 独立使用 `scp-fixture-run-manifest` 合同与独立版本空间；不进入 SCP Packet 或 Fixture Context。
+2. Manifest 的核心内容被收敛为：attempt identity/retry、wall-clock timestamps、exact input pins、implementation/normalizer pins、declared-vs-measured environment、phase lifecycle、actual normalized result、complete assertion outcomes、separate conformance/Harness outcomes、cleanup/quarantine、Harness-owned artifact refs。
+3. Context 的 expected 与 Manifest 的 actual 逐字段映射；claim/recovery 数组分别按 `claim_ref`/`operation_scope` 匹配，数组顺序不具语义。
+4. 原先泛化的 `assertion_id` 被结构化键取代：`(subject_kind, subject_ref, field)`。该键不依赖数组下标、自然语言描述或拼接用户自定义 ID，且要求 expected 的每个 normative leaf 恰有一个 assertion。
+5. Expected `unknown` 是明确的被测状态；客户端按预期返回 unknown 可以 conformant。Harness 未提供 required observation 则 inconclusive/not_run，不能把两者混淆。
+6. 重试、生命周期、输入 pin、能力、Evidence namespace 和 cleanup ownership 的跨记录约束已形成可审查的规则和 RM-P01–P04 / RM-N01–N10 场景集。
+
+#### Schema 决策
+
+**本轮不创建 Run Manifest JSON Schema。** 字段与示例已足以构成下一轮 Schema 设计输入，但现有 Schema gate 仍未满足：
+
+- 当前 Driver descriptors 均是 `contract_only`，没有可执行 Registry/Bundle。
+- 没有独立 Harness/Client Adapter，也没有稳定运行过的 normalized actual-result producer。
+- 没有 credential-redaction / artifact namespace 的可执行负例。
+- 没有两个独立 Harness 实现使用同一 Context 并产生可比较 Manifest 的互操作证据。
+- 没有 Manifest finalizer、外部内容寻址存储和 retry lineage semantic checker。
+
+现在创建机器 Schema 会把尚未经过独立实现验证的生命周期/归一化/Registry 假设过早固定。当前结论是 **design-complete candidate / schema-gate-not-met**，不是冻结，也不是否定 Run Manifest 方向。
+
+#### 影响范围与约束
+
+- 不新增 SCP Packet 0.2.0 字段。
+- 不新增 Fixture Context 0.1.0 字段；只补充其与未来 Manifest 的跨记录契约说明。
+- 不创建 Run Manifest Schema、Writer、Store、Runner、Harness Registry、Adapter、Semantic Validator 或 CI Gate。
+- 不冻结 D1、D2、D3 或 Context Contract 0.1.0。
+- D0 保持用户已确认冻结。
+- PR #11 继续 Open + Draft；不合并、不修改 PR #10/main、不 bump 项目版本、不打 Tag。
