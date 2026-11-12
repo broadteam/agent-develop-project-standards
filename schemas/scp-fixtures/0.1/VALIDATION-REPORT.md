@@ -66,13 +66,13 @@ This is synthetic local-stub fixture evidence only. It is not documentation or a
 
 The values below are SHA-256 over the exact UTF-8 descriptor file bytes, including the final newline. The descriptors are marked `contract_only`; these hashes pin their descriptor bytes, **not executable Driver bundles**.
 
-| Driver ID | SHA-256 |
-|---|---|
-| `packet.locator.inspection` | `sha-256:161a7df5bbc28e9cf61bca0080d9a433b8ac247df8058898bee21b16c1be3222` |
-| `git.path-set.mismatch` | `sha-256:27a0df17005a22f3da6901c45c768a8fbbdd9a34e8eea67b1d7c5493173e37e9` |
-| `provider.identity.lookup` | `sha-256:fb274c2eca75fdbaa9ad97f8e94bdfeb5a04bc2bf4757fe5abed6f593136770b` |
+| Driver ID | Descriptor Git blob SHA | SHA-256 of exact descriptor bytes |
+|---|---|---|
+| `packet.locator.inspection` | `04a1f4b19152bb6ccb9fe10b47e5c0f5d1b8adcd` | `sha-256:161a7df5bbc28e9cf61bca0080d9a433b8ac247df8058898bee21b16c1be3222` |
+| `git.path-set.mismatch` | `a98b7cd482d4a213c8d3d8fdcbc8aea78ea9699a` | `sha-256:27a0df17005a22f3da6901c45c768a8fbbdd9a34e8eea67b1d7c5493173e37e9` |
+| `provider.identity.lookup` | `3c5d65e93c076dbbe2d29e97b2e516d312199372` | `sha-256:fb274c2eca75fdbaa9ad97f8e94bdfeb5a04bc2bf4757fe5abed6f593136770b` |
 
-All three descriptor SHA-256 values were recalculated from the fetched file bytes and matched the values pinned by the Context instances.
+All three descriptor Git blob SHAs were read from the pinned source repository revision; their SHA-256 values were recalculated from the exact UTF-8 file bytes and matched the values pinned by the Context instances. Git blob SHA and Driver SHA-256 are separate identifiers.
 
 ## Interpretation and limits
 
