@@ -87,7 +87,7 @@ These are conformance semantics for a future Harness; expected values remain tes
 
 ## 8. Run Manifest boundary
 
-A Run Manifest is a separate immutable execution record, not part of Context 0.1.0 and not implemented yet. It must externally pin Context/Packet/Packet-Schema/Profile/Driver/provider-contract blob IDs, client and adapter versions, measured capabilities, observations, ordered event log, actual normalized result, assertion result and cleanup outcome.
+A Run Manifest is a separate immutable execution record, not part of Context 0.1.0 and not implemented yet. Its proposed minimum model and lifecycle are in `RUN-MANIFEST-DESIGN.md`. It must externally pin Context/Packet/Packet-Schema/Profile/Driver/provider-contract blob IDs, client and adapter versions, measured capabilities, observations, ordered event log, actual normalized result, assertion result and cleanup outcome.
 
 Never write actual observation or result into the input Context. Multiple clients/runs produce multiple manifests referencing the same immutable Context.
 
