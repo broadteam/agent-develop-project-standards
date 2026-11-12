@@ -1126,3 +1126,61 @@ Design §17.15 已整理 13 组规则：协议兼容、Repository Identity、Rem
 ### 下一步（唯一首选）
 
 把下一版两类确定性 fixture（re-enumeration race、Provider response matrix）各自的测试向量拆成独立的 case ID、companion context 和预期 normalized result；同时为 file-object/path-alias 两类定义 native profile conformance matrix。完成设计复核后，再决定是否正式扩充 Fixture Inventory。
+
+## 下一版 Semantic Fixture Case ID 与原生平台能力矩阵（2026-11-12）
+
+新增 `SEMANTIC-EXECUTION-CONTRACT.md` §15 与 Design §17.21，细化未来候选向量 ID：
+
+### 建议纳入下一版的确定性 semantic cases（7 个）
+
+Re-enumeration race：
+- `fingerprint-reenumeration-race-untracked-added`
+- `fingerprint-reenumeration-race-index-changed`
+- `fingerprint-reenumeration-race-head-changed`
+
+Provider response：
+- `identity-source-forbidden`
+- `identity-source-rate-limited`
+- `identity-source-timeout`
+- `identity-source-ambiguous-not-found`
+
+当前已有的 `identity-source-reference-unresolvable` 继续代表 authenticated authoritative-not-found，不重复新增。
+
+### 虚拟 observer/path-identity contract cases（7 个）
+
+File object：
+- `fingerprint-file-object-replaced-contract`
+- `fingerprint-file-mutated-in-place-contract`
+- `fingerprint-file-identity-unavailable-contract`
+
+Path identity：
+- `fingerprint-path-case-alias-contract`
+- `fingerprint-path-unicode-alias-contract`
+- `fingerprint-path-distinct-control-contract`
+- `fingerprint-path-equivalence-unavailable-contract`
+
+这 7 个虚拟 cases 通过 companion adapter 明确提供对象 identity 与路径等价关系，测试协议规范化结果；真正的文件系统能力另做 native E2E。
+
+### Native filesystem profile matrix
+
+执行契约增加以下实测能力维度：
+- case equivalence；
+- Unicode equivalence；
+- stable object identity；
+- in-place mutation visibility；
+- symlink support；
+- executable-bit visibility。
+
+每一项能力按 actual mounted test root 探测，不按 OS 名称推断。明确不支持可标 not_applicable；预期支持但不能观察或结果不确定必须 unknown；不能把 not_applicable/unknown 当 pass。
+
+### 数量和范围
+
+下一版候选扩展为 14 个 contract cases（7 个确定性 semantic + 3 个文件对象 virtual + 4 个路径 identity virtual）；native E2E 独立统计，不算 Packet fixtures。
+
+当前 inventory 仍为 4 positive / 9 Schema-invalid / 19 semantic-invalid，未创建新 Packet fixture；Schema SHA 保持 `a2f2097a17c08bf0a2ae733ab43a8f1919b48813`。未新增 Schema 字段。
+
+本轮仍只做设计契约；没有实现 Validator、Fixture Runner、CLI adapter 或 CI Gate。D0 保持已确认冻结，D1/D2/D3 未冻结。
+
+### 下一步（唯一首选）
+
+进行候选 adapter contract 反例审查：重点看 event barrier 是否足以避免 race 测试时间依赖、文件对象 token 是否被误用成内容锁、路径等价 profile 是否存在不同客户端无法统一解释的自由度、Provider 404 权威性是否有可验证来源。完成后再决定是否批准把 14 个 case 纳入下一版 Fixture Inventory。
