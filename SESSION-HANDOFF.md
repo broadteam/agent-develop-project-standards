@@ -1357,3 +1357,40 @@ Context Schema 独立于 Packet 0.2.0，不添加 Packet fields。
 - 多客户端比较报告为独立派生记录，不改写单个 Manifest，不得将 inconclusive 升级为 conformant。
 
 本轮不新增 Packet/Context 字段，也未创建 Run Manifest Schema/Writer/Store/Runner。
+
+## Run Manifest 第二轮故障与信任边界审查（2026-11-12）
+
+Run Manifest 设计 §12 和 Design §17.28 已补齐以下规则：
+
+### Retry identity
+- 每个 attempt 有全局唯一 `run_id`。
+- `retry_group_id` 关联同一逻辑测试重试链；`attempt_number` 在 group 内单调递增。
+- 可选 `retry_of` 引用前一个 immutable manifest URI/digest。
+- Duplicate run_id 是 storage conflict，不可覆盖；interrupted manifest terminal，重试新建 attempt。
+
+### Interruption trust
+- required assertions 未全部执行时，不得将已通过的子集提升为 full conformance。
+- 若 client normalized result + required assertions 已持久化，但 cleanup/finalize 中断，保留 semantic outcome，Harness 标 interrupted/failed；overall run 不接受。
+- 外部 CI event ledger 证明 attempt started 不等于 conformance evidence。
+- 重试重新构建/验证 disposable fixture state，不复用半截 mutation。
+
+### Cleanup ownership
+- 只有 canonical path 位于 Harness-owned temporary parent、ownership marker 匹配 run_id、且没有 symlink/reparse escape 时允许删除。
+- 所有权无法证明则不删，cleanup unknown/failed，资源 quarantine 并外部 review。
+- cleanup failed 不改变 client result；资源禁止被 retry 复用。
+
+### Artifact 与项目 Evidence 隔离
+- Manifest diagnostics 使用 Harness artifact namespace，不进入项目 Evidence/evidence_refs/task/ADR/用户仓库。
+- 默认只保存 normalized state、event/snapshot IDs、OID/digest、脱敏诊断。
+- raw artifact 必须来自 disposable root，先脱敏再持久化；不存 token/cookie/authorization/private key/credential URL。
+- Manifest 不是项目 Evidence、任务状态或授权来源。
+
+### D2 recovery / permission
+- actual `normal/restricted/blocked` 与 permitted/prohibited actions 是按 operation scope 记录的 client output，不是 Harness 命令或授权。
+- restricted 不是写权限；局部 blocked 不自动阻断无关 local read-only analysis。
+- Harness 不调用 client production write APIs。
+
+### Cross-client comparison
+只比较相同 Context/Packet/Schema/Driver/Profile/provider pins 与等价 capability/permission profiles；环境不同则标 mismatch 或只比较共同 claim，不平均/静默归一化。
+
+本轮未新增 Packet/Context fields。Run Manifest 仍是设计文档，没有 Schema、Writer、Store、Runner、artifact service 或 CI gate。D1/D2/D3 继续未冻结，D0 保持已冻结。
