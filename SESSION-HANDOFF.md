@@ -593,3 +593,34 @@
 ### 下一步（唯一首选）
 
 对 D3 做冻结候选审查：逐项核对 §14.1–§14.14、C01–C21、D0 决策和 D1 Schema 边界，整理明确的通过项、未解决项和实现验证缺口；只提交冻结建议，不自动冻结。dirty/untracked 摘要稳定编码和多 remote/fork repository identity/upstream 映射仍需在 D1/D2 适当阶段单独解决。
+
+## D1–D3 跨阶段冻结依赖审查（2026-11-12）
+
+### 本轮交付
+
+- 在 `SESSION-CONTINUITY-PROTOCOL-DESIGN.md` §15 新增 D1/D2/D3 冻结依赖矩阵、现有 Schema 表达能力盘点、两个机器契约缺口、冻结顺序建议和禁止推论。
+- 确认 D1 Schema 0.1.0 当前 `project.repository` / `project.project_id` 无法充分定义 canonical repository、fork/upstream 与多 remote 映射。
+- 确认 D1 `code.worktree_state` / `uncommitted_paths` 不包含 dirty/untracked 内容摘要、摘要覆盖范围或可验证清单，因此不能支持 D2 对相关工作区内容作严格 current 判定。
+- 明确 D3 的 `write_result` 是客户端操作结果，不应加入 Packet Schema；D3 继续消费 D2 Bootstrap/Freshness，而不另建状态账本。
+
+### 当前判断
+
+- D1 Schema 0.1.0：**暂不具备冻结条件**。先裁定 Worktree Content Fingerprint 与 Repository Identity/Upstream Mapping，再决定是否调整尚未冻结的 0.1.0 Schema。
+- D2：主体设计已完成，但字段映射和 B0/B4 依赖尚需与最终 D1 契约对齐。
+- D3：概念和 C01–C21 场景审查已完成，但整体冻结依赖 D1/D2 的身份与摘要契约。
+- 本轮仅增加设计审查；未修改 Schema、示例或 COMPATIBILITY.md，未实现 Validator/Writer/Fixture/CI Gate。
+- D0 继续保持用户已确认冻结；D1、D2、D3 均未冻结。
+
+### 待用户裁定的设计方向（尚未批准）
+
+1. Worktree fingerprint：建议逐路径摘要为基础，可选 manifest digest；必须定义路径规范化、文件/符号链接处理、模式元数据、算法标识、覆盖范围和非原子读取时的复核规则。
+2. Repository identity：建议分离平台/host 命名空间下的稳定 repository identity、本地 checkout identity 与显式 upstream mapping；禁止根据 origin 名称或 remote 顺序猜测 canonical repository。
+
+### 提交
+
+- 跨阶段依赖矩阵与冻结条件：`402ff9a0a96f1367635ba1164f05f35e02292c7b`。
+- 本 Handoff 更新后会产生新的 PR #11 Head；必须重新核验该 Head 的 CI。
+
+### 下一步（唯一首选）
+
+继续分别细化两个缺口的最小数据模型和反例：先给出 Worktree Fingerprint 的字段/规范化算法候选，再给出 Repository Identity/Upstream Mapping 的字段与解析规则；比较最小可行方案和兼容性影响，之后提交用户裁定。未获批准前不修改 D1 Schema 0.1.0。
