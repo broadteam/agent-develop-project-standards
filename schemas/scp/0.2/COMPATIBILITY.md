@@ -31,7 +31,7 @@
 - Fingerprinting records index stages and worktree state separately. SHA-256 is computed from raw file bytes or raw symlink-target bytes; Git object IDs are not protocol content digests.
 - Submodule internals are not recursively fingerprinted in this version. Dirty/unobservable submodule state reduces coverage to partial/unknown.
 - Sensitive paths excluded by project policy are not hashed. Hashes are not guaranteed to be non-reversible for low-entropy secrets; exclusion reduces coverage rather than being treated as redaction.
-- A complete fingerprint describes the captured path set and per-path checks only. It does not prove a globally atomic worktree snapshot. Consumers re-observe live HEAD, index, status and relevant file contents.
+- A complete fingerprint is limited to supported regular-file/symlink entries and explicit absent-path states; unreadable, unsupported and gitlink entries force partial/unknown coverage. It describes the captured path set and per-path checks only and does not prove a globally atomic worktree snapshot. Consumers re-observe live HEAD, index, status and relevant file contents.
 - Dynamic Git/PR/CI state is last-known at packet generation. Consumers bootstrap live state before depending on it.
 
 ## JSON Schema versus semantic validation
