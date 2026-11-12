@@ -2063,3 +2063,28 @@ CI 说明：当前 Standards CI workflow 的全绿结果不包含 SCP Schema 验
 未来正式 Context Schema 的创建门槛见 `CONTEXT-CONTRACT-DESIGN.md` §14，包括所有引用不可变可解析、事件确定性、观察记录类型化、expected output 按 claim/scope 表达、无凭据/任意代码、缺输入 fail-closed、标准 Draft 2020-12 验证和两个独立 Harness adapter 对同一 Context 得到一致输入观察。
 
 当前仍不创建 Context Schema/机器实例；`SEMANTIC-CONTEXT.md` 暂时是唯一人类 Fixture Catalog。该提案没有形成第二套项目状态库，不改变 4 / 9 / 19 inventory，也不修改 Packet Schema 0.2.0。
+
+### 17.25 Fixture Context 0.1.0 Draft 实体化与验证收敛
+
+用户已在 2026-11-12 明确批准 §17.24 的五项方案。本轮已将方案落实为独立的 Context 机器契约，而不是继续停留在提案状态：
+
+- `schemas/scp-fixtures/0.1/fixture-context.schema.json`：独立 Draft 2020-12 Schema；版本 `scp-fixture-context/0.1.0`，不扩展 Packet。
+- `schemas/scp-fixtures/0.1/COMPATIBILITY.md`：定义 Schema 无法表达的跨记录语义、Profile/Driver Registry 约束、事件序列、Provider authority、Expected result 规则。
+- `schemas/scp-fixtures/0.1/README.md`、`VALIDATION-REPORT.md`。
+- 三个不可变 Capability Profile、三个 Driver contract descriptor、一个合成 Provider not-found contract。
+- 三个 Context 正例和五个 Context Schema 负例，目标 Packet、Packet Schema、Capability Profile、Driver descriptor 和 Provider authority artifact 均采用 SHA pinning。
+
+Schema 设计要点：
+1. Context 与 Packet 独立版本化；Context 固定 Packet path/blob SHA、Packet Schema path/blob SHA 和 source repository commit。
+2. Profile 使用 `profile_id + profile_version + profile_blob_sha`。
+3. Driver 使用 `driver_id + driver_contract_version + driver_bundle_sha256`；当前 descriptor 状态全部为 `contract_only`，不是可执行 bundle。
+4. Context 不含 `execution_status`，不能自己声明 runnable；由未来 Harness Registry 解析精确 Driver/Profile 及可执行包。
+5. Provider authoritative 404 必须引用固定 SHA 的 provider contract evidence；路径等价观察必须绑定 profile revision。
+6. Context 不含项目状态源、真实凭据、任意脚本、实际 Run Result 或项目写入授权；Run Manifest 与输入分离且尚未定义为机器 Schema。
+
+当前 Context Schema blob SHA：`9348e22ac0ee450ce6689cec4fb87f0aa985104c`。
+当前标准验证：Python `jsonschema 4.26.0`，`Draft202012Validator.check_schema` + `FormatChecker()`；meta-schema 检查通过，3 个正例通过，5 个负例拒绝，合法/非法 date-time 及 namespaced/unqualified extension probes 符合预期。验证报告位于 `schemas/scp-fixtures/0.1/VALIDATION-REPORT.md`。
+
+边界：上述验证只覆盖 Context JSON Schema 形状与格式，不证明 Profile/Driver Registry、provider stub、Git fixture、真实客户端观察或 Run Manifest 实际存在。Current driver descriptors 均是 `contract_only`，不能运行。
+
+Context Schema 0.1.0 仍为 Draft；§14 的两套独立 Harness Adapter 一致性标准仍是冻结/生产采用门槛。没有实现 Validator、Runner、Registry、Client Adapter、Run Manifest Writer 或 CI Gate。D0 保持已确认冻结；D1、D2、D3 未冻结。
