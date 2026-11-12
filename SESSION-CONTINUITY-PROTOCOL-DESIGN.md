@@ -1710,7 +1710,7 @@ Schema 0.2.0 核心对象的具体表达：
 - `coverage=complete` 在 Schema 层限定为 per-path stable，并允许 regular file、symlink、明确 absent，以及具有 commit pointer 的 gitlink。gitlink 是否可计入 complete 由现场 Semantic Validator 检查子模块已初始化且 clean；unsupported/unreadable 必须降级。
 - `project.project_id` 增加 URI scheme pattern；完整 URI 语义仍由验证器/配置规范检查。
 - 正例 fingerprint entries 已按 UTF-8 路径排序；partial 正例使用 unreadable 条目展示稳定扫描但不完整覆盖。
-- Schema 级反例增加：complete + unreadable、complete + gitlink、错误 schema_version、未知 core field。当前共 8 个 Schema-invalid cases 和 7 个 semantic-invalid cases。
+- Schema 级反例增加：complete + unreadable、complete + gitlink、错误 schema_version、未知 core field。该轮审查时共 8 个 Schema-invalid cases 和 7 个 semantic-invalid cases。
 
 复核结果：
 - 四个正例：最小 checkpoint、complete fingerprint handoff、partial fingerprint handoff、clean gitlink + unknown branch config，在本轮自编写的结构/条件子集检查中无错误。
