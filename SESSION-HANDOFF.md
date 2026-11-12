@@ -778,7 +778,8 @@
 - `schemas/scp/0.2/continuity-packet.schema.json`：Draft 2020-12，schema_version const 0.2.0。
 - `schemas/scp/0.2/COMPATIBILITY.md`：0.2.0 兼容策略、观察边界与 semantic validation 契约。
 - `schemas/scp/0.2/examples/checkpoint-minimal.json`：最小 checkpoint。
-- `schemas/scp/0.2/examples/handoff-with-identity-and-fingerprint.json`：fork/canonical、remote mapping、branch tracking、dirty path index/worktree fingerprint 示例。
+- `schemas/scp/0.2/examples/handoff-with-identity-and-fingerprint.json`：fork/canonical、remote mapping、branch tracking、complete index/worktree fingerprint 示例。
+- `schemas/scp/0.2/examples/handoff-partial-fingerprint.json`：部分可观察路径与 unreadable 条目示例。
 - `schemas/scp/0.2/fixtures/README.md`：正反例目录索引与预期。
 - `fixtures/invalid/schema/`：4 个 Schema 级负例（dirty 无路径、complete + changed capture、locator-only 携带 ID、越界路径）。
 - `fixtures/invalid/semantic/`：6 个 semantic 级负例（duplicate remote name、path set mismatch、duplicate entry path、canonical relation mismatch、credentialed locator、duplicate index stage）。
@@ -798,7 +799,7 @@
 ### 本轮检查与限制
 
 - Schema、正例、负例 JSON 文件均通过 JSON 解析；Schema 正则表达式可被 JavaScript RegExp 编译。
-- 本轮自编写的有限结构/条件检查中，两个正例无错误；四个 Schema 级反例按预期被拒绝；六个 semantic 级反例通过结构层检查。
+- 本轮自编写的有限结构/条件检查中，两个正例无错误；六个 Schema 级反例按预期被拒绝；六个 semantic 级反例通过结构层检查。
 - 上述不是正式 JSON Schema Draft 2020-12 验证器结果；尚未执行 meta-schema/instance 标准验证或 date-time format assertion。
 - Semantic validator、fixture runner、CLI/E2E、Writer 和 CI Gate 均未实现。
 - 示例中的 identity ID 与 digest 为 synthetic placeholders，不是来自真实 Git provider 或 worktree 的证明。
