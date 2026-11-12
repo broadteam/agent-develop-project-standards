@@ -659,6 +659,8 @@ D2 不以“能读出 Packet”作为验收。关键验收是：在来源过期�
 
 跨客户端比较时，至少比较以下规范化字段，而不是比较自然语言摘要：
 
+- repository_identity：resolved / provisional / ambiguous / conflict / unknown；分别给出 project identity（若配置）、checkout repository、canonical repository、remote mappings 与来源 revision。它是身份判定轴，不混入 source_freshness。
+- branch_tracking：当前分支 tracking remote/merge ref 与默认 push remote 的可观察配置；若 detached HEAD、未配置或无法读取，分别标 detached / not_configured / unknown，不按 remote alias 推断。
 - protocol_compatibility：compatible / unsupported / incompatible / unknown。
 - source_freshness[]：每个 source reference 的 current / stale / conflict / unknown，并包含判定范围和理由；not_applicable / not_configured 属于能力适用性状态，应单独表达，不混入 freshness。
 - applicability[]：task_tracking、roadmap、ADR 等可选能力及相关来源的 applicable / not_applicable / not_configured 状态。
@@ -683,6 +685,8 @@ D2 不以“能读出 Packet”作为验收。关键验收是：在来源过期�
 | 项目身份可确认；所需规则/权威来源可读取；无影响当前工作的 stale/conflict/unknown | normal | 可形成完整的只读恢复摘要 |
 | 存在 unknown/stale，但当前分析可明确隔离且不依赖这些声明 | restricted | 必须列出限制；仅允许不依赖受影响事实的低风险只读分析 |
 | 项目身份无法确认/与 Packet 不匹配、协议不兼容导致 Packet 核心语义不可解释、关键权威来源冲突，或 dirty 写入范围无法安全隔离且下一步需要触及该范围 | blocked（限受影响范围） | 停止依赖该事实/范围的动作；请求最小澄清或授权；不妨碍不依赖该范围的安全只读恢复 |
+| Repository Identity=provisional，且本次操作仅需有限导航/只读信息，不涉及仓库间映射 | restricted | 明确标注 locator-only 的弱身份；不得跨 fork/迁移推断，也不得执行依赖稳定身份的写操作 |
+| Repository Identity=ambiguous/conflict/unknown，且本次动作依赖 checkout/canonical/push 目标身份 | blocked（限依赖该身份的范围） | 停止依赖该身份的写入、推送或 Packet 跨仓库消费；允许不依赖该身份的安全只读分析 |
 
 补充约束：
 
@@ -1526,3 +1530,10 @@ git --no-optional-locks status --porcelain=v2 -z --untracked-files=all --ignore-
 | RI20 | 当前分支 tracking upstream 与项目 canonical repository 不同 | 分别记录 branch tracking remote/merge ref 与项目 canonical relation | 将 branch.<name>.remote 直接等同 canonical repository |
 | RI21 | branch.<name>.pushRemote 或 remote.pushDefault 改变默认推送 remote | 记录 push remote 的解析来源；推送前重新解析当前配置 | 仅按 tracking upstream 决定默认 push 目标 |
 | RI22 | git remote URL 使用 insteadOf/pushInsteadOf 重写 | 通过 Git 展开后的有效 URL 观察，并保留配置来源/方向；身份仍优先按稳定 ID 判定 | 对未展开的原始 alias URL 直接作身份结论 |
+
+### 15.15 Fingerprint 路径基准与覆盖范围澄清
+
+- Worktree Fingerprint entries.path 与 code.uncommitted_paths 统一以 Git worktree root（repository root）为相对路径基准；不以当前进程工作目录或 project.root 子目录为基准。
+- project.root 仍表示 Packet 对应逻辑项目在仓库内的位置，例如 monorepo 的 backend/；它不截断 Git worktree 的 dirty-path 范围。这样两个客户端即使从不同子目录启动，也能对相同路径生成同一相对路径键。
+- 若某客户端只能扫描 project.root 子目录、不能枚举仓库其他路径，则 coverage 不能标 complete；只能对已扫描条目做局部比较并标 partial。
+- Git status 命令应从 Git worktree root 执行，并使用 §16.11 的 --no-optional-locks、porcelain v2、NUL-delimited 形式；状态中的目标路径和 rename 原路径都按原始字节解析后做严格 UTF-8 验证。
