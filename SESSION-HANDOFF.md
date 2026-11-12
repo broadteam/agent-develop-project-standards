@@ -760,3 +760,61 @@
 ### 下一步（唯一首选）
 
 先向用户提交上述四项语义边界的确认；若获批准，再把已经审查的候选模型映射为正式 Schema 0.2.0、更新最小正/负例与兼容性文档，并对 JSON Schema + semantic validator 的测试契约进行独立审查。未获批准前不修改 Schema 文件。
+
+## Schema 0.2.0 草案与 Fixture 契约（2026-11-12）
+
+### 用户决策
+
+用户已明确批准此前提出的四项语义方向：
+1. Dirty worktree 采用 Git index + worktree 双层摘要。
+2. 首版不递归 fingerprint submodule 内部工作区；dirty/unobservable submodule 将 coverage 降为 partial/unknown。
+3. locator-only repository identity 只能是 provisional，不能证明 fork/迁移关系或授权依赖稳定身份的写操作。
+4. canonical repository 必须有项目显式配置或可验证平台关系，不按 origin/upstream 名称推断。
+
+该批准授权创建 Schema 0.2.0 Draft，不代表用户批准冻结，不代表实现或 CI 门禁授权。
+
+### 新增文件
+
+- `schemas/scp/0.2/continuity-packet.schema.json`：Draft 2020-12，schema_version const 0.2.0。
+- `schemas/scp/0.2/COMPATIBILITY.md`：0.2.0 兼容策略、观察边界与 semantic validation 契约。
+- `schemas/scp/0.2/examples/checkpoint-minimal.json`：最小 checkpoint。
+- `schemas/scp/0.2/examples/handoff-with-identity-and-fingerprint.json`：fork/canonical、remote mapping、branch tracking、dirty path index/worktree fingerprint 示例。
+- `schemas/scp/0.2/fixtures/README.md`：正反例目录索引与预期。
+- `fixtures/invalid/schema/`：4 个 Schema 级负例（dirty 无路径、complete + changed capture、locator-only 携带 ID、越界路径）。
+- `fixtures/invalid/semantic/`：6 个 semantic 级负例（duplicate remote name、path set mismatch、duplicate entry path、canonical relation mismatch、credentialed locator、duplicate index stage）。
+
+### Schema 设计要点
+
+- 新增核心字段均 optional，不强制旧项目启用 identity/fingerprint。
+- project.project_id 在 0.2.0 中定义为 stable namespaced URI，标识逻辑项目；不是 provider repository ID。
+- repository identity 使用 namespace + id + basis；locator-only 禁止带稳定 id。
+- remote mapping 把 fetch_state/target 与 push_state/targets 分开，remote alias 不作为身份。
+- branch_tracking 把 upstream 与 push remote 分开表示。
+- Fingerprint 固定 scp-worktree-fingerprint/1、Git status path scope、SHA-256、UTF-8 路径；index stage 与 worktree 对象分开。
+- complete fingerprint 由 Schema 局部条件限制为稳定观察，并排除 unreadable/unsupported/gitlink 条目；路径集合相等、stage 唯一、摘要来源真实性等仍由 semantic validator 负责。
+- unreadable worktree entry 允许保留可观察的 kind/mode，但不允许提供伪造 digest；该条目不能属于 complete coverage。
+- Fingerprint path 以 Git worktree root 为基准。project.root 不改变该基准。
+
+### 本轮检查与限制
+
+- Schema、正例、负例 JSON 文件均通过 JSON 解析；Schema 正则表达式可被 JavaScript RegExp 编译。
+- 本轮自编写的有限结构/条件检查中，两个正例无错误；四个 Schema 级反例按预期被拒绝；六个 semantic 级反例通过结构层检查。
+- 上述不是正式 JSON Schema Draft 2020-12 验证器结果；尚未执行 meta-schema/instance 标准验证或 date-time format assertion。
+- Semantic validator、fixture runner、CLI/E2E、Writer 和 CI Gate 均未实现。
+- 示例中的 identity ID 与 digest 为 synthetic placeholders，不是来自真实 Git provider 或 worktree 的证明。
+- 设计文档 §17.8–§17.10 已记录实体化内容、审查状态和后续顺序。
+
+### 本轮相关提交
+
+- Schema 0.2.0 初稿：4e7e27849fd2b1af14a38850e1cb61035b736a6b。
+- 示例与兼容性文档：60f3ae6ed163c7fc68d0370fc1c7f4b59ba23a19（该组后续各文件按顺序追加提交）。
+- Fingerprint complete 条件与 unreadable 修正：85dddebdcc6a1437c4f68f0e65cb570d09f128aa。
+- 正例 synthetic source refs：81159bfd1272cfdc4e951c0de55a6ca6c7035b9b。
+- Schema 级负例修正：0556c81bfc12c21fb2667050d41814ecd1622b54。
+- 兼容性/fixture 文案校准：dc9e78bfcbf76d00cd462ab4ad865f27260f096f。
+- 设计审查记录：ecde77fc00ee6e1ba979b0139dd7fb41100c0c48。
+- 本 Handoff 更新后，重新核对 PR #11 最新 Head 与其 CI。
+
+### 下一步（唯一首选）
+
+进行正式 Draft 2020-12 JSON Schema meta-schema 与实例验证（包括 format assertion），并继续对照 §17.2/§17.3 做逐字段语义审查；先修正 schema/examples/fixtures/compatibility 的一致性，再把 D1 0.2.0 作为未冻结 Draft 提交给用户审查。不得实现 Validator/Writer/CI Gate，除非用户另行授权。
