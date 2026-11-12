@@ -22,7 +22,7 @@ The Context is test-harness input. It is not an SCP Packet, project state source
 - The current Driver files are `contract_only` descriptors. Their SHA pins the descriptor bytes, not an executable implementation. A future Harness Registry must reject them for execution until an allow-listed runnable bundle is separately published and pinned.
 - Context contains typed stimulus and companion observations, plus expected claim-level states and operation-scoped recovery results.
 - Context contains no arbitrary command/script, user credential, actual run result or authority to mutate a user repository.
-- Actual observations/results belong in a separate immutable Run Manifest; they are never written back to the input Context.
+- Actual observations/results belong in a separate immutable Run Manifest; they are never written back to the input Context. The lifecycle and state model remains a proposal in [RUN-MANIFEST-DESIGN.md](./RUN-MANIFEST-DESIGN.md); there is no Run Manifest Schema or Writer.
 - Readiness is not a Context field. Whether a driver/profile is executable is determined by the external Harness Registry and recorded in a Run Manifest.
 
 ## Capability Profile artifacts
@@ -70,6 +70,10 @@ Five invalid Context examples are under `../../scp/0.2/fixtures/context-invalid/
 - authoritative not-found without authenticated authority;
 - missing capability profile blob SHA;
 - Packet path escaping the repository root.
+
+## Run Manifest design
+
+See [RUN-MANIFEST-DESIGN.md](./RUN-MANIFEST-DESIGN.md) for the proposed immutable per-attempt record, separate conformance/Harness outcome axes, cleanup semantics and acceptance criteria. It is design-only and is not a machine schema.
 
 ## Validation
 
