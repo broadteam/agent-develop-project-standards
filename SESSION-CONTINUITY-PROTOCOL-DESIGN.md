@@ -813,25 +813,22 @@ Checkpoint 生成不是“把当前上下文序列化”。生成者必须先完
 
 ### 14.5 生命周期与状态语义
 
-Checkpoint 本身建议只表达生命周期，不复制任务状态机：
+反例审查后，不建议为 Checkpoint 引入独立的持久化生命周期枚举。created / superseded / invalid / archived 看似直观，但 D1 Schema 0.1.0 没有这些字段；若由不同客户端各自维护，又会形成第二套状态源。
 
-| 生命周期状态 | 含义 | 处理方式 |
-|---|---|---|
-| created | 已成功持久化，生成时观察信息可追溯 | 作为 last-known 恢复线索 |
-| superseded | 已有更新 Checkpoint 明确替代其恢复入口 | 保留历史可追溯性，不作为默认入口 |
-| invalid | 结构损坏、项目身份不匹配或关键语义不可解释 | 停止消费其机器字段，回到权威入口 |
-| archived | 阶段已结束，保留审计/历史用途 | 不作为当前工作默认恢复点 |
+采用更小的规则：
 
-补充规则：
-- created 不等于 current；接收方仍须执行 D2 Bootstrap/Freshness。
-- Checkpoint 不应因时间流逝自动变成 invalid；过期由各来源 freshness 单独判定。
-- superseded 必须能指出替代它的断点或权威入口；不得仅按文件修改时间猜测。
-- archived 不意味着其 Evidence 失效；Evidence 是否适用仍按 subject/revision/scope 判断。
-- 不建议在 D3 阶段把上述生命周期状态直接加入 D1 Packet Schema；先验证它们是否需要机器字段，避免把存储管理元数据混入恢复语义。
+- **已持久化**：由文件/存储工具的成功结果证明，不写入 Packet 自证。
+- **可解析/可消费**：由当前消费者按支持的 Schema 与项目身份检查得出；失败即停止消费机器字段。
+- **当前恢复入口**：由项目既有规则入口或明确配置的 Packet 引用指定，不通过扫描文件后按时间戳猜测。
+- **已被替代**：只有既有权威导航入口明确指向新的恢复入口，旧 Packet 才不再作为默认入口；旧文件仍可作为历史线索。
+- **归档**：仅按项目既有归档规则或明确归档位置识别，不在 Packet 内增加状态字段。
+
+无论是否仍是默认入口，Packet 中的生成时观察都只是 last-known；接收方仍须执行 D2 Bootstrap/Freshness。时间流逝本身不使 Packet 结构 invalid，来源是否过期由 freshness 单独判定。历史 Packet 的 Evidence 适用性仍按 subject/revision/scope 判断。
 
 ### 14.6 多 Checkpoint、重复写入与并发
 
-- 同一工作流可以存在多个历史 Checkpoint，但项目必须有明确的默认恢复入口；不能由客户端各自挑选“看起来最新”的文件。
+- 同一工作流可以存在多个历史 Checkpoint；默认恢复入口必须来自项目既有规则入口、明确配置或被其引用的 handoff/Packet，不允许客户端扫描目录后按文件名、修改时间或生成时间自行挑选。
+- 若项目没有配置 Packet 入口，则沿用 AGENTS.md、MEMORY §0 或 SESSION-HANDOFF.md 等既有恢复入口；不因 SCP 而新建索引文件。
 - 同一断点重复生成时，应优先识别是否有实质状态变化；无变化则避免产生无意义的新记录。
 - 两个 Agent 同时准备写同一断点时，遵循 D0 的 branch/worktree 隔离与 owner/write-scope 声明；无协调依据时不得互相覆盖。
 - 基于旧 HEAD 或旧权威来源生成的 Checkpoint，在写入前发现基线变化，应重新 Bootstrap 并重建，不允许静默 rebase 断点内容。
@@ -889,4 +886,23 @@ D3 设计进入冻结审查前，至少应满足：
 - Packet Writer、Validator、Fixture Runner、CLI/E2E、CI Gate 均不在本节范围。
 - D3 后续若需要扩展 Schema，必须先给出字段必要性、兼容策略和迁移影响，再由用户审查；不得为实现方便先加字段。
 - 本节不改变 PR #10、main、项目版本、tags 或 PR 合并状态。
+
+
+### 14.11 D3 第一轮反例审查与收敛
+
+对 §14.1–§14.10 做独立反例审查，重点检查是否引入 D1 Schema 之外的隐式状态源，以及多个 Packet 的选择是否可跨客户端一致判定。
+
+发现并收敛两处风险：
+
+1. **Checkpoint 生命周期枚举可能制造第二套状态源**：created / superseded / invalid / archived 若要求写入或由客户端各自维护，会与 D1 Schema、项目导航入口形成重复状态。现改为不持久化生命周期枚举；持久化成功由工具结果证明，可消费性由 Schema/身份检查判定，当前入口由项目既有规则入口或明确引用决定，归档沿用项目既有规则。
+2. **多个 Packet 的“最新”选择不具备稳定语义**：文件时间戳、目录扫描顺序和客户端缓存都不能作为默认入口权威。现明确禁止客户端自行按时间/文件名挑选；优先沿用 AGENTS.md、MEMORY §0、SESSION-HANDOFF.md 或项目明确配置的入口。没有配置时不新建索引文件。
+
+其余边界复核：
+- 持久化触发条件未扩张为每轮/定时写入，与 D0 一致。
+- Checkpoint 仍是恢复索引，不替代领域权威来源；接收方复用 D2 Bootstrap/Freshness。
+- 写入失败、并发修改和权限不足均要求明确失败，不允许声称已保存。
+- 不自动 commit/stash/reset/clean/merge，也不把 Packet 当作未来操作授权。
+- 当前 D1 Schema 的 packet_kind、packet_id、checkpoint、provenance 等字段可承载现有概念；本轮没有发现必须通过新增 Schema 字段才能表达的阻断需求。dirty/untracked 内容摘要的编码和 repository identity 仍属于 D1/D2 的独立待解决边界，不能在 D3 中绕过。
+
+**审查结论：** 收敛上述两处风险后，D3 概念设计在当前抽象层面未发现新的阻断问题；但尚未完成跨客户端 Fixture 或真实 Writer 行为验证。该结论不是 D3 冻结，也不代表 D1/D2 已冻结或实现。
 
