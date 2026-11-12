@@ -1007,3 +1007,94 @@ Checkpoint 操作的客户端结果至少应能归一化为以下独立维度；
 - 本轮属于文档一致性审查，不是 Writer 实现、故障注入、机器 Fixture 或跨客户端 E2E。
 
 **审查结论：** 修订后，写入已确认失败与写入结果未知可以被独立表达；C01–C21 覆盖当前设计定义的主要生成、竞态、异常和消费路径。D3 仍未冻结。
+
+## 15. D1–D3 冻结依赖矩阵与跨阶段契约审查
+
+本节用于判断各阶段能否独立冻结，以及哪些语义必须先形成共同契约。它不自动冻结任何阶段，也不授权修改已冻结的 D0 决策。
+
+### 15.1 阶段依赖矩阵
+
+| 上游/下游 | D1 Schema 0.1.0 | D2 Bootstrap / Freshness | D3 Checkpoint |
+|---|---|---|---|
+| 项目身份 | 当前仅有 `project.repository`（必填字符串）、`project.project_id`（可选）；未定义 canonical/upstream/fork 语义 | B0 要求区分仓库身份、工作目录及 upstream；多 remote/fork 仍未解决 | 写入前必须确认 Packet 属于当前项目，不能仅凭 remote 名称 |
+| Git 基线 | `code.head_sha`、`branch` 可表达 HEAD 和分支；没有 upstream/ref identity | 必须区分 HEAD、tracked worktree 与 untracked 内容 | preflight 必须核验写入基线，不能把 HEAD 等同完整工作区快照 |
+| Dirty / untracked 内容 | `worktree_state` 与 `uncommitted_paths` 只表达状态和路径，不表达内容摘要或摘要覆盖范围 | S06/S07 要求只有路径身份和内容摘要可验证时，相关范围才可能判 current | C11/C12 要求不得把未覆盖内容声称为可恢复快照 |
+| Freshness | `provenance.source_revisions[]` 能记录来源 revision、freshness、观察时间 | 定义逐来源 freshness、范围依赖和现场重新核验 | packet usability 与 recovery freshness 分离，接收方重新 Bootstrap |
+| 写入/并发 | coordination 可表达 owner、write_scope、isolation；不提供锁或原子写入保证 | 只读 Bootstrap 不授予写权限 | D3 规范化写入结果属于客户端操作结果，不是 Packet 字段 |
+| Evidence | 只有引用数组；解析和 revision/scope/actor/result 核验留给 semantic validator | 消费时重新核验 evidence applicability | 写入者不得把旧 evidence 或旧验证状态升级为当前通过 |
+
+### 15.2 当前可表达与不可表达的边界
+
+**现有 Schema 已足够表达（在语义验证配合下）：**
+
+- Packet 类型、版本、生成者、项目基本标识、会话和工作主题。
+- HEAD SHA、分支、观察到的 clean/dirty/unknown，以及未提交路径列表。
+- 工作进度、验证/审查状态、待决策项、阻塞原因和下一步。
+- owner、write_scope、隔离模式，以及权威来源 revision/freshness 的最小引用。
+- handoff 的完成项、进行中、阻塞项、下一步和禁止动作。
+
+**现有 Schema 尚不足以完整表达：**
+
+1. **Dirty/untracked 内容的可验证摘要。** 当前只有路径列表，没有摘要算法、摘要值、条目类型/模式、覆盖范围或摘要观察时间。D2 不能仅凭路径存在将内容判为 current；D3 也不能把这种 Packet 描述为包含完整可恢复工作区。
+2. **稳定 repository identity 与 upstream 映射。** 当前 `project.repository` 是自由字符串，`project.project_id` 没有定义稳定身份的命名空间/来源；没有字段或明确编码约定区分当前 fork、canonical repository 和多个 remote。remote 名称本身不是稳定身份。
+3. **部分可观察状态。** 当前 `code.worktree_state` 是整个工作区的单一状态，不能表达“HEAD 可确认，但某些 tracked/untracked 路径内容未纳入摘要”的细粒度覆盖。D2 可保守降级为 stale/unknown，但不能凭该字段证明局部快照完整。
+
+### 15.3 D1 冻结前必须裁定的两个契约
+
+#### A. Worktree content fingerprint
+
+建议先定义最小、可扩展的可验证条目模型，再决定是否纳入 0.1.0：
+
+- 摘要作用域必须明确到相对项目根目录的路径；不能只提供一个未说明覆盖范围的总 hash。
+- 每个条目至少区分 tracked/untracked、文件类型（普通文件/符号链接；其他类型明确拒绝或标 unknown）、内容摘要算法和摘要值。
+- 普通文件摘要基于原始字节；符号链接摘要基于链接目标的原始表示。若可执行位/文件模式影响项目语义，应纳入条目元数据，不能默默忽略。
+- 路径必须采用跨平台稳定表示：相对项目根目录、统一分隔符、拒绝绝对路径和 `..` 越界；路径编码及大小写冲突策略必须明确。
+- 摘要应使用明确命名的算法标识（例如 SHA-256），不能依赖客户端默认算法。
+- 摘要清单必须声明覆盖范围和观察时间；未列入清单的 dirty/untracked 路径仍是未覆盖，不得推断为 clean。
+- 多文件逐项读取不是原子文件系统快照。若读取期间文件可能变化，客户端必须复核前后元数据/摘要；无法证明观察一致性时标 unknown，而不是声称获得原子快照。
+
+**待裁定的范围选择：**
+
+- 最小方案：只允许逐路径摘要；不定义全工作区树摘要。
+- 扩展方案：在逐路径摘要之上定义确定性 manifest digest，作为清单完整性校验；它仍不能证明读取期间存在原子快照。
+
+本提案倾向先定义逐路径摘要，并把 manifest digest 作为可选校验，不把“完整 worktree snapshot”作为首版承诺。
+
+#### B. Repository identity 与 upstream mapping
+
+建议区分三个概念，禁止用一个 remote URL 混为一谈：
+
+- **repository identity**：远端托管平台提供的稳定仓库身份；若平台没有稳定 ID，则使用项目显式配置的 canonical identity。
+- **checkout identity**：当前本地 checkout/worktree 所属仓库及其路径。路径只用于定位，不是跨机器稳定身份。
+- **upstream mapping**：当前 checkout 的一个或多个 remote/ref 与 canonical repository identity 的显式映射；fork 与 upstream 必须分别标识。
+
+判定规则：
+
+- remote 名称（origin/upstream）是本地可变别名，不是身份。
+- URL 规范化只能作为辅助标识；URL 变更、迁移、镜像或多个协议 URL 可能指向同一仓库，也可能产生歧义。
+- 平台稳定 ID 必须同时带平台/host 命名空间，不能裸用数字 ID。
+- 多 remote 指向不同仓库时，不得自动选 origin；需要显式 canonical/upstream 映射，否则 identity resolution 为 ambiguous/unknown。
+- 离线或自托管环境无法读取平台 ID 时，使用项目明确配置的稳定 identity；不能由 Agent 根据目录名或 remote 顺序猜测。
+
+本提案倾向在 Schema 中为稳定身份与 upstream 映射提供明确结构，而不是把 JSON 对象塞进现有自由字符串字段或依赖私有 extension。
+
+### 15.4 D1/D2/D3 冻结顺序建议
+
+| 阶段 | 冻结前置条件 | 当前判断 |
+|---|---|---|
+| D1 Schema 0.1.0 | 裁定 worktree fingerprint 表示；裁定 repository identity/upstream 表示；完成 Schema/示例/兼容性和语义边界一致性复核 | **暂不具备冻结条件**：两项机器契约仍缺失 |
+| D2 | D1 字段映射明确；B0 identity resolution 和 B4 worktree observation 有可执行且保守的判定规则；18 个场景不依赖 Schema 无法表达的事实 | 设计主体已完成；需解决上述依赖后再作冻结候选复核 |
+| D3 | D2 Bootstrap/Freshness 契约稳定；C01–C21 与最终 Schema 字段边界一致；写入结果不确定、并发冲突和失败回读边界明确 | 概念与场景审查已完成；依赖 D1/D2 的两项身份/摘要问题仍阻止整体冻结 |
+
+依赖关系是有向的：D3 消费 D2 的恢复与 freshness 判定；D2 消费 D1 的 Packet 结构；D1 不应反向依赖 D2/D3 的实现细节。D3 的 `write_result` 是操作执行结果，不应为了复用它而写进 Packet Schema。
+
+### 15.5 冻结前禁止的错误推论
+
+- Schema 校验通过，不等于 repository identity 正确、worktree 内容完整或 freshness current。
+- HEAD SHA 可确认，不等于 tracked working copy 或 untracked files 已被指纹覆盖。
+- Packet 中存在 `uncommitted_paths`，不等于这些路径内容可恢复。
+- `project.repository` 字符串相同，不足以证明 fork、镜像和 canonical repository 是同一身份。
+- D3 文档审查通过，不等于 Writer 能原子写入或两个客户端已实现一致行为。
+- Fixture 契约测试通过，不替代真实文件系统故障注入和两个独立客户端的 Writer E2E。
+
+**本节结论：** D1 0.1.0 当前不能宣称完整支撑 D2/D3 对 dirty/untracked 内容和多 remote/fork 身份的严格判定。先完成两个机器契约的语义裁定，再决定是否调整尚未冻结的 Schema 0.1.0；在此之前 D1、D2、D3 均不冻结。本节是依赖审查与设计建议，不是用户对字段方案的批准。
