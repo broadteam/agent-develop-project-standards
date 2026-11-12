@@ -987,3 +987,24 @@ Design §17.15 已整理 13 组规则：协议兼容、Repository Identity、Rem
 ### 下一步（唯一首选）
 
 审查 `schemas/scp/0.2/fixtures/SEMANTIC-CONTEXT.md` 是否已足以转化为未来 Fixture Runner 的确定性测试输入契约。逐个定义 fixture setup、只读 observation、预期 normalized result、失败/权限不足降级；仍先做设计审查，不实现 Semantic Validator、Fixture Runner 或 CI Gate，除非另获授权。
+
+## Semantic Fixture Execution Contract 草案（2026-11-12）
+
+新增 `schemas/scp/0.2/fixtures/SEMANTIC-EXECUTION-CONTRACT.md`，作为 `SEMANTIC-CONTEXT.md` 的执行边界补充：
+
+- 统一 Prepare / Observe / Evaluate / Assert-Cleanup 四阶段。
+- 定义 packet_only、local_git、local_git_submodule、provider_stub、filesystem_profile、fault_injection 六类测试环境。
+- 临时 Git repository、local bare remote 和 provider stub 由未来 Harness 在 disposable root 中建立；被测 Bootstrap observation 保持只读。
+- 禁止真实网络/用户凭据/真实远端 push；固定 clock、raw bytes、commit、provider response。
+- 通过事件 hook 而不是 sleep 测试扫描竞态；companion context 缺失为 not_run/unknown。
+- 给 19 个 semantic vectors 标注 profile 与预期 semantic assertion。
+- 提供 normalized output 的示意形状与双客户端一致性要求，但未定义新的机器契约或实现 API。
+
+当前 5 个待设计问题：
+1. Companion context 是否需要机器可读格式。
+2. 本地 Git fixture bundle 如何跨平台固定与分发。
+3. 第一轮互操作需要覆盖哪些 OS/filesystem profiles。
+4. 不耦合语言的 fault-injection hook 如何设计。
+5. Reason codes 是否为测试层专用，还是未来协议字段。
+
+范围边界：本次只增加设计文档，不实现 Semantic Validator、Fixture Runner、CLI adapter、Writer 或 CI Gate；D1/D2/D3 仍未冻结。
