@@ -1277,3 +1277,187 @@ Checkpoint 操作的客户端结果至少应能归一化为以下独立维度；
 10. **平台能力不可假定**：文件模式、symlink、特殊文件和路径字节在不同平台可能不可完全观察；不支持时按条目或整体 scope 降级，不得通过猜测填值。
 
 **暂定结论：** 逐路径 fingerprint 是满足 D2/D3 当前需求的最小可行候选方向；但它仍需与 Repository Identity/Upstream Mapping 合并做一次整体 D1 0.2.0 候选审查。当前没有用户对字段模型的批准，因此不修改 Schema 0.1.0，不生成正式 0.2.0 文件，也不冻结 D1/D2/D3。
+
+## 16. Repository Identity 与 Upstream Mapping 候选模型
+
+本节与 §15.6–§15.14 的 Worktree Fingerprint 一起构成 D1 机器契约缺口的第二部分。目的不是“猜出 origin 是哪个仓库”，而是让不同客户端在 fork、多 remote、镜像、迁移和离线环境下对项目身份得出相同或同样保守的结果。
+
+### 16.1 必须分开的身份概念
+
+| 概念 | 含义 | 不能与什么混为一谈 |
+|---|---|---|
+| Project Identity | 跨仓库/多仓库仍可稳定标识的逻辑项目身份（若项目显式配置） | 单个 Git remote URL |
+| Checkout Repository Identity | 当前本地 Git checkout 实际对应的仓库身份 | canonical upstream |
+| Canonical Repository Identity | 项目规则指定的权威/规范仓库身份 | origin 或 remote 名称 |
+| Remote Target | 某 remote 的 fetch 或 push 实际指向的仓库 | 同名 remote 的另一方向 URL |
+| Checkout Location | 本地 worktree/project root 的文件系统位置 | 跨机器稳定项目身份 |
+
+示例：fork 工作流中，当前 checkout 可能属于个人 fork；origin 的 fetch/push 均指向 fork，upstream 的 fetch 指向 canonical repository。该 checkout 可以属于同一逻辑 Project，但 checkout repository 不等于 canonical repository。
+
+### 16.2 建议的数据模型（候选，不是 Schema）
+
+建议在 Packet 的 project 下增加可选 repository_identity 对象。当前 project.repository 保留为人类可读 locator，不再承担稳定身份判定；现有 project.project_id 若使用，应解释为项目级身份，而不是仓库身份。
+
+~~~json
+{
+  "project": {
+    "repository": "https://github.com/example/project-fork",
+    "root": ".",
+    "project_id": "https://registry.example/projects/project-x",
+    "repository_identity": {
+      "observed_at": "2026-11-12T00:00:00Z",
+      "checkout": {
+        "namespace": "https://github.com",
+        "id": "R_checkout",
+        "locator": "https://github.com/example/project-fork",
+        "basis": "provider_native_id"
+      },
+      "canonical": {
+        "namespace": "https://github.com",
+        "id": "R_canonical",
+        "locator": "https://github.com/org/project",
+        "basis": "provider_native_id"
+      },
+      "remote_mappings": [
+        {
+          "remote_name": "origin",
+          "direction": "fetch",
+          "relation": "fork_of_canonical",
+          "target": {
+            "namespace": "https://github.com",
+            "id": "R_checkout",
+            "locator": "https://github.com/example/project-fork",
+            "basis": "provider_native_id"
+          }
+        },
+        {
+          "remote_name": "origin",
+          "direction": "push",
+          "relation": "fork_of_canonical",
+          "target": {
+            "namespace": "https://github.com",
+            "id": "R_checkout",
+            "locator": "https://github.com/example/project-fork",
+            "basis": "provider_native_id"
+          }
+        },
+        {
+          "remote_name": "upstream",
+          "direction": "fetch",
+          "relation": "canonical",
+          "target": {
+            "namespace": "https://github.com",
+            "id": "R_canonical",
+            "locator": "https://github.com/org/project",
+            "basis": "provider_native_id"
+          }
+        }
+      ]
+    }
+  }
+}
+~~~
+
+Identity object fields:
+- namespace：身份 ID 的唯一命名空间，通常是 Git 服务实例 origin（包括必要的实例路径）；不能只用 provider 产品名称，例如 enterprise 与 public service 必须区分。
+- id：namespace 内稳定、不透明的仓库 ID；仅当平台文档/接口明确提供稳定 ID，或项目显式配置了稳定 ID 时使用。
+- locator：经脱敏和规范化后的导航 URL，仅用于显示、辅助解析和人工审查；不是稳定身份的首选比较依据。
+- basis：provider_native_id / project_config / normalized_locator_only。最后一种只能形成 provisional identity，不得与稳定 ID 等价。
+- checkout：当前 checkout 的仓库身份；canonical：项目配置指定的规范仓库身份。两者允许相同，也允许 fork 工作流下不同。
+- remote_mappings：每个 remote 的每一种方向分别记录。fetch URL 与 push URL 不得假设相同；一个 remote 有多个 URL 时逐目标列出，不依赖数组顺序。
+- relation：canonical / fork_of_canonical / mirror_of_canonical / unrelated / unknown。除 canonical ID 完全匹配外，fork/mirror 关系必须有平台可验证关系或项目显式配置支持；不能根据 owner 名称、remote 名称或仓库命名相似度猜测。
+- remote_name 是当前 checkout 的本地配置别名，仅用于把观察到的 URL 关联回 Git 配置；跨机器比较以 target identity 为准。
+
+Project Identity 与 Repository Identity 必须分离：
+- project.project_id 若被使用，应是项目明确配置的稳定 URI/命名空间 ID，可跨 fork、镜像或多个仓库保持不变；不能把它当作 provider repository ID。
+- repository_identity.checkout/canonical 分别识别仓库实体。
+- 没有稳定 project_id 不代表仓库身份无效；只有 repository identity 足够可靠时，仍可识别当前 checkout 所属仓库。反之，只有 project_id 而无法确认 checkout repository 时，不得声称代码来源身份已核验。
+
+### 16.3 身份解析规则
+
+按以下顺序解析，禁止使用 remote 名称作为首要规则：
+
+1. **项目显式配置**：读取项目权威规则中配置的 project_id、canonical repository identity 和 remote relationship mapping。配置必须能追溯到具体来源版本。
+2. **平台稳定 ID**：对可访问且有权限的 Git 平台资源，读取 provider/instance 命名空间下的稳定 repository ID；不得绕过用户权限或改用未授权凭据。
+3. **显式映射**：在离线、自托管、镜像或平台 API 不可用时，使用项目已配置的 stable identity/mapping；记录其来源 revision。
+4. **规范化 locator**：只有前述方式不可用时，才把脱敏后的 URL 作为弱身份线索；只能 exact-match 同一规范化 locator，不能据此证明 URL 迁移、SSH/HTTPS 别名、fork/upstream 或镜像关系。
+5. **无法确认**：没有可用稳定 ID/配置且 locator 有歧义时，身份结果为 unknown 或 ambiguous；不挑 origin，不按 remote 列表顺序选一个。
+
+身份比较：
+- 稳定身份以 namespace + id 完全匹配为准；locator 变化不推翻稳定 ID，但应更新导航信息。
+- namespace 不同的相同 id 不相等；不同 provider 的数字 ID 不得直接比较。
+- 同一 namespace 内两个不同稳定 id 是不同仓库，即使 URL path 或名称相似。
+- 项目配置声明的 fork/mirror relation 与平台可验证关系冲突时，标 conflict，不由 Agent 选边。
+- 多个 fetch/push target 不同是允许的观察结果，但必须分别表达；若本次任务要求确定 push destination，而 push target 未配置或多个候选不明确，则该操作的目标解析为 ambiguous，不影响可独立进行的只读分析。
+
+### 16.4 URL/Remote 规范化与凭据保护
+
+URL 只作辅助定位，不能覆盖稳定 ID：
+
+- 解析 HTTPS、SSH URL 与 Git scp-like syntax 时，采用已知 Git provider 的明确解析规则；未知 provider 不套用 GitHub/GitLab 的路径假设。
+- scheme/host 的规范化由 provider adapter 定义；默认端口、尾随 .git、路径大小写和 percent-encoding 不作跨 provider 的统一猜测。
+- 不做通用 path lowercase；repository path 在未知 provider 上按原样保留。
+- 去除 URL userinfo、access token、密码、签名 query、fragment 和其他凭据参数；绝不将带凭据的原始 remote URL 写入 Packet、日志或诊断摘要。
+- scp-like SSH 与 HTTPS URL 只有在稳定 provider ID 相同或 provider adapter 可证明等价时才映射为同一身份；仅凭 host/path 看似相同不自动合并。
+- file://、本地路径或无法解析的自定义 transport 不构成稳定远端身份；只有项目显式配置的 project identity 可补足。
+- URL 迁移、owner/repository 重命名、镜像切换：有稳定 ID 时保持身份连续；只有 locator-only basis 时必须重新人工/配置确认，不能自动推断迁移关系。
+
+### 16.5 D2 Bootstrap 的规范化身份结果
+
+D2 应将身份解析作为独立于 freshness 的前置轴，输出至少一种结果：
+- resolved：checkout identity 与项目配置/Packet 所声明身份有稳定 ID 或显式配置匹配；canonical 与 remote mappings 无冲突。
+- provisional：只能通过完全相同的规范化 locator 匹配；可以作为有限导航线索，不足以证明迁移/fork/mirror 等关系。
+- ambiguous：多个候选仓库或方向目标无法唯一判定；依赖仓库身份的写入、推送、交接目标选择停止。
+- conflict：Packet、项目配置、平台稳定 ID 对同一仓库/关系给出矛盾身份。
+- unknown：权限、离线、配置缺失或 URL 不可解析导致无法判断。
+
+身份结果不得折叠进 source_freshness：
+- identity=resolved 不代表 Packet 内容 current。
+- freshness=current 不代表 Packet 属于当前 checkout。
+- provisional/ambiguous/conflict/unknown 不得提升为 resolved。
+- identity 不确定只阻断依赖该 identity 的操作；不阻断与仓库来源无关的低风险只读分析。
+
+### 16.6 Repository Identity 场景契约
+
+| ID | 场景 | 规范化预期 | 禁止推论/行为 |
+|---|---|---|---|
+| RI01 | 单一 remote，平台稳定 ID 与 Packet 一致 | checkout identity resolved | 仅凭 remote 名称宣称身份一致 |
+| RI02 | origin 是 fork，upstream 是 canonical，映射明确 | checkout=fork；canonical=upstream；project identity 可保持一致 | 把 origin 自动认作 canonical |
+| RI03 | origin fetch 与 push 指向不同 repository | 分别记录 fetch/push targets；推送目标按本次操作重新判定 | 将 fetch URL 当作 push URL |
+| RI04 | 多个 remote 指向不同仓库且无项目 mapping | ambiguous/unknown | 选择第一个 remote 或默认 origin |
+| RI05 | URL owner/repository 改名，但稳定 provider ID 相同 | identity resolved；locator 更新 | 仅因 URL 变化判成新项目 |
+| RI06 | HTTPS 与 SSH URL 指向同一仓库，但无法获取稳定 ID/adapter 不能证明等价 | provisional/ambiguous | 仅凭字符串相似合并身份 |
+| RI07 | 两个不同 namespace 下出现相同 native ID | 身份不同 | 忽略 namespace，仅比较 id |
+| RI08 | public host 与企业 Git 实例同名仓库 | 按 issuer/instance 区分 | 将不同 host 上相同 path 视为同仓库 |
+| RI09 | 平台 API 离线，但项目显式 identity mapping 可读取 | 按配置身份解析，并标注来源 revision | 用旧缓存的 API ID 覆盖当前显式配置冲突 |
+| RI10 | 没有稳定 ID、没有显式配置，只有 URL | provisional 或 unknown | 将 locator-only 认作不可变身份 |
+| RI11 | Packet canonical identity 与项目配置不一致 | conflict；依赖该身份的写操作停止 | 按更新时间或 Agent 偏好选择一方 |
+| RI12 | remote URL 含凭据/Token | 脱敏后再处理；凭据不进入 Packet | 保存原始 URL 或把 token 写入日志 |
+| RI13 | detached HEAD、无 branch，但 repository identity 明确 | 仓库身份可 resolved；branch 另标 unknown/detached | 将 branch 缺失解释为项目身份未知 |
+| RI14 | checkout 是多 worktree 的其中一个 | 仓库身份由 common Git repository/稳定映射识别；worktree 路径仅作本地定位 | 把绝对路径当作跨会话稳定 identity |
+| RI15 | self-hosted Git 无 provider ID | 使用项目显式配置的 namespaced stable identity；否则 provisional/unknown | 由目录名、 remote alias 或 URL 顺序伪造稳定 ID |
+
+### 16.7 与 Worktree Fingerprint 的组合规则
+
+- Repository Identity 先确认“这份 Packet 属于哪个逻辑项目/checkout repository”；Fingerprint 再确认“这个仓库基线下哪些路径的 index/worktree 内容与 last-known 匹配”。两者不能互相替代。
+- fingerprint 比较必须绑定同一 checkout repository identity 和对应 HEAD SHA；只在 canonical/upstream 相同但 checkout 是不同 fork 时，不得直接把另一个 fork 的 worktree fingerprint 当作本地文件状态。
+- 如果 fork 与 canonical 具有明确项目关系，允许复用意图/需求等项目级来源引用，但代码对象及 worktree fingerprint 仍绑定具体 checkout repository。
+- remote mapping 变化不必自动使文件内容 digest stale；但若当前 checkout repository identity 变化、HEAD 无法映射或 project root 变化，则相关 fingerprint 不得直接判 current。
+- Packet 不保存认证凭据；读取平台稳定 ID 是只读观察，不能自动触发远端配置变更或 push。
+
+### 16.8 Schema 兼容性与建议
+
+- 当前 0.1.0 的 project.additionalProperties=false，新的 repository_identity 对象不能原地加入 0.1.0。
+- 若用户批准该模型，建议与 §15 的 worktree_fingerprint 一起评估新的 0.2.0 Schema；不要分别生成多个互不兼容的小版本。
+- 不建议仅靠修改 project.repository 字符串编码身份，也不建议把结构化 remote mappings 存进自由字符串或可忽略 extensions。
+- repository_identity 对象应为 optional，以支持没有远端、离线、自托管旧项目及未启用 SCP 的恢复路径；但若 Packet 声称身份已核验，则必须提供足够稳定标识或明确配置来源。
+- project.project_id 继续作为可选的逻辑项目身份；建议只有项目正式配置稳定 namespaced URI 时才填入。未配置则省略，不能自动用 repository URL 或目录名填充。
+- 结构字段的语义验证需检查：同一 remote/direction 多 target 的排序独立性、canonical relation 与 canonical identity 的一致性、identity basis 所需字段、fetch/push 分离、URL 凭据清除，以及多个 stable identity 冲突时的 fail-closed。
+
+### 16.9 暂定结论与待验证边界
+
+推荐方案是：以 provider/instance namespace + stable native repository ID 为强身份；无平台 ID 时使用项目显式配置；规范化 URL 仅作为弱定位线索。单独保存 checkout repository、canonical repository 和每个 remote 的 fetch/push mapping，fork/mirror 关系必须显式或可验证。
+
+该方案不要求 SCP 自建身份注册中心，也不引入锁服务或后台协调服务。实际验证前仍需覆盖 GitHub/GitLab/self-hosted/local-only、SSH/HTTPS、多 remote、多 worktree、fork、pushurl、URL 迁移和权限不足场景。
+
+本节仍是候选设计，不代表用户批准，也不改变 D1 Schema 0.1.0。与 §15 的 Worktree Fingerprint 一起审查后，才形成完整 D1 0.2.0 候选。
