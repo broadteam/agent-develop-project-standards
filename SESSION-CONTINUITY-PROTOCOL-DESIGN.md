@@ -1461,3 +1461,53 @@ D2 应将身份解析作为独立于 freshness 的前置轴，输出至少一种
 该方案不要求 SCP 自建身份注册中心，也不引入锁服务或后台协调服务。实际验证前仍需覆盖 GitHub/GitLab/self-hosted/local-only、SSH/HTTPS、多 remote、多 worktree、fork、pushurl、URL 迁移和权限不足场景。
 
 本节仍是候选设计，不代表用户批准，也不改变 D1 Schema 0.1.0。与 §15 的 Worktree Fingerprint 一起审查后，才形成完整 D1 0.2.0 候选。
+
+### 16.10 Git Remote 与 Branch Tracking 语义校准
+
+根据 Git 官方文档复核后，对 §16.2–§16.4 的 remote 映射语义作以下收紧：
+
+1. **Fetch 与 push URL 的差异不是默认的两个仓库关系。** 同一 remote 的 pushurl 可以与 url 不同，但 Git 文档要求它们仍指向同一仓库位置；若实际需要从 upstream fetch、向 fork push，应配置两个 remote，而不是让同一 remote 的 fetch/push 指向两个不同 repository identity。
+2. **多 URL 具有明确执行语义。** 对普通 remote 配置，fetch 使用第一个 url；若配置 pushurl，push 使用所有 pushurl；没有 pushurl 时，push 使用所有 url。多个有效 push targets 若解析到不同稳定 repository identity，应标 conflict，不能静默向多个不同仓库推送。
+3. **Remote URL 的读取应使用 Git 展开后的结果。** Git 提供 remote get-url 的 fetch/push 及 all 选项，并展开 insteadOf/pushInsteadOf 规则；但展开后的 URL 仍只是 locator，优先转换为稳定 provider identity。
+4. **Git branch upstream 与项目 canonical upstream 是两个概念。** branch.<name>.remote + branch.<name>.merge 描述当前分支的 tracking upstream；branch.<name>.pushRemote、remote.pushDefault 等可能改变默认 push remote。D2 必须分别恢复 branch tracking 与项目 canonical/fork 关系，不能把 branch upstream 直接等同 canonical repository。
+5. **Fetch/push 目标决策必须按操作重新解析。** 即便 Packet 中记录了 remote mapping，实际 fetch/push 前仍需读取当前仓库配置和 branch-specific defaults；Packet 不提供持续授权。
+
+建议 remote_mappings 在正式 Schema 中按“remote 配置实体”组织，而不是把同一个 remote 的 fetch/push 当作可任意指向不同身份的独立 remote：
+- remote_name：本地 alias。
+- fetch_target：该 remote 当前有效 fetch target（默认 fetch 使用配置的第一个 url）。
+- push_targets：该 remote 当前有效 push target 集合（配置 pushurl 时取其全部，否则取全部 url）。
+- relation_to_canonical：根据稳定 identity/显式配置判定的关系。
+- 多 URL 的顺序和有效语义必须保留；若某条目标无法解析或多个 push targets 身份冲突，该 remote 的身份/操作可用性降级。
+
+另外建议增加可选 branch_tracking 观察对象，分开记录：
+- tracking_remote_name / merge_ref：当前分支的 upstream tracking 配置（若存在）。
+- push_remote_name / resolution_basis：当前分支默认 push remote 的配置来源（若能从本地 Git 配置确定）。
+- branch 未设置 upstream 或 detached HEAD 时如实省略/标 unknown；不要从 remote 名称猜测。
+
+这些是 Git 配置观察快照，消费时必须重新读取；它们不构成项目 canonical identity，也不决定实际 push 的 refspec 或授权。
+
+### 16.11 Worktree Fingerprint 只读采集命令校准
+
+Git 官方文档说明，git status 默认可能刷新并写回 index 的 stat cache；因此只读 Bootstrap/Fingerprint 不能把普通 git status 默认等同无副作用读取。
+
+§15.9 的 status 观察建议明确为：
+
+~~~sh
+git --no-optional-locks status --porcelain=v2 -z --untracked-files=all --ignore-submodules=none
+~~~
+
+要求：
+- 必须使用 porcelain v2 + NUL-delimited path，不解析面向人的 short/long 输出；rename/copy 的目标路径和原路径均按原始路径字节解析。
+- 明确 --untracked-files=all，不能依赖用户配置的 status.showUntrackedFiles；ignored 路径仍不纳入首版 scope。
+- 显式 --ignore-submodules=none，防止项目配置把 submodule dirty 状态隐藏后，Fingerprint 错称 coverage complete。
+- 使用 --no-optional-locks 避免 status 为性能优化写回 index；若客户端无法保证只读执行，则该检查不得归类为 read-only Bootstrap。
+- porcelain v2 提供 staged/unstaged XY、HEAD/index/worktree mode、HEAD/index object name、rename 原路径及 submodule 状态字段；实现仍须对 index blob 和 worktree 文件原始字节计算 SHA-256，不能把 Git object ID 当作本协议 digest。
+- 对 porcelain v2 未知扩展 header 按 Git 规范忽略；不能忽略未知或无法解析的必需路径记录。
+
+### 16.12 复核参考
+
+- Git status porcelain v2、NUL-delimited path 和 submodule 状态：<https://git-scm.com/docs/git-status>
+- Git fetch remote 的 URL / pushurl / 多 URL 行为、branch upstream 配置：<https://git-scm.com/docs/git-fetch>
+- Git remote get-url 的 --push / --all 及 URL 操作约束：<https://git-scm.com/docs/git-remote>
+
+**校准结论：** remote 身份模型必须表达 Git 的有效 fetch/push 配置语义，不能仅把 URL 集合当作无方向的 remote 别名；Fingerprint 采集必须显式避免 git status 的可选 index 写回，才能符合 SCP 的只读边界。
