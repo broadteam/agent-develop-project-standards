@@ -9,6 +9,7 @@
 - Context version: `0.1.0`
 - Dialect: JSON Schema Draft 2020-12
 - Format validation: consumers must enable `date-time` format assertion.
+- Cross-reference and event-order semantics: see [COMPATIBILITY.md](./COMPATIBILITY.md).
 - Context versioning is independent of SCP Packet `schema_version=0.2.0`.
 
 The Context is test-harness input. It is not an SCP Packet, project state source, authorization token, or runtime recovery artifact.
