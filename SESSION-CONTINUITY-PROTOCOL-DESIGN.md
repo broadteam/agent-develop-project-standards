@@ -1659,9 +1659,11 @@ repository_identity 可按 §16.2 定义，semantic validation 至少包括：
 - `schemas/scp/0.2/examples/checkpoint-minimal.json`
 - `schemas/scp/0.2/examples/handoff-with-identity-and-fingerprint.json`
 - `schemas/scp/0.2/examples/handoff-partial-fingerprint.json`
+- `schemas/scp/0.2/examples/handoff-clean-gitlink-fingerprint.json`
 - `schemas/scp/0.2/fixtures/README.md`
+- `schemas/scp/0.2/fixtures/SEMANTIC-CONTEXT.md`
 - `schemas/scp/0.2/fixtures/invalid/schema/` 下 8 个 Schema 级负例。
-- `schemas/scp/0.2/fixtures/invalid/semantic/` 下 6 个 semantic-validator 级负例。
+- `schemas/scp/0.2/fixtures/invalid/semantic/` 当前有 19 个 semantic-validator 级负例。
 
 Schema 0.2.0 核心对象的具体表达：
 - `project.repository_identity`：`observed_at`、`checkout`、可选 `canonical`、可选 `remote_mappings`、必需 `source_refs`。
@@ -1680,7 +1682,7 @@ Schema 0.2.0 核心对象的具体表达：
 - Schema 中的正则表达式均可由 JavaScript RegExp 编译。
 - 四个正例（最小 checkpoint、complete fingerprint、partial fingerprint、clean gitlink pointer + unknown branch config）在本轮编写的结构/条件子集检查中无错误。
 - 八个 Schema 级负例分别触发预期约束：dirty 无路径、complete + changed capture、locator-only 携带 ID、路径越界/不规范。
-- 六个 semantic 级负例均通过结构层检查，符合“JSON Schema 不能单独证明这些跨字段/现场关系”的预期。
+- 当时已有的 6 个 semantic 级负例均通过结构层检查，符合“JSON Schema 不能单独证明这些跨字段/现场关系”的预期。后续新增的 semantic fixture 数量与标准验证状态见 §17.15。
 
 重要限制：
 - 上述是本轮脚本做的 JSON 解析、引用/正则检查及有限结构/条件检查，不是正式 JSON Schema Draft 2020-12 验证器的合规性报告。
@@ -1713,7 +1715,7 @@ Schema 0.2.0 核心对象的具体表达：
 复核结果：
 - 四个正例：最小 checkpoint、complete fingerprint handoff、partial fingerprint handoff、clean gitlink + unknown branch config，在本轮自编写的结构/条件子集检查中无错误。
 - 八个 Schema-invalid cases：均触发预期局部约束。
-- 七个 semantic-invalid cases：均保持 Schema-valid；新增 dirty-submodule case 需要 fixture 现场观察判定，不能仅凭 Packet 字段判断。
+- 当时的七个 semantic-invalid cases：均保持 Schema-valid；dirty-submodule case 需要 fixture 现场观察判定，不能仅凭 Packet 字段判断。后续扩展见 §17.15。
 - 所有 Schema pattern 均可由 JavaScript RegExp 编译；所检查样例使用到的本地 refs 均可解析。
 
 本轮第二轮记录为形式验证前的结构检查；后续正式 Draft 2020-12 验证结果见 §17.13。
@@ -1748,3 +1750,75 @@ Schema 0.2.0 核心对象的具体表达：
 - branch tracking 的 attached + upstream unknown 已纳入 Schema，避免把配置不可读伪装成 not_configured。
 - 未运行真实跨平台 Git CLI E2E、文件系统竞态测试或双 Agent 客户端 Fixture 互操作。
 - D0 保持已确认冻结；D1、D2、D3 继续保持未冻结。PR #11 仍保持 Open + Draft。
+
+### 17.15 Semantic-contract 完整性审查（2026-11-12）
+
+本节是目前的最新清单，用于取代 §17.8–§17.14 中较早阶段的 fixture 数量。较早记录保留其当时状态，不应再被解读为当前总量。
+
+#### A. 审查结论
+
+Schema 与 Semantic Validator 的职责边界目前清晰，无需为本轮发现的问题立即增加新的核心字段或修改 Schema 0.2.0 结构：
+
+- JSON Schema 负责类型、必填字段、封闭对象、枚举、局部条件、格式与容易表达的模式约束。
+- Semantic Validator 负责跨字段一致性、集合/排序/唯一性、远端与平台事实、Git index/worktree 事实、来源可解析性和现场状态。
+- Bootstrap 必须将现场观察绑定到当前 checkout identity、HEAD、index/status、权限和来源 revision；不能把 Packet 的 last-known snapshot 直接提升为 current/resolved。
+- 无法获得 companion context 或权限不足时，结果是 not_run/unknown；不能将“无法检查”判成“没有问题”。
+- 冲突保留完整观察，不按数组顺序、时间戳、remote alias 或 Agent 偏好择一。
+
+#### B. 当前 Fixture Inventory
+
+| 类型 | 数量 | 含义 |
+|---|---:|---|
+| Positive | 4 | 最小 checkpoint、普通文件 complete fingerprint、partial/unreadable fingerprint、clean gitlink + attached/unknown branch config |
+| JSON Schema-invalid | 8 | 应由标准 Draft 2020-12 Validator 在结构层拒绝 |
+| Semantic-invalid | 19 | JSON 结构保持有效，但必须由 semantic/context 层拒绝、降级或标记 unknown |
+
+19 个 semantic vectors 分组：
+- **Fingerprint identity/coverage**：duplicate path、complete path-set mismatch、partial path outside status set、unsorted entries。
+- **Git index**：duplicate stage、stage 0 与 unmerged stage 混用。
+- **Capture lifecycle**：时间窗倒置、扫描过程发生变化时不可声称 complete（后续现场 context 需要覆盖 re-enumeration race）。
+- **Submodule**：dirty submodule、index gitlink 与 checkout HEAD pointer 不一致。
+- **Repository identity / remote mapping**：duplicate remote alias、canonical relation mismatch、fetch/push repository identity mismatch、多个不同 push target。
+- **Locator security / evidence**：identity locator credentials、project.repository credentials、identity source reference unresolvable。
+- **Branch configuration**：upstream remote 不存在、push remote 不存在、branch_state 与 code.branch 冲突。
+
+每个 semantic fixture 的额外现场条件写入 `schemas/scp/0.2/fixtures/SEMANTIC-CONTEXT.md`。其中标明哪些输入仅靠 Packet JSON 无法表达，例如 provider API 资源是否存在、Git submodule 是否 dirty、Git index 与当前 checkout 是否一致。没有 companion context 时，不得声称 fixture pass。
+
+#### C. 本轮发现并已修正的问题
+
+1. **Clean gitlink 示例原有指针不一致。** index gitlink OID 与 submodule checkout HEAD OID 不相同，和“clean”语义矛盾。已统一为同一 synthetic OID；新增的 dirty-submodule semantic fixture 使用相同指针，但要求伴随的现场 worktree 状态为 dirty，以隔离“内容指针一致 ≠ 子模块 clean”这一点。
+2. **Semantic fixture 误放目录。** `branch-state-code-branch-mismatch.json` 曾暂时位于 `invalid/schema/`，已移动至 `invalid/semantic/`，Schema-invalid 数量仍为 8。
+3. **遗漏顶层 locator 凭据检查。** `project.repository` 与 `identity_target.locator` 都属于 locator，必须按相同规则排除 userinfo/password/token/signed query；新增 `credentialed-project-repository.json`。
+4. **Submodule 指针不一致。** 增加 index gitlink OID 与 checked-out submodule HEAD 不匹配的反例。
+5. **身份来源解析失败。** 增加 provider source reference authoritative not-found 的反例；不能使用旧缓存或 URL 相似性把 identity 提升为 resolved。
+6. **Push remote 引用缺失。** 除 upstream remote 外，新增 default push remote alias 不在 live/Packet remote mapping 的反例。
+
+#### D. Semantic Validator 最低判定清单
+
+实现前应按以下顺序形成独立的语义规范，不应把它们塞进单个全局布尔值：
+
+1. **Packet/protocol**：schema version 与 fingerprint format 是否受支持；unsupported 与 freshness unknown 分离。
+2. **Project/repository identity**：checkout identity、canonical identity、项目配置与 provider ID 是否一致；稳定身份使用 namespace + ID；locator-only 只能 provisional。
+3. **Remote resolution**：remote alias 精确唯一；fetch/push target 按 Git 有效配置读取；resolved remote 的 fetch target 与所有 push targets 必须指向同一 repository identity；不同 identity 的 push target 保留全部并降为 conflict/ambiguous。
+4. **Branch tracking**：attached/detached 与 code.branch 一致；configured upstream、resolved push remote 必须存在于 live Git config；存在 Packet remote mapping 时还要在映射中找到同名 alias。配置不可读维持 unknown。
+5. **Path identity**：路径严格 UTF-8、worktree-root 相对、无绝对/越界/空组件/点段；检测大小写与 Unicode normalization collisions；不做静默归一化。
+6. **Fingerprint set**：entry path 唯一且按 UTF-8 byte order 排序；complete 与 uncommitted_paths 集合完全相同；partial 只能是其子集；unknown 不得声称覆盖完整。
+7. **Index state**：stage 唯一并排序；stage 0 不与 stage 1/2/3 共存；mode 与 blob 真实对应；index digest 必须重算验证。
+8. **Worktree state**：present/absent/unreadable 语义正确；mode/kind 匹配；普通文件按 raw bytes、symlink 按 link target bytes；路径对象在读取前后未被替换。
+9. **Submodule**：complete 中的 gitlink 需要 index OID = checkout HEAD OID，submodule 已初始化、可读且内部 clean；不递归计算子模块内部文件 digest；否则 partial/unknown。
+10. **Capture consistency**：completed_at 不早于 started_at；扫描窗口内 HEAD/index/status 未变；完成后重新枚举 path set；逐路径稳定不等于全局原子。
+11. **Sensitive data**：project.repository、identity locator 和其他 locator 不包含凭据；敏感路径不摘要，coverage 降级。
+12. **Evidence/provenance**：identity source_refs 和 provenance 必须可追溯到实际权威来源与对应 revision；不可解析或权限不足为 unknown，authority conflict 不按 timestamp 解决。
+13. **Recovery output**：每个声明分别给 current/stale/conflict/unknown；identity resolved/provisional/ambiguous/conflict/unknown 独立于 freshness；允许行为按当前动作依赖的声明计算。
+
+#### E. 验证状态与剩余限制
+
+- Schema 0.2.0 未因本轮 semantic audit 修改结构；此前的 Draft 2020-12 meta-schema 与实例验证记录仍适用于当时验证的 Schema 与 4 个正例、8 个 Schema-invalid、7 个 semantic-invalid vectors。
+- 本轮新增的 12 个 semantic vectors 尚未重新使用标准 Draft 2020-12 Validator 执行完整实例验证。它们由已验证 positive packet 定向变异而来，局部关键字子集检查不能替代标准验证；在正式重跑前，不宣称 19 个 semantic fixtures 均已标准验证为 Schema-valid。
+- `SEMANTIC-CONTEXT.md` 是未来 Fixture Runner 的输入契约，不是已运行的 fixture 环境；provider API、submodule 状态和真实 Git index 内容仍未被实际创建/验证。
+- 尚未实现 Semantic Validator、Fixture Runner、真实 Git CLI E2E、跨平台文件系统测试、双客户端互操作或 CI Gate。
+- 这轮审查不冻结 D1、D2、D3。D1 0.2.0 继续是可审查 Draft；D0 保持已确认冻结。
+
+#### F. 下一步
+
+首选下一步是对当前 19 个 semantic vectors 重新运行标准 Draft 2020-12 实例验证，并将所有结果固定到当前 Schema blob SHA；然后单独审查 semantic-context 的可执行性设计。未获额外授权前仍不实现 Validator、Writer 或 CI Gate。
