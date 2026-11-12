@@ -9,6 +9,7 @@ These fixtures specify expected JSON Schema and semantic-validator behavior. The
 | `../examples/checkpoint-minimal.json` | JSON Schema valid | Minimum checkpoint; no optional handoff, coordination, repository identity or fingerprint |
 | `../examples/handoff-with-identity-and-fingerprint.json` | JSON Schema valid; illustrative shape only | Fork checkout vs canonical, separate remotes, branch tracking, index/worktree digests and an untracked path. Semantic validation requires a fixture harness to resolve the synthetic `fixture://` references and provide matching file/index bytes; the placeholder digests are not evidence.
 | `../examples/handoff-partial-fingerprint.json` | JSON Schema valid | Per-path stable capture with one unreadable file; coverage is partial rather than complete |
+| `../examples/handoff-clean-gitlink-fingerprint.json` | JSON Schema valid; illustrative shape only | A clean submodule is represented by its gitlink commit pointer without recursively hashing its inner files; attached branch configuration may independently be unknown.
 
 ## JSON Schema-invalid fixtures
 
@@ -19,7 +20,7 @@ These fixtures specify expected JSON Schema and semantic-validator behavior. The
 | `invalid/schema/locator-only-identity-with-id.json` | Locator-only identity must not contain a stable ID |
 | `invalid/schema/path-escapes-worktree.json` | Fingerprint path escapes root / is not portable |
 | `invalid/schema/complete-with-unreadable-entry.json` | Complete coverage cannot include an unreadable path |
-| `invalid/schema/complete-with-gitlink-entry.json` | Complete coverage cannot include a gitlink index entry |
+| `invalid/schema/complete-with-gitlink-entry.json` | Gitlink index entry requires a `gitlink_commit`; it is not a file-content digest |
 | `invalid/schema/wrong-schema-version.json` | Instance version must match the 0.2.0 schema |
 | `invalid/schema/unknown-core-field.json` | Unknown fields in strict core objects are rejected |
 
