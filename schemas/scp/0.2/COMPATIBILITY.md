@@ -73,3 +73,18 @@ These are semantic requirements, not an implemented validator in this PR.
 - `push.state=resolved` records a selected default push remote and requires `remote_name` plus `resolution_basis`. Supported bases are `branch_push_remote`, `remote_push_default`, `branch_upstream` and `default_remote`. The field does not record refspec selection or authorize a push.
 - Branch tracking remote aliases must resolve against the current remote configuration when available. If a Packet contains no `repository_identity.remote_mappings`, the consumer may still report the local alias observation but cannot claim cross-repository identity resolution.
 - `fetch_state` / `push_state` describe whether Git's effective configuration target(s) were selected unambiguously. They do not upgrade a `normalized_locator_only` target into a stable identity.
+
+## Semantic fixture coverage and execution context
+
+The current fixture inventory contains 4 positive instances, 8 JSON Schema-invalid instances and 19 semantic-invalid vectors. The semantic vectors cover:
+
+- Fingerprint path identity and coverage: complete path-set equality, partial subset relation, duplicate paths, canonical ordering, UTF-8/path-safety collisions.
+- Git index consistency: duplicate stages, stage-0/unmerged-stage mixing, index/worktree mode and digest provenance.
+- Capture validity: start/completion time order, re-enumeration and observation races, partial/unreadable coverage.
+- Submodule semantics: gitlink index pointer equals checked-out submodule HEAD and the submodule is initialized and clean; a matching pointer alone is insufficient.
+- Repository identity: duplicate remote aliases, checkout/canonical relation evidence, fetch/push identity agreement, multiple push targets, unresolvable identity sources and locator credential sanitization (including `project.repository`).
+- Branch configuration: branch_state agrees with `code.branch`; configured upstream and resolved default push aliases must match live remotes and any packet remote mapping.
+
+See `fixtures/README.md` for the complete file-level list and `fixtures/SEMANTIC-CONTEXT.md` for required companion repository/configuration observations. A semantic vector without its companion context is `not_run/unknown`, not a pass or failure. The JSON files are not an executable semantic test suite.
+
+At the time the formal Draft 2020-12 validation was recorded in the design log, the then-current 7 semantic vectors were confirmed to remain Schema-valid. Later additions expand that set; they must be re-run with the standard Draft 2020-12 validator before D1 freeze. The JSON Schema contract itself remains the same after that recorded validator run.
