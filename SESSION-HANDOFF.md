@@ -1248,3 +1248,55 @@ Path identity：
 - Context 自身 SHA 由 run manifest 外部绑定，避免自引用。
 
 未来正式 Context Schema 的验收条件见 `CONTEXT-CONTRACT-DESIGN.md` §14。当前仍不创建 Context Schema 或机器 Context 实例；`SEMANTIC-CONTEXT.md` 保持唯一人类 fixture catalog。当前 4 / 9 / 19 inventory 与 Packet Schema 0.2.0 不变，不形成第二套项目状态源。
+
+## Fixture Context Schema 0.1.0 Draft 已创建并完成标准 Schema 验证（2026-11-12）
+
+### 当前机器契约
+
+用户已批准五项 Context Contract 设计决策，现已建立独立版本空间：
+- `scp-fixture-context/0.1.0`
+- Schema：`schemas/scp-fixtures/0.1/fixture-context.schema.json`
+- Compatibility：`schemas/scp-fixtures/0.1/COMPATIBILITY.md`
+- README / Validation report 同目录。
+
+Context Schema 独立于 Packet 0.2.0，不添加 Packet fields。
+
+### 最新收紧
+
+- path-equivalence observation 必须引用 `profile_revision`。
+- Provider authoritative 404 的 event 和 companion observation 必须同时带 `not_found_authority_evidence` artifact ref，固定路径和 Git blob SHA；布尔值不能单独声明“权威”。
+- success / forbidden / rate_limited / timeout / ambiguous_not_found 均不得宣称 `not_found_authority=true`。
+- 新增 synthetic Provider fixture contract：`schemas/scp-fixtures/providers/0.1/github-rest-not-found-contract.json`，Git blob SHA `6573628ce89d1e9f0e43ad2ecc341dc99b29e887`。该文件仅描述本地 stub，不是对真实 GitHub API 的语义承诺。
+- Compatibility 文档补充 event sequence、Profile/Driver registry、provider event/observation cross-reference、claim/scope 唯一性及 action disjointness 约束。
+
+### 当前 Schema 和样例
+
+- Context Schema SHA：`9348e22ac0ee450ce6689cec4fb87f0aa985104c`。
+- Context 正例：3 个。
+- Context 结构负例：5 个。
+- Capability Profiles：3 个。
+- Driver descriptors：3 个，均标记 `contract_only`。
+- Provider authority contract：1 个。
+- 3 个 Context 样例引用对应的 SCP Packet fixture、Packet Schema、Capability Profile 和 Driver descriptor SHA；Provider authoritative 404 样例额外引用 provider authority contract SHA。
+
+### 标准验证
+
+使用 Python `jsonschema 4.26.0`：
+- `Draft202012Validator.check_schema`：PASS。
+- `FormatChecker()` 已启用。
+- 3 个代表性正例均有效。
+- 5 个结构负例均按预期被拒绝。
+- 非法 date-time 被拒绝；namespaced extension 接受，unqualified extension 拒绝。
+
+注意：该验证只覆盖 Context Schema 的结构和格式层；不代表 Registry/Driver/Provider Stub/Runner 已实现。Driver descriptor SHA pin 的是描述文件字节，当前这些文件都不是可执行 Driver Bundle。Context Schema 0.1.0 仍是 Draft。
+
+### 未完成与冻结边界
+
+- 尚无 Capability Profile Registry、可执行 Driver Bundle、Harness Registry、Fixture Runner、Semantic Validator、Run Manifest Schema/Writer、客户端 adapter 或 CI Gate。
+- 还未达到两套独立 Harness Adapter 对同一 Context 产生一致 normalized input observation 的 §14 冻结门槛。
+- D0 保持已确认冻结；D1、D2、D3 未冻结。
+- PR #10、main、项目整体版本和 tags 未修改；没有合并、关闭 PR #11 或转 Ready-for-review。
+
+### 下一步（唯一首选）
+
+审查 Context Schema 与 Compatibility 之间的 cross-field 语义遗漏，并确定 Run Manifest 的最小字段/生命周期（仍然先设计，不创建 Runner/Writer）。随后再决定 0.1.0 是否可以冻结为 Context Contract 的正式机器契约；在双 Harness Adapter 互操作标准未完成前，不用于生产 Gate。
