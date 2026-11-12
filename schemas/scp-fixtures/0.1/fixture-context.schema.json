@@ -9,7 +9,6 @@
     "contract",
     "context_version",
     "fixture_id",
-    "execution_status",
     "target",
     "environment",
     "setup",
@@ -27,12 +26,6 @@
     "fixture_id": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9-]{2,127}$"
-    },
-    "execution_status": {
-      "enum": [
-        "design_only",
-        "ready"
-      ]
     },
     "target": {
       "type": "object",
@@ -369,31 +362,7 @@
           "minLength": 1,
           "maxLength": 128
         }
-      },
-      "allOf": [
-        {
-          "if": {
-            "properties": {
-              "mutation": {
-                "enum": [
-                  "add_untracked",
-                  "remove_path",
-                  "replace_path_object",
-                  "mutate_same_object"
-                ]
-              }
-            },
-            "required": [
-              "mutation"
-            ]
-          },
-          "then": {
-            "required": [
-              "target_path"
-            ]
-          }
-        }
-      ]
+      }
     },
     "event_provider": {
       "type": "object",
@@ -404,7 +373,11 @@
         "response_class",
         "provider_namespace",
         "resource_id",
-        "principal_id"
+        "requested_revision",
+        "principal_id",
+        "authentication_state",
+        "provider_contract_revision",
+        "not_found_authority"
       ],
       "properties": {
         "sequence": {
@@ -532,11 +505,13 @@
         },
         "path_a_utf8_base64": {
           "type": "string",
-          "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
+          "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",
+          "minLength": 4
         },
         "path_b_utf8_base64": {
           "type": "string",
-          "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
+          "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",
+          "minLength": 4
         },
         "relation": {
           "enum": [
@@ -636,7 +611,8 @@
         },
         "path_utf8_base64": {
           "type": "string",
-          "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
+          "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",
+          "minLength": 4
         },
         "identity_quality": {
           "enum": [
@@ -729,11 +705,13 @@
         },
         "path_a_utf8_base64": {
           "type": "string",
-          "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
+          "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",
+          "minLength": 4
         },
         "path_b_utf8_base64": {
           "type": "string",
-          "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
+          "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",
+          "minLength": 4
         },
         "case_equivalence": {
           "enum": [
