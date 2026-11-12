@@ -338,3 +338,54 @@ Given identical Packet bytes, companion context, event sequence, clock, capabili
 - the exact prohibited action classes.
 
 A client may downgrade further only when it reports a concrete capability limitation (for example, path equivalence cannot be observed). It may not upgrade another client's unknown/conflict result under identical inputs. Natural-language explanation may differ; normalized state and action boundaries may not.
+
+## 14. Candidate disposition for the next fixture inventory
+
+The four candidates have different portability and determinism characteristics. Do not add all four as if they were equally portable.
+
+| Candidate | Deterministic contract setup | Native platform dependency | Recommendation |
+|---|---|---|---|
+| Re-enumeration race | Two explicit barriers around initial/final Git observations; mutation is applied only to disposable repository | Low; actual Git CLI behavior still needs OS/Git-version E2E | **Promote** to next semantic fixture set |
+| File object replaced during read | Deterministic observer hook returns handle/path identity sequence (A/A then A/B) and a declared mutation event | High; portable file identity/change detection differs by OS/filesystem, and in-place writes may evade coarse metadata | **Split** into virtual observer-contract fixture plus platform-specific native E2E; do not require all clients to implement identical OS primitives |
+| Case/Unicode path alias collision | Deterministic virtual path-identity adapter maps exact UTF-8 byte sequences under an explicit equivalence profile | High; native case/normalization behavior differs by filesystem and mount configuration | **Split** into profile-driven contract fixtures plus native filesystem E2E; OS name alone is not a capability declaration |
+| Provider permission vs not-found | Deterministic provider stub with explicit principal, resource, revision, response class and authority semantics | Low for contract tests; actual provider behavior must be verified separately per adapter | **Promote** as a response-class matrix in the next semantic fixture set |
+
+### 14.1 Required companion fields for the promoted vectors
+
+The next fixture-context revision should describe these deterministic inputs (they are harness context, not Packet fields):
+
+**Re-enumeration race**
+- `initial_observation_id`, `final_observation_id` and explicit event sequence.
+- `mutation_point`: strictly between initial status/index observation and final status/index re-enumeration.
+- `mutation_kind`: add_untracked / change_index / change_head / remove_path.
+- `initial_state_digest` and `final_state_digest` over the harness's deterministic Git observation records.
+- Expected result must distinguish old Packet fingerprint freshness=stale from current scan observation=unknown/changed_during_capture.
+
+**File-object replacement**
+- `path_bytes`, `open_handle_identity_before`, `path_identity_before`, `open_handle_identity_after`, `path_identity_after`.
+- `identity_observation_quality`: exact / insufficient / unavailable.
+- `mutation_kind`: replace_path_object / mutate_same_object / none.
+- Expected result is unknown when the handle and path identities diverge, when same-object mutation cannot be reliably detected, or when the platform cannot supply a trustworthy identity observation. Do not treat an inode/file ID alone as a content immutability guarantee.
+
+**Path alias collision**
+- Exact byte arrays for each path, their strict UTF-8 decoding, and an explicit `path_equivalence_profile`.
+- `filesystem_identity_relation`: same_object / distinct_objects / cannot_determine.
+- Expected result is conflict only for proven aliasing; distinct objects remain distinct; cannot_determine is unknown.
+- The deterministic virtual adapter is the portable contract layer. Native probes are capability evidence for a named filesystem/mount profile, not universal OS facts.
+
+**Provider response matrix**
+- `provider_namespace`, `resource_id`, `requested_revision`, `principal_id`, `authentication_state`, `response_class`, `provider_not_found_semantics`.
+- `response_class`: forbidden / rate_limited / timeout / authoritative_not_found / ambiguous_not_found.
+- Expected result: forbidden/rate_limited/timeout/ambiguous_not_found => source freshness unknown; authoritative_not_found => referenced source stale at that revision and identity unresolved unless independently corroborated.
+
+### 14.2 Promotion decision
+
+Promote re-enumeration race and provider response matrix into the next fixture inventory because their setup and outcome can be fully deterministic without real platform behavior.
+
+Retain file-object replacement and path-alias collision as two-layer tests:
+1. a portable virtual observer/path-equivalence contract test, driven by explicit companion observations;
+2. native OS/filesystem E2E tests whose applicability is tied to measured capabilities.
+
+Do not let a missing native capability masquerade as a passing test. Its result is `not_applicable` or `unknown` according to whether the profile intentionally excludes that capability or the client was expected to provide it but could not.
+
+The current inventory remains unchanged: 4 positive / 9 JSON Schema-invalid / 19 semantic-invalid. These are dispositions for a future fixture revision, not new fixtures or an implementation authorization.
