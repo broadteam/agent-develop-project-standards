@@ -41,7 +41,7 @@ The Context is test-harness input. It is not an SCP Packet, project state source
 
 ## Driver contract descriptors
 
-The SHA-256 values below are calculated over the exact UTF-8 file bytes, including the final newline.
+Git blob SHA identifies the file in the pinned repository snapshot. SHA-256 identifies the exact descriptor bytes and is the value currently pinned in Context examples. They are not interchangeable.
 
 | Driver ID | Descriptor | Driver bundle SHA-256 | Status |
 |---|---|---|---|
