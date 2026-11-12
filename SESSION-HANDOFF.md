@@ -1315,3 +1315,30 @@ Context Schema 独立于 Packet 0.2.0，不添加 Packet fields。
 当前 Context Schema SHA：`9348e22ac0ee450ce6689cec4fb87f0aa985104c`。当前 3 个正例和 5 个负例均经 Python `jsonschema 4.26.0` 标准 Draft 2020-12 Validator + `FormatChecker()` 验证，实际 Git blob SHA 与重新计算的 canonical JSON Blob SHA 相符。细节见 `schemas/scp-fixtures/0.1/VALIDATION-REPORT.md`。
 
 本次引用复核未改变 Context Schema 或 Packet Schema，也未增加 Context/Packet Fixture 数量。
+
+## Run Manifest 最小模型与生命周期设计（2026-11-12）
+
+新增 `schemas/scp-fixtures/0.1/RUN-MANIFEST-DESIGN.md`，补足 Context 输入与未来 Runner 输出之间的生命周期设计。
+
+### 最小模型
+
+- 一个 Manifest = 一个 Client + Adapter + Harness attempt。
+- 相同 Context 可对应多个 Manifest；不同客户端、重试必须分别生成新 Manifest。
+- Context/Packet/Packet Schema/Profile/Driver/Provider contract 的 Blob SHA 与 SHA-256 输入 pin 外置记录；Manifest 自身 digest 也由外部计算，避免自引用。
+- Manifest 保存 client/harness/adapter 版本、实际 measured capabilities、event/snapshot refs、actual normalized output、assertions、cleanup result。
+- 不复制 expected result（它在 Context 内），不回写 Context，不充当项目任务或 Evidence 状态源。
+
+### 结果状态轴
+
+- `conformance_outcome`：conformant / non_conformant / inconclusive / not_run。
+- `harness_outcome`：healthy / failed / interrupted / not_started。
+- setup、stimulus、observation、evaluation、cleanup 各自记录状态。
+- 语义断言通过但 cleanup 失败：conformance 可保持 conformant，但 Harness failed；整体运行不接受并 quarantine disposable root。
+- capability/permission/observation 不足为 inconclusive；Context/driver/setup 无法执行为 not_run。
+- retry 新建 Manifest；不覆盖旧结果。中断不能伪装成 completed。
+
+### 安全和边界
+
+不存真实凭据、token、cookie、authorization header、未脱敏 secret diff、原始工作区文件内容或非 fixture 路径数据。优先存脱敏 artifact ref/hash。Manifest 是单次测试证据，不是项目 Evidence、权限或状态源。
+
+当前只有设计文档；没有 Run Manifest Schema、Writer、Store、Runner、Adapter 或 CI Gate。下一步先审查双 outcome 语义、cleanup/quarantine、interrupted/retry 与最小字段，再决定是否值得独立 Schema。
