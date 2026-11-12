@@ -2,7 +2,7 @@
 
 These fixtures specify expected JSON Schema and semantic-validator behavior. They are not an executable validator suite yet. Semantic-invalid JSON files require companion repository/configuration context described in [SEMANTIC-CONTEXT.md](./SEMANTIC-CONTEXT.md); the Packet alone cannot prove live Git or provider facts.
 
-**Current inventory:** 4 positive examples, 9 JSON Schema-invalid fixtures, and 19 semantic-invalid vectors. The standard Draft 2020-12 validation results and pinned fixture blob IDs are recorded in [VALIDATION-REPORT.md](./VALIDATION-REPORT.md). The proposed test lifecycle and environment profiles are in [SEMANTIC-EXECUTION-CONTRACT.md](./SEMANTIC-EXECUTION-CONTRACT.md).
+**Current inventory:** 4 positive examples, 9 JSON Schema-invalid fixtures, and 19 semantic-invalid vectors. The standard Draft 2020-12 validation results and pinned fixture blob IDs are recorded in [VALIDATION-REPORT.md](./VALIDATION-REPORT.md). The proposed test lifecycle and environment profiles are in [SEMANTIC-EXECUTION-CONTRACT.md](./SEMANTIC-EXECUTION-CONTRACT.md). The separate companion-input format is only a proposal in [CONTEXT-CONTRACT-DESIGN.md](./CONTEXT-CONTRACT-DESIGN.md); no Context Schema or machine instances have been approved or created.
 
 ## Positive fixtures
 
