@@ -1899,3 +1899,54 @@ CI 说明：当前 Standards CI workflow 的全绿结果不包含 SCP Schema 验
 4. **Provider authorization vs not-found**：分别注入 403、429、timeout 与 authoritative 404；只有可确认的 authoritative not-found 才能表达该 source 在对应 revision 不存在，权限/限流/超时必须 unknown/not_run。
 
 这些候选项均可使用现有 Packet 字段与 D2/D1 状态轴，不要求新增 Schema 字段。建议先评估其 companion context 是否能确定性描述，再决定是否纳入 Fixture Inventory；本轮仍保持 4 positive / 9 Schema-invalid / 19 semantic-invalid，不提前计数，也不实现 Runner。
+
+### 17.20 四类候选故障场景与 D2 状态轴映射
+
+基于 §13.12 的规范化输出与恢复模式决策表，对 §17.19 四类候选场景作逐项校准。完整 setup/observation/event sequence 见 `schemas/scp/0.2/fixtures/SEMANTIC-EXECUTION-CONTRACT.md` §11–§14。
+
+#### A. Re-enumeration race
+
+- 测试在初次 HEAD/index/status 观察后、最终重读前，通过 deterministic barrier 修改 disposable repository。
+- 初次观察与 Packet 指纹一致，随后新增 untracked path 或变更 index。
+- **旧 Packet fingerprint freshness=stale**：最终观察已证明其 path/index claim 不再对应当前仓库状态。
+- **当前这次扫描 observation=unknown / changed_during_capture**：不可把两个时点的状态拼成新的 complete fingerprint；coverage 不得 complete。
+- 操作范围映射：不依赖该 dirty path set 的本地只读分析为 restricted；依赖该路径集合的写入/发布操作为 blocked（仅该依赖范围）。
+
+#### B. File object replaced during digest read
+
+- 确定性 hook 在摘要流读取期间替换路径所指向的对象，伴随 context 提供 handle identity 与 path identity 的前后观察。
+- 若 handle/path identity 分离，或平台不能可靠识别对象变化，受影响 entry=unknown，fingerprint coverage=partial/unknown。
+- 不应仅因读取结果不稳定就断言旧 Packet 一定 stale；只有之后存在一轮稳定观察且摘要不匹配时，旧 Packet claim 才能定为 stale。
+- 操作范围映射：不依赖该路径的本地只读分析为 restricted；依赖该路径精确内容/状态的操作为 blocked。
+
+重要限制：文件对象 identity token 不是内容不可变性证明。对同一 inode/file ID 的并发原地修改，若平台无法可靠观察，必须 unknown。不能把 inode 比较包装成跨平台原子读取保证。
+
+#### C. Case / Unicode path alias collision
+
+- 以精确 UTF-8 byte sequences 和显式 path-equivalence profile 注入两个不同 protocol path。
+- 若 profile 证明两个路径实际映射到同一 filesystem identity，则该路径声明=conflict/ambiguous；相关 coverage 降为 partial/unknown。若 profile 证明它们为不同对象，则保留两条精确路径，不制造冲突；若不能确定，则 unknown。
+- 不得 case-fold、Unicode normalize 或替换字符后静默合并路径。
+- 操作范围映射：触及冲突路径的操作 blocked；不依赖该路径的独立只读分析 restricted。
+
+确定性策略：跨客户端 Fixture Contract 使用 virtual path-identity adapter；真实大小写敏感度、Unicode normalization、挂载选项和网络文件系统表现属于按能力 profile 声明的 native E2E，不按 OS 名称推断。
+
+#### D. Provider authorization vs not-found
+
+- 通过 provider stub 分别注入认证 403、429、timeout、认证且权威的 404、以及未认证/可见性不确定的 404。
+- 403/429/timeout/ambiguous 404：source freshness=unknown，repository identity=unknown/unresolved。
+- 只有 provider 契约明确保证、请求主体已认证且资源/Revision 精确匹配的 authoritative 404，才能把对应 source freshness 标 stale；identity 仍为 unresolved，除非其他权威来源独立 corroborate。
+- 操作范围映射：不依赖远端身份的本地只读分析 restricted；依赖 checkout/canonical/push identity 的操作 blocked。
+- 原始 HTTP 404 本身不能证明资源不存在；provider 隐藏私有资源或权限不足时必须 unknown。
+
+#### 候选纳入下一版 Fixture Inventory 的判断
+
+| 候选 | 确定性契约层 | 原生平台依赖 | 下一版建议 |
+|---|---|---|---|
+| Re-enumeration race | disposable Git + barrier/event sequence，确定性强 | 仍需 Git CLI 跨平台 E2E | 纳入下一版 semantic fixture |
+| Provider response matrix | local provider stub + exact principal/resource/revision，确定性强 | provider adapter 的真实状态语义另做适配器 E2E | 纳入下一版 semantic fixture |
+| File object replacement | virtual observer hook 可稳定验证协议输出 | 真正文件身份/并发原地修改检测依赖平台文件 API | 拆成 observer-contract fixture + 按平台 native E2E |
+| Case/Unicode path alias | virtual path-equivalence adapter 可稳定验证规范化结果 | 原生 filesystem aliasing 依赖文件系统/mount capability | 拆成 profile-driven contract fixture + native filesystem E2E |
+
+这四类均不要求增加 Packet Schema 字段。前两类可作为确定性语义 Fixture 纳入下一版；后两类必须把协议行为测试与平台能力测试分层，避免将平台无法提供的能力误判为客户端语义错误，或反过来把未验证能力当作通过。
+
+当前 inventory 仍是 4 positive / 9 Schema-invalid / 19 semantic-invalid。上述仅为下一版候选纳入决策，不新增当前 Fixture、不启动 Validator/Runner，也不构成 D1 冻结批准。
