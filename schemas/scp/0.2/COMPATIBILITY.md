@@ -31,7 +31,7 @@
 - Fingerprinting records index stages and worktree state separately. SHA-256 is computed from raw file bytes or raw symlink-target bytes; Git object IDs are not protocol content digests. A gitlink commit OID is a separate pointer value, not a file-content digest.
 - Submodule internals are not recursively fingerprinted in this version. A clean, initialized submodule may be represented by its gitlink commit pointer (Git mode `160000`) in the index/worktree entries; the semantic validator must verify the submodule is initialized, checked out at the recorded pointer and clean. A dirty, missing, uninitialized or unobservable submodule reduces coverage to partial/unknown. The gitlink OID is a commit pointer, not a file-content digest.
 - Sensitive paths excluded by project policy are not hashed. Hashes are not guaranteed to be non-reversible for low-entropy secrets; exclusion reduces coverage rather than being treated as redaction.
-- A complete fingerprint is limited to supported regular-file/symlink entries and explicit absent-path states; unreadable, unsupported and gitlink entries force partial/unknown coverage. It describes the captured path set and per-path checks only and does not prove a globally atomic worktree snapshot. Consumers re-observe live HEAD, index, status and relevant file contents.
+- A complete fingerprint permits supported regular-file/symlink entries, explicit absent-path states, and gitlink pointers whose submodules are live-verified initialized and clean. Unreadable/unsupported entries and dirty, missing, uninitialized or unobservable submodules force partial/unknown coverage. It describes the captured path set and per-path checks only and does not prove a globally atomic worktree snapshot. Consumers re-observe live HEAD, index, status and relevant file contents.
 - Dynamic Git/PR/CI state is last-known at packet generation. Consumers bootstrap live state before depending on it.
 
 ## JSON Schema versus semantic validation
@@ -39,16 +39,16 @@
 JSON Schema enforces object shape and local conditionals. A conforming semantic validator must additionally enforce at least:
 
 1. Fingerprint paths are strict UTF-8 relative paths with no NUL, absolute/drive/UNC paths, empty components, `.`/`..` components or platform-ambiguous aliases; entries are ordered by UTF-8 byte order.
-2. `entries[].path` is unique by path value; `index_entries[].stage` is unique per path and consistent with merge-conflict rules.
+2. `entries[].path` is unique by path value and ordered by UTF-8 byte order. `index_entries[]` is ordered by stage; stage values are unique per path and consistent with merge-conflict rules (stage 0 must not coexist with stages 1/2/3).
 3. When coverage is complete, entry paths exactly equal `code.uncommitted_paths`; for partial coverage they are a subset. Completeness requires readable HEAD, stable observation and successful re-enumeration of HEAD/index/status.
 4. Index modes, stage objects and their SHA-256 values are derived from actual index blobs; worktree mode/kind/digest is derived from the current filesystem object without following symlinks.
 5. Entry mode and kind agree; absent files do not carry digest; unreadable/unsupported/secret-excluded entries are not treated as complete fingerprints. A gitlink may be included in complete coverage only when live Git status proves the submodule is initialized and clean at the recorded commit pointer; its OID is not a content digest.
 6. `completed_at` is not earlier than `started_at`; changed HEAD/index/status or per-path replacement is retried or downgraded, never labelled complete.
 7. Repository identity `namespace + id` is compared as a pair. `basis=normalized_locator_only` is provisional and cannot contain a stable ID.
 8. Each remote name is unique in one mapping snapshot. A resolved fetch requires a fetch target; a resolved push requires at least one effective push target.
-9. Fetch and effective push targets of one remote resolve to the same repository identity. Multiple push targets must not be silently collapsed when their identities differ.
+9. For a remote mapping reported as resolved, the fetch target and every effective push target must resolve to the same repository identity (namespace + stable ID, or a consistent explicitly provisional locator basis). If effective push targets resolve to different repository identities, that remote's push resolution is conflict/ambiguous, never resolved; preserve all observed targets rather than selecting one.
 10. `relation_to_canonical=canonical` requires target identity to match declared canonical identity. Fork/mirror relations require provider-verifiable relationship data or an explicit project configuration reference.
-11. Branch tracking remote and push remote must resolve against current remote mapping. Detached HEAD, missing upstream, ambiguous push target and unavailable configuration remain separate states.
+11. `branch_tracking.branch_state` must agree with `code.branch` (attached requires a branch name; detached requires a null branch). Configured upstream and resolved push remote aliases must exist in the observed remote mapping when that mapping is available. Detached HEAD, missing upstream, unknown configuration and ambiguous push target remain separate states.
 12. Locator strings must be sanitized: no userinfo, passwords, access tokens, signed query parameters or credential fragments. A locator is not itself proof of identity.
 13. Source references for identity and provenance must resolve to the expected authoritative source revision at consumption time. Conflicts remain conflicts; timestamps do not select an authority.
 14. Packet-local decision ID uniqueness and authoritative evidence resolution from 0.1 remain in force.
