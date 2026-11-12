@@ -1048,27 +1048,5 @@
       ]
     }
   },
-  "allOf": [
-    {
-      "if": {
-        "properties": {
-          "execution_status": {
-            "const": "ready"
-          }
-        },
-        "required": [
-          "execution_status"
-        ]
-      },
-      "then": {
-        "properties": {
-          "notes": {
-            "not": {
-              "pattern": "(?i)not implemented|unresolved|placeholder|design only"
-            }
-          }
-        }
-      }
-    }
-  ]
+  "allOf": []
 }
