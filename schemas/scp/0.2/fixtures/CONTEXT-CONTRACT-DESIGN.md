@@ -238,3 +238,63 @@ Until those decisions are confirmed:
 - no Fixture Runner or client adapter is implemented;
 - current 4 / 9 / 19 Fixture Inventory is unchanged;
 - SCP Packet Schema 0.2.0 remains unchanged and Draft.
+
+## 13. Recommended disposition of the five pending decisions
+
+This is the recommended design outcome for the next review; it does not create a formal schema.
+
+| Decision | Recommendation | Reason |
+|---|---|---|
+| Separate Context Contract and version namespace | **Accept** `scp-fixture-context/0.1.0` independently from Packet 0.2.0 | Prevents test-only fields and lifecycle from leaking into runtime Packet |
+| Typed declarative observations + allow-listed driver IDs | **Accept**; no executable commands in Context | Language-neutral, reviewable, safer to validate and reproducible |
+| Separate run manifest | **Accept**; actual results never mutate Context | Keeps inputs immutable and allows multiple clients/runs to be compared |
+| Reason codes | **Fixture-only vocabulary** under `scp.fixture.*` | Avoids accidentally creating a public runtime error API before product semantics are approved |
+| Capability profiles | **Immutable external profile reference + blob SHA** | Reuse one tested capability definition across fixtures without copy drift |
+
+### 13.1 Pin the setup driver as well as its ID
+
+The proposed example's `driver_revision="1"` alone is not enough to reproduce a run. A formal Context Schema should require:
+
+- `driver_id`: allow-listed registry identifier;
+- `driver_contract_version`: version of the driver interface;
+- `driver_bundle_sha256`: digest of the exact driver package or immutable bundle.
+
+A driver lookup by a mutable name such as `latest` is forbidden. The driver package is code owned by the test harness, not code supplied by the fixture author.
+
+### 13.2 Pin capability profiles independently
+
+A capability profile reference should include:
+- immutable `profile_id`;
+- `profile_version`;
+- `profile_blob_sha`.
+
+The profile describes declared capabilities and expected probe semantics. The run manifest records actual measured capabilities from the disposable test root. A mismatch is an applicability/failure result; it must not rewrite the profile or input Context.
+
+Do not allow free-form per-fixture capability overrides in the first Context version. When a fixture needs a materially different capability set, define another immutable profile. This avoids hidden inheritance and override precedence across clients.
+
+### 13.3 Pin the Context itself in each run
+
+The Context cannot contain its own blob SHA without self-reference. Instead, each run manifest pins:
+- Context blob SHA;
+- Packet blob SHA;
+- Packet Schema blob SHA;
+- setup driver bundle SHA;
+- capability profile blob SHA;
+- client and adapter versions.
+
+This makes the exact input set reproducible without embedding self-referential hashes.
+
+## 14. Acceptance criteria for a future Context Schema
+
+A formal `fixture-context.schema.json` should not be created until all criteria below are met:
+
+1. Top-level contract/version/fixture ID and all referenced Packet/Schema/driver/profile revisions are immutable and resolvable.
+2. All event sequences are explicitly ordered and do not depend on wall-clock timing.
+3. Observation records are typed by profile (Git, filesystem, provider, permission/fault injection); unknown core records are rejected.
+4. The expected normalized output expresses claim-level states and operation-scoped recovery, not a single pass/fail boolean.
+5. Context never contains actual run result, credential material or arbitrary executable code.
+6. A missing profile/driver/input is not_run/unknown or not_applicable as appropriate; never pass by omission.
+7. JSON Schema Draft 2020-12 meta-schema and positive/negative context instances have a separately pinned validation report.
+8. Two independently implemented harness adapters can load the same Context and produce identical normalized input observations before client evaluation.
+
+Until these criteria and the five recommendations are reviewed, retain `SEMANTIC-CONTEXT.md` as the human-readable review catalog and do not create a parallel machine inventory.
