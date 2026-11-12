@@ -22,7 +22,7 @@
   },
   "code": {
     "branch": "design/session-continuity-protocol",
-    "head_sha": null,
+    "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
     "worktree_state": "observed_dirty",
     "observed_at": "2026-11-12T00:00:00Z"
   },
