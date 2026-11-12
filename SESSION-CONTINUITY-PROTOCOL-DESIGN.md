@@ -2023,3 +2023,27 @@ CI 说明：当前 Standards CI workflow 的全绿结果不包含 SCP Schema 验
 - 原生能力不支持且 profile 明确声明时为 not_applicable；预期能力无法测量时为 unknown；两者均不能当作 pass。
 - 上述方案不新增 Packet 字段，不修改 Schema 0.2.0，不改变当前 4 positive / 9 Schema-invalid / 19 semantic-invalid 数量。
 - 14 个候选 case 仍未纳入当前 Fixture Inventory；需要单独批准 companion-context 机器表示、adapter API 和 reason-code 边界后再扩充。
+
+### 17.23 独立 Semantic Fixture Context Contract 设计提案
+
+新增 `schemas/scp/0.2/fixtures/CONTEXT-CONTRACT-DESIGN.md`，作为当前 `SEMANTIC-CONTEXT.md`（人类说明）与未来机器 Fixture Runner 之间的设计层。
+
+提案要点：
+- 新建独立的 `scp-fixture-context` Contract，建议从 `schemas/scp-fixtures/0.1/fixture-context.schema.json` 开始，使用 Draft 2020-12；Context version 与 Packet `schema_version` 独立。
+- Context 仅固定 Packet/Schema blob SHA、environment profiles/capabilities、deterministic clock、allow-listed setup driver、stimulus/event sequence、companion observations 和 expected normalized D2 result。
+- 不保存项目任务/需求/ADR/decision/evidence，不复制项目权威状态，不包含真实凭据、不执行任意 shell，不允许指向用户真实仓库。
+- Setup driver ID 通过 harness registry 解析，测试环境变更只发生于 disposable root；观察阶段 read-only。
+- 输入 Context 与实际 run manifest 分离。Run manifest 记录 Context/Packet/Schema SHA、客户端/adapter 版本、实际 observation/event log、normalized actual result、断言与 cleanup 状态；不得回写 Context。
+- Reason codes 暂只作为 language-neutral Fixture Conformance vocabulary（建议 `scp.fixture.*`），不进入 Packet Schema 或 SCP runtime API。
+- Markdown 继续作为人类审查说明；只有在用户批准 Context Schema 后，JSON Schema 才成为它的机器契约。
+
+**权威边界判断：** Fixture Context 不形成第二套项目状态数据库：它只描述可重现的测试刺激和期望，不记录项目当前任务状态；实际观察和运行结果由独立 run manifest 保存，并以精确 SHA 绑定输入。项目权威状态仍归原有 intent/requirements/tasks/ADR/Evidence 来源。
+
+**尚待决定的 5 项边界：**
+1. 是否接受独立 Context Contract/version namespace。
+2. 是否采用 typed declarative observations + allow-listed driver IDs，而不是可执行 setup scripts。
+3. 是否接受 run manifest 与输入 Context 分离。
+4. Reason codes 是否仅限测试层。
+5. Capability profiles 内嵌还是以不可变 ID + SHA 外部引用。
+
+在这些边界获批准前，不创建 `fixture-context.schema.json`、机器 Context instances 或 Runner；当前 4 / 9 / 19 inventory 不变，Packet Schema 0.2.0 不变，D1/D2/D3 仍未冻结。
