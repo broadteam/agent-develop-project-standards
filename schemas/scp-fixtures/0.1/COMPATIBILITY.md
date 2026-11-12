@@ -53,7 +53,7 @@ Driver `allowed_profiles` must include every requested environment profile. Driv
 - Observation events identify the exact snapshot phase and ID; the same snapshot ID must not be reused for two different snapshots.
 - Mutation events must occur only between explicit observation barriers and may target only the disposable fixture root.
 - Provider response events and companion provider observations must agree on namespace, resource ID, requested revision, principal, response class and contract revision.
-- A path-equivalence event must reference the exact capability profile revision used for that relation.
+- A path-equivalence event must reference the exact capability profile revision used for that relation; `profile_revision` must equal the declared `environment.capability_profile.profile_version`.
 - Missing event, missing barrier, missing referenced snapshot or ambiguous ordering is `not_run/unknown`, not pass.
 
 These rules are cross-record semantics; the Schema validates event record shape but does not establish the whole event sequence.
