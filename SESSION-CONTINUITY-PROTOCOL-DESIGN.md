@@ -1714,10 +1714,9 @@ Schema 0.2.0 核心对象的具体表达：
 - 四个正例：最小 checkpoint、complete fingerprint handoff、partial fingerprint handoff、clean gitlink + unknown branch config，在本轮自编写的结构/条件子集检查中无错误。
 - 八个 Schema-invalid cases：均触发预期局部约束。
 - 七个 semantic-invalid cases：均保持 Schema-valid；新增 dirty-submodule case 需要 fixture 现场观察判定，不能仅凭 Packet 字段判断。
-- 六个 semantic-invalid cases：均保持 Schema-valid，便于后续 semantic validator 单独拒绝。
 - 所有 Schema pattern 均可由 JavaScript RegExp 编译；所检查样例使用到的本地 refs 均可解析。
 
-边界仍不变：上述不是官方 Draft 2020-12 验证器，也没有运行 meta-schema、标准实例验证或 format-assertion 测试。需要在正式验证工具可用的环境中完成该步骤，当前不能把 Schema 草案标记为正式验证通过。
+本轮第二轮记录为形式验证前的结构检查；后续正式 Draft 2020-12 验证结果见 §17.13。
 
 ### 17.12 第三轮边界校准：branch tracking unknown 与 gitlink pointer
 
@@ -1727,3 +1726,25 @@ Schema 0.2.0 核心对象的具体表达：
 2. “不递归 fingerprint submodule 内部工作区”不等于“不能记录 gitlink”。Schema 现在允许 index/worktree 记录 mode 160000 与 gitlink commit pointer。只有现场 Git status 能证明 submodule 已初始化、指针匹配且内部 clean 时，gitlink 才能参与 complete coverage；dirty、缺失、未初始化或无法观察仍必须降为 partial/unknown。
 
 新增正例：`handoff-clean-gitlink-fingerprint.json`，同时覆盖 clean gitlink pointer 与 attached branch 的 unknown upstream/push 配置。原 `complete-with-gitlink-entry.json` 改为缺失 gitlink_commit 的结构负例，不再错误表达“gitlink 一律不能 complete”。
+
+### 17.13 正式 JSON Schema Draft 2020-12 验证结果
+
+本轮已使用 Python `jsonschema 4.26.0` 的标准 `Draft202012Validator` 执行验证；Validator 实例显式启用 `FormatChecker()`。
+
+验证步骤与结果：
+1. `Draft202012Validator.check_schema(schema)`：通过，Schema 结构符合 Draft 2020-12 meta-schema。
+2. 正例实例：4 个均通过，包括最小 checkpoint、完整普通文件 fingerprint handoff、partial/unreadable fingerprint handoff，以及 clean gitlink pointer + attached branch / upstream unknown handoff。
+3. Schema 级负例：8 个均被标准 Validator 拒绝，包括 dirty 无路径、complete + changed capture、locator-only identity 携带稳定 ID、越界路径、complete + unreadable、缺失 gitlink commit pointer、错误 schema_version、未知 core field。
+4. Semantic 级负例：7 个均通过 JSON Schema 结构验证，符合预期；它们必须由未来 Semantic Validator / 现场 Bootstrap 拒绝或降级，而不是误以为 JSON Schema 可以证明这些关系。
+5. Format assertion：通过 `FormatChecker()` 验证；合法 RFC 3339 date-time 被接受，`2026-13-40T30:70:70Z` 被拒绝。
+
+这次正式验证解决了 Schema 语法/局部条件/format assertion 层的问题，但不验证真实 Git digest、remote identity、路径集合、重复 remote/path/stage、secret locator、gitlink 是否 clean 等语义真实性。
+
+### 17.14 正式验证后的范围与冻结状态
+
+- Schema 0.2.0 当前 Draft 的 JSON Schema meta-schema 与正反例结构验证已通过；这不是 D1 整体冻结。
+- 7 个 semantic-invalid cases 仍需 Semantic Validator 契约与未来实现来判定；当前没有实现 Validator/Fixture Runner。
+- clean gitlink 示例的 Schema-valid 只说明 commit pointer 结构可表达；测试现场仍需证明 submodule 已初始化且 clean。
+- branch tracking 的 attached + upstream unknown 已纳入 Schema，避免把配置不可读伪装成 not_configured。
+- 未运行真实跨平台 Git CLI E2E、文件系统竞态测试或双 Agent 客户端 Fixture 互操作。
+- D0 保持已确认冻结；D1、D2、D3 继续保持未冻结。PR #11 仍保持 Open + Draft。
