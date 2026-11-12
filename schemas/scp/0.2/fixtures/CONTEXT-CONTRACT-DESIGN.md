@@ -1,6 +1,6 @@
 # SCP Semantic Fixture Context Contract — Design Proposal
 
-**Status:** Design proposal only. This is not yet a machine schema, fixture instance, Validator API or implementation authorization.
+**Status:** Approved design direction; Context Schema 0.1.0 is being drafted separately. This document remains the design rationale, not the machine contract itself or an implementation authorization.
 
 ## 1. Problem statement
 
@@ -298,3 +298,17 @@ A formal `fixture-context.schema.json` should not be created until all criteria 
 8. Two independently implemented harness adapters can load the same Context and produce identical normalized input observations before client evaluation.
 
 Until these criteria and the five recommendations are reviewed, retain `SEMANTIC-CONTEXT.md` as the human-readable review catalog and do not create a parallel machine inventory.
+
+## 15. User decision and drafting authorization
+
+On 2026-11-12, the user approved all five recommendations in §13:
+
+1. Separate `scp-fixture-context/0.1.0` version namespace.
+2. Typed declarative observations with allow-listed, pinned setup drivers; no executable commands in Context.
+3. Immutable input Context and separate per-run manifest.
+4. `scp.fixture.*` reason codes remain fixture-conformance vocabulary only.
+5. Capability profiles use immutable external references with blob SHA; no free-form per-fixture overrides in the first version.
+
+This approval authorizes creation of the first reviewable JSON Schema Draft 2020-12 and a small number of context examples/negative schema fixtures. It does not authorize a Fixture Runner, Semantic Validator, client adapter, run-manifest writer or CI gate.
+
+The Context Schema must remain a test-only contract and must not add fields to SCP Continuity Packet 0.2.0.
