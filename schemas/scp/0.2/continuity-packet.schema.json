@@ -1099,7 +1099,8 @@
                   "state": {
                     "enum": [
                       "configured",
-                      "not_configured"
+                      "not_configured",
+                      "unknown"
                     ]
                   }
                 },
@@ -1560,7 +1561,8 @@
                             "kind": {
                               "enum": [
                                 "regular_file",
-                                "symlink"
+                                "symlink",
+                                "gitlink"
                               ]
                             }
                           },
@@ -1578,7 +1580,8 @@
                             "enum": [
                               "100644",
                               "100755",
-                              "120000"
+                              "120000",
+                              "160000"
                             ]
                           }
                         },
@@ -1616,7 +1619,7 @@
           }
         }
       ],
-      "description": "Per-path snapshot of Git-status-visible non-ignored changes. It is neither a backup nor a globally atomic worktree snapshot."
+      "description": "Per-path snapshot of Git-status-visible non-ignored changes. Gitlink entries record only the submodule commit pointer; complete coverage requires a live observation that each submodule is initialized and clean. This is neither a backup nor a globally atomic worktree snapshot."
     }
   },
   "allOf": [
