@@ -1282,6 +1282,16 @@ Checkpoint 操作的客户端结果至少应能归一化为以下独立维度；
 
 **暂定结论：** 逐路径 fingerprint 是满足 D2/D3 当前需求的最小可行候选方向；但它仍需与 Repository Identity/Upstream Mapping 合并做一次整体 D1 0.2.0 候选审查。当前没有用户对字段模型的批准，因此不修改 Schema 0.1.0，不生成正式 0.2.0 文件，也不冻结 D1/D2/D3。
 
+
+
+### 15.15 Fingerprint 路径基准与覆盖范围澄清
+
+- Worktree Fingerprint entries.path 与 code.uncommitted_paths 统一以 Git worktree root（repository root）为相对路径基准；不以当前进程工作目录或 project.root 子目录为基准。
+- project.root 仍表示 Packet 对应逻辑项目在仓库内的位置，例如 monorepo 的 backend/；它不截断 Git worktree 的 dirty-path 范围。这样两个客户端即使从不同子目录启动，也能对相同路径生成同一相对路径键。
+- 若某客户端只能扫描 project.root 子目录、不能枚举仓库其他路径，则 coverage 不能标 complete；只能对已扫描条目做局部比较并标 partial。
+- Git status 命令应从 Git worktree root 执行，并使用 §16.11 的 --no-optional-locks、porcelain v2、NUL-delimited 形式；状态中的目标路径和 rename 原路径都按原始字节解析后做严格 UTF-8 验证。
+
+
 ## 16. Repository Identity 与 Upstream Mapping 候选模型
 
 本节与 §15.6–§15.14 的 Worktree Fingerprint 一起构成 D1 机器契约缺口的第二部分。目的不是“猜出 origin 是哪个仓库”，而是让不同客户端在 fork、多 remote、镜像、迁移和离线环境下对项目身份得出相同或同样保守的结果。
@@ -1530,10 +1540,3 @@ git --no-optional-locks status --porcelain=v2 -z --untracked-files=all --ignore-
 | RI20 | 当前分支 tracking upstream 与项目 canonical repository 不同 | 分别记录 branch tracking remote/merge ref 与项目 canonical relation | 将 branch.<name>.remote 直接等同 canonical repository |
 | RI21 | branch.<name>.pushRemote 或 remote.pushDefault 改变默认推送 remote | 记录 push remote 的解析来源；推送前重新解析当前配置 | 仅按 tracking upstream 决定默认 push 目标 |
 | RI22 | git remote URL 使用 insteadOf/pushInsteadOf 重写 | 通过 Git 展开后的有效 URL 观察，并保留配置来源/方向；身份仍优先按稳定 ID 判定 | 对未展开的原始 alias URL 直接作身份结论 |
-
-### 15.15 Fingerprint 路径基准与覆盖范围澄清
-
-- Worktree Fingerprint entries.path 与 code.uncommitted_paths 统一以 Git worktree root（repository root）为相对路径基准；不以当前进程工作目录或 project.root 子目录为基准。
-- project.root 仍表示 Packet 对应逻辑项目在仓库内的位置，例如 monorepo 的 backend/；它不截断 Git worktree 的 dirty-path 范围。这样两个客户端即使从不同子目录启动，也能对相同路径生成同一相对路径键。
-- 若某客户端只能扫描 project.root 子目录、不能枚举仓库其他路径，则 coverage 不能标 complete；只能对已扫描条目做局部比较并标 partial。
-- Git status 命令应从 Git worktree root 执行，并使用 §16.11 的 --no-optional-locks、porcelain v2、NUL-delimited 形式；状态中的目标路径和 rename 原路径都按原始字节解析后做严格 UTF-8 验证。
