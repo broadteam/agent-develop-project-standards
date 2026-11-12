@@ -1098,3 +1098,152 @@ Checkpoint 操作的客户端结果至少应能归一化为以下独立维度；
 - Fixture 契约测试通过，不替代真实文件系统故障注入和两个独立客户端的 Writer E2E。
 
 **本节结论：** D1 0.1.0 当前不能宣称完整支撑 D2/D3 对 dirty/untracked 内容和多 remote/fork 身份的严格判定。先完成两个机器契约的语义裁定，再决定是否调整尚未冻结的 Schema 0.1.0；在此之前 D1、D2、D3 均不冻结。本节是依赖审查与设计建议，不是用户对字段方案的批准。
+
+### 15.6 Worktree Fingerprint 的目标与非目标
+
+本设计只解决“Packet 声称观察到的未提交路径内容，接收方能否逐项核验”的问题，不把 Checkpoint 扩张为代码备份或可重建文件系统镜像。
+
+目标：
+- 对 Git 可观察到的未提交路径，保存可跨客户端复算的内容摘要。
+- 明确区分 HEAD、Git index（staging area）和工作区文件系统三个状态层。
+- 在 tracked 文件 staged + unstaged、删除、未跟踪文件、符号链接等常见状态下，能够准确比较。
+- 未覆盖、不可读取、文件变化中、平台无法解释的条目必须明确降级，不得提升为 current。
+- 不保存文件正文，不自动修改 index/worktree，不触发 stash/commit/clean。
+
+非目标：
+- 不提供文件恢复、diff 备份、Git index 恢复或进程/编辑器缓冲区恢复。
+- 不声称多文件读取是原子快照。
+- 首版不递归指纹化 submodule 内部工作树，不跟随符号链接读取目标，不摘要 ignored 文件。
+- 不为“看起来完整”而读取或摘要项目规则标记为敏感的凭据/密钥文件。
+
+### 15.7 建议的数据模型（候选，不是 Schema）
+
+建议在 Packet 的 code 下增加一个可选的 worktree_fingerprint 对象。以下仅展示语义，不作为 0.1.0 字段契约：
+
+~~~json
+{
+  "worktree_fingerprint": {
+    "format": "scp-worktree-fingerprint/1",
+    "scope": "git-status-paths",
+    "digest_algorithm": "sha-256",
+    "path_encoding": "utf-8",
+    "started_at": "2026-11-12T00:00:00Z",
+    "completed_at": "2026-11-12T00:00:01Z",
+    "coverage": "complete",
+    "observation": "per_path_stable",
+    "entries": [
+      {
+        "path": "src/module/file.ts",
+        "index_entries": [
+          {
+            "stage": 0,
+            "mode": "100644",
+            "digest": "sha-256:<64-lowercase-hex>"
+          }
+        ],
+        "worktree": {
+          "state": "present",
+          "kind": "regular_file",
+          "mode": "100644",
+          "digest": "sha-256:<64-lowercase-hex>"
+        }
+      }
+    ]
+  }
+}
+~~~
+
+字段语义：
+- format：指纹条目编码/语义版本；它与顶层 schema_version 分开。任何会改变路径解释、摘要字节输入或条目状态语义的变化都必须升级 fingerprint format。
+- scope：首版固定为 Git status 可见的 staged、unstaged、deleted、untracked（non-ignored）路径；不是整个工作区文件清单。
+- digest_algorithm：首版固定 SHA-256，使用小写十六进制并带算法前缀；禁止依赖 Git 仓库自身的 SHA-1/SHA-256 object format 或客户端默认算法。
+- path_encoding：首版固定 UTF-8；不能无损表示的路径必须作为 unsupported/unknown 处理，不能替换字符后参与比较。
+- started_at/completed_at：描述整个扫描观察窗口，不暗示所有文件在同一瞬间读取。
+- coverage：complete 表示扫描范围内每个目标路径都已表达且可摘要；partial 表示存在被排除/不支持/不可读取条目；unknown 表示无法可靠枚举或识别范围。
+- observation：per_path_stable / changed_during_capture / unknown。它只描述逐条目采集是否通过一致性检查，不表示全工作区原子快照。
+- entries：按规范化路径的 UTF-8 字节序排序；每个路径只出现一次。重命名不作为单一特殊条目，按源路径删除和目标路径新增分别表达。
+
+每个 entry 把 index 与 worktree 分开：
+- index_entries 表示 Git index 中该路径的条目。普通条目通常只有 stage 0；冲突条目可能有 stage 1/2/3。每一 stage 的摘要按其 blob 原始内容计算，不直接复用 Git object ID。
+- worktree.state 为 present、absent 或 unreadable。删除路径应为 absent，不伪造空文件摘要。
+- worktree.kind 为 regular_file、symlink、gitlink 或 unsupported。
+- mode 使用 Git tree/index mode 语义（例如 regular 100644/100755、symlink 120000、gitlink 160000），不记录 owner/group、mtime 等不属于 Git 内容身份的元数据。
+- regular file 的摘要输入为文件原始字节；不做文本解码、换行转换、BOM 去除或 JSON/XML 规范化。
+- symlink 的摘要输入为链接目标原始字节；不跟随链接，不摘要目标文件。无法无损取得链接目标字节时标 unknown。
+- gitlink 不对 submodule 内部工作树递归；如果 submodule 本身 dirty，当前 fingerprint coverage 不能标 complete，相关范围 freshness 为 unknown/stale。
+
+不建议首版加入全局 manifest_digest。逐条目摘要足以对具体路径进行比较；manifest digest 只有在定义严格的规范序列化、排序和升级策略后才有意义，而且不能证明文件读取是原子的，也不能提供签名或来源真实性。若未来需要清单完整性校验，应另行定义确定性编码，不使用普通 JSON.stringify 结果。
+
+### 15.8 路径与文件系统规范
+
+路径规范必须优先保证“不把不同路径误认成同一路径”，而不是尽可能兼容所有特殊路径：
+
+1. 路径相对于当前 Packet 的项目根目录，使用 / 分隔符；不写绝对路径、盘符、UNC 前缀或 URL 编码路径。
+2. 拒绝 NUL、空路径、空组件、. 和 .. 组件；任何路径不得逃出 project root。
+3. JSON 字符串按 UTF-8 编码；保留原始 Unicode 码点序列，不执行 NFC/NFD 归一化、不大小写折叠、不 percent-decode。跨平台消费者必须按精确路径匹配。
+4. POSIX 文件名含反斜杠、非法 UTF-8 字节或目标平台无法无歧义映射的路径，标记 unsupported；不将反斜杠悄悄改成斜杠。
+5. 若目标平台文件系统大小写不敏感或存在 Unicode 归一化别名，消费者必须检测路径碰撞；发生碰撞时相关条目 unknown/conflict，不允许任选一个。
+6. 不因目录存在就生成目录摘要；Git status 的每个文件条目分别表示。目录重命名由其包含的路径集合变化体现。
+7. Git ignored 文件不属于首版固定 scope。若项目显式要求对某 ignored 文件进行连续性核验，应通过明确路径声明的后续扩展处理，不能暗中扩大默认扫描范围。
+
+**敏感数据保护：** 哈希不是脱敏保证。低熵密钥、token、证书内容可能通过猜测验证摘要。项目规则标记为 secret/private 的文件不得自动计算或写入内容摘要；若其属于本次工作所需路径，则 coverage 必须为 partial，该路径相关 freshness 为 unknown，直到有安全的专门机制。不得把文件内容、密钥值或可恢复的编码写入 Packet。
+
+### 15.9 摘要计算与采集算法
+
+对每个支持的普通文件：
+- 打开文件时避免跟随符号链接（平台支持时使用 no-follow）；读取文件原始字节并流式计算 SHA-256，不要求将整个文件载入内存。
+- 同时记录文件类型、Git 语义 mode、文件对象身份及必要元数据。
+- 读取完成后对同一文件句柄执行 fstat，并重新 lstat 路径，确认文件对象未被替换、类型/大小未发生变化；平台或工具无法可靠验证时该 entry 为 unknown。
+- mode 只纳入 Git 可表达的文件类型及 executable bit；不把 mtime、owner、group、ACL 或普通读写权限位当作跨平台内容身份。若可执行位无法可靠观察，mode=unknown，不能将涉及可执行语义的条目判为完整 current。
+- symlink 使用 lstat/readlink，不跟随目标；链接类型与目标字节分别表达。
+- index 中的 stage blob 通过 Git index/object 读取后，对 blob 原始内容重新计算 SHA-256；Git 自身 object ID 只用于定位，不进入跨仓库摘要值。
+- stage 1/2/3 冲突条目必须分别列出；若客户端无法读取所有 stage，则 entry unknown，不能将冲突压平为单个 stage 0。
+
+建议的只读采集顺序：
+1. 识别 project root、Git worktree root 和 HEAD；确认路径范围在 project root 内。
+2. 读取 HEAD SHA、Git index 状态与 git status --porcelain=v2 -z --untracked-files=all 等价的机器接口；以 NUL 分隔解析路径，不解析面向人类显示的 quoting 输出。
+3. 构建 staged/unstaged/deleted/untracked 路径集合；rename 以 source/destination 两条路径纳入。
+4. 读取对应 index stage entries 和工作区对象，按路径生成摘要条目；ignored、secret-policy-excluded、特殊文件和 submodule 内部状态按前述规则处理。
+5. 再次读取 HEAD、index 与 Git status；如果扫描期间任一发生变化，整个 fingerprint 的 observation 不得是 per_path_stable，必须重试一次或降级 unknown/partial。
+6. 成功后按规范路径顺序输出 entries，并核对其路径集合与 code.uncommitted_paths 一致；不一致说明采集范围不完整，不能声明 coverage=complete。
+
+此算法不保证多路径的全局原子性：A 文件可能先于 B 文件读取，读取 A 后它也可能在读取 B 之前再次变化。即使前后 Git status 相同，也不能证明所有文件在同一时刻处于该组合状态。因此协议只能承诺“逐路径观察到的字节摘要 + 扫描窗口 + 变化检测”，不能称作 atomic worktree snapshot。消费者只对具体条目重新摘要并比较；需要全局一致快照的操作必须另用文件系统快照/隔离 worktree 等独立能力，不能由本 Packet 推导。
+
+### 15.10 Freshness 判定与权限边界
+
+- coverage=complete 且 observation=per_path_stable 是声明完整 dirty-path fingerprint 的最低条件；它仍不是原子快照证明。
+- coverage=partial 或 unknown 时，只能对可独立定位且摘要有效的条目做局部比较；整体 dirty worktree 不得判 current。
+- 对单个 entry，必须比较路径、HEAD 基线、index stage/mode/digest、worktree state/kind/mode/digest。只比较 worktree 文件内容而忽略 index stage，会漏掉 staged/unstaged 边界变化。
+- 当前路径已消失、变成不同 kind、mode 不同、摘要不匹配或出现冲突 stage，均标 stale/conflict；无法读取或路径映射有歧义为 unknown。
+- 未出现在 fingerprint 的 dirty/untracked 路径不得推断 current。即使现存 entry 全匹配，只要扫描 coverage 不完整，本次工作区范围也只能判 partial。
+- fingerprint 只证明被观察路径的内容/索引摘要匹配，不证明未列出的 ignored 文件、编辑器缓冲区、运行进程、外部依赖、数据库或环境变量相同。
+- Packet 中的 fingerprint 不能授予写权限，不能作为自动 restore/stash/checkout 的输入命令；它仅用于恢复判断和差异提示。
+
+### 15.11 Worktree Fingerprint 场景契约
+
+| ID | 场景 | 规范化预期 | 禁止推论/行为 |
+|---|---|---|---|
+| WF01 | tracked 文件仅有 unstaged 修改 | index digest 与 HEAD 对应内容相同；worktree digest 记录修改后字节 | 将 index digest 当成当前文件内容 |
+| WF02 | tracked 文件已 staged，worktree 与 index 一致 | index/worktree 两层均记录；二者摘要一致 | 只记录 HEAD，漏掉 staged 内容 |
+| WF03 | 文件 staged 后再次编辑 | index digest 与 worktree digest 可不同 | 把两者压成一个“文件摘要” |
+| WF04 | staged delete 或 unstaged delete | index/worktree 的 present/absent 状态分别表达 | 用空文件摘要表示删除 |
+| WF05 | untracked 普通文件 | 无 index entry；worktree present + raw-byte digest | 因 HEAD 无该路径而忽略 untracked 内容 |
+| WF06 | rename | source 与 destination 分别作为路径条目；状态可从 HEAD/index/worktree 对照 | 依赖 Git 对 rename 的启发式检测结果作为身份 |
+| WF07 | symlink | 摘要原始链接目标，不跟随链接 | 摘要链接指向的文件内容 |
+| WF08 | 文件在扫描期间被替换/修改 | 对应 entry unknown；扫描窗口不声明稳定，按规则重试或降级 | 将读取前后不一致的内容判 current |
+| WF09 | 读取期间 HEAD/index/status 改变 | fingerprint 不得标 per_path_stable/complete | 把不同基线下的路径集合拼成一个完整快照 |
+| WF10 | secret-policy-excluded 文件出现在 dirty paths | coverage partial；不存该文件摘要，受影响声明 unknown | 以哈希形式保存低熵秘密并称为已脱敏 |
+| WF11 | submodule 内部 dirty 或特殊文件无法表示 | coverage partial/unknown；保留路径和原因范围，不递归执行修改 | 把 gitlink commit 当成 submodule 完整工作树摘要 |
+| WF12 | 文件名无法 UTF-8 无损表达或目标平台路径碰撞 | entry unsupported/unknown，相关路径 freshness 不可 current | 替换字符、大小写折叠或 Unicode 归一化后静默匹配 |
+
+### 15.12 方案取舍与建议结论
+
+本轮推荐方案：
+- 采用逐路径指纹；同时分别保存 index 与 worktree 内容状态，避免 staged/unstaged 误判。
+- 固定 SHA-256 原始字节摘要；首版不做文本规范化、不用 Git object ID 代替文件摘要。
+- 路径采用 UTF-8 + POSIX / 相对路径，精确保留码点；特殊/歧义路径降级 unknown。
+- scope 限定为 Git status 可见的非 ignored 路径；敏感路径不摘要，导致 coverage partial。
+- 不引入全工作区 manifest digest，不承诺原子快照；先通过逐路径核验满足恢复用途。
+- fingerprint 为可选字段；clean worktree 不需要为了凑齐字段生成空指纹。无法完整采集时允许部分记录，但不得声称整体 current。
+
+需要在用户批准数据模型方向后，才将其映射为 D1 Schema 字段并确定 0.x schema version 的变更策略。该方案尚未验证不同 Git 版本、操作系统、文件系统和客户端库的真实表现；进入实现前仍需独立 Fixture 与 CLI E2E 方案审查。
