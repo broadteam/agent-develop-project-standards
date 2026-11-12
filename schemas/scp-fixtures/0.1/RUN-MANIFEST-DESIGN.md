@@ -58,9 +58,9 @@ Do not compress a run into a single `success=true/false`.
 
 ### 4.2 Conformance outcome
 
-- `conformant`: every applicable assertion passed, all required inputs/observations were available, and the Harness completed normally.
+- `conformant`: every applicable assertion passed using a valid deterministic fixture and sufficient observations. This axis describes client behavior only; Harness health and cleanup are evaluated separately.
 - `non_conformant`: at least one client result contradicts a valid expected assertion under a successfully prepared deterministic fixture.
-- `inconclusive`: the test ran, but missing capability, permission, ambiguous observation or Harness uncertainty prevents a conformance decision.
+- `inconclusive`: the test reached evaluation, but missing capability, permission, ambiguous observation or uncertain input prevents a conformance decision.
 - `not_run`: Context/schema/Registry validation failed or setup did not reach the point at which the client could be evaluated.
 
 ### 4.3 Harness outcome
@@ -87,7 +87,7 @@ A client may be non-conformant even when cleanup later fails; preserve both fact
 | Process terminates before evaluation | not_run or inconclusive depending on available stage | interrupted | Never infer the missing result |
 | Process terminates after evaluation but before cleanup | preserve evaluated result if safely finalized; otherwise inconclusive | interrupted | Cleanup remains unknown |
 
-A later policy may require both `conformance_outcome=conformant` and `harness_outcome=healthy` for an overall CI pass. Do not define that gate in this design document.
+Overall run acceptance requires both `conformance_outcome=conformant` and `harness_outcome=healthy`; this is a result interpretation, not an implemented CI gate. If semantic assertions pass but cleanup fails, preserve `conformance_outcome=conformant` and set `harness_outcome=failed`; the overall run is not accepted and the disposable root is quarantined.
 
 ## 6. Actual result and assertion representation
 
