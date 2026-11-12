@@ -30,9 +30,9 @@ Invalid date probe: `2026-13-40T30:70:70Z`.
 
 | Context | Git blob SHA |
 |---|---|
-| `context/fingerprint-path-set-mismatch.json` | `84eee127f8e25dc3dec5706da132bbcc472c36e4` |
-| `context/identity-source-reference-unresolvable.json` | `1e06395c25a884c9943b36b61f7c3457b20ab008` |
-| `context/credentialed-project-repository.json` | `7d864428c24ee988373a60347e06d3e1fe0f47aa` |
+| `context/fingerprint-path-set-mismatch.json` | `542c5c6748fc5056c1fb4a080d9e2a4f8995789e` |
+| `context/identity-source-reference-unresolvable.json` | `9c42e9626e484a2b0c830a845097467450dfcd47` |
+| `context/credentialed-project-repository.json` | `37ea051aae40443abfe425c59e46282962bac9fe` |
 
 ## Negative Context Git blob IDs
 
@@ -77,8 +77,8 @@ All three descriptor SHA-256 values were recalculated from the fetched file byte
 ## Interpretation and limits
 
 - The current Schema blob `9348e22ac0ee450ce6689cec4fb87f0aa985104c` passed the Draft 2020-12 meta-schema check.
-- The 3 positive and 5 negative instances listed above were validated with this exact Schema using `Draft202012Validator(schema, format_checker=FormatChecker())`.
-- The Context instances pin Packet Schema blob `a2f2097a17c08bf0a2ae733ab43a8f1919b48813` and their respective Packet Git blob IDs. Context validation does not revalidate those Packet instances; the separate Packet report is `schemas/scp/0.2/fixtures/VALIDATION-REPORT.md`.
+- The 3 positive and 5 negative instances listed above were validated with this exact Schema using `Draft202012Validator(schema, format_checker=FormatChecker())`. Their reconstructed canonical JSON bytes were checked against the Git blob IDs; all 8 matched the repository's exact blob IDs.
+- All three Context instances pin source repository revision `1670320ea980368ed74cd4edd11cba4297467bde`, which was verified to contain the exact Packet, Packet Schema, Profile, Driver descriptor and Provider contract artifacts they reference. The Context instances also pin the Packet Schema blob `a2f2097a17c08bf0a2ae733ab43a8f1919b48813` and the individual Packet Git blob IDs. Context validation does not revalidate those Packet instances; the separate Packet report is `schemas/scp/0.2/fixtures/VALIDATION-REPORT.md`.
 - The authoritative not-found Context pins the synthetic provider evidence artifact above. A boolean authority flag without this artifact reference is rejected.
 - Profile references are immutable Git blob references. Registry-level capability resolution remains a Harness responsibility.
 - Driver descriptors are `contract_only`; no executable Driver implementation, allow-list Registry, Runner or adapter exists.
