@@ -60,7 +60,7 @@ These rules are cross-record semantics; the Schema validates event record shape 
 
 ## 6. Provider not-found authority
 
-For `response_class=authoritative_not_found`, both the stimulus event and companion provider observation must include `not_found_authority_evidence` referencing an immutable provider contract artifact by path + Git blob SHA.
+For `response_class=authoritative_not_found`, both the stimulus event and companion provider observation must include `not_found_authority_evidence` referencing an immutable provider contract artifact by path + Git blob SHA. The current synthetic contract is `schemas/scp-fixtures/providers/0.1/github-rest-not-found-contract.json`.
 
 The pinned provider contract must establish:
 - exact provider namespace/endpoint contract revision;
