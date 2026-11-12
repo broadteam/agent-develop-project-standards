@@ -819,3 +819,33 @@
 ### 下一步（唯一首选）
 
 进行正式 Draft 2020-12 JSON Schema meta-schema 与实例验证（包括 format assertion），并继续对照 §17.2/§17.3 做逐字段语义审查；先修正 schema/examples/fixtures/compatibility 的一致性，再把 D1 0.2.0 作为未冻结 Draft 提交给用户审查。不得实现 Validator/Writer/CI Gate，除非用户另行授权。
+
+### Schema 0.2.0 第二轮一致性审查补充（2026-11-12）
+
+后续修订与复核：
+- 修正 worktree entry 的 unreadable 条件：允许保留已知 kind/mode，但不得有 digest；complete coverage 明确排除 unreadable、unsupported 和 gitlink。
+- complete coverage 的 Schema 条件同时要求 observation=per_path_stable、工作区仅为 regular_file/symlink/absent，并拒绝 index gitlink mode。
+- Git path pattern 增加尾部斜线、控制字符等拒绝条件；entries 示例按 UTF-8 路径顺序排序。
+- 明确 fetch_state/push_state=resolved 只描述 Git 配置目标解析是否无歧义，身份可信等级仍由 identity_target.basis 决定。
+- branch_tracking push resolution_basis 收紧为 Git remote 选择来源，不包含 project_config；refspec 和授权不在此字段范围内。
+- project.project_id 增加 URI scheme pattern；URI 完整性仍需 semantic/configuration validation。
+- 新增 partial fingerprint 正例；新增 complete-with-unreadable、complete-with-gitlink、wrong-schema-version、unknown-core-field 四类 Schema 负例。
+- Fixture 目录当前为 3 个正例、8 个 Schema-invalid 负例、6 个 semantic-invalid 负例。
+
+第二轮本地结构/条件子集检查：
+- 3 个正例均无错误。
+- 8 个 Schema-invalid 负例均触发预期局部约束。
+- 6 个 semantic-invalid 负例均通过 Schema 结构检查，供后续 Semantic Validator 单独拒绝。
+- Schema 所含 pattern 均能被 JavaScript RegExp 编译；已测试路径模式拒绝绝对路径、盘符、dot/dot-dot、重复/尾随分隔符、反斜杠与 ASCII 控制字符。
+- 这不是正式 Draft 2020-12 meta-schema/instance validator 的结果；尚未执行正式 format assertion。不可报告为标准 Schema 验证通过。
+
+本轮后续提交：
+- Schema complete fingerprint/unreadable 修正：85dddebdcc6a1437c4f68f0e65cb570d09f128aa。
+- 兼容性语义说明：74f2252bd4e93068c0c9b5ed5b4cfd9791ce57d6、ab8662d61ab3a616daf4757ba55c1077d3bc0de2。
+- 完整 Fingerprint 示例排序：e7fddf0e8c8b957b4b323cd4918c49618416d2bc。
+- 新增 strict version/unknown field 负例：c4583a685c6fc18e444aafcbf1ae8c8378c7dbd4、9a1e68df63dd868e3d5a31d40c2d974429b8d52d。
+- Fixture README、设计章节和 Handoff 修订：001393c48e9d26b9ab0cb3ceb38f8d17b676d658、f97e66bded88812645cde499e8500d3e668583a3、a69648cddf33cb46e591580bbac942dbc58b41f3。
+- Identity 与 branch push 语义收紧：731c1be76ab65f37f0aea5f95860b40b1b7be3d4。
+- 第二轮设计一致性审查：23d2d2ac4ec54e58437d2aa178de362205db1faf。
+
+当前仍未完成：正式 Draft 2020-12 meta-schema/instance 验证、date-time format assertion 验证、semantic validator、真实 Git fixture runner、跨平台 CLI E2E 和两个独立客户端互操作测试。
