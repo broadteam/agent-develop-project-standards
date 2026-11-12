@@ -37,6 +37,14 @@ These examples intentionally satisfy the JSON shape but violate relationships re
 | `invalid/semantic/credentialed-locator.json` | Locator includes userinfo/token-like credentials |
 | `invalid/semantic/duplicate-index-stage.json` | One path contains duplicate index stage numbers |
 | `invalid/semantic/complete-with-dirty-submodule.json` | JSON shape is valid, but the fixture's live Git observation marks the submodule dirty; complete coverage must be rejected/downgraded |
+| `invalid/semantic/fingerprint-time-window-reversed.json` | `completed_at` precedes `started_at`; schema shape is valid, but the capture interval is impossible |
+| `invalid/semantic/partial-fingerprint-outside-path-set.json` | Partial fingerprint includes a path absent from `code.uncommitted_paths` |
+| `invalid/semantic/unsorted-fingerprint-entries.json` | Fingerprint entries are not ordered by UTF-8 path byte order |
+| `invalid/semantic/mixed-index-conflict-stages.json` | Index stage 0 is mixed with an unmerged stage for the same path |
+| `invalid/semantic/remote-fetch-push-identity-mismatch.json` | A resolved remote fetch target and push target have different stable repository identities |
+| `invalid/semantic/multiple-push-targets-different-identities.json` | One remote's effective push target list resolves to more than one repository identity |
+| `invalid/semantic/branch-tracking-unknown-remote.json` | Configured branch upstream names a remote absent from the observed remote mappings |
+| `invalid/semantic/branch-state-code-branch-mismatch.json` | Branch tracking says detached while `code.branch` still names an attached branch |
 
 ## Expected handling
 
