@@ -477,3 +477,82 @@ If this proposal is later accepted as the next fixture revision, the candidate s
 This is 14 candidate contract cases, in addition to the existing 19 semantic vectors. Native OS/filesystem E2E profiles are a separate matrix and must not be counted as additional Packet fixtures.
 
 No candidates are added to the current inventory by this document. Admission requires a separate review of the companion-context format, deterministic adapter API and expected normalized result codes. Schema 0.2.0 remains unchanged.
+
+## 16. Adversarial review of the candidate adapter contracts
+
+The following checks are required before the 14 candidate cases can be accepted into a versioned fixture inventory.
+
+### 16.1 Event barriers must prove ordering, not rely on timing
+
+A barrier is sufficient for the semantic evaluator contract only when the fixture captures an explicit ordered event log, for example:
+
+1. `initial_observation_complete`
+2. `mutation_applied`
+3. `final_observation_started`
+4. `final_observation_complete`
+
+The event log must identify the exact initial/final snapshot IDs and the changed HEAD/index/status components. A test that uses sleep, polling delay, scheduler luck or a probabilistic race is invalid.
+
+This proves that the evaluator reacts correctly to two different observations. It does not prove a real CLI observer places its final re-enumeration at the correct point. That requires a separate observer E2E hook around the actual read operations. The harness hook may mutate only the disposable repository.
+
+### 16.2 File identity is not content immutability
+
+Keep these observations distinct:
+
+- open-handle identity: which filesystem object the opened handle refers to;
+- current path identity: which filesystem object the path resolves to;
+- content stability: whether bytes remained unchanged during the digest interval.
+
+A stable inode/file ID can prove neither that the file's bytes did not change in place nor that a digest read was atomic. The virtual contract therefore supplies separate object-identity and content-mutation signals.
+
+Minimum deterministic sequence for replacement:
+- before: handle=A, path=A;
+- mutation: path atomically replaced with object B;
+- after: handle=A, path=B;
+- expected: path claim unknown; the digest of handle A must not be represented as the digest of the current path.
+
+Minimum deterministic sequence for in-place mutation:
+- before/after: handle=A, path=A;
+- companion mutation signal: content_changed_during_read=true;
+- expected: entry unknown even though object identity is stable.
+
+When the native adapter cannot reliably determine whether in-place mutation occurred, it must report capability unavailable/insufficient and return unknown. It must not claim safety based only on matching object identity, size or coarse modification time. No cross-platform file lock or atomic snapshot is implied.
+
+### 16.3 Path equivalence must be explicit and byte-preserving
+
+A filesystem profile must not merely say `windows`, `macos` or `linux`. At minimum it identifies:
+- exact UTF-8 bytes for each tested path;
+- strict decoded code-point sequence;
+- case-equivalence capability;
+- Unicode normalization-equivalence capability;
+- the observed pairwise path relation: same_object / distinct_objects / cannot_determine;
+- probe root and profile revision/identifier.
+
+The contract adapter receives the relation as companion context. It must not reimplement an unspecified universal case-folding or Unicode-normalization algorithm. Exact path bytes remain the protocol identity; profile equivalence is a separate filesystem observation.
+
+For a case-insensitive profile, `src/Foo.ts` and `src/foo.ts` are a collision only if the profile's pairwise observation says they resolve to the same filesystem identity. The same applies to NFC/NFD pairs. A profile that cannot prove the relation yields unknown, not assumed distinct.
+
+### 16.4 Provider not-found authority must be auditable
+
+An authoritative 404 requires all of the following companion facts:
+
+- provider namespace and API/adapter contract identifier or revision;
+- exact resource ID and requested revision/scope;
+- authenticated principal identity (not the credential itself);
+- confirmation that authentication was accepted for this lookup;
+- provider contract evidence that this endpoint does not mask private/hidden resources as 404 for that principal;
+- explicit stub result class `authoritative_not_found`.
+
+If any of these facts is missing, the response is `ambiguous_not_found` and identity/source freshness remains unknown. A raw status code, response message or absence from a local cache is not sufficient authority. Do not persist tokens, cookies or authorization headers in the fixture context.
+
+### 16.5 Minimum review disposition
+
+| Mechanism | Acceptable for deterministic contract test? | Additional native test |
+|---|---|---|
+| Explicit observation snapshots + ordered event log | Yes, for evaluator semantics | Required for actual CLI observer placement/re-enumeration |
+| Open handle/path identity token pair | Yes, as an abstract adapter contract | Required per supported filesystem API |
+| In-place content mutation signal | Yes, when explicitly injected | Required to establish native capability; unavailable must remain unknown |
+| Explicit pairwise path-equivalence observations | Yes, for semantic normalization | Required per mounted filesystem profile |
+| Provider stub with principal + contract metadata + response class | Yes | Required per real provider adapter; never use real credentials in fixture suite |
+
+These constraints resolve the design's determinism risks without adding Packet fields. They do not prove native platform capabilities or authorize implementation. The 14 candidates remain proposed; the current inventory remains 4 / 9 / 19.
