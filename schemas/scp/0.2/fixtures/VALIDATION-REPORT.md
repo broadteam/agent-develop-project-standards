@@ -7,11 +7,11 @@
 | Item | Value |
 |---|---|
 | Schema | `schemas/scp/0.2/continuity-packet.schema.json` |
-| Schema blob SHA | `0ab451634283385b5ffa7f028fa7f4a0e6b41cc8` |
+| Schema blob SHA | `a2f2097a17c08bf0a2ae733ab43a8f1919b48813` |
 | Schema dialect | JSON Schema Draft 2020-12 |
 | Validator | Python `jsonschema 4.26.0` |
 | Instance format checking | `FormatChecker()` enabled |
-| Repository snapshot used for fixture blob IDs | `f14f1d2e1454ca654b37e9eedd01c077f39ddc9f` |
+| Repository snapshot used for fixture blob IDs | `2d73c5d013ca467a27c37815761cb03be4a3d74b` |
 
 ## Results
 
@@ -19,7 +19,7 @@
 |---|---:|---|---|
 | Schema meta-schema | 1 | `Draft202012Validator.check_schema` succeeds | PASS |
 | Positive instances | 4 | Every example validates | 4/4 PASS |
-| JSON Schema-invalid fixtures | 8 | Every fixture is rejected | 8/8 REJECTED |
+| JSON Schema-invalid fixtures | 8 | Every fixture is rejected | 9/9 REJECTED |
 | Semantic-invalid fixture packets | 19 | Every Packet remains JSON Schema-valid; semantic/context layer must reject or downgrade the claim | 19/19 SCHEMA-VALID |
 | Date-time format assertion | 2 probes | Valid RFC 3339 accepted; invalid date-time rejected | PASS |
 
@@ -27,8 +27,9 @@ The date-time probe accepted a valid RFC 3339 timestamp and rejected `2026-13-40
 
 ## Interpretation and limits
 
-- The 4 positive and 8 structural negative instances were validated with the same Schema blob SHA recorded above. The Schema blob has not changed since that run.
+- The 4 positive and 9 structural negative instances were validated with the same Schema blob SHA recorded above. The Schema blob has not changed since that run.
 - The 19 semantic-invalid Packet instances were checked with Draft 2020-12 validation and `FormatChecker()`; all 19 remain structurally valid. Their intended rejection/downgrade depends on the companion context in `SEMANTIC-CONTEXT.md`.
+- A post-review schema refinement now requires an indexed gitlink and its worktree path to both be present in `coverage=complete`. The new missing-gitlink-worktree negative fixture is rejected; the clean gitlink positive and pointer-mismatch semantic case remain valid at the Schema layer.
 - Schema-valid does **not** mean semantically valid, current, resolved, safe to write, or backed by real Git/provider evidence.
 - The semantic companion contexts are deterministic test-input specifications, not a running Git/provider fixture environment. No real Git repositories, provider API responses, permission failures, file digests or submodule states were executed by this report.
 - The fixture JSON uses synthetic IDs, digests and revisions. These values are placeholders, not proof of repository identity or file contents.
@@ -50,6 +51,7 @@ The date-time probe accepted a valid RFC 3339 timestamp and rejected `2026-13-40
 | Fixture | Blob SHA |
 |---|---|
 | `invalid/schema/complete-with-gitlink-entry.json` | `f3e887b3b61dfe7fa236ae19d1e0e1df5d771ab6` |
+| `invalid/schema/complete-with-missing-gitlink-worktree.json` | `7041c591001d4373788ae22cf0b0e14d5d1fefb2` |
 | `invalid/schema/complete-with-unreadable-entry.json` | `57234f4f215d661c3d195770ac54fa9f632ba3e8` |
 | `invalid/schema/dirty-without-paths.json` | `a3a028ce813b0362c175c7d9cf017d98103b9b72` |
 | `invalid/schema/fingerprint-complete-changed-capture.json` | `7c8b4aed703312fd0a3e10c629b349860efd0244` |
