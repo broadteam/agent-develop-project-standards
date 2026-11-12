@@ -557,3 +557,16 @@
 
 对 D3 §14.1–§14.12 做第二轮独立一致性审查，重点检查规范化结果维度是否存在重叠/不可判定，20 个场景是否遗漏重要写入竞态，以及 Schema 0.1.0 是否被任何场景隐式要求扩展。若通过，再整理 D3 冻结候选结论；是否冻结仍由用户明确决定。
 
+
+### D3 第二轮一致性审查修订（2026-11-12）
+
+在 §14.13 记录第二轮审查结论，并修订 §14.12.1/C02–C04：
+
+- 将“是否值得持久化”与“是否获准写入”拆成独立结果维度 `persistence_need` 和 `write_authorization`。用户拒绝时，need 仍可为 needed，但 authorization 必须 not_permitted，write_result 必须 not_attempted。
+- 明确 Markdown 交接文件不是自动的 Packet 写入目标；JSON Schema 仍是唯一机器契约。只有项目明确规定 Markdown 是工具生成的派生视图时，才可更新该视图。
+- 进一步区分 target_resolution、preflight_state、write_result、packet_usability 与 D2 recovery_freshness，避免把目标歧义、基线过期、写入竞态、结构可消费和来源新鲜度混为一谈。
+- 第二轮审查未发现 D3 场景必须新增 D1 Schema 字段；dirty/untracked 摘要编码及多 remote/fork repository identity 仍属于 D1/D2 独立待解决边界。
+
+- 第二轮修订提交：f8210cdaa38c4f62752f2b8f69f67590c34fc607。
+- D3 仍未冻结；未创建机器 Fixture、Writer、Validator 或 E2E。
+
