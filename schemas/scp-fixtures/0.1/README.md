@@ -73,7 +73,7 @@ Five invalid Context examples are under `../../scp/0.2/fixtures/context-invalid/
 
 ## Run Manifest design
 
-See [RUN-MANIFEST-DESIGN.md](./RUN-MANIFEST-DESIGN.md) for the proposed immutable per-attempt record, separate conformance/Harness outcome axes, cleanup semantics and acceptance criteria. It is design-only and is not a machine schema.
+See [RUN-MANIFEST-DESIGN.md](./RUN-MANIFEST-DESIGN.md) for the proposed immutable per-attempt record, separate conformance/Harness outcome axes, cleanup semantics, retry lineage, interruption trust, artifact/Evidence separation and acceptance criteria. It is design-only and is not a machine schema.
 
 ## Validation
 
