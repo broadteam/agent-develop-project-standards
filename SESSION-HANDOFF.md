@@ -1064,3 +1064,65 @@ Design §17.15 已整理 13 组规则：协议兼容、Repository Identity、Rem
 当前状态仍为 4 positive / 9 JSON Schema-invalid / 19 semantic-invalid。Schema SHA 为 `a2f2097a17c08bf0a2ae733ab43a8f1919b48813`；验证报告在 `schemas/scp/0.2/fixtures/VALIDATION-REPORT.md`。
 
 下一步唯一首选：设计这四类候选 context 的 deterministic setup/observation/result contract，并与 D2 的 freshness/recovery outputs 对齐；先不增加 fixture、不实现 Runner/Validator/CI Gate，直到跨客户端一致性边界明确。
+
+## 四类候选故障场景的 D2 状态映射和纳入决策（2026-11-12）
+
+新增设计：
+- `schemas/scp/0.2/fixtures/SEMANTIC-EXECUTION-CONTRACT.md` §11–§14：四类场景的确定性 setup、event sequence、companion fields、expected normalized output 和跨客户端断言。
+- `SESSION-CONTINUITY-PROTOCOL-DESIGN.md` §17.20：对照 D2 §13.12，规定 freshness、现场 observation、identity/path 状态及 operation-scoped recovery mode。
+
+### 四类场景的规范化结果
+
+1. **Fingerprint re-enumeration race**
+   - Packet 旧 fingerprint：确认 path/index 已变化时标 stale。
+   - 本次扫描：初次与最终 HEAD/index/status 不一致，现场 observation=unknown / changed_during_capture，不能拼接成 complete snapshot。
+   - 不依赖 dirty path 的只读工作=restricted；依赖该路径集合的操作=blocked（受影响范围）。
+
+2. **File object replaced during digest read**
+   - handle identity 与当前 path identity 不一致，或同一对象的并发变更无法可靠检测：受影响 entry=unknown，coverage=partial/unknown。
+   - 只有之后一轮稳定观察证明摘要不匹配，旧 Packet claim 才能标 stale。
+   - 无关只读工作=restricted；依赖精确路径状态的操作=blocked。
+   - 文件 identity token 不等于内容不变性证明；inode/file ID 不能被包装为跨平台原子快照。
+
+3. **Case / Unicode path alias collision**
+   - 两个不同 UTF-8 path 在明确 profile 下映射同一 filesystem identity：path claim=conflict/ambiguous。
+   - 若 profile 证明两个对象不同，保留精确路径；无法判断则 unknown。
+   - 禁止 case-fold、Unicode normalize 或替换字符后静默合并。
+   - 相关路径操作=blocked；无关只读工作=restricted。
+   - 确定性契约层使用 virtual path-identity adapter；真实文件系统能力另做 native E2E。
+
+4. **Provider authorization vs not-found**
+   - 403/429/timeout/ambiguous 404：source freshness=unknown，identity=unknown/unresolved。
+   - 只有认证主体、精确资源/revision 与 Provider 契约共同确认的 authoritative 404 才能将对应 source 标 stale；identity 仍 unresolved，除非其他权威来源独立证明。
+   - 本地独立只读工作=restricted；依赖 canonical/checkout/push identity 的操作=blocked。
+
+### 下一版 Fixture 纳入建议
+
+| 候选 | 结论 |
+|---|---|
+| Re-enumeration race | 纳入下一版确定性 semantic fixture；native Git CLI 另做跨平台 E2E |
+| Provider response matrix | 纳入下一版确定性 semantic fixture；真实 Provider adapter 另做契约 E2E |
+| File object replacement | 拆为 virtual observer-contract fixture + 原生 OS/filesystem E2E |
+| Path alias collision | 拆为 profile-driven virtual contract fixture + 原生 filesystem E2E |
+
+当前 Fixture Inventory 不变：4 positive / 9 Schema-invalid / 19 semantic-invalid。候选项不计入现有数量，也未创建新的 JSON fixture。
+
+### 反例审查结论
+
+- 不把“观察期间不稳定”误判成“来源不存在”。
+- 不把 403/429/timeout 或可见性不明的 404 升级为 authoritative not-found。
+- 不把 path alias 的已证实冲突降格成普通 stale；也不把无法观察的 alias 强行判 conflict。
+- 不把 inode/file ID 一致当成内容不变；能力不足必须 unknown。
+- recovery_mode 按动作依赖范围计算：局部 blocked 不应停止独立安全只读分析；restricted 不是默认写权限。
+- 上述均可使用现有 D1 Packet 字段和 D2 状态轴，不增加 Schema 0.2.0 字段。
+
+### 冻结与实施边界
+
+- Schema blob SHA 仍为 `a2f2097a17c08bf0a2ae733ab43a8f1919b48813`；本轮未修改 Schema。
+- D0 已确认冻结；D1、D2、D3 仍未冻结。
+- 未实现 Semantic Validator、Fixture Runner、Writer 或 CI Gate。
+- PR #10、main、版本和 tags 未修改；PR #11 保持 Open + Draft。
+
+### 下一步（唯一首选）
+
+把下一版两类确定性 fixture（re-enumeration race、Provider response matrix）各自的测试向量拆成独立的 case ID、companion context 和预期 normalized result；同时为 file-object/path-alias 两类定义 native profile conformance matrix。完成设计复核后，再决定是否正式扩充 Fixture Inventory。
