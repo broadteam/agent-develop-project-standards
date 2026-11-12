@@ -2039,18 +2039,11 @@ CI 说明：当前 Standards CI workflow 的全绿结果不包含 SCP Schema 验
 
 **权威边界判断：** Fixture Context 不形成第二套项目状态数据库：它只描述可重现的测试刺激和期望，不记录项目当前任务状态；实际观察和运行结果由独立 run manifest 保存，并以精确 SHA 绑定输入。项目权威状态仍归原有 intent/requirements/tasks/ADR/Evidence 来源。
 
-**尚待决定的 5 项边界：**
-1. 是否接受独立 Context Contract/version namespace。
-2. 是否采用 typed declarative observations + allow-listed driver IDs，而不是可执行 setup scripts。
-3. 是否接受 run manifest 与输入 Context 分离。
-4. Reason codes 是否仅限测试层。
-5. Capability profiles 内嵌还是以不可变 ID + SHA 外部引用。
-
-在这些边界获批准前，不创建 `fixture-context.schema.json`、机器 Context instances 或 Runner；当前 4 / 9 / 19 inventory 不变，Packet Schema 0.2.0 不变，D1/D2/D3 仍未冻结。
+**该节的待决策清单（历史状态，已被 §17.24 / §17.25 更新）：**五项建议已由用户于 2026-11-12 批准；Context Schema 0.1.0 Draft 和 design-only Context instances 已创建。Runner/Adapter/CI Gate 仍未获授权。
 
 ### 17.24 Fixture Context Contract 的最小治理决策建议
 
-对 §17.23 的 5 项开放边界进一步评估，推荐如下（仍待用户审查，不视为已批准）：
+对 §17.23 的 5 项开放边界进一步评估后形成以下推荐；用户已于 2026-11-12 明确批准：
 
 1. **独立 Contract/version namespace：接受。** 建议 `scp-fixture-context/0.1.0`，与 Packet 0.2.0 独立演进。
 2. **Typed declarative observations + allow-listed driver：接受。** Context 不允许任意 shell/脚本；driver ID 必须在 harness registry 允许列表内。
@@ -2062,7 +2055,7 @@ CI 说明：当前 Standards CI workflow 的全绿结果不包含 SCP Schema 验
 
 未来正式 Context Schema 的创建门槛见 `CONTEXT-CONTRACT-DESIGN.md` §14，包括所有引用不可变可解析、事件确定性、观察记录类型化、expected output 按 claim/scope 表达、无凭据/任意代码、缺输入 fail-closed、标准 Draft 2020-12 验证和两个独立 Harness adapter 对同一 Context 得到一致输入观察。
 
-当前仍不创建 Context Schema/机器实例；`SEMANTIC-CONTEXT.md` 暂时是唯一人类 Fixture Catalog。该提案没有形成第二套项目状态库，不改变 4 / 9 / 19 inventory，也不修改 Packet Schema 0.2.0。
+该推荐已落实为 Context Schema 0.1.0 Draft 和少量 design-only Context instances。`SEMANTIC-CONTEXT.md` 继续作为人类 review catalog；机器 Context 只描述 test input/expected result，不形成第二套项目状态库。Packet Schema 0.2.0 与 4 / 9 / 19 Packet Fixture inventory 不变。
 
 ### 17.25 Fixture Context 0.1.0 Draft 实体化与验证收敛
 
