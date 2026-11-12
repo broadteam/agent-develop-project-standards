@@ -1321,36 +1321,39 @@ Checkpoint 操作的客户端结果至少应能归一化为以下独立维度；
       "remote_mappings": [
         {
           "remote_name": "origin",
-          "direction": "fetch",
-          "relation": "fork_of_canonical",
-          "target": {
+          "fetch_target": {
             "namespace": "https://github.com",
             "id": "R_checkout",
             "locator": "https://github.com/example/project-fork",
             "basis": "provider_native_id"
-          }
-        },
-        {
-          "remote_name": "origin",
-          "direction": "push",
-          "relation": "fork_of_canonical",
-          "target": {
-            "namespace": "https://github.com",
-            "id": "R_checkout",
-            "locator": "https://github.com/example/project-fork",
-            "basis": "provider_native_id"
-          }
+          },
+          "push_targets": [
+            {
+              "namespace": "https://github.com",
+              "id": "R_checkout",
+              "locator": "https://github.com/example/project-fork",
+              "basis": "provider_native_id"
+            }
+          ],
+          "relation_to_canonical": "fork_of_canonical"
         },
         {
           "remote_name": "upstream",
-          "direction": "fetch",
-          "relation": "canonical",
-          "target": {
+          "fetch_target": {
             "namespace": "https://github.com",
             "id": "R_canonical",
             "locator": "https://github.com/org/project",
             "basis": "provider_native_id"
-          }
+          },
+          "push_targets": [
+            {
+              "namespace": "https://github.com",
+              "id": "R_canonical",
+              "locator": "https://github.com/org/project",
+              "basis": "provider_native_id"
+            }
+          ],
+          "relation_to_canonical": "canonical"
         }
       ]
     }
@@ -1364,7 +1367,7 @@ Identity object fields:
 - locator：经脱敏和规范化后的导航 URL，仅用于显示、辅助解析和人工审查；不是稳定身份的首选比较依据。
 - basis：provider_native_id / project_config / normalized_locator_only。最后一种只能形成 provisional identity，不得与稳定 ID 等价。
 - checkout：当前 checkout 的仓库身份；canonical：项目配置指定的规范仓库身份。两者允许相同，也允许 fork 工作流下不同。
-- remote_mappings：每个 remote 的每一种方向分别记录。fetch URL 与 push URL 不得假设相同；一个 remote 有多个 URL 时逐目标列出，不依赖数组顺序。
+- remote_mappings：每个 remote 作为一个配置实体记录，分别表示有效 fetch_target 与 push_targets；同一 remote 的 fetch/push URL 可以是不同传输地址，但应解析为同一仓库身份。若要从 upstream fetch、向 fork push，应使用两个 remote。
 - relation：canonical / fork_of_canonical / mirror_of_canonical / unrelated / unknown。除 canonical ID 完全匹配外，fork/mirror 关系必须有平台可验证关系或项目显式配置支持；不能根据 owner 名称、remote 名称或仓库命名相似度猜测。
 - remote_name 是当前 checkout 的本地配置别名，仅用于把观察到的 URL 关联回 Git 配置；跨机器比较以 target identity 为准。
 
@@ -1388,7 +1391,7 @@ Project Identity 与 Repository Identity 必须分离：
 - namespace 不同的相同 id 不相等；不同 provider 的数字 ID 不得直接比较。
 - 同一 namespace 内两个不同稳定 id 是不同仓库，即使 URL path 或名称相似。
 - 项目配置声明的 fork/mirror relation 与平台可验证关系冲突时，标 conflict，不由 Agent 选边。
-- 多个 fetch/push target 不同是允许的观察结果，但必须分别表达；若本次任务要求确定 push destination，而 push target 未配置或多个候选不明确，则该操作的目标解析为 ambiguous，不影响可独立进行的只读分析。
+- 不同 remote 可以指向不同仓库；同一 remote 的 fetch_target 与 push_targets 应解析为同一 repository identity。若无法证明或多个有效 push_targets 指向不同仓库，标 conflict/unknown；本次操作要求确定 push destination 而配置不明确时，目标解析为 ambiguous。
 
 ### 16.4 URL/Remote 规范化与凭据保护
 
@@ -1423,7 +1426,7 @@ D2 应将身份解析作为独立于 freshness 的前置轴，输出至少一种
 |---|---|---|---|
 | RI01 | 单一 remote，平台稳定 ID 与 Packet 一致 | checkout identity resolved | 仅凭 remote 名称宣称身份一致 |
 | RI02 | origin 是 fork，upstream 是 canonical，映射明确 | checkout=fork；canonical=upstream；project identity 可保持一致 | 把 origin 自动认作 canonical |
-| RI03 | origin fetch 与 push 指向不同 repository | 分别记录 fetch/push targets；推送目标按本次操作重新判定 | 将 fetch URL 当作 push URL |
+| RI03 | origin 的 fetch URL 与 push URL 使用不同传输地址，但稳定 identity 相同 | 两个 locator 分别观察，repository identity 相同；push 操作仍按当前配置重新解析 | 把不同 URL 字符串直接判为不同仓库；或将同一 remote 的 push 改指向另一个 repository identity |
 | RI04 | 多个 remote 指向不同仓库且无项目 mapping | ambiguous/unknown | 选择第一个 remote 或默认 origin |
 | RI05 | URL owner/repository 改名，但稳定 provider ID 相同 | identity resolved；locator 更新 | 仅因 URL 变化判成新项目 |
 | RI06 | HTTPS 与 SSH URL 指向同一仓库，但无法获取稳定 ID/adapter 不能证明等价 | provisional/ambiguous | 仅凭字符串相似合并身份 |
@@ -1452,11 +1455,11 @@ D2 应将身份解析作为独立于 freshness 的前置轴，输出至少一种
 - 不建议仅靠修改 project.repository 字符串编码身份，也不建议把结构化 remote mappings 存进自由字符串或可忽略 extensions。
 - repository_identity 对象应为 optional，以支持没有远端、离线、自托管旧项目及未启用 SCP 的恢复路径；但若 Packet 声称身份已核验，则必须提供足够稳定标识或明确配置来源。
 - project.project_id 继续作为可选的逻辑项目身份；建议只有项目正式配置稳定 namespaced URI 时才填入。未配置则省略，不能自动用 repository URL 或目录名填充。
-- 结构字段的语义验证需检查：同一 remote/direction 多 target 的排序独立性、canonical relation 与 canonical identity 的一致性、identity basis 所需字段、fetch/push 分离、URL 凭据清除，以及多个 stable identity 冲突时的 fail-closed。
+- 结构字段的语义验证需检查：同一 remote 的有效 fetch/push 目标解析、push_targets 的集合语义、canonical relation 与 canonical identity 的一致性、identity basis 所需字段、fetch/push 指向仓库身份的一致性、URL 凭据清除，以及多个 stable identity 冲突时的 fail-closed。
 
 ### 16.9 暂定结论与待验证边界
 
-推荐方案是：以 provider/instance namespace + stable native repository ID 为强身份；无平台 ID 时使用项目显式配置；规范化 URL 仅作为弱定位线索。单独保存 checkout repository、canonical repository 和每个 remote 的 fetch/push mapping，fork/mirror 关系必须显式或可验证。
+推荐方案是：以 provider/instance namespace + stable native repository ID 为强身份；无平台 ID 时使用项目显式配置；规范化 URL 仅作为弱定位线索。单独保存 checkout repository、canonical repository 和每个 remote 的有效 fetch/push mapping；同一 remote 的方向 URL 应映射到同一仓库，fork/mirror 关系必须显式或可验证。
 
 该方案不要求 SCP 自建身份注册中心，也不引入锁服务或后台协调服务。实际验证前仍需覆盖 GitHub/GitLab/self-hosted/local-only、SSH/HTTPS、多 remote、多 worktree、fork、pushurl、URL 迁移和权限不足场景。
 
@@ -1474,10 +1477,10 @@ D2 应将身份解析作为独立于 freshness 的前置轴，输出至少一种
 
 建议 remote_mappings 在正式 Schema 中按“remote 配置实体”组织，而不是把同一个 remote 的 fetch/push 当作可任意指向不同身份的独立 remote：
 - remote_name：本地 alias。
-- fetch_target：该 remote 当前有效 fetch target（默认 fetch 使用配置的第一个 url）。
-- push_targets：该 remote 当前有效 push target 集合（配置 pushurl 时取其全部，否则取全部 url）。
+- fetch_target：该 remote 当前有效 fetch target（普通 remote 多个 url 时，fetch 默认使用第一个）。
+- push_targets：该 remote 当前有效 push target 集合（配置 pushurl 时取其全部，否则取全部 url）；多个目标应解析为同一 repository identity。
 - relation_to_canonical：根据稳定 identity/显式配置判定的关系。
-- 多 URL 的顺序和有效语义必须保留；若某条目标无法解析或多个 push targets 身份冲突，该 remote 的身份/操作可用性降级。
+- 多 URL 的顺序和有效语义必须保留；若某条目标无法解析或 fetch/push identity 不一致，该 remote 的身份/操作可用性降级。
 
 另外建议增加可选 branch_tracking 观察对象，分开记录：
 - tracking_remote_name / merge_ref：当前分支的 upstream tracking 配置（若存在）。
