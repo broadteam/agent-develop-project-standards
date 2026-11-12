@@ -917,23 +917,24 @@ Checkpoint 操作的客户端结果至少应能归一化为以下独立维度；
 
 | 维度 | 建议值 | 含义 |
 |---|---|---|
-| `persistence_decision` | `not_needed` / `eligible` / `not_permitted` | 是否值得保存，以及是否具备写入权限；eligible 不代表已写入 |
+| `persistence_need` | `not_needed` / `needed` / `optional` | 本次断点是否具有跨会话恢复价值；不表示已获写入授权 |
+| `write_authorization` | `permitted` / `not_permitted` / `unknown` / `not_required` | 当前项目规则、用户指令和能力配置是否允许写入 |
 | `target_resolution` | `resolved` / `missing` / `ambiguous` / `not_configured` | 是否能从权威入口唯一确定写入目标 |
 | `preflight_state` | `ready` / `stale` / `conflict` / `unknown` / `not_run` | 项目身份、基线、引用和工作区前置核验结果 |
-| `write_result` | `written` / `not_written` / `failed` / `conflict` / `not_attempted` | 持久化动作的实际结果 |
+| `write_result` | `written` / `not_written` / `failed` / `conflict` / `not_attempted` | 持久化动作的实际结果；conflict 表示写入时检测到目标版本竞态 |
 | `packet_usability` | `usable_as_last_known` / `unusable` / `unknown` | 结构和身份检查后是否可作为恢复线索；不代表 freshness current |
 | `recovery_freshness` | 复用 D2 的逐来源 `current/stale/conflict/unknown` | 接收方现场核验后的来源状态，不由写入者自我声明 |
 
-这些是客户端对操作结果的规范化表达，不是新增 Packet 字段或第二套持久化状态账本。客户端可以提供更详细的诊断，但不得把 `eligible` 说成 `written`、把 `written` 说成 `current`，或把 `usable_as_last_known` 说成已恢复完成。
+这些是客户端对操作结果的规范化表达，不是新增 Packet 字段或第二套持久化状态账本。客户端可以提供更详细的诊断，但不得把 `persistence_need=needed` 说成已获授权、把 `write_authorization=permitted` 说成已写入、把 `written` 说成 `current`，或把 `usable_as_last_known` 说成已恢复完成。
 
 #### 14.12.2 场景矩阵
 
 | ID | 输入/前置条件 | 规范化预期 | 允许行为 | 禁止行为 |
 |---|---|---|---|---|
 | C01 | 普通问答或短任务，无跨会话恢复价值 | `not_needed`；`not_attempted` | 直接结束当前任务 | 为满足流程而创建 Packet |
-| C02 | 重要阶段收口，目标入口唯一，权限允许，基线可核验 | `eligible`；preflight `ready`；写入后才可为 `written` | 生成最小 Packet 并验证完整持久化 | 在写入前宣称已保存 |
-| C03 | 用户明确拒绝持久化 | `not_permitted`；`not_attempted` | 提供会话内可复制摘要 | 以“系统默认”或自动化为由写入 |
-| C04 | 项目未配置 Packet 入口，但存在既有 handoff/AGENTS/MEMORY 入口 | 目标按既有入口解析；无明确 Packet 目标时不新建 | 更新既有且明确授权的交接文档，或仅输出摘要 | 擅自创建新目录/索引文件 |
+| C02 | 重要阶段收口，目标入口唯一，权限允许，基线可核验 | need `needed`；authorization `permitted`；preflight `ready`；写入后才可为 `written` | 生成最小 Packet 并验证完整持久化 | 在写入前宣称已保存 |
+| C03 | 用户明确拒绝持久化 | need 可为 `needed`；authorization `not_permitted`；write `not_attempted` | 提供会话内可复制摘要 | 以“系统默认”或自动化为由写入 |
+| C04 | 项目未配置 Packet 入口，但存在既有 handoff/AGENTS/MEMORY 入口 | Packet 目标为 `not_configured`；不执行 Packet 写入 | 沿用既有恢复入口；仅当项目明确规定 Markdown 是由工具从 Packet 生成的派生视图时，才更新该视图，否则仅输出会话内摘要 | 把 Markdown 手工维护成第二机器契约，或擅自创建新目录/索引文件 |
 | C05 | 多个候选目标，项目规则未指定唯一目标 | target `ambiguous`；不写入 | 请求用户/项目规则明确目标，或仅输出摘要 | 按文件名、时间戳、目录顺序选一个 |
 | C06 | 项目身份与当前仓库不匹配 | preflight `conflict`；write `not_attempted` | 停止 Packet 写入，从当前项目规则重新识别 | 将旧项目 Packet 改写为当前项目断点 |
 | C07 | Packet 生成后、写入前 HEAD 或相关权威来源发生变化 | preflight `stale`；重新 Bootstrap | 重建断点，再执行新一轮前置检查 | 静默沿用旧基线或自动 rebase 内容 |
@@ -968,4 +969,23 @@ Checkpoint 操作的客户端结果至少应能归一化为以下独立维度；
 - 真实 Writer E2E 需在两个独立客户端分别验证目标解析、并发修改检测、失败/中断后的文件完整性、成功回读和接收端重新 Bootstrap。
 - 不得因 Fixture 通过而跳过真实 E2E，也不得把单一客户端测试结果称为跨客户端互操作通过。
 - 本节不授权实现 Writer、Validator、Fixture Runner、CLI、后台服务或 CI Gate；这些属于后续独立决策。
+
+
+### 14.13 D3 第二轮一致性审查与语义修订
+
+对 §14.1–§14.12 做第二轮审查，检查规范化状态是否存在语义重叠、Markdown/JSON 契约边界是否一致，以及场景是否隐式要求修改 D1 Schema。
+
+发现并修订两处问题：
+
+1. **持久化必要性与写入授权原先被合并**：原 `persistence_decision` 同时表达“值得保存”和“是否允许写入”。用户拒绝时，断点可能确有恢复价值，但仍不得写入。现拆分为 `persistence_need` 与 `write_authorization` 两个独立维度；写入结果只表达实际持久化结果。
+2. **未配置 Packet 入口时的 Markdown 处理可能越过 D0 格式约束**：现明确不因存在 SESSION-HANDOFF/AGENTS/MEMORY 就把它们自动当成 Packet 写入目标。JSON Schema 仍是唯一机器契约；Markdown 只能在项目明确规定为工具生成的派生视图时更新，否则沿用既有入口或只输出会话内摘要。
+
+其他一致性结论：
+- `target_resolution` 表达目标能否唯一定位；`preflight_state` 表达项目身份/基线/来源/工作区核验；二者不是同一状态轴。
+- `write_result=conflict` 专指写入竞态/目标版本变化；写入前发现基线过期应表达为 preflight stale 并重新 Bootstrap。
+- `packet_usability` 只回答结构/身份是否可消费；`recovery_freshness` 复用 D2 逐来源判定，不能由前者推导。
+- C01–C20 覆盖了 D3 当前定义的主要生成、写入、失败和消费路径；未发现必须增加 D1 Schema 字段才能表达的场景。
+- 仍有两项既有边界未解决：dirty/untracked 内容摘要的稳定编码，以及多 remote/fork 的 repository identity/upstream 映射。它们是 D1/D2 的独立设计问题，不在 D3 中擅自补字段。
+
+**审查结论：** 修订后，D3 的规范化结果轴与场景契约在当前设计抽象层面保持可区分；没有发现需要修改 D0 或 D1 Schema 的新阻断项。该结论仍属于文档审查，不是机器 Fixture、Writer E2E 或跨客户端互操作测试结果。D3 尚未冻结。
 
