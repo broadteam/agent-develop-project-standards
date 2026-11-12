@@ -368,3 +368,18 @@ The proposal distinguishes:
 These are independent axes. A client may be semantically conformant while cleanup fails; in that case the Harness outcome is failed, the run is not accepted, and the disposable root is quarantined. Retries create new manifests; prior manifests are never overwritten. Expected results remain in Context; actual normalized result and event/snapshot references belong in the manifest.
 
 This remains a design proposal. No Run Manifest Schema, Writer, store, CI integration or Runner is created. The two independent Harness Adapter criterion in §14 still applies before Context Contract freeze/production adoption.
+
+## 19. Run Manifest second-round review result
+
+The detailed second-round adversarial review is recorded in `schemas/scp-fixtures/0.1/RUN-MANIFEST-DESIGN.md` §12.
+
+Additional boundaries now clarified:
+
+- **Retry lineage:** every attempt has a unique `run_id`; a `retry_group_id` and monotonic `attempt_number` group attempts; optional `retry_of` points to the immediately preceding immutable manifest. Duplicate run IDs are storage conflicts, never overwrite requests.
+- **Interruption:** partial manifests are terminal. An assertion subset cannot be promoted to full conformance. If evaluation completed but cleanup/finalization did not, preserve the semantic outcome separately and mark Harness interrupted/failed; overall run is not accepted until cleanup is resolved.
+- **Cleanup ownership:** delete only a Harness-created root whose canonical path, ownership marker and run ID are verified beneath the Harness temporary parent. Ownership uncertainty means no deletion, quarantine and external review.
+- **Artifact/Evidence separation:** diagnostics belong in the Harness artifact namespace, not project `evidence_refs` or authoritative Evidence directories. Redact before persistence; default to normalized metadata/digests and avoid raw working-tree contents.
+- **D2 boundary:** actual recovery modes and permitted/prohibited actions are observations for named operation scopes, not commands or authorization. A Harness must never invoke production write APIs during these fixtures.
+- **Cross-client comparison:** compare only equivalent Context/Packet/Schema/Driver/Profile/provider pins and capability/permission profiles. Incompatible environments are reported, not averaged or silently normalized.
+
+These refinements require no new Context or Packet fields. Run Manifest remains design-only; no Schema, Writer, Store, Runner, artifact service or CI gate is created.
