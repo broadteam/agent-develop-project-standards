@@ -1842,3 +1842,18 @@ CI 说明：PR Head 对应的 16 个 Standards CI checks 已完成且全部 succ
 本轮没有修改 Schema 0.2.0，仍使用 blob SHA `0ab451634283385b5ffa7f028fa7f4a0e6b41cc8`。该验证只证明 JSON Schema 结构与 format 层，不证明 semantic fixtures 的 live context 已执行，也不实现 Semantic Validator。
 
 D1 0.2.0 仍为 Draft，不冻结；D2、D3 不变；D0 继续保持已确认冻结。
+
+### 17.17 Semantic Fixture Execution Contract 草案
+
+新增 `schemas/scp/0.2/fixtures/SEMANTIC-EXECUTION-CONTRACT.md`，把 19 个 companion contexts 统一为未来可执行测试的设计边界：
+
+- 四阶段生命周期：Prepare isolated fixtures、Observe read-only state、Evaluate and normalize、Assert and clean up。
+- 环境 profiles：packet_only、local_git、local_git_submodule、provider_stub、filesystem_profile、fault_injection。
+- 所有可能写入的 Git 初始化/文件变更只允许发生在 Runner 自己创建的 disposable fixture root；被测 Observation 阶段必须保持只读。
+- 不使用真实用户凭据、不访问真实 provider/network；使用 local bare remotes 与 deterministic provider stub。
+- 固定时钟、文件原始字节、commit IDs、remote mapping 与权限响应；竞态通过确定性 hook 注入，不用 sleep。
+- 标准化输出仍是示意结构，不是新的 Packet Schema 或冻结 machine API；identity/freshness/recovery 等状态轴保持分离。
+- 两个独立客户端需在相同 Packet、companion context、clock、capabilities 和 permissions 下比较 normalized result；能力较弱者可以降级，但不能扩大允许行为。
+- 留出 5 个实现前设计问题：companion-context 是否机器可读、Git fixture bundles 分发、OS/filesystem profile 基线、fault-injection API、reason codes 是否进入协议。
+
+本节仅确认未来 Fixture Runner 的设计约束，不实现 Validator、Runner、CLI adapter 或 CI Gate。
