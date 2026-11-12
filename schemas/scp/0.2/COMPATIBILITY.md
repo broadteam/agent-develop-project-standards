@@ -63,7 +63,7 @@ These are semantic requirements, not an implemented validator in this PR.
 
 - `examples/checkpoint-minimal.json` is a minimal valid 0.2.0 checkpoint without optional handoff, coordination, identity or fingerprint.
 - `examples/handoff-with-identity-and-fingerprint.json` shows a fork checkout, canonical repository, separate upstream/fork remotes, branch tracking and a complete per-path fingerprint.
-- `fixtures/README.md` classifies negative fixtures into JSON Schema-invalid and semantic-invalid classes; `fixtures/SEMANTIC-CONTEXT.md` specifies the companion state each semantic fixture requires.
+- `fixtures/README.md` classifies negative fixtures into JSON Schema-invalid and semantic-invalid classes; `fixtures/SEMANTIC-CONTEXT.md` specifies the companion state each semantic fixture requires; `fixtures/VALIDATION-REPORT.md` records Draft 2020-12 validation results and the exact schema/fixture blob IDs.
 - Fixtures are design/test contracts only. No fixture runner, validator, CLI adapter or CI gate is implemented by this draft.
 
 ## Branch tracking and remote-resolution detail
