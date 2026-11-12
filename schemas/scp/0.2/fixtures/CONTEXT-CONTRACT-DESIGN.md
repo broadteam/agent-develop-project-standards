@@ -232,12 +232,7 @@ Do not add these codes to Packet `extensions` or D1 Schema. Promoting any reason
 4. Accept reason codes as test-harness vocabulary only.
 5. Decide whether capability profiles are embedded inline or referenced by immutable profile IDs with separately pinned profile documents.
 
-Until those decisions are confirmed:
-- no `fixture-context.schema.json` is created;
-- no machine fixture-context instances are added;
-- no Fixture Runner or client adapter is implemented;
-- current 4 / 9 / 19 Fixture Inventory is unchanged;
-- SCP Packet Schema 0.2.0 remains unchanged and Draft.
+**Historical pre-approval boundary (superseded):** The five decisions were subsequently approved under §15, and the initial reviewable Context Schema plus design-only instances were created. The no-Runner/no-adapter boundary remains in force.
 
 ## 13. Recommended disposition of the five pending decisions
 
