@@ -480,3 +480,36 @@
 
 - 最后一轮语义修订提交：9b37343e0eca3e80c9794398d6c67bd8c45fb7d2。
 - 本次 Handoff 更新前 PR #11 Head 为 9b37343e0eca3e80c9794398d6c67bd8c45fb7d2；更新 Handoff 会产生新 Head，需重新核验 CI。
+
+
+## D3 Checkpoint 概念设计推进（2026-11-12）
+
+### 本轮交付
+
+在 SESSION-CONTINUITY-PROTOCOL-DESIGN.md 新增 §14.1–§14.10「D3 Checkpoint 设计提案（概念阶段）」：
+
+- 明确 Checkpoint 是恢复索引与断点声明，不是任务、需求、意图、验证或代码状态的第二权威来源。
+- 细化持久化触发条件，遵循 D0：重要断点、跨会话暂停、责任交接、阶段收口；不按对话轮数或固定时间自动写入。
+- 定义生成前只读核验、写入目标约束、并发版本检查、完整写入确认和失败反馈。
+- 区分 Checkpoint 生命周期（created / superseded / invalid / archived）与 D2 freshness、D1 verification/work state，避免混用状态轴。
+- 明确多 Checkpoint 默认入口、重复写入抑制、并发冲突和历史保留边界。
+- 接收方恢复严格复用 D2 Bootstrap/Freshness，不信任 Packet 的 last-known 快照，不从 Checkpoint 推导权限。
+- 覆盖写入失败、并发修改、HEAD 不可观察、dirty/untracked 摘要不足、权限不足、Packet 损坏/不兼容等降级路径。
+
+### 本轮边界与审查状态
+
+- D3 目前是概念设计草案，尚未完成独立的反例/一致性审查，也未请求冻结。
+- D2 仍未获用户明确批准冻结；本轮没有将 D2 标记为 frozen。
+- D1 Schema 0.1.0 仍独立待用户明确批准冻结；未修改 Schema、COMPATIBILITY.md 或 JSON example。
+- 未实现 Packet Writer、Validator、Fixture Runner、CLI/E2E 或 CI Gate。
+- 未修改 PR #10、main、项目版本或 tags；未合并或关闭任何 PR。
+
+### 提交记录
+
+- D3 概念设计提交：e7df0a7f5488f65c0df68bbf8e09bae9c56a1886。
+- 该提交之后更新本 Handoff 会产生新的 PR #11 Head；必须重新读取 PR head 并核验对应 CI，不得沿用旧 SHA 的检查状态。
+
+### 下一步（唯一首选）
+
+对 D3 §14.1–§14.10 做独立反例审查，重点检查生命周期状态是否有必要、Checkpoint 写入是否超出 D0 授权、多个断点的默认入口是否可判定，以及 D1 Schema 当前字段是否足以承载设计而不引入隐式冲突。审查后再决定是否向用户提交 D3 设计冻结请求；D2 和 D1 冻结仍是独立用户决策。
+
