@@ -2114,3 +2114,38 @@ Manifest 自身 digest 由外部存储计算，不能在内容内自引用。Exp
 - **Multi-client comparison**：多个客户端各有独立 Run Manifest；跨客户端比较是第三种派生记录，不修改 Manifest，也不能将 inconclusive 升级为 conformant。
 
 这轮没有发现需要增加 Packet 或 Context Schema 字段的理由。Run Manifest 仍仅为设计文档，没有 Schema/Writer/Store/Runner/CI Gate。
+
+### 17.28 Run Manifest 第二轮故障与信任边界审查
+
+对 `RUN-MANIFEST-DESIGN.md` §1–§12 再作反例审查，补充 retry lineage、interrupted trust、cleanup ownership、artifact/Evidence separation 和 D2 permission boundary：
+
+1. **Retry identity**
+   - 每次 attempt 必须有全局唯一 `run_id`；`retry_group_id` 表示同一逻辑测试重试链；`attempt_number` 在该 group 内单调递增。
+   - 可选 `retry_of` 只能引用前一个 attempt 的 immutable manifest URI/digest。
+   - Duplicate run_id 是 storage conflict，绝不能覆盖/合并旧 Manifest；interrupted Manifest 是 terminal，retry 必须新建 run。
+
+2. **Interruption trust**
+   - 未完成所有 required assertions 时，即使已执行 assertion 全部 passed，也不能判 conformance=conformant。
+   - 若 client normalized result 和全部 assertion 已可靠持久化，但后续 cleanup/finalization 中断，可保留 semantic conformance outcome；Harness outcome=interrupted/failed，整体 run 仍不接受。
+   - 不存在完整 Manifest 时，外部 CI/Harness event ledger 只能证明 attempt started，不能替代 conformance evidence。
+   - 新 attempt 必须重建或重新验证 disposable state，不得继承半截 mutation。
+
+3. **Cleanup ownership**
+   - 只有 canonical path 位于 Harness-owned temporary parent、ownership marker 匹配 run_id、且无 symlink/reparse-point escape 时才能删除。
+   - 所有权无法证明时不删除，标 cleanup unknown/failed，隔离资源并请求外部 operator review。
+   - 清理失败不改变 client actual result；资源不得被 retry 复用。
+
+4. **Artifact/Evidence boundary**
+   - Run artifacts 归 Harness artifact namespace，不进入项目 `evidence_refs`、task/ADR 或用户仓库。
+   - 默认只保存 normalized state、event/snapshot IDs、OID/digest、脱敏诊断；raw artifact 必须来自 disposable root、先脱敏后持久化并有独立 access scope。
+   - token/cookie/authorization header/private key/credential URL 均禁止写入 Manifest。
+
+5. **D2 recovery/permission**
+   - actual `normal/restricted/blocked` 和 permitted/prohibited actions 是某 operation scope 下的测试观察，不是可执行命令或授权。
+   - restricted 不是写权限；blocked identity-dependent push 不必阻断独立 local read-only analysis。
+   - Harness 不调用 Client production write API；Context expected actions 与 Manifest actual actions 都是数据，不是命令。
+
+6. **Cross-client comparison**
+   - 仅对同一 Context/Packet/Schema/Driver/Profile/provider pins 及等价 capability/permission profile 作严格比较；环境不同则报告 mismatch，或只比较明确共同的 claim，不平均结果。
+
+本轮未发现需要向 Packet 或 Fixture Context 新增字段的理由。Run Manifest 仍仅为设计；未创建 Schema、Writer、Store、Runner、artifact service 或 CI Gate。
