@@ -19,6 +19,8 @@ These fixtures specify expected JSON Schema and semantic-validator behavior. The
 | `invalid/schema/path-escapes-worktree.json` | Fingerprint path escapes root / is not portable |
 | `invalid/schema/complete-with-unreadable-entry.json` | Complete coverage cannot include an unreadable path |
 | `invalid/schema/complete-with-gitlink-entry.json` | Complete coverage cannot include a gitlink index entry |
+| `invalid/schema/wrong-schema-version.json` | Instance version must match the 0.2.0 schema |
+| `invalid/schema/unknown-core-field.json` | Unknown fields in strict core objects are rejected |
 
 ## Semantic-invalid fixtures
 
