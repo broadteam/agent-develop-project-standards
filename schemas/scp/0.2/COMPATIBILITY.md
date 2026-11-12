@@ -61,3 +61,11 @@ These are semantic requirements, not an implemented validator in this PR.
 - `examples/handoff-with-identity-and-fingerprint.json` shows a fork checkout, canonical repository, separate upstream/fork remotes, branch tracking and a complete per-path fingerprint.
 - `fixtures/README.md` classifies negative fixtures into JSON Schema-invalid and semantic-invalid classes.
 - Fixtures are design/test contracts only. No fixture runner, validator, CLI adapter or CI gate is implemented by this draft.
+
+## Branch tracking and remote-resolution detail
+
+- `branch_tracking.branch_state` is `attached`, `detached` or `unknown`; it must agree with the contemporaneous `code.branch` observation.
+- For an attached branch, `upstream.state=configured` requires both `remote_name` and `merge_ref`; `not_configured` means no branch tracking upstream; `unknown` means the configuration could not be read. A detached HEAD has no active branch upstream and should report `not_applicable`.
+- `push.state=resolved` records a selected default push remote and requires `remote_name` plus `resolution_basis`. Supported bases are `branch_push_remote`, `remote_push_default`, `branch_upstream` and `default_remote`. The field does not record refspec selection or authorize a push.
+- Branch tracking remote aliases must resolve against the current remote configuration when available. If a Packet contains no `repository_identity.remote_mappings`, the consumer may still report the local alias observation but cannot claim cross-repository identity resolution.
+- `fetch_state` / `push_state` describe whether Git's effective configuration target(s) were selected unambiguously. They do not upgrade a `normalized_locator_only` target into a stable identity.
