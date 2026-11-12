@@ -98,3 +98,69 @@ Never write actual observation or result into the input Context. Multiple client
 - Context schema, capability profile, Driver contract, provider contract and reason-code vocabulary are separately pinned/versioned.
 - A change to required event meaning, output axes or cross-field rules requires a new Context Contract version; documentation-only clarification may remain a patch.
 - `scp.fixture.*` reason codes remain test-conformance vocabulary only and do not become SCP Packet fields or a public runtime API.
+
+## 10. Context-to-Run-Manifest cross-record contract (design candidate)
+
+The Run Manifest is a separate immutable output record. It is not a Context field, not part of Context 0.1.0 validation, and is not yet a machine contract. The current minimum field and outcome proposal is in [RUN-MANIFEST-DESIGN.md](./RUN-MANIFEST-DESIGN.md) §§13–16.
+
+### 10.1 Input pin equality
+
+For a Manifest that claims to evaluate a Context:
+
+1. `inputs.context` must resolve to the exact Context path and Git blob SHA used for evaluation; its declared contract/version and fixture ID must match the parsed bytes.
+2. The Manifest's Context Schema pin must identify the exact Draft 2020-12 Schema used, not merely the contract label.
+3. `inputs.source_repository_revision`, Packet path/blob SHA and Packet Schema path/blob SHA must exactly match Context `target` and the Packet's own schema version.
+4. The declared Capability Profile reference must exactly match Context `environment.capability_profile` (ID, version and blob SHA).
+5. The Driver ID/contract version must match Context `setup.driver`; the descriptor pin and executable bundle digest are distinct artifacts. A matching descriptor SHA does not make a `contract_only` Driver executable.
+6. Every provider authority contract referenced by Context stimulus/observations must resolve to the same path/blob SHA and contract revision in the Manifest's resolved dependency set.
+7. The Harness Registry snapshot used for allow-list resolution must be immutable and recorded. A later Registry lookup must not silently replace the version used during the run.
+
+A missing or mismatched required pin makes the run `not_run` if detected before evaluation, or `inconclusive` if discovered too late to establish which inputs were used. It must never be normalized away.
+
+### 10.2 Expected/actual result mapping
+
+Context `expected` is the only expected-value source. The Manifest stores actual normalized output and comparison outcomes; it must not copy expected values into itself.
+
+- Packet-level fields map directly: `packet_schema_validation` and `protocol_compatibility`.
+- Claim-level records are matched by unique `claim_ref`; array order is ignored.
+- Recovery records are matched by unique `operation_scope`; array order is ignored.
+- A field is asserted exactly when that leaf exists in Context `expected`. Missing actual leaves produce `inconclusive`/ `not_run`; they cannot inherit a value from another claim or operation.
+- Additional unknown core fields are incompatible with Context 0.1.0. Namespaced diagnostic metadata may be carried separately but cannot change the normalized result.
+- Collections whose semantics are set-like (actions and reason codes) compare as sets after duplicate detection; object/array serialization order is not a semantic difference.
+
+### 10.3 Deterministic assertion identity
+
+Do not use array indexes, natural-language descriptions or a producer-generated sequential counter as assertion identity.
+
+Each comparison uses the structured tuple:
+
+`(subject_kind, subject_ref, field)`
+
+- `packet`: `subject_kind=packet`, no `subject_ref`, field is a packet-level expected field.
+- `claim`: `subject_kind=claim`, `subject_ref=claim_ref`, field is one expected claim field.
+- `recovery`: `subject_kind=recovery`, `subject_ref=operation_scope`, field is one expected recovery field.
+
+The tuple must be unique. Each expected leaf maps to exactly one tuple, and no tuple may point to an absent expected leaf. This preserves arbitrary Unicode or delimiter-bearing identifiers without concatenation/escaping ambiguity.
+
+### 10.4 Lifecycle consistency
+
+- Preflight rejection prevents setup, stimulus, observation and client evaluation from being marked completed.
+- Setup failure prevents client evaluation; a missing observation cannot be copied from Context's planned companion observations and represented as actual.
+- Evaluation completion requires a normalized actual result and a completeness decision for the full expected assertion set.
+- If all required assertion outcomes are passed, conformance may be conformant; any proven mismatch is non_conformant; missing/uncertain required assertions without a proven mismatch are inconclusive; if evaluation never starts, not_run.
+- A failed/unknown cleanup prevents overall acceptance and quarantines the disposable root even when semantic assertions were conformant.
+- An interruption after all assertions were durably recorded may preserve the semantic outcome but makes the Harness outcome interrupted/failed; an interrupted subset cannot be promoted to conformant.
+
+### 10.5 Cross-client comparison boundary
+
+Two Manifests are exact-comparable only when they pin the same Context, Context Schema, Packet, Packet Schema, Profile, Driver descriptor/executable, provider contracts, source repository revision and semantically equivalent measured capability/permission profiles. Client/adapter/normalizer versions remain distinct dimensions to compare, not reasons to erase differences.
+
+If a measured capability or permission set differs, comparison must be reported as incompatible or restricted to a declared common assertion subset. Do not average results, coerce unknown to not_applicable, or silently treat two OS labels as equivalent capability evidence.
+
+### 10.6 Artifact, retry and cleanup integrity
+
+- Event/snapshot/diagnostic artifacts belong to the Harness artifact namespace and carry immutable locators plus digests. They must not point into the user's checkout, project Evidence/task/ADR directories or production storage.
+- Credentials, auth headers, cookies, private keys, credential-bearing URLs and arbitrary environment variables are prohibited before persistence. Redaction must precede artifact storage.
+- Retry lineage is cross-Manifest: `run_id` is unique; `attempt_number` increases within a `retry_group_id`; a resolvable `retry_of` points to the immediately preceding terminal attempt in the same group.
+- Cleanup can target only a Harness-owned disposable root whose run ID/ownership marker and canonical containment are revalidated. A failed/unknown cleanup quarantines the root; later attempts cannot reuse it.
+- These relationships cannot be established by this Context Schema alone. Until a Run Manifest Schema/semantic validator is separately approved, treat these clauses as design review rules, not executable validation.
