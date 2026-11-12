@@ -1184,3 +1184,27 @@ Path identity：
 ### 下一步（唯一首选）
 
 进行候选 adapter contract 反例审查：重点看 event barrier 是否足以避免 race 测试时间依赖、文件对象 token 是否被误用成内容锁、路径等价 profile 是否存在不同客户端无法统一解释的自由度、Provider 404 权威性是否有可验证来源。完成后再决定是否批准把 14 个 case 纳入下一版 Fixture Inventory。
+
+## Candidate Adapter Contract 反例审查已完成（2026-11-12）
+
+新增 `SEMANTIC-EXECUTION-CONTRACT.md` §16 与 Design §17.22，审查四种候选测试机制自身的假设：
+
+1. **Event barrier**：必须有初始/最终 observation snapshot IDs 和有序 event log；不允许 sleep/polling timing tests。Evaluator contract 与真实 CLI observer E2E 分开。
+2. **File identity**：open-handle identity、current path identity、content stability 分开观察。handle=A/path=A，替换后 handle=A/path=B，应把当前 path claim 标 unknown。稳定 inode/file ID 不证明内容不变；原地修改无法可靠观察时也必须 unknown。
+3. **Path equivalence**：必须给精确 UTF-8 bytes/codepoints、case/Unicode capability、pairwise same_object/distinct_objects/cannot_determine 关系与 profile revision；OS 名称不构成能力证明，不允许隐式 case-fold/Unicode normalize。
+4. **Provider 404**：authoritative_not_found 需要 provider/API contract revision、exact resource/revision/scope、认证 principal、认证成功以及 endpoint 不会对该 principal 隐藏资源的契约证据；任何前提缺失都为 ambiguous_not_found/unknown。Fixture 不得保存凭据/token/header。
+
+### 最终候选处置
+
+- Re-enumeration race：确定性 Semantic Fixture，使用 snapshot IDs + event log；真实 CLI 重读时机另做 E2E。
+- Provider response matrix：确定性 Semantic Fixture，使用 local stub + principal/resource/revision/contract metadata；真实 Provider adapter 另做 E2E。
+- File object replacement：virtual observer contract fixture + 原生文件系统 E2E。
+- Case/Unicode alias：profile-driven virtual path contract fixture + 原生文件系统 E2E。
+
+原生 profile 的 unsupported 可标 not_applicable；预期能力无法观察为 unknown；两者都不是 pass。候选契约不要求新增 Packet 字段。
+
+当前候选仍为 14 个 contract cases，不计入当前 4 positive / 9 Schema-invalid / 19 semantic-invalid；没有新建 Packet fixture。Schema blob SHA 仍为 `a2f2097a17c08bf0a2ae733ab43a8f1919b48813`。
+
+### 下一步（唯一首选）
+
+对 companion-context machine representation、adapter API 和 reason-code 边界做一次取舍审查：优先设计最小、可版本化且不成为第二套项目状态数据库的 Fixture Context Contract；明确哪些字段是 harness input、哪些是 live observation、哪些是 normalized output。通过该设计审查前，不扩充 Packet fixtures、不实现 Runner/Validator/CI Gate。
