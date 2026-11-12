@@ -663,3 +663,54 @@
 ### 下一步（唯一首选）
 
 设计 Repository Identity / Upstream Mapping 最小模型：区分平台命名空间下的稳定 repository identity、当前 checkout identity、canonical repository 与多个 remote/upstream 映射；定义 URL 规范化只作为辅助、平台 ID 缺失时的项目显式配置、fork/镜像歧义和离线降级。随后与 §15.6–§15.14 合并审查 D1 0.2.0 候选契约，不先改 Schema 文件。
+
+## Repository Identity / Upstream Mapping 候选设计（2026-11-12）
+
+### 本轮交付
+
+在 SESSION-CONTINUITY-PROTOCOL-DESIGN.md §16.1–§16.13 增加身份模型、解析顺序、Git URL 凭据保护、D2 规范化状态、场景契约及 Git 语义校准：
+
+- 分离逻辑 Project Identity、当前 Checkout Repository Identity、Canonical Repository Identity、Remote Target 和本地 Checkout Location。
+- 候选身份键采用 service-instance namespace + 稳定 provider-native repository ID；无平台 ID 时采用项目显式配置；normalized locator 仅作弱身份线索。
+- 分别记录 checkout 与 canonical，fork/mirror 关系必须由平台可验证信息或项目显式配置建立；禁止根据 origin/upstream 名称、owner/path 相似度猜测。
+- remote_mappings 按 remote 配置实体表达 fetch_target 与 push_targets；区分本地 remote alias、项目 canonical relation 和 Git branch tracking。
+- Git 官方语义校准：同一 remote 的 pushurl 与 fetch url 可使用不同传输地址，但应指向同一仓库；若需要从 upstream fetch、向 fork push，应使用不同 remote。普通 remote 多个 url 时 fetch 使用第一个；push 使用所有 pushurl，若没有 pushurl 则使用所有 url。多个 push targets 身份不一致时 fail closed。
+- 新增 branch_tracking 观察维度，区分 branch.<name>.remote/merge 与 branch.<name>.pushRemote/remote.pushDefault；实际操作前重新读取配置。
+- URL 只作为 locator；脱敏 userinfo/token/query/fragment，不将原始凭据写入 Packet。
+- 新增 RI01–RI22 场景，包括 fork、多个 remote、fetch/push URL、pushurl 列表、SSH/HTTPS、URL 改名、public/self-hosted namespace、detached HEAD、多 worktree、branch tracking/push override。
+- D2 规范化输出新增 repository_identity 与 branch_tracking 状态轴，不将 identity 与 source freshness 混在一起。
+
+### Worktree Fingerprint 的同步修正
+
+- 修正 §15.8/§15.9：Fingerprint entries.path 与 code.uncommitted_paths 统一相对于 Git worktree root，而非 project.root 子目录；project.root 只描述仓库内逻辑项目位置。
+- 修正只读采集：显式使用 Git porcelain v2、NUL-delimited paths、--untracked-files=all、--ignore-submodules=none 与 --no-optional-locks，避免 status 的可选 index stat-cache 写回破坏只读边界。
+- §15.15 已调整到 §16 前，恢复章节顺序。
+
+### 官方参考
+
+- Git status：porcelain v2、NUL 路径、mode/stage/submodule 状态及可选 index 刷新行为。
+- Git fetch：remote url/pushurl、多 URL fetch/push 行为、branch upstream 配置。
+- Git remote：get-url 的 --push / --all、URL rewrite 及 fetch/push URL 约束。
+- 参考链接已写入设计文档 §16.12。
+
+### 当前结论与边界
+
+- Worktree Fingerprint 与 Repository Identity 已形成成套的 D1 候选模型，但尚未进入 Schema 文件。
+- 按现有 COMPATIBILITY.md，新增核心字段不能原地写入严格拒绝未知字段的 Schema 0.1.0；建议在两套模型获批准后统一评估新的 0.2.0，而非先后拆成多个不兼容小版本。
+- 尚未完成多 Git provider/API、Windows/macOS/Linux 文件系统、真实多 remote/pushurl 和两个独立 Agent 客户端的实现验证。
+- 未修改 Schema 0.1.0、COMPATIBILITY.md 或 JSON example；未生成 0.2.0 Schema；未实现 Validator/Writer/Fixture/CI Gate。
+- D1、D2、D3 仍未冻结；D0 继续保持已确认冻结。
+- 未修改 PR #10、main、项目版本或 tags；未合并或关闭任何 PR。
+
+### 本轮提交
+
+- Repository Identity 候选模型：527c0ca0271238ab6d81d94006fa6410927a30aa。
+- Git Remote / branch tracking 语义校准：cfd89109663fa96a7f0192894c25bd031bd53d1d。
+- Fetch/push identity 关系修正：9aa1d89a2bf6c7d231b4728d424ca46446d26ed8。
+- D2 identity 输出及 Fingerprint 路径基准：c6a82182efb8a1848860adc3f53db855be5913b0。
+- 章节顺序修复：7b2970c93eac7da64bf82b9aa47e411244633174。
+- 更新本 Handoff 后，必须重新核对 PR #11 最新 Head 与 CI。
+
+### 下一步（唯一首选）
+
+将 §15 Worktree Fingerprint 与 §16 Repository Identity 合并进行一次整体 D1 0.2.0 候选契约审查：检查必填/可选条件、semantic validator 边界、跨客户端规范化输出与版本兼容策略；形成“可进入 Schema 草案 / 仍需用户裁定 / 留待实现验证”的分层清单。完成后向用户提交明确的模型确认请求；未获批准前不创建 0.2.0 Schema。
