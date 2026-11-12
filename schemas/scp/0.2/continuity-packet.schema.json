@@ -150,7 +150,8 @@
         "repository": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 512
+          "maxLength": 512,
+          "description": "Human-readable repository locator only; it is not a stable repository identity."
         },
         "root": {
           "type": "string",
@@ -162,10 +163,12 @@
           "format": "uri",
           "minLength": 1,
           "maxLength": 512,
-          "description": "Optional stable namespaced URI for the logical project, not a provider repository ID."
+          "description": "Optional stable namespaced URI for the logical project, not a provider repository ID.",
+          "pattern": "^[A-Za-z][A-Za-z0-9+.-]*:"
         },
         "repository_identity": {
-          "$ref": "#/$defs/repository_identity"
+          "$ref": "#/$defs/repository_identity",
+          "description": "Last-known repository identity observation. Consumers must re-resolve against current configuration and permitted provider data."
         }
       }
     },
@@ -728,7 +731,8 @@
             "not_configured",
             "ambiguous",
             "unknown"
-          ]
+          ],
+          "description": "Whether the effective Git fetch target was selected unambiguously; target identity confidence is represented separately by identity_target.basis."
         },
         "fetch_target": {
           "$ref": "#/$defs/identity_target"
@@ -739,7 +743,8 @@
             "not_configured",
             "ambiguous",
             "unknown"
-          ]
+          ],
+          "description": "Whether the effective Git push target set was selected unambiguously; target identity confidence is represented separately by identity_target.basis."
         },
         "push_targets": {
           "type": "array",
@@ -906,7 +911,8 @@
             "merge_ref": {
               "type": "string",
               "minLength": 1,
-              "maxLength": 512
+              "maxLength": 512,
+              "description": "Configured upstream merge ref, typically refs/heads/<branch>."
             }
           },
           "allOf": [
@@ -988,9 +994,9 @@
                 "branch_push_remote",
                 "remote_push_default",
                 "branch_upstream",
-                "default_remote",
-                "project_config"
-              ]
+                "default_remote"
+              ],
+              "description": "Observed Git configuration precedence source that selected the default push remote; does not encode refspec or authorize a push."
             }
           },
           "allOf": [
@@ -1549,7 +1555,8 @@
             }
           }
         }
-      ]
+      ],
+      "description": "Per-path snapshot of Git-status-visible non-ignored changes. It is neither a backup nor a globally atomic worktree snapshot."
     }
   },
   "allOf": [
