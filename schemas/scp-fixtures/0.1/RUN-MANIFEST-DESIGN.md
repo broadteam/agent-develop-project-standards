@@ -319,3 +319,208 @@ The Run Manifest design now has explicit boundaries for:
 - operation-scoped D2 recovery output that never acts as authorization.
 
 These additions do not require new SCP Packet or Fixture Context fields. They refine the future Run Manifest contract only. The Run Manifest remains design-only; no JSON Schema, Writer, Store, Runner, artifact service or CI gate is authorized or created by this review.
+
+## 13. Minimum machine-field candidate (review draft; not a Schema)
+
+This section proposes the smallest stable field model that can identify an attempt, reconstruct its exact input set, interpret the client result and audit Harness safety. It is a design candidate only. It does not authorize a JSON Schema, Writer, Store, Runner or CI integration.
+
+### 13.1 Top-level contract
+
+| Field | Required | Meaning and invariant |
+|---|---:|---|
+| `contract` | yes | Literal `scp-fixture-run-manifest`; prevents cross-contract interpretation |
+| `manifest_version` | yes | Independent candidate version `0.1.0`; not coupled to Packet or Context versions |
+| `run_id` | yes | Globally unique opaque attempt ID; UUID-shaped value is preferred, but consumers must not infer chronology from its contents |
+| `retry` | yes | `retry_group_id`, positive `attempt_number`, and optional `retry_of` immutable manifest reference |
+| `times` | yes | Wall-clock `started_at`, nullable `ended_at`, and `recorded_at`; all RFC 3339 timestamps with explicit offset |
+| `inputs` | yes | Exact Context/Schema/Packet/Schema/repository and resolved dependency pins |
+| `implementations` | yes | Harness, client, adapter and normalizer identities/versions; immutable build digests where available |
+| `environment` | yes | Declared profile reference plus separately measured platform/runtime/capability/permission facts |
+| `lifecycle` | yes | Independent preflight, setup, stimulus, observation, evaluation and cleanup states |
+| `observation_refs` | yes | Ordered event-log reference and the snapshot references actually observed; empty only when the corresponding phase did not run |
+| `actual_result` | conditional | Complete normalized client output when available; absent/null only when evaluation never produced one |
+| `assertions` | yes | One result for each expected comparison leaf, including explicit `not_run` or `inconclusive` outcomes |
+| `outcomes` | yes | Separate `conformance_outcome` and `harness_outcome`; never a combined Boolean |
+| `cleanup` | yes | Disposable-root identity, cleanup result and quarantine reference/state; no arbitrary filesystem path |
+| `artifacts` | yes | Sanitized Harness-owned diagnostic/event artifacts using immutable references |
+| `extensions` | optional | Namespaced non-core metadata; cannot override or shadow core fields |
+
+The candidate intentionally has no mutable `latest`, `overall_success`, `ready`, or `authorized` field. Overall acceptance is derived from the two outcome axes and cleanup policy. A manifest does not authorize any production action.
+
+### 13.2 Exact input-set pinning
+
+A Run Manifest must identify the transitive input set that influenced evaluation, not merely the Context filename.
+
+| Input role | Required pin |
+|---|---|
+| Context instance | Repository-relative path + Git blob SHA + `contract`/`context_version` |
+| Context Schema | Repository-relative path + Git blob SHA + Draft 2020-12 dialect |
+| Source repository | Exact `target.repository_revision` commit SHA taken from the pinned Context |
+| Packet | Repository-relative path + Git blob SHA from the pinned Context |
+| Packet Schema | Repository-relative path + Git blob SHA + Packet `schema_version` |
+| Capability Profile | `profile_id` + `profile_version` + profile Git blob SHA |
+| Driver descriptor | `driver_id` + `driver_contract_version` + descriptor path/blob SHA |
+| Executable Driver bundle | Exact SHA-256 digest and immutable Registry resolution; descriptor SHA is not executable-bundle SHA |
+| Provider contracts/evidence | Each referenced repository-relative path + Git blob SHA |
+| Harness Registry | Immutable registry snapshot commit or content digest used to resolve allow-list entries |
+
+The Context blob SHA is supplied by the caller/store and must not be embedded in the Context itself. The Manifest may carry a compact `resolved_artifacts[]` list keyed by role and stable ID rather than duplicating nested Context fields. The list must be complete for every transitive reference actually used, sorted canonically for deterministic comparison, and distinguish Git blob SHA from SHA-256 bundle digests.
+
+A mutable branch name, `latest`, remote name, filesystem mtime, or Registry lookup performed after the run is not an acceptable substitute for a pinned input.
+
+### 13.3 Implementation and environment pins
+
+- `harness`, `client`, `adapter`, and `normalizer` each require stable ID and version. Record an immutable build/package digest when one exists; do not invent one for a non-reproducible local binary.
+- The normalizer identity/version is required because two clients can emit equivalent protocol states only if the mapping into the normalized vocabulary is itself fixed.
+- Preserve the Context's declared capability Profile reference separately from measured runtime capabilities. The former is a pinned test input; the latter is an observation.
+- Record relevant OS, architecture, runtime and Git versions, plus measured filesystem/path/provider/permission capabilities actually used by assertions. An OS label alone is not a capability measurement.
+- Keep deterministic fixture-clock input separate from wall-clock run timestamps. Simulated time must not be used to order retries or claim when the Harness actually ran.
+- Do not serialize arbitrary environment variables, credentials, host home paths or unrelated machine details.
+
+### 13.4 Lifecycle and evidence fields
+
+Candidate lifecycle axes:
+
+| Phase | States | Constraint |
+|---|---|---|
+| `preflight` | `not_started / succeeded / rejected / failed` | Resolves exact pins and validates Context/Registry before any fixture mutation |
+| `setup` | `not_started / succeeded / failed / partial` | Mutates only a Harness-owned disposable root |
+| `stimulus` | `not_started / completed / failed / partial` | Applies only declared ordered events |
+| `observation` | `not_started / completed / failed / partial / not_applicable` | Captures only observations actually collected |
+| `evaluation` | `not_started / completed / failed / partial` | Invokes the client/adapter and normalizes its actual output |
+| `cleanup` | `not_required / succeeded / failed / unknown` | Never deletes a resource without proving Harness ownership |
+
+The ordered event log is an immutable Harness artifact. Snapshot references identify actual observations, not planned snapshots from Context. Each artifact reference carries artifact kind, immutable locator, digest algorithm/value and sanitized status; the Run Manifest itself is externally content-addressed after finalization and must not contain its own digest.
+
+The Manifest records only a disposable-root ID and ownership/quarantine evidence. It must not carry a client-controlled absolute cleanup path. A missing observation stays missing; expected Context observations cannot be copied into actual observations.
+
+### 13.5 Actual result and stable assertion key
+
+The `actual_result` mirrors the normalized result shape of Context `expected`:
+
+- packet-level: `packet_schema_validation`, `protocol_compatibility`;
+- claim-level: records keyed semantically by `claim_ref`, with only the normalized claim fields defined by Context 0.1.0;
+- operation-level: records keyed semantically by `operation_scope`, with `recovery_mode`, `permitted_actions`, `prohibited_actions` and optional `user_decisions_needed`.
+
+Array order is not semantic. Consumers match claim records by `claim_ref` and recovery records by `operation_scope`; duplicate keys are invalid. Action/reason-code collections are compared as sets after duplicate rejection, not by producer-specific array order.
+
+The earlier generic `assertion_id` proposal is replaced by a structured deterministic key:
+
+```json
+{
+  "subject_kind": "claim",
+  "subject_ref": "claim-ref-from-context",
+  "field": "freshness",
+  "outcome": "passed"
+}
+```
+
+- `subject_kind` is `packet`, `claim` or `recovery`.
+- `subject_ref` is absent for packet-level fields, equals Context `claim_ref` for a claim, and equals Context `operation_scope` for a recovery record.
+- `field` is one exact field name allowed for that subject kind by Context 0.1.0.
+- The tuple `(subject_kind, subject_ref, field)` is unique within a Manifest. Do not concatenate opaque user-defined refs with delimiters or treat an array index as identity.
+- Every normative leaf present in pinned Context `expected` maps to exactly one assertion tuple. No expected leaf may be silently skipped, and no assertion may refer to a field absent from Context `expected`.
+
+Assertion outcomes are `passed / failed / inconclusive / not_run`. Expected values remain in the pinned Context; actual values remain in `actual_result`; an assertion stores the deterministic comparison outcome and optional sanitized diagnostic reference, not a second copy of either value.
+
+### 13.6 Outcome derivation
+
+Derivation is deterministic and applies to the full required assertion set:
+
+1. If preflight rejects the Context/Registry/input set, or client evaluation never starts, `conformance_outcome=not_run`.
+2. If evaluation starts and at least one fully observed assertion contradicts the pinned expectation, `conformance_outcome=non_conformant`, even if another assertion is inconclusive.
+3. If evaluation starts but one or more required assertions are missing, inconclusive or not_run, and no proven contradiction exists, `conformance_outcome=inconclusive`.
+4. Only when every required assertion is present and passed, with all required observations and exact input pins verified, may `conformance_outcome=conformant`.
+5. `harness_outcome=healthy` requires lifecycle completion and cleanup success or a genuinely `not_required` cleanup. Setup/observation/evaluator/cleanup infrastructure failure yields `failed`; abnormal termination yields `interrupted`; an attempt never initiated yields `not_started`.
+6. Overall acceptance is derived as `conformant + healthy`. No stored Boolean can override these rules.
+
+An expected value of `unknown` is still a concrete expected protocol state. If a deterministic fixture injects a 403/429/timeout and the client correctly returns `unknown`, that assertion passes. If the Harness never supplies the required observation, it is inconclusive/not_run instead.
+
+### 13.7 Retry and lifecycle cross-record invariants
+
+- `run_id` is globally unique; a duplicate is a storage conflict.
+- Within one `retry_group_id`, `attempt_number` starts at 1 and increases strictly; a later attempt's `retry_of`, when resolvable, points to the immediately preceding terminal Manifest in that same group.
+- A retry after an unavailable predecessor may preserve `retry_lineage=unknown`; it must not invent a predecessor from timestamps or filenames.
+- A retry never overwrites or resumes a terminal Manifest. The disposable fixture is rebuilt or independently revalidated from the pinned recipe.
+- Preflight rejection means setup/stimulus/observation/evaluation did not run. Setup failure prevents client evaluation. Evaluation completion requires the actual result and the full assertion-set completeness decision to be recorded.
+- Cleanup failure/unknown prevents overall acceptance and quarantines the disposable resource. A quarantined root cannot be reused for retry.
+- An interrupted run may preserve a fully evaluated conformance outcome only when the complete normalized result and all required assertions were durably recorded before interruption. Otherwise it is inconclusive/not_run.
+
+These rules span multiple Manifests and lifecycle records; JSON Schema alone cannot prove them.
+
+## 14. Context-to-Manifest cross-record mapping
+
+| Context 0.1.0 source | Manifest destination | Validation rule |
+|---|---|---|
+| Context file itself | `inputs.context` | Exact repository-relative path + Git blob SHA; no self-hash |
+| Context contract/version | `inputs.context.contract/version` | Must match the pinned Context bytes |
+| `target.repository_revision` | `inputs.source_repository_revision` | Exact commit SHA; never a moving ref |
+| `target.packet` | `inputs.packet` | Path/blob SHA must match Context exactly |
+| `target.packet_schema` | `inputs.packet_schema` | Path/blob SHA and Packet schema version must match Context/Packet |
+| `environment.capability_profile` | `inputs.resolved_artifacts[capability_profile]` | Profile ID/version/blob SHA exact match; no fallback to latest |
+| `setup.driver` | `inputs.resolved_artifacts[driver]` | Driver ID/contract version/descriptor SHA exact; executable bundle SHA separately verified |
+| Provider authority evidence in events/observations | `inputs.resolved_artifacts[provider_contract]` | Exact path/blob SHA and contract revision; only included when referenced |
+| `expected` | `assertions` | Every expected leaf has exactly one stable assertion tuple |
+| `expected` (same) | `actual_result` | Actual output is compared to expectation; it must never be copied into Manifest as expected data |
+| Event sequence / companion observations | `observation_refs` + event artifact | Actual sequence/snapshot observations must reconcile with Context stimuli; missing inputs cannot be synthesized |
+| Declared Profile | `environment.declared_profile` | Preserve immutable Context reference |
+| Runtime capabilities/permission | `environment.measured_capabilities` | Record actual measured values separately; profile mismatch is not silently normalized |
+| Context fixture ID | `inputs.fixture_id` | Informational stable selector, not a substitute for Context blob SHA |
+
+A Context can have many Manifests. A Manifest references exactly one Context blob and one attempt. The Context remains immutable and contains no actual run state.
+
+## 15. Review vectors: positive, negative and non-accepting-but-valid records
+
+These vectors are design examples, **not machine-readable fixtures and not Schema validation results**. They define expected semantic classification before a future Schema/Writer is considered.
+
+### 15.1 Positive/valid records
+
+| ID | Input and actual behavior | Required Manifest interpretation |
+|---|---|---|
+| RM-P01 | Context injects authenticated Provider 403 and expects source freshness/identity unknown; client returns those exact states; every expected leaf passes; cleanup succeeds | `conformance=conformant`, `harness=healthy`, accepted. Expected `unknown` is a pass because it is the exact expected state |
+| RM-P02 | All actual normalized claims/recovery match; evaluation and assertions are durable; cleanup fails with ownership still proven | Preserve `conformance=conformant`; set `harness=failed`; quarantine root; overall not accepted |
+| RM-P03 | Preflight safely rejects a `contract_only` Driver before setup; no client invocation occurs | `conformance=not_run`; Harness may be `healthy` if rejection is correctly handled; never client pass |
+| RM-P04 | Observation adapter cannot measure a capability explicitly required by the profile; no client result is inferred | `conformance=inconclusive` or `not_run` depending on whether evaluation started; Harness state reflects the actual adapter failure |
+
+RM-P02/03/04 are valid records of non-accepted attempts; “valid manifest” is not synonymous with “passing conformance”.
+
+### 15.2 Negative semantic records
+
+| ID | Contradiction | Required rejection/classification |
+|---|---|---|
+| RM-N01 | A required expected leaf has no assertion tuple, but Manifest says conformant | Invalid/incomplete assertion set; cannot be conformant |
+| RM-N02 | Two assertion entries share the same `(subject_kind, subject_ref, field)` | Invalid duplicate assertion identity |
+| RM-N03 | Context expects unknown for a deterministic 403, actual result says current/resolved, Manifest says conformant | Must be non_conformant; outcome claim is contradictory |
+| RM-N04 | Preflight is rejected but setup, stimulus or client evaluation is also marked completed | Lifecycle contradiction; reject Manifest |
+| RM-N05 | Cleanup is failed/unknown but Harness is healthy or overall run is accepted | Outcome contradiction; reject Manifest and quarantine disposable root |
+| RM-N06 | Retry attempt 3 points to attempt 1 in another retry group, or attempt numbers regress/duplicate | Invalid retry lineage; do not aggregate |
+| RM-N07 | Declared profile pins differ but comparison labels two runs an exact replay | Comparison is incompatible; never average/normalize as equivalent |
+| RM-N08 | Artifact contains credentials, raw authorization material or points to a user checkout/project Evidence path | Security-policy violation; reject/quarantine artifact before persistence |
+| RM-N09 | Only a subset of required assertions passed before interruption, yet conformance is conformant | Must be inconclusive/not_run; a passed subset is not full conformance |
+| RM-N10 | A retry reuses a disposable root whose prior cleanup failed or ownership is unknown | Reject setup; root remains quarantined and unavailable |
+
+### 15.3 Classification vocabulary
+
+- **Schema-invalid**: malformed shape/type/enum/required fields, to be tested only after a future Schema is authorized.
+- **Semantic-invalid**: cross-record/lifecycle/retry contradictions such as RM-N01/N02/N04/N05/N06/N09/N10.
+- **Non-conformant client result**: a structurally/semantically valid Manifest faithfully records a client mismatch, such as RM-N03. Do not reject the record merely because the client failed the test.
+- **Security-rejected artifact**: redaction/namespace/ownership violation; the untrusted artifact must not be persisted as accepted evidence.
+- **Inconclusive/not_run**: legitimate outcomes when observation or evaluation is unavailable; not synonyms for schema-invalid.
+
+## 16. Schema creation gate and decision
+
+The minimum field mapping, Context linkage and deterministic review vectors are now sufficiently concrete for a future Schema proposal. However, the existing §10 acceptance criteria are not yet met:
+
+| Gate | Current evidence | Status |
+|---|---|---|
+| Outcome/lifecycle axes and derivation | §§4–5, 11–13 define separate axes and deterministic rules | Design-complete, pending independent review |
+| Expected/actual normalized shape | §13.5–§14 maps every expected leaf by stable structured key | Design-complete, not exercised by clients |
+| Exact Registry/Driver/Profile pinning | Context pins and transitive dependency rules are defined; all current Drivers remain `contract_only` | Not executable |
+| Deterministic failure/retry/interruption/cleanup examples | RM-P01–P04 and RM-N01–N10 | Design vectors only; no executable tests |
+| Credential-redaction and artifact-boundary negative tests | Policy is defined in §7/§12/§15 | No sanitizer or negative test exists |
+| Two independent Harness implementations | None exists; no client adapter or Harness Registry is implemented | Not met |
+| External Manifest digest and immutable store | Digest boundary is defined; no store/finalizer exists | Not implemented |
+
+**Decision: do not create `run-manifest.schema.json` in this iteration.** Creating it now would give untested assumptions a machine-contract appearance, especially around normalized client output, transitive Registry resolution, retry lineage and artifact sanitization.
+
+Next prerequisite is not a Writer or CI Gate. It is an independently reviewable normalized-output contract plus two small, separate Harness/adapter implementations (or equivalent conformance producers) that consume the same pinned Context and emit the same normalized field/claim/scope set. After those results and redaction/cleanup contract tests exist, revisit the Schema gate. This is a design hold, not a freeze or rejection of the Run Manifest concept.
