@@ -849,3 +849,45 @@
 - 第二轮设计一致性审查：23d2d2ac4ec54e58437d2aa178de362205db1faf。
 
 当前仍未完成：正式 Draft 2020-12 meta-schema/instance 验证、date-time format assertion 验证、semantic validator、真实 Git fixture runner、跨平台 CLI E2E 和两个独立客户端互操作测试。
+
+## Schema 0.2.0 第三轮校准与正式 Draft 2020-12 验证（2026-11-12）
+
+### 本轮语义修订
+
+- `branch_state=attached` 时允许 `upstream.state=unknown`，表达当前分支可识别但 branch tracking 配置因权限/读取失败而不可观察；不能伪装成 not_configured。
+- Fingerprint complete coverage 允许记录 mode 160000 的 gitlink commit pointer，不递归摘要 submodule 内部文件。
+- clean gitlink 要参与 complete coverage，必须由现场 Git status / submodule 检查证明：submodule 已初始化、当前 checkout 指针匹配、内部 worktree clean。
+- dirty、缺失、未初始化或无法观察的 submodule 必须降为 partial/unknown。gitlink commit OID 是指针，不是文件内容 digest。
+- 新增正例 `examples/handoff-clean-gitlink-fingerprint.json`，同时展示 clean gitlink pointer 与 attached branch 的 unknown upstream/push。
+- 原 `invalid/schema/complete-with-gitlink-entry.json` 改为缺失 `gitlink_commit` 的真正结构负例；它不再错误声称所有 gitlink 都不能属于 complete coverage。
+- 新增 `invalid/semantic/complete-with-dirty-submodule.json`；JSON 结构合法，但 fixture 的现场 Git 状态将 submodule 标为 dirty，因此 semantic 层必须拒绝完整覆盖声明。
+
+### 当前 Fixture 数量
+
+- 正例：4（minimal checkpoint、complete normal fingerprint、partial/unreadable fingerprint、clean gitlink + unknown branch config）。
+- Schema-invalid：8。
+- Semantic-invalid：7。
+
+### 正式 Draft 2020-12 验证
+
+已在本地使用 Python `jsonschema 4.26.0` 的标准 `Draft202012Validator`，并启用 `FormatChecker()`：
+
+- Schema 对 2020-12 meta-schema 的 `check_schema`：通过。
+- 4 个正例：全部通过实例验证。
+- 8 个 Schema-invalid 负例：全部被拒绝。
+- 7 个 Semantic-invalid 负例：全部保持 Schema-valid，符合设计预期，需未来 Semantic Validator / 现场 Bootstrap 处理。
+- format assertion：合法 RFC 3339 date-time 通过；`2026-13-40T30:70:70Z` 被拒绝。
+
+这属于真正的 JSON Schema Draft 2020-12 meta-schema/instance 验证，不再只是 JSON 解析或有限结构脚本。但它仍不验证现场 Git digest、remote identity、path-set equality、重复 remote/path/stage、URL 凭据清洗、submodule clean 等语义真实性。
+
+### 重要限制与冻结状态
+
+- Schema 0.2.0 仍是 Draft；正式 JSON Schema 验证通过不代表 D1 整体冻结。
+- Semantic Validator、fixture runner、真实 Git CLI E2E、跨平台文件系统测试、两个独立 Agent 客户端互操作测试尚未实现。
+- clean gitlink 的示例值为 synthetic commit pointer；Schema-valid 不代表真实 submodule clean。
+- D0 保持已确认冻结；D1、D2、D3 均未冻结。
+- PR #10、main、项目整体版本和 tags 未修改；未合并、关闭或转 Ready-for-review。
+
+### 下一步（唯一首选）
+
+基于当前正式通过的 Schema 0.2.0，进行一轮 semantic-contract 完整性审查：把 §17.2/§17.3 与 7 个 semantic fixtures 逐项映射，查缺少的上下文字段、冲突处理与 fail-closed 条件；同步确认 Schema、COMPATIBILITY、Fixture README、Design 和 Handoff 的描述一致。完成后把 D1 0.2.0 作为待用户审查 Draft，不实现 Validator/Writer/CI Gate，除非另行授权。
