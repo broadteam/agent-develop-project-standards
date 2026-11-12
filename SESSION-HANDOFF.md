@@ -624,3 +624,42 @@
 ### 下一步（唯一首选）
 
 继续分别细化两个缺口的最小数据模型和反例：先给出 Worktree Fingerprint 的字段/规范化算法候选，再给出 Repository Identity/Upstream Mapping 的字段与解析规则；比较最小可行方案和兼容性影响，之后提交用户裁定。未获批准前不修改 D1 Schema 0.1.0。
+
+## Worktree Fingerprint 候选模型设计（2026-11-12）
+
+### 本轮交付
+
+在 SESSION-CONTINUITY-PROTOCOL-DESIGN.md §15.6–§15.14 增加 Worktree Fingerprint 的候选方案、跨平台语义、采集算法、Freshness 边界、场景契约和反例审查：
+
+- 采用逐路径 SHA-256 原始字节摘要，不使用 Git object ID 代替跨客户端摘要。
+- 明确区分 HEAD、Git index stages 与工作区当前文件；staged 与 unstaged 不压成一个状态。
+- 删除以 present/absent 表达，不以空文件摘要表示；rename 拆成旧路径/新路径。
+- symlink 摘要链接目标原始字节，不跟随目标；特殊文件和 submodule 内部状态首版保守降级。
+- 路径采用 project-root 相对路径、UTF-8、POSIX 分隔符、精确保留 Unicode 码点；不能无损表达、存在路径碰撞或越界时标 unknown/unsupported。
+- 默认范围限定 Git status 可见的非 ignored 路径；敏感文件不摘要，相关覆盖范围降为 partial。
+- 明确逐路径观察与扫描窗口，不承诺多文件原子快照；重新读取 HEAD/index/status，发现扫描竞态则重试或降级。
+- 不引入首版 manifest_digest；它既不能证明原子性，也不能提供来源签名/真实性。
+- 新增 WF01–WF12 场景，覆盖 staged/unstaged、delete、untracked、rename、symlink、扫描竞态、secret exclusion、submodule、特殊路径和平台碰撞。
+- 明确当前 Schema 0.1.0 的 code.additionalProperties=false 会拒绝 worktree_fingerprint；按 COMPATIBILITY.md 当前 0.x 规则，若采纳核心字段需评估新 minor schema（候选 0.2.0），不能原地修改 0.1.0，也不应将核心语义塞进可忽略 extensions。
+
+### 本轮反例审查结论
+
+逐路径 fingerprint 是当前 D2/D3 需求的最小可行候选方向，但不等于文件备份或全工作区原子快照。若 coverage 不完整、条目无法读取或路径语义有歧义，只能进行局部判断，不能宣称整体 dirty worktree current。
+
+### 未完成事项与范围边界
+
+- 尚未完成 Repository Identity / Upstream Mapping 候选模型；需与 fingerprint 一起进行整体 D1 schema 版本审查。
+- 尚未获用户批准该数据模型；不修改 Schema 0.1.0、COMPATIBILITY.md 或 JSON example。
+- 未创建正式 0.2.0 Schema；未实现 Validator、Writer、Fixture Runner、CLI/E2E 或 CI Gate。
+- D1、D2、D3 均未冻结；D0 继续维持已确认冻结。
+- 未修改 PR #10、main、项目版本或 tags；未合并或关闭任何 PR。
+
+### 提交
+
+- Worktree Fingerprint 主体提案：a33594689b9651b943d99003cb1150697e5c13f3。
+- Schema 兼容性与反例审查：40277331e3efd5d49137b4d8a436059e97b07400。
+- 更新本 Handoff 后需重新核对 PR #11 最新 Head 和对应 CI。
+
+### 下一步（唯一首选）
+
+设计 Repository Identity / Upstream Mapping 最小模型：区分平台命名空间下的稳定 repository identity、当前 checkout identity、canonical repository 与多个 remote/upstream 映射；定义 URL 规范化只作为辅助、平台 ID 缺失时的项目显式配置、fork/镜像歧义和离线降级。随后与 §15.6–§15.14 合并审查 D1 0.2.0 候选契约，不先改 Schema 文件。
