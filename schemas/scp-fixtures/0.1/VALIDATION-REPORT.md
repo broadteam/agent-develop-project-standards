@@ -7,7 +7,7 @@
 | Item | Value |
 |---|---|
 | Schema | `schemas/scp-fixtures/0.1/fixture-context.schema.json` |
-| Schema Git blob SHA | `b730e86bd62c90723831ebea2ccd81a00b4bb8fd` |
+| Schema Git blob SHA | `9348e22ac0ee450ce6689cec4fb87f0aa985104c` |
 | Dialect | JSON Schema Draft 2020-12 |
 | Validator | Python `jsonschema 4.26.0` |
 | Format validation | `FormatChecker()` enabled |
@@ -51,6 +51,14 @@ Invalid date probe: `2026-13-40T30:70:70Z`.
 | `local-git-contract` | `b0fc0273870f4591e5a53a51db7d189c012c826c` |
 | `provider-stub` | `7784c321f69e5f812b2bca22184ca13335c985e1` |
 
+## Pinned Provider authority contract artifact
+
+| Contract | Git blob SHA |
+|---|---|
+| github-rest-fixture-not-found-semantics/1 | `6573628ce89d1e9f0e43ad2ecc341dc99b29e887` |
+
+The authoritative not-found case references this synthetic fixture contract in both the stimulus and companion observation. It must not be interpreted as a claim about the real GitHub API.
+
 ## Pinned Driver descriptor bundle digests
 
 SHA-256 values cover the exact UTF-8 descriptor file bytes, including the final newline. These are declarative `contract_only` artifacts and are not executable Runner bundles.
@@ -63,11 +71,12 @@ SHA-256 values cover the exact UTF-8 descriptor file bytes, including the final 
 
 ## Interpretation and limits
 
-- The Draft 2020-12 meta-schema check passed for the schema blob listed above.
-- The 3 design-only Context examples passed structural/format validation; the 5 negative examples were rejected for the intended structural constraints.
+- The earlier 0.1.0 Draft schema passed the Draft 2020-12 meta-schema check; the schema was subsequently tightened to require provider authority evidence and profile revisions. The current schema blob SHA is recorded above, but the latest changes still need a fresh standard Validator run before this report can be marked current.
+- The 3 design-only Context examples and 5 negative examples were checked against the prior 0.1.0 schema. After the latest provider-evidence/profile-revision refinement, the authoritative-not-found example was updated; rerun all 8 examples against the current schema before claiming current formal validation.
 - The Contexts reference Packet schema blob `a2f2097a17c08bf0a2ae733ab43a8f1919b48813` and exact Packet Git blob IDs. Context validation does not revalidate those Packet instances; their separate results are in `schemas/scp/0.2/fixtures/VALIDATION-REPORT.md`.
 - The profile references are immutable Git blob references. Profile document format is still owned by the Harness Registry and is not a separately frozen public API.
-- The Driver files are declarative contract descriptors marked `contract_only`. No executable driver implementation, registry, Runner or adapter exists.
+- The Driver files are declarative contract descriptors marked `contract_only`. SHA-256 pins descriptor bytes, not executable bundles. No executable driver implementation, registry, Runner or adapter exists.
+- The provider not-found evidence artifact is a synthetic fixture contract pinned by Git blob SHA; it is not real provider documentation.
 - No disposable Git repository or provider stub was actually created/executed by this report.
 - Actual run manifests, Semantic Validator, Fixture Runner, client adapter and CI gate are not implemented.
 - The existing Standards CI workflow does not validate this Context Schema.
