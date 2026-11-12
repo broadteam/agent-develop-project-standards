@@ -115,6 +115,16 @@
       "observation": "per_path_stable",
       "entries": [
         {
+          "path": "notes/next.md",
+          "index_entries": [],
+          "worktree": {
+            "state": "present",
+            "kind": "regular_file",
+            "mode": "100644",
+            "digest": "sha-256:3333333333333333333333333333333333333333333333333333333333333333"
+          }
+        },
+        {
           "path": "src/agent.ts",
           "index_entries": [
             {
@@ -133,16 +143,6 @@
             "kind": "regular_file",
             "mode": "100644",
             "digest": "sha-256:2222222222222222222222222222222222222222222222222222222222222222"
-          }
-        },
-        {
-          "path": "notes/next.md",
-          "index_entries": [],
-          "worktree": {
-            "state": "present",
-            "kind": "regular_file",
-            "mode": "100644",
-            "digest": "sha-256:3333333333333333333333333333333333333333333333333333333333333333"
           }
         }
       ]
