@@ -1678,7 +1678,7 @@ Schema 0.2.0 核心对象的具体表达：
 已完成的本地结构检查：
 - Schema 文件可被 JSON parser 解析；本轮样例所走到的本地 `$ref` 路径均可解析。
 - Schema 中的正则表达式均可由 JavaScript RegExp 编译。
-- 两个正例在本轮编写的结构/条件子集检查中无错误。
+- 三个正例（最小 checkpoint、complete fingerprint、partial fingerprint）在本轮编写的结构/条件子集检查中无错误。
 - 八个 Schema 级负例分别触发预期约束：dirty 无路径、complete + changed capture、locator-only 携带 ID、路径越界/不规范。
 - 六个 semantic 级负例均通过结构层检查，符合“JSON Schema 不能单独证明这些跨字段/现场关系”的预期。
 
