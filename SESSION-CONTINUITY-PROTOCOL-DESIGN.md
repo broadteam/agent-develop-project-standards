@@ -906,3 +906,66 @@ D3 设计进入冻结审查前，至少应满足：
 
 **审查结论：** 收敛上述两处风险后，D3 概念设计在当前抽象层面未发现新的阻断问题；但尚未完成跨客户端 Fixture 或真实 Writer 行为验证。该结论不是 D3 冻结，也不代表 D1/D2 已冻结或实现。
 
+
+### 14.12 D3 场景契约矩阵（Checkpoint 生成与消费）
+
+本节把 §14.1–§14.11 转成可供后续跨客户端 Fixture 使用的行为契约。当前仍是设计文档中的场景定义，不是机器 Fixture、Writer 实现或测试执行结果。
+
+#### 14.12.1 规范化判定结果
+
+Checkpoint 操作的客户端结果至少应能归一化为以下独立维度；不得用一个笼统的 `success` 或 `status` 覆盖不同含义：
+
+| 维度 | 建议值 | 含义 |
+|---|---|---|
+| `persistence_decision` | `not_needed` / `eligible` / `not_permitted` | 是否值得保存，以及是否具备写入权限；eligible 不代表已写入 |
+| `target_resolution` | `resolved` / `missing` / `ambiguous` / `not_configured` | 是否能从权威入口唯一确定写入目标 |
+| `preflight_state` | `ready` / `stale` / `conflict` / `unknown` / `not_run` | 项目身份、基线、引用和工作区前置核验结果 |
+| `write_result` | `written` / `not_written` / `failed` / `conflict` / `not_attempted` | 持久化动作的实际结果 |
+| `packet_usability` | `usable_as_last_known` / `unusable` / `unknown` | 结构和身份检查后是否可作为恢复线索；不代表 freshness current |
+| `recovery_freshness` | 复用 D2 的逐来源 `current/stale/conflict/unknown` | 接收方现场核验后的来源状态，不由写入者自我声明 |
+
+这些是客户端对操作结果的规范化表达，不是新增 Packet 字段或第二套持久化状态账本。客户端可以提供更详细的诊断，但不得把 `eligible` 说成 `written`、把 `written` 说成 `current`，或把 `usable_as_last_known` 说成已恢复完成。
+
+#### 14.12.2 场景矩阵
+
+| ID | 输入/前置条件 | 规范化预期 | 允许行为 | 禁止行为 |
+|---|---|---|---|---|
+| C01 | 普通问答或短任务，无跨会话恢复价值 | `not_needed`；`not_attempted` | 直接结束当前任务 | 为满足流程而创建 Packet |
+| C02 | 重要阶段收口，目标入口唯一，权限允许，基线可核验 | `eligible`；preflight `ready`；写入后才可为 `written` | 生成最小 Packet 并验证完整持久化 | 在写入前宣称已保存 |
+| C03 | 用户明确拒绝持久化 | `not_permitted`；`not_attempted` | 提供会话内可复制摘要 | 以“系统默认”或自动化为由写入 |
+| C04 | 项目未配置 Packet 入口，但存在既有 handoff/AGENTS/MEMORY 入口 | 目标按既有入口解析；无明确 Packet 目标时不新建 | 更新既有且明确授权的交接文档，或仅输出摘要 | 擅自创建新目录/索引文件 |
+| C05 | 多个候选目标，项目规则未指定唯一目标 | target `ambiguous`；不写入 | 请求用户/项目规则明确目标，或仅输出摘要 | 按文件名、时间戳、目录顺序选一个 |
+| C06 | 项目身份与当前仓库不匹配 | preflight `conflict`；write `not_attempted` | 停止 Packet 写入，从当前项目规则重新识别 | 将旧项目 Packet 改写为当前项目断点 |
+| C07 | Packet 生成后、写入前 HEAD 或相关权威来源发生变化 | preflight `stale`；重新 Bootstrap | 重建断点，再执行新一轮前置检查 | 静默沿用旧基线或自动 rebase 内容 |
+| C08 | 目标文件在读取后被其他 Agent 修改 | write `conflict`；不得覆盖 | 停止写入，重新读取并协调 owner/write-scope | last-write-wins 或强制覆盖 |
+| C09 | 两个 Agent 在隔离 worktree 中写入不同目标 | 各自按 owner/write-scope 独立核验 | 在明确隔离且目标唯一时分别写入 | 将一个 Agent 的状态覆盖到另一个 Agent 的工作区 |
+| C10 | 两个 Agent 声明共享目标，但无协调/owner 依据 | preflight `conflict` 或 `unknown`；不写入 | 停止共享目标写入并请求协调 | 假定先到先得或隐式租约 |
+| C11 | tracked 文件 dirty，内容摘要不可验证 | 记录观察到的 dirty 路径与限制；相关 freshness 不得判 current | 仅保存 Schema 可表达且准确的 last-known 信息 | 用 HEAD blob 或 Git tree SHA 代表工作区内容 |
+| C12 | 存在 untracked 文件，路径/内容摘要不可可靠确认 | 相关工作区声明为 `unknown` 或 `stale` | 明确指出未纳入可核验断点范围 | 宣称工作区 clean 或可完整恢复 |
+| C13 | HEAD 或必要权威来源不可读取 | preflight `unknown`；依赖该来源的写入不执行，或严格按 Schema 可表达范围降级 | 保留 unknown 并输出限制 | 编造 revision、时间或权威状态 |
+| C14 | Packet 写入工具报错或无法确认完整落盘 | write `failed` 或 `unknown`，不得是 `written` | 报告未确认持久化，提供会话内摘要 | 根据“请求已发送”推断写入成功 |
+| C15 | 写入过程中发生中断，文件可能部分写入 | write `failed/unknown`；接收方将文件视为不可用，除非完整解析与校验成功 | 重新读取、完整性检查；必要时由授权方重试 | 把截断 JSON 当作有效 Packet，或自动删除/覆盖未知文件 |
+| C16 | 已存在内容完全相同且基线未变化的 Packet | `not_needed` 或 no-op；不得产生无意义版本 | 报告已有断点仍可作为 last-known 线索 | 为制造新时间戳而重复写入 |
+| C17 | Packet 可解析，但其中 revision/evidence 已过期 | `usable_as_last_known`；D2 freshness/evidence applicability 为 stale | 用作导航线索并现场刷新来源 | 将结构有效等同于当前事实有效 |
+| C18 | Packet Schema 未知/不兼容，或项目身份无法建立 | `unusable`；从既有入口恢复 | 停止解释未知机器字段 | 忽略未知核心字段后继续自动写入/执行 |
+| C19 | 项目规则要求特定原子写入能力，但当前工具不支持 | write `not_attempted` 或 `failed` | 报告能力缺失，提供会话内摘要 | 降级为可能留下半文件的非原子写入并宣称成功 |
+| C20 | 写入成功后，接收方在另一个会话/客户端消费 Packet | packet `usable_as_last_known`；必须重新 Bootstrap | 核验身份、兼容性、权威来源、现场状态与权限 | 继承生成者的权限、freshness 或“已完成”判断 |
+
+#### 14.12.3 跨客户端一致性要求
+
+对于相同的输入 Packet、项目权威入口快照、Git/worktree 观察结果、权限配置和目标文件版本，两个独立客户端应对上述场景产生相同的规范化结果。
+
+- 两个客户端必须一致识别是否需要持久化、目标是否唯一、是否允许尝试写入，以及写入是否得到可验证的成功结果。
+- 对于无法观察的工具能力或状态，双方都必须保留 `unknown/not_run`；不得由一方通过猜测提升为 ready/written/current。
+- 对于目标文件版本变化、共享写入范围冲突等并发情形，双方都不得静默覆盖；客户端可以更保守，但不能扩大写入权限。
+- 不同存储后端可以采用不同的原子写入机制，但必须满足相同的可观察契约：完整内容可读取、结构可解析、写入结果可确认；无法满足时必须明确失败。
+- Fixture 应分别验证“生成决策”“写入结果”和“接收方恢复”，不能把三个阶段合并成一个端到端 success 标志。
+
+#### 14.12.4 场景契约的证明边界
+
+- 该矩阵定义预期行为，不证明任一现有客户端已经遵守。
+- 后续 Fixture Contract Test 只能证明给定输入/输出契约的一致性；不能证明真实文件系统、Git worktree、远端 PR/CI 或权限系统的全部行为。
+- 真实 Writer E2E 需在两个独立客户端分别验证目标解析、并发修改检测、失败/中断后的文件完整性、成功回读和接收端重新 Bootstrap。
+- 不得因 Fixture 通过而跳过真实 E2E，也不得把单一客户端测试结果称为跨客户端互操作通过。
+- 本节不授权实现 Writer、Validator、Fixture Runner、CLI、后台服务或 CI Gate；这些属于后续独立决策。
+
