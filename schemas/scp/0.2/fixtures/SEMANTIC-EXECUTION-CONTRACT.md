@@ -230,3 +230,111 @@ The following gaps emerged from cross-platform and failure-mode review. They are
 - This complements `identity-source-reference-unresolvable`, which currently covers authoritative not-found only.
 
 These vectors should be added only after the current fixture context is accepted as the shared execution baseline. They require no new Packet fields; they exercise observation integrity, capability reporting and fail-closed semantics.
+
+## 11. Candidate vector contracts and D2 normalization
+
+This section makes the four candidates in §10 deterministic enough for design review. These remain proposals and do not change the current fixture inventory.
+
+### 11.1 `fingerprint-reenumeration-race`
+
+**Setup**
+
+- Create a disposable local Git repository with fixed HEAD, one tracked file `src/a.txt`, and one deterministic dirty path.
+- Supply a Packet claiming a complete, per-path-stable fingerprint for the initial status set.
+- Configure the observer with two explicit barriers: `after_initial_status` and `before_final_status`.
+- At the first barrier, record the initial HEAD/index/status tuple. At the second barrier, the harness (not the observer) adds an untracked non-ignored path or changes an index entry in the disposable repository.
+- Release the observer to perform its required final HEAD/index/status re-enumeration. The event log must prove the mutation occurred between the two enumerations; no wall-clock sleep is allowed.
+
+**Expected normalized result**
+
+- The Packet's fingerprint claim is `stale` relative to the post-injection repository state when the changed path/index is observed.
+- The in-progress observation is `unknown` / `changed_during_capture`; it must not synthesize a new complete fingerprint from pieces of the two different states.
+- Fingerprint coverage is not complete for this run. A retry may be performed only as a new observation attempt with a new bounded event sequence; the first attempt remains recorded as changed.
+- The relevant `source_freshness` is stale for the old Packet fingerprint; the new live worktree observation remains unknown until a stable attempt completes.
+- Recovery for a request to inspect unrelated authoritative documents is `restricted`; recovery for an operation that depends on the changed/unresolved dirty-path set is `blocked` for that affected path scope.
+- No write, push, stash, checkout, index refresh or automatic repair is permitted.
+
+### 11.2 `fingerprint-file-object-replaced-during-read`
+
+**Setup**
+
+- Create a disposable repository with one dirty regular file containing fixed byte sequence A.
+- The observer opens and begins streaming the file for SHA-256. A deterministic hook fires after a declared byte offset; the harness atomically replaces the path with a different file object containing byte sequence B.
+- The observer completes its read and performs the strongest available pre/post handle and path identity checks. The companion context declares which identity metadata the platform profile can reliably observe.
+- The test must distinguish “same object contents changed” from “path now resolves to a different object”; both invalidate a single digest observation.
+
+**Expected normalized result**
+
+- The affected entry is `unknown` (or the fingerprint's observation is `changed_during_capture`); do not publish the computed stream digest as a current path digest.
+- Fingerprint coverage is partial/unknown. Unaffected entries may remain independently applicable if they were observed consistently.
+- The corresponding live path claim is `unknown`, not automatically stale: the observer failed to obtain one coherent object observation. If a later stable observation proves the Packet's old digest differs, that old Packet claim may separately be stale.
+- Unrelated read-only analysis is `restricted`; operations requiring the affected path's exact content/state are `blocked` for that path scope.
+- If a platform cannot provide a sufficiently reliable object-identity check, declare the capability unavailable and return unknown; do not weaken the assertion to a timing heuristic.
+
+### 11.3 `fingerprint-path-alias-collision`
+
+**Setup**
+
+- Companion context contains two exact UTF-8 byte sequences and their decoded path strings. Candidate pairs include case variants (for example `src/Foo.ts` and `src/foo.ts`) and NFC/NFD spellings of the same visible name.
+- The environment profile explicitly declares a path-equivalence relation: `case_sensitive` / `case_insensitive`, and `unicode_normalization_preserving` / `unicode_normalizing`. The relation is a fixture input, not something clients may infer from OS name alone.
+- For deterministic cross-client contract tests, use a virtual filesystem/path-identity adapter that implements the declared equivalence relation. Native filesystem probes are a separate platform E2E layer.
+- A profile that claims aliasing must map the two exact path byte strings to one filesystem identity; a profile that preserves them must map them to two distinct identities.
+
+**Expected normalized result**
+
+- When two different protocol paths map to one filesystem object under the declared profile, the path identity claim is `conflict` / `ambiguous`; do not case-fold, Unicode-normalize, replace characters or select one spelling.
+- The affected fingerprint entries cannot be promoted to current; coverage becomes partial/unknown for the affected scope.
+- When the profile proves the two paths are distinct, retain both exact UTF-8 path identities; this is not a conflict.
+- If the client cannot determine or does not support the declared equivalence profile, the result is `unknown`, not conflict and not current.
+- Operations scoped to either colliding path are `blocked`; unrelated read-only analysis is `restricted`. A broader repository-wide write must not proceed while its write scope includes the collision.
+
+### 11.4 `identity-source-permission-denied`
+
+**Setup**
+
+- Use a deterministic provider stub keyed by exact namespace, stable resource ID, API operation, requested revision and authenticated principal.
+- Run distinct response variants against the same fixture reference: authenticated 403, 429 with rate-limit response, network timeout, authenticated authoritative 404, and unauthenticated/visibility-ambiguous 404.
+- The stub response must explicitly declare whether the provider contract guarantees that 404 means the exact referenced resource is absent for the authenticated principal. A raw HTTP status code alone is insufficient.
+- No real provider token, user account or network request is allowed.
+
+**Expected normalized result**
+
+| Provider observation | `source_freshness` | Identity claim | Interpretation |
+|---|---|---|---|
+| Authenticated 403 | unknown | unknown/unresolved | Permission denied; existence is not disproved |
+| 429 / rate limited | unknown | unknown/unresolved | Retry may be separately authorized; not a not-found result |
+| Timeout / transport failure | unknown | unknown/unresolved | Observation unavailable |
+| Authenticated authoritative 404 for exact resource/revision | stale for the referenced source; identity remains unresolved unless another authoritative source independently proves it | not-found at that exact source revision | The old source reference cannot support a current identity claim |
+| Unauthenticated or visibility-ambiguous 404 | unknown | unknown/unresolved | Hidden/private and absent cannot be distinguished |
+
+Recovery mapping:
+
+- If the requested operation only needs local project rules and does not depend on provider identity, use `restricted` and continue that independent read-only analysis.
+- If the requested operation needs canonical/checkout/push target identity (for example, a cross-repository push or a Packet identity match), use `blocked` for that identity-dependent scope.
+- Never fall back to a locator resemblance, remote alias, local cache or another principal's credential to promote identity to resolved.
+
+## 12. Candidate-to-D2 status and recovery matrix
+
+| Candidate | Packet claim freshness | Live observation / applicability | Identity/path state | Recovery for independent read-only work | Recovery for dependent operation |
+|---|---|---|---|---|---|
+| Re-enumeration race | Old fingerprint: stale after confirmed path/index change | Current capture: unknown / changed during capture | Worktree scope unresolved | restricted | blocked for affected dirty-path scope |
+| File object replaced during read | Existing Packet claim: unknown until a stable comparison exists; stale only after later confirmed mismatch | Affected entry: unknown; fingerprint partial/unknown | File-object identity unknown | restricted | blocked for affected path |
+| Case/Unicode alias collision | Affected path claim: conflict when alias relation is proven | Affected entries: conflict/ambiguous; coverage partial/unknown | Path identity conflict | restricted | blocked for colliding path/write scope |
+| Provider 403/429/timeout | Source freshness: unknown | Provider observation unavailable | Repository identity unknown/unresolved | restricted | blocked for operation requiring stable identity |
+| Provider authenticated authoritative 404 | Referenced source: stale | Source is confirmed absent at requested revision | Identity unresolved unless independently corroborated | restricted | blocked for operation requiring that source identity |
+| Provider unauthenticated/ambiguous 404 | unknown | Provider visibility is insufficient | Identity unknown/unresolved | restricted | blocked for operation requiring stable identity |
+
+The recovery result is computed for a declared operation scope, not globally. A blocked identity-dependent push must not prevent a separate local read-only review that does not use repository identity.
+
+## 13. D2 cross-client assertions for these candidates
+
+Given identical Packet bytes, companion context, event sequence, clock, capability profile and permission profile, independent clients must agree on:
+
+- which source/path claim is stale, conflict or unknown;
+- whether the live observation itself is usable;
+- whether the fingerprint can be considered complete, partial or unknown;
+- whether repository identity remains resolved, provisional or unknown;
+- the recovery mode for each named operation scope;
+- the exact prohibited action classes.
+
+A client may downgrade further only when it reports a concrete capability limitation (for example, path equivalence cannot be observed). It may not upgrade another client's unknown/conflict result under identical inputs. Natural-language explanation may differ; normalized state and action boundaries may not.
