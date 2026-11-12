@@ -23,6 +23,10 @@ A semantic fixture is not necessarily self-sufficient JSON. Some claims require 
 | `multiple-push-targets-different-identities.json` | Effective push target list for one remote contains checkout ID `checkout-123` and canonical ID `canonical-456`. | Mark push target resolution conflict/ambiguous; preserve every observed target. |
 | `branch-tracking-unknown-remote.json` | Live branch config says upstream remote `missing-remote`; observed remote mapping contains only `origin` and `upstream`. | Mark branch tracking reference unresolved/unknown; do not synthesize a remote mapping. |
 | `branch-state-code-branch-mismatch.json` | Packet `code.branch` is a non-empty branch name while `branch_tracking.branch_state=detached`. | Reject the contradictory observation. |
+| `credentialed-project-repository.json` | No remote lookup required; inspect the required top-level `project.repository` locator. | Reject/redact credential material before persistence/logging; do not echo the credential. |
+| `gitlink-pointer-mismatch.json` | Synthetic submodule at `vendor/lib`; Git index gitlink OID is `eeee…`, checked-out submodule HEAD is `ffff…`, while the Packet claims complete coverage. | Reject/downgrade complete coverage; pointer mismatch means the submodule path is not clean at the indexed commit. |
+| `identity-source-reference-unresolvable.json` | The referenced provider resource `fixture://provider/github.com/repos/deleted-999` returns authoritative not-found (not a permission-denied/timeout response). | Keep repository identity unknown/unresolved; do not use stale cache or locator resemblance to promote it to resolved. |
+| `branch-push-remote-unknown.json` | Live branch push configuration selects `missing-push-remote`; observed mappings contain only `origin` and `upstream`. | Mark push resolution unknown/conflict; do not invent the remote or select another alias. |
 
 ## Shared semantic requirements
 
