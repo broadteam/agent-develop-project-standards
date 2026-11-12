@@ -1470,6 +1470,59 @@
             "properties": {
               "observation": {
                 "const": "per_path_stable"
+              },
+              "entries": {
+                "items": {
+                  "properties": {
+                    "worktree": {
+                      "anyOf": [
+                        {
+                          "properties": {
+                            "state": {
+                              "const": "absent"
+                            }
+                          },
+                          "required": [
+                            "state"
+                          ]
+                        },
+                        {
+                          "properties": {
+                            "state": {
+                              "const": "present"
+                            },
+                            "kind": {
+                              "enum": [
+                                "regular_file",
+                                "symlink"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "state",
+                            "kind"
+                          ]
+                        }
+                      ]
+                    },
+                    "index_entries": {
+                      "items": {
+                        "properties": {
+                          "mode": {
+                            "enum": [
+                              "100644",
+                              "100755",
+                              "120000"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "mode"
+                        ]
+                      }
+                    }
+                  }
+                }
               }
             }
           }
