@@ -617,7 +617,7 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 1024,
-      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*//)(?!.*(?:^|/)\\.(?:/|$))(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)(?!.*[\\u0000-\\u001F]).+$",
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*//)(?!.*\\/$)(?!.*(?:^|/)\\.(?:/|$))(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)(?!.*[\\u0000-\\u001F]).+$",
       "description": "UTF-8 path relative to Git worktree root using POSIX separators. Semantic validation checks path encoding and platform collisions."
     },
     "digest": {
@@ -1188,11 +1188,15 @@
         {
           "if": {
             "properties": {
+              "state": {
+                "const": "present"
+              },
               "kind": {
                 "const": "regular_file"
               }
             },
             "required": [
+              "state",
               "kind"
             ]
           },
@@ -1218,11 +1222,15 @@
         {
           "if": {
             "properties": {
+              "state": {
+                "const": "present"
+              },
               "kind": {
                 "const": "symlink"
               }
             },
             "required": [
+              "state",
               "kind"
             ]
           },
@@ -1245,11 +1253,15 @@
         {
           "if": {
             "properties": {
+              "state": {
+                "const": "present"
+              },
               "kind": {
                 "const": "gitlink"
               }
             },
             "required": [
+              "state",
               "kind"
             ]
           },
@@ -1259,6 +1271,38 @@
                 "const": "160000"
               },
               "digest": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "present"
+              },
+              "kind": {
+                "const": "unsupported"
+              }
+            },
+            "required": [
+              "state",
+              "kind"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "digest"
+                  ]
+                },
+                {
+                  "required": [
+                    "gitlink_commit"
+                  ]
+                }
+              ]
             }
           }
         },
