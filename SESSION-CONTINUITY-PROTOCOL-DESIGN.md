@@ -2101,3 +2101,16 @@ Context Schema 0.1.0 仍为 Draft；§14 的两套独立 Harness Adapter 一致�
 Manifest 自身 digest 由外部存储计算，不能在内容内自引用。Expected output 继续留在 Context，actual result 留在 Manifest；多客户端对照报告是第三种独立派生物，不回写任一 Manifest。
 
 本节未创建 `run-manifest.schema.json`、Writer、Store、Runner、Client Adapter 或 CI Gate。Context 0.1.0 仍为 Draft，D1/D2/D3 未冻结；需先评审双 outcome 语义、生命周期、重试和 cleanup/quarantine 后，才考虑形成机器 Schema。
+
+### 17.27 Run Manifest 状态分类反例审查
+
+对 Run Manifest §4–§8 作第二轮故障语义审查，补充 §11：
+
+- **Expected unknown ≠ missing observation**：若 Context 有意注入 403/429/timeout/ambiguous-404，并要求客户端 fail-closed 返回 unknown，匹配该结果应是 conformant；Harness 未能提供 Context 要求的观察输入才是 inconclusive/not_run。
+- **Client disagreement ≠ client crash**：有完整 normalized result 但与预期矛盾为 non_conformant；client crash/timeout/malformed output 导致没有完整结果为 inconclusive + failed/interrupted。
+- **Cleanup 与 Conformance 分离**：断言通过但 cleanup failed，conformance 可以保留 conformant，Harness outcome=failed，整体 run 不接受且 quarantine disposable root。
+- **Retry 与 interrupted**：每次 retry 必须新 run_id；interrupted manifest 是 terminal，不能重开补写成 completed。
+- **Registry preflight fail-closed**：Context invalid/unsupported、artifact SHA mismatch、Profile mismatch、Driver 未注册或 `contract_only`、executable digest mismatch，必须在 Client invocation 前拒绝，outcome=not_run。
+- **Multi-client comparison**：多个客户端各有独立 Run Manifest；跨客户端比较是第三种派生记录，不修改 Manifest，也不能将 inconclusive 升级为 conformant。
+
+这轮没有发现需要增加 Packet 或 Context Schema 字段的理由。Run Manifest 仍仅为设计文档，没有 Schema/Writer/Store/Runner/CI Gate。
