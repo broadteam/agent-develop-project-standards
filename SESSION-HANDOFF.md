@@ -1049,3 +1049,18 @@ Design §17.15 已整理 13 组规则：协议兼容、Repository Identity、Rem
 ### 下一步（唯一首选）
 
 继续审查 `SEMANTIC-EXECUTION-CONTRACT.md` 的跨平台确定性和 19 个 fixture 的 companion context 完整性，优先补充 re-enumeration race / filesystem alias 等未覆盖故障场景的测试设计；仍先形成设计与契约，不启动 Runner 或 CI 门禁实现，除非另获授权。
+
+## Semantic Execution Contract 跨平台缺口复核（2026-11-12）
+
+在现有 19 个 semantic vectors 与 execution contract 基础上，新增四个候选测试方向（尚未加入当前 fixture 数量，也未创建 JSON fixture）：
+
+1. `fingerprint-reenumeration-race`：初次 status 枚举后至最终重读前发生 untracked/index 变化；必须阻止 complete/current。
+2. `fingerprint-file-object-replaced-during-read`：文件流式 digest 期间路径对象/inode 被替换或内容变化；entry unknown/changed-during-capture。
+3. `fingerprint-path-alias-collision`：大小写不敏感或 Unicode normalization 文件系统上两个不同 path byte strings 实际别名；不得折叠，coverage 降级。
+4. `identity-source-permission-denied`：区分 provider 403、429、timeout 与 authoritative 404；权限/限流/超时不能变成“资源不存在”。
+
+这些向量不需要新增 Packet 字段；通过 local_git / fault_injection / filesystem_profile / provider_stub companion context 表达。是否进入下一轮 Fixture Inventory，需先审查各 context 的可重复性与跨平台执行能力。
+
+当前状态仍为 4 positive / 9 JSON Schema-invalid / 19 semantic-invalid。Schema SHA 为 `a2f2097a17c08bf0a2ae733ab43a8f1919b48813`；验证报告在 `schemas/scp/0.2/fixtures/VALIDATION-REPORT.md`。
+
+下一步唯一首选：设计这四类候选 context 的 deterministic setup/observation/result contract，并与 D2 的 freshness/recovery outputs 对齐；先不增加 fixture、不实现 Runner/Validator/CI Gate，直到跨客户端一致性边界明确。
