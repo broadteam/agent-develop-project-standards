@@ -1394,3 +1394,54 @@ Run Manifest 设计 §12 和 Design §17.28 已补齐以下规则：
 只比较相同 Context/Packet/Schema/Driver/Profile/provider pins 与等价 capability/permission profiles；环境不同则标 mismatch 或只比较共同 claim，不平均/静默归一化。
 
 本轮未新增 Packet/Context fields。Run Manifest 仍是设计文档，没有 Schema、Writer、Store、Runner、artifact service 或 CI gate。D1/D2/D3 继续未冻结，D0 保持已冻结。
+
+## Run Manifest 最小机器字段与 Context 跨记录审查（2026-11-12）
+
+### 本轮完成
+
+新增并审查：
+- `schemas/scp-fixtures/0.1/RUN-MANIFEST-DESIGN.md` §§13–16：最小字段候选、输入 pin 映射、actual normalized result、稳定断言键、状态派生规则、retry/lifecycle 约束、RM-P01–P04 正向有效记录与 RM-N01–N10 负向语义向量。
+- `schemas/scp-fixtures/0.1/COMPATIBILITY.md` §10：Context 0.1.0 到 Run Manifest 的跨记录校验规则。
+- `schemas/scp-fixtures/0.1/README.md`：同步 Run Manifest Schema Gate 当前状态。
+- `SESSION-CONTINUITY-PROTOCOL-DESIGN.md` §17.29：记录跨阶段结论、范围与决策。
+
+### 核心收敛
+
+1. Run Manifest 保持独立测试产物，不扩展 Packet 或 Context，不成为项目 Evidence/任务/权限状态源。
+2. 候选字段包含 attempt/retry identity、wall-clock timestamps、Context/Schema/Packet/Schema/Repository/Registry/Driver/Profile/provider 的精确输入 pins、Harness/client/adapter/normalizer 版本、declared-vs-measured environment、独立 lifecycle axes、actual normalized result、assertions、双 outcome、cleanup/quarantine 和 Harness artifact refs。
+3. Context expected 与 Manifest actual 逐字段映射；claim/recovery 数组分别按 `claim_ref`/`operation_scope` 匹配，不看数组顺序。
+4. 原泛化 `assertion_id` 改为结构化键 `(subject_kind, subject_ref, field)`，避免数组下标、字符串拼接和客户端自定义计数器造成互操作差异。
+5. 每个 expected normative leaf 必须有且只有一个 assertion outcome；expected unknown 是明确测试期望，客户端准确返回 unknown 可以 pass；Harness 未提供 required observation 则 inconclusive/not_run。
+6. 清理失败/未知始终阻止整体接受并 quarantine；不会覆盖语义结果。重试永远新建 run_id 和 immutable manifest，不重开、不覆盖旧记录。
+
+### Schema 决策
+
+**本轮不创建 Run Manifest Schema。** 设计字段和语义向量已足以进入 Schema proposal，但当前 gate 未满足：
+- 所有 Driver descriptor 仍为 `contract_only`，无可执行 Harness Registry/Bundle。
+- 没有两个独立 Harness/Adapter 输出同一 normalized contract 的互操作证据。
+- 没有可执行 credential-redaction、artifact namespace、cleanup ownership 负例。
+- 没有 Manifest finalizer / immutable artifact store / retry semantic checker。
+
+此时创建 Schema 会把未验证的 normalized output 和 Registry/cleanup 假设过早固化。该结论是暂缓创建机器契约，不是冻结或否定 Run Manifest。详见 RUN-MANIFEST-DESIGN.md §16。
+
+### 提交与验证
+
+本 Handoff 提交之前的设计文档提交：
+- `01ff8c1080bc2abbf7680296a84880783ec3571e`（Run Manifest field mapping / examples）
+- `279bbe98a019f784ff39a2aaa480579b40ec3d5f`（Context–Manifest cross-record rules）
+- `e6f286ae05ccda9eddc7ff8f3903383a3ed78688`（Design §17.29）
+- `1c1f055952e8ff1e385c5a4caf6ea3d78744f51e`（Fixture README status）
+
+PR #11 在上述文档变更前的 Head `c64411ebe0d6b8b0af06b6451f9bd5bb725e117c` 的 16 项检查全部 success。新文档提交将触发新 Head 检查；必须以本 Handoff 提交后的实际 Head 和对应 check-runs 为准，不能沿用旧 Head 绿灯。
+
+### 约束保持
+
+- D0 继续保持用户已确认冻结；D1/D2/D3 与 Fixture Context 0.1.0 均未冻结。
+- 不创建 Run Manifest Schema、Writer、Store、Finalizer、Runner、Harness Registry、Adapter、Semantic Validator 或 CI Gate。
+- PR #11 继续 Open + Draft；PR #10 继续 Open + Draft。
+- 不合并、不修改 main、不 bump 项目版本、不打 Tag。
+- main 现场 SHA：`02f8dde262455f15029a54694e129b05b70013a4`；PR #10 Head `88c342536b7d421aafd0b313e07c6f2b1849eab0`，Base `c98c99a9f39693f893300e990cd6770064438e42`。
+
+### 下一步（唯一首选）
+
+先对 normalized actual-result contract 与 assertion completeness 做独立审查，形成跨客户端一致的规范化输入/输出样例和对照矩阵；随后再由用户决定是否授权建立两个最小 Harness Adapter 互操作原型。只有双实现结果与 redaction/cleanup 负例稳定后，才重开 Run Manifest Schema Gate。
