@@ -36,6 +36,7 @@ These examples intentionally satisfy the JSON shape but violate relationships re
 | `invalid/semantic/canonical-relation-mismatch.json` | Remote claims canonical relation but target ID differs from canonical |
 | `invalid/semantic/credentialed-locator.json` | Locator includes userinfo/token-like credentials |
 | `invalid/semantic/duplicate-index-stage.json` | One path contains duplicate index stage numbers |
+| `invalid/semantic/complete-with-dirty-submodule.json` | JSON shape is valid, but the fixture's live Git observation marks the submodule dirty; complete coverage must be rejected/downgraded |
 
 ## Expected handling
 
