@@ -1247,3 +1247,33 @@ Checkpoint 操作的客户端结果至少应能归一化为以下独立维度；
 - fingerprint 为可选字段；clean worktree 不需要为了凑齐字段生成空指纹。无法完整采集时允许部分记录，但不得声称整体 current。
 
 需要在用户批准数据模型方向后，才将其映射为 D1 Schema 字段并确定 0.x schema version 的变更策略。该方案尚未验证不同 Git 版本、操作系统、文件系统和客户端库的真实表现；进入实现前仍需独立 Fixture 与 CLI E2E 方案审查。
+
+### 15.13 与现有 Schema 0.1.0 的兼容性结论
+
+这不是对现有 0.1.0 的可选字段补丁：
+
+- 当前 code 子对象使用 additionalProperties=false，0.1.0 不认识 worktree_fingerprint，严格消费者必须拒绝该字段。
+- COMPATIBILITY.md 已明确：0.x 阶段新增核心字段（即使 optional）也必须进入新的 minor schema version。因此若该提案获批准，应评估新的 0.2.0，而不是原地修改 0.1.0。
+- 不建议把它塞进 extensions。Fingerprint 影响 D2 freshness 与 D3 恢复可信度，是核心语义；若放在消费者可忽略的 extension 中，不同客户端就可能对同一 dirty path 得出不同结论。
+- worktree_fingerprint 应保持 optional：clean worktree 不需要生成空清单；老版本 Packet 仍可按 0.1.0 规则消费，但没有 fingerprint 的 dirty path 只能确认路径/HEAD，不得声称该路径内容 current。
+- 新字段需要与 code.uncommitted_paths 建立 semantic validation：当 fingerprint 声称覆盖完整 Git-status scope 时，entry path 集合必须与本次观察到的未提交路径集合相同；漏项、多项、重复或路径编码无法无损映射均不得标 coverage=complete。
+- 对 index_entries 的 stage 0/1/2/3、mode 和 digest 还需要 semantic validation；JSON Schema 只能校验形状，不能证明 digest 确实来自对应 Git index blob。
+- D2 S06/S07 可据此细化：S06 只有在相关 tracked path 的 HEAD/index/worktree 三层均可核验且目标范围匹配时，才允许将该路径内容声明为 current；S07 只有在 untracked 路径存在且其 worktree 摘要精确匹配时，才允许该路径声明 current。整体 coverage partial 仍不能被提升为整体 worktree current。
+- D3 C11/C12 继续复用 D2 的逐声明判定；Checkpoint Writer 不能把 fingerprint 的存在等同于完整/可信。
+
+### 15.14 Worktree Fingerprint 反例审查与暂定结论
+
+对 §15.6–§15.13 进行独立反例检查，结论如下：
+
+1. **staged 与 unstaged 不可合并**：只摘要当前文件内容会遗漏 Git index 中已 stage、但随后又编辑过的版本。候选模型因此同时保存 index stages 和 worktree 当前状态。
+2. **HEAD 不能替代 index**：HEAD SHA 只标识提交；staged 状态必须从 index stage blob 读取并独立摘要。
+3. **删除不是空内容**：必须分别表达 index/worktree 的 present/absent；空文件摘要只代表真实零字节文件。
+4. **rename 识别不能作为路径身份基础**：Git rename 是基于相似度的检测结果；协议将其拆成旧路径和新路径的独立状态条目。
+5. **symlink 必须不跟随**：否则目标内容变化会被误当成链接本身变化，且可能越出 project root 或形成循环。
+6. **路径字符串不能静默规范化**：NFC/NFD、大小写折叠和替换字符都可能把不同文件映射为同一键；无法无损/无歧义映射时降级 unknown。
+7. **hash 不等于脱敏**：敏感文件可能是低熵秘密，必须允许按项目规则排除并将 coverage 降为 partial。
+8. **逐路径稳定不等于全局原子**：扫描期间多文件状态可能先后变化；候选模型只证明单条目观察及扫描窗口，不承诺跨文件原子一致。
+9. **manifest digest 不解决原子性/真实性**：首版不引入全局 manifest hash；若未来增加，必须另定义规范序列化，且不能把它包装成签名或可信来源证明。
+10. **平台能力不可假定**：文件模式、symlink、特殊文件和路径字节在不同平台可能不可完全观察；不支持时按条目或整体 scope 降级，不得通过猜测填值。
+
+**暂定结论：** 逐路径 fingerprint 是满足 D2/D3 当前需求的最小可行候选方向；但它仍需与 Repository Identity/Upstream Mapping 合并做一次整体 D1 0.2.0 候选审查。当前没有用户对字段模型的批准，因此不修改 Schema 0.1.0，不生成正式 0.2.0 文件，也不冻结 D1/D2/D3。
