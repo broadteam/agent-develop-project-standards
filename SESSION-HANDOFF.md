@@ -1816,3 +1816,13 @@ The filter remains an x86_64 denylist with default ALLOW. No production syscall 
 - Landlock: a direct C call to landlock_create_ruleset returned ENOSYS within a bounded 3-second probe. Unavailable in the tested kernel/runtime; no Landlock policy can be installed here.
 - cgroup v2: controllers are visible, but /sys/fs/cgroup is mounted read-only, cgroup.subtree_control is empty and child cgroup creation fails. No delegation is available.
 - Resource limits therefore remain per-process prlimit only; do not describe them as cgroup aggregate CPU/memory/PID enforcement.
+
+
+## 2026-11-14 bounded tmpfs scratch follow-up
+
+- Replaced the host writable scratch bind mount in run-seccomp-integration.sh with a tmpfs mounted inside the private mount namespace.
+- tmpfs is capped at 32 MiB with nosuid,nodev,noexec.
+- The synthetic client verifies tmpfs filesystem type, all three mount flags, capacity ceiling and scratch writes.
+- The check runs in both the initial client and its fork+exec child.
+- Exact executed blobs: seccomp-child-test.c 21667e37e1c2d75ce9448194df06c504cdb33a5b; run-seccomp-integration.sh 83f0dd5c1c1019fc2f638e7f7057d5621027d95e.
+- This bounds scratch file storage and removes the host writable bind mount from the client. It does not replace cgroup CPU/memory/PID controls; those remain unavailable in this runtime.

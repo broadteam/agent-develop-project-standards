@@ -284,3 +284,8 @@ These are targeted x86_64 denylist probes. They do not establish full syscall me
 
 
 A direct Landlock ABI probe returned ENOSYS; this is a tested-runtime unavailability result, not an unknown timeout. The cgroup v2 hierarchy exposes controllers but is read-only and cannot delegate child cgroups. Neither mechanism is active in the prototype.
+
+
+### 12.7 Bounded tmpfs scratch boundary
+
+The Linux seccomp integration now uses a private 32 MiB tmpfs scratch mount with nosuid,nodev,noexec instead of a writable host bind mount. The synthetic client verifies tmpfs type, mount flags, size ceiling and write behavior in both parent and fork+exec child. This reduces host filesystem exposure and bounds scratch capacity, but does not provide aggregate CPU/memory/PID accounting.

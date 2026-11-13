@@ -1258,3 +1258,10 @@ These checks remain Linux x86_64-specific regression evidence. The BPF policy is
 ### 22.9 Definitive Landlock and cgroup capability result
 
 The earlier Landlock probe was repeated with a small C program invoking x86_64 syscall 444 and LANDLOCK_CREATE_RULESET_VERSION; the kernel returned ENOSYS within three seconds. Landlock is unavailable in this tested runtime. The cgroup v2 controller list is visible, but the cgroup2 filesystem is mounted read-only, cgroup.subtree_control is empty, and creating child cgroups is denied. The prototype therefore has neither Landlock nor cgroup-enforced aggregate limits; prlimit is a per-process fallback only.
+
+
+### 22.10 Bounded scratch filesystem
+
+The seccomp launch-chain integration no longer bind-mounts a writable host directory as the Client scratch. It mounts a dedicated tmpfs at /work inside the private mount namespace with a 32 MiB size ceiling and nosuid,nodev,noexec. The regression client checks the filesystem type, all three mount flags, the reported capacity ceiling, and successful scratch writes in both the parent and fork+exec child. The host temporary directory is not exposed as a writable mount.
+
+This bounds scratch capacity and prevents execution from the scratch filesystem. It does not replace cgroup CPU/memory/PID accounting; cgroup delegation remains unavailable in the tested runtime.

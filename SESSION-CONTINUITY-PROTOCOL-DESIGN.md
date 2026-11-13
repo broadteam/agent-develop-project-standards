@@ -2436,3 +2436,10 @@ This remains an x86_64 syscall denylist with default ALLOW, not a complete allow
 #### 17.40 Definitive Landlock/cgroup capability status
 
 A bounded C probe of landlock_create_ruleset returned ENOSYS in the tested Linux runtime; Landlock is unavailable there. cgroup v2 controllers are visible but the cgroup2 mount is read-only and cannot delegate child cgroups. The Linux prototype therefore uses per-process prlimit and does not claim aggregate cgroup resource enforcement. This supersedes earlier handoff language that described Landlock as merely unknown.
+
+
+### 17.41 Bounded tmpfs scratch and non-executable workspace (2026-11-14)
+
+The Linux seccomp integration replaced its host-directory scratch bind mount with a tmpfs mounted inside the private mount namespace. The mount is capped at 32 MiB and uses nosuid,nodev,noexec. The synthetic client checks TMPFS_MAGIC, ST_NOEXEC, ST_NOSUID, ST_NODEV, the reported size ceiling and successful marker creation in both the parent and fork+exec child. The host-only writable scratch directory is no longer mounted into the chroot.
+
+This bounds file-backed scratch capacity and prevents execution from the scratch mount. It is not aggregate cgroup resource accounting: cgroup v2 delegation is unavailable in the tested runtime, and process-level prlimit remains the only CPU/address-space/process resource bound.
