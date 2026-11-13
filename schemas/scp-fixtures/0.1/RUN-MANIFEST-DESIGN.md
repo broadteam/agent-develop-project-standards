@@ -1067,11 +1067,26 @@ A meaningful interoperability claim requires the two adapter implementations to 
 
 ### 19.7 Authorization and implementation boundary
 
-This blueprint is sufficient to scope two minimal prototypes, but no prototype is implemented by this design update. Implementation requires explicit authorization because it creates executable Harness/Adapter code and may introduce dependencies, temporary storage and test execution behavior.
+This section originally defined the blueprint before prototype authorization. The authorized Node.js/Python synthetic prototypes are now recorded in SCP Design §17.32 and under `prototypes/scp-fixtures/0.1/`. Those prototypes implement the projection/normalization/Oracle logic only; they are not a full Harness or Agent Sandbox.
 
-Until authorized:
-- do not create adapter source code or Driver bundles;
-- do not introduce arbitrary commands/scripts into Context;
-- do not create Normalized Result or Run Manifest JSON Schemas;
-- do not create a Registry, Runner, Writer, Store, redaction service or CI gate;
-- keep all current contracts Draft and all results design-only.
+The prototype does not authorize:
+- executable production Drivers or a general Harness Registry;
+- real Git/Provider access, user repositories or production credentials;
+- Agent client invocation before OS-level Oracle isolation is designed and verified;
+- Normalized Result or Run Manifest JSON Schemas;
+- a Registry, Runner, Writer, Store, redaction service, retry service or CI gate.
+
+All current contracts remain Draft. Prototype outputs remain synthetic test-vector evidence only.
+
+
+## 20. Prototype implementation audit corrections (2026-11-13)
+
+A source review after the first prototype commit identified three semantics that needed explicit handling:
+
+1. **Empty actual rows:** a client row containing only `claim_ref` or `operation_scope` has no actual result fields. The Normalizer now omits that row; the Oracle sees the expected values as absent and records the affected assertions as `inconclusive`. It is not a malformed-result rejection.
+2. **Duplicate expected keys:** projection construction now rejects duplicate expected `claim_ref` and `operation_scope` keys before client evaluation. JSON Schema `uniqueItems` does not guarantee property-level key uniqueness.
+3. **Human-readable user decisions:** `user_decisions_needed` is a set of exact non-empty Unicode strings, not an action-identifier namespace. The action identifier grammar applies only to `permitted_actions` and `prohibited_actions`; the reason-code namespace applies only to `reason_codes`. Node.js and Python validators are aligned, with English/Chinese ordering test vectors.
+
+Regression tests for these corrections have been added to both implementations. They are committed test source, but their execution is not yet established for the exact current PR Head. The existing repository CI does not run the prototype script. Do not claim these new cases passed until `run-parity.sh` is executed against a checkout of the exact committed Head.
+
+These are implementation corrections to the Draft candidate, not a new machine contract or a freeze decision.
