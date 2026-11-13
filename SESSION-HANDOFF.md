@@ -1669,3 +1669,27 @@ VALIDATION-REPORT 已追加上述限制和重跑命令。当前剩余的第一�
 - D0 已确认冻结；D1/D2/D3、Context 0.1.0、Run Manifest、Normalized Result 均未冻结。
 - PR #11 继续 Open + Draft；PR #10 不变；main 不变。
 - 不合并、不升级整体版本、不打 Tag，不新增 CI gate。
+
+## 第三轮原型收口审查（2026-11-13）
+
+### 又完成的修正
+
+- `user_decisions_needed` 改为非空精确 Unicode/自然语言字符串集合；动作 ID 语法只用于 permitted/prohibited actions，reason code 独立遵守 `scp.fixture.*`。
+- Node 与 Python 都新增英文/中文决策字符串的 UTF-8 排序回归测试。
+- Node capability observation 增加明确对象/数组/重复能力检查，并增加 malformed value negative tests。
+- `run-parity.sh` 支持 `NODE` / `PYTHON` 覆盖，自动探测 `python3` 或 `python`，降低 Windows Git Bash 环境差异。
+- 双语言 Normalizer 已统一 empty-row omission 和 expected duplicate projection-key rejection。
+
+### 验证来源和当前欠账
+
+当前 exact PR Head 的代码文件与测试文件已在仓库核验，19 个原型文件仍完整存在。早期 baseline 本地工作副本测试结果为 40 assertions / 9 of 9 parity，但不覆盖后续修正。新回归用例已提交，尚未执行。
+
+尝试 checkout 远端分支失败，原因是当前执行环境无法解析 `github.com`；这不是代码失败，也不是测试通过。VALIDATION-REPORT 已明确写出此环境阻塞。现有 CI 不执行原型脚本。
+
+### 当前原型第一阶段的完成标准
+
+只剩一个首要门槛：在能读取当前 PR 分支的环境，针对 exact committed HEAD 运行 `sh prototypes/scp-fixtures/0.1/run-parity.sh`，确保 Node/Python 套件和 9 个产物 parity 全部通过，然后将执行环境、HEAD SHA、具体输出和报告一致性记录下来。若有差异，修复后重复到通过。
+
+**第一阶段不包含真实 Agent 调用。** 这阶段一旦 exact checkout 测试通过即可关闭；真实 Agent Sandbox / Oracle Isolation 是第二阶段，双 Agent 互操作是第三阶段，不再把它们绑定成一个无法收口的“大任务”。
+
+当前没有可诚实承诺的日历完成日期；执行阻塞是本环境的 GitHub DNS/checkout 能力，而不是还需要再写一轮设计说明。
