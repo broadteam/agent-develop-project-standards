@@ -52,18 +52,11 @@ The result is therefore **Gate A + Gate B core-probe evidence for one Linux envi
 This prototype is not invoked by the repository's existing CI workflow. No CI workflow or gate was added.
 
 
-## Separate seccomp kernel primitive smoke test
+## Standalone seccomp primitive smoke test (historical)
 
-An optional, deliberately narrow C smoke test shows that this kernel accepts a classic seccomp-BPF filter and returns `EPERM` for one harmless syscall (`getppid`). It is **not** applied by the main sandbox probe and is not counted as an enforced sandbox policy.
+The small `seccomp-smoke.c` utility is retained as an optional kernel-primitive check: it installs a minimal filter and expects `EPERM` for `getppid`. It is not the active sandbox policy and is not used by the main launcher.
 
-On Linux with GCC:
-
-```sh
-gcc -Wall -Wextra -O2 -o /tmp/scp-seccomp-smoke prototypes/scp-sandbox/0.1/linux/seccomp-smoke.c
-/tmp/scp-seccomp-smoke
-```
-
-Expected output: `SECCOMP_FILTER=PASS`.
+The active denylist integration is exercised by `run-seccomp-integration.sh`, which the `linux/run.sh` entry point invokes after the namespace/chroot core probe. That harness compiles `seccomp-exec.c` and `seccomp-child-test.c`, installs the test-mode policy before the synthetic child executes, and checks policy enforcement and inheritance. See the validation report for the exact source Blob identities and latest execution evidence.
 
 
 

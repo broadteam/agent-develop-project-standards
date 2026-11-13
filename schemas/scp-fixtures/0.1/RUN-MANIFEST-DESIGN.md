@@ -1216,7 +1216,7 @@ The result is Gate A + Gate B *core-probe evidence for this one runtime*. It is 
 
 ### 22.3 Limitations and remaining security work
 
-This prototype does not implement or prove seccomp syscall filtering, Landlock, cgroup v2 delegation, AppArmor/SELinux policy, kernel-escape testing, Windows/macOS backends, general secret scanning, a real network egress allow-list, production evidence storage or an immutable Run Manifest finalizer. The redactor only recognizes the exact synthetic marker. Cleanup quarantine was tested through deterministic fault injection rather than a genuine host filesystem deletion failure.
+The Linux launch-chain now exercises a seccomp-BPF denylist for the synthetic client, but does not provide a complete syscall allowlist or a general Agent Runner policy. The prototype still does not implement or prove Landlock, cgroup v2 delegation, AppArmor/SELinux policy, kernel-escape resistance, Windows/macOS backends, general secret scanning, a real network egress allow-list, production evidence storage or an immutable Run Manifest finalizer. The redactor only recognizes the exact synthetic marker. Cleanup quarantine was tested through deterministic fault injection rather than a genuine host filesystem deletion failure.
 
 No real Agent client, real Provider endpoint, production credential, user repository or production Git observer was used. No real Agent invocation is authorized by this evidence.
 
@@ -1230,9 +1230,9 @@ No real Agent client, real Provider endpoint, production credential, user reposi
 The existing repository CI does not execute this probe. No workflow or CI gate was added. This section records evidence; it does not freeze D1/D2/D3 or any SCP fixture/Manifest contract.
 
 
-### 22.5 Follow-up primitive discovery (not integrated)
+### 22.5 Supplemental kernel capability discovery (not integrated)
 
-A separate classic seccomp-BPF smoke program successfully installed a filter with `PR_SET_SECCOMP` after enabling `no_new_privs`, and verified that a harmless `getppid` syscall was denied with `EPERM`. This is kernel primitive evidence only: the main namespace/chroot probe does not install this filter, so the Gate A/B outcome must not be interpreted as an active seccomp policy.
+An earlier standalone classic seccomp-BPF smoke program installed a minimal filter and verified that `getppid` returned `EPERM`. That historical primitive check is superseded by the launch-chain integration in §22.6. The Python namespace/chroot core probe does not itself install the seccomp filter; the `linux/run.sh` entry point invokes a separate C integration harness after the core probe. Do not infer that an arbitrary Agent process or general runner is automatically covered by this test harness.
 
 The cgroup v2 mount lists `cpuset`, `cpu`, `io`, `memory`, `hugetlb` and `pids` controllers, but the current hierarchy is not writable and does not allow child cgroup creation. The prototype uses `prlimit` only and has no cgroup-enforced aggregate resource accounting.
 

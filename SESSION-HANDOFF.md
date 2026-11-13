@@ -1841,3 +1841,19 @@ The filter remains an x86_64 denylist with default ALLOW. No production syscall 
 ### 2026-11-14 runtime identity and capability readback
 
 The seccomp child test now verifies in both parent and fork+exec child: UID/GID 65534, zero supplementary groups, no_new_privs=1, seccomp mode FILTER, empty effective/permitted/inheritable caps via capget, and empty capability bounding set across CAP_LAST_CAP. Exact test Blob SHA: c77f27b9062a8522f35a54c099dfb341a247a34c. Full integration passed with all prior modern mount/pidfd/clone/cwd/FD/tmpfs checks.
+
+
+## 2026-11-14 exact-blob seccomp integration re-verification
+
+PR #11 Head before this documentation update: `6e9458f9cda1e6b09a2b519857ae866ce47e47b6`.
+
+The current seccomp integration source files were retrieved from that exact Head and locally verified by Git Blob identity:
+- `seccomp-exec.c`: `b36b72376cec0b8fc1b2b9b32519b6f077798b1a`
+- `seccomp-child-test.c`: `c77f27b9062a8522f35a54c099dfb341a247a34c`
+- `run-seccomp-integration.sh`: `0b762b0daf763d3a3ef7f5a358060c17b8efa5c6`
+
+The standalone integration harness was run twice on Linux x86_64 / kernel 6.18.57 / GCC 14.2.0. Both runs passed with `-Wall -Wextra -Werror`. The initial client and fork+exec child passed runtime UID/GID, supplementary group, no_new_privs, seccomp mode, capability-set and bounding-set readback; listed syscall denial; clone/clone3 namespace bypass probes; inherited FD and cwd canaries; read-only root and bounded 32 MiB / 4096-inode tmpfs checks; allowed fixture/scratch I/O; and filter inheritance.
+
+Scope qualification: this was an exact-Blob re-run of `run-seccomp-integration.sh`, not a rerun of the complete `linux/run.sh` including the Python core probe. The seccomp policy is a Linux x86_64 denylist with default ALLOW, not a complete production syscall allowlist. Landlock returned ENOSYS, cgroup v2 child delegation was unavailable, and resource bounds remain per-process `prlimit` plus bounded tmpfs. No real Agent, Provider, production credential or user repository was accessed. Gate C remains closed.
+
+The previous README/Compatibility/Run Manifest statements that described seccomp only as an unintegrated primitive smoke test are superseded by the integrated launch-chain test; the standalone `seccomp-smoke.c` remains only as a historical optional kernel-primitive check.

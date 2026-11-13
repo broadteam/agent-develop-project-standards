@@ -220,3 +220,18 @@ The seccomp client test now reads back its actual execution identity rather than
 The exact updated client was run in the full namespace/chroot/seccomp integration harness. Both parent and child passed all identity/capability assertions and the existing syscall denial, inherited FD/cwd canary, readonly rootfs, bounded tmpfs and allowed scratch I/O checks.
 
 Exact test Git Blob SHA: c77f27b9062a8522f35a54c099dfb341a247a34c.
+
+
+## 2026-11-14 exact-blob seccomp integration re-run
+
+The current PR #11 Head at the time of this re-run was `6e9458f9cda1e6b09a2b519857ae866ce47e47b6`. The following three source files were retrieved from that exact commit, reconstructed in a disposable local test directory, and checked with `git hash-object`; each local Git Blob SHA matched the remote file Blob SHA:
+
+- `seccomp-exec.c`: `b36b72376cec0b8fc1b2b9b32519b6f077798b1a`
+- `seccomp-child-test.c`: `c77f27b9062a8522f35a54c099dfb341a247a34c`
+- `run-seccomp-integration.sh`: `0b762b0daf763d3a3ef7f5a358060c17b8efa5c6`
+
+Execution environment: Linux x86_64, kernel 6.18.57, GCC 14.2.0, effective UID 0, Python 3.13.5 available. The integration harness was executed twice with the exact matching source bytes. Both runs compiled with `gcc -Wall -Wextra -Werror` and passed.
+
+Both the initial synthetic client and its fork+exec child verified UID/GID 65534, zero supplementary groups, `no_new_privs=1`, active seccomp filter mode, empty capability sets and an empty capability bounding set. Both denied the test sentinel, legacy and modern mount APIs, ptrace, pidfd/process-handle calls, kcmp, process_madvise, namespace transitions, clone namespace flags, clone3 (ENOSYS fallback), BPF and userfaultfd. Both retained the expected `getpid`, fixture-read and bounded-tmpfs scratch-write behavior; rejected writes to the read-only rootfs; observed EBADF for inherited host FD 9; and observed ENOENT for the inherited-host-cwd canary. The run ended with `SECCOMP_FORK_EXEC_INHERITANCE=PASS`.
+
+This re-run executes the standalone seccomp integration harness, not the full `linux/run.sh` entry point or the separate Python namespace/chroot probe. The existing PR Standards CI is a separate signal and does not execute this harness. The policy remains an x86_64 denylist with default ALLOW; it is not a production syscall allowlist or Agent sandbox certification.
