@@ -1693,3 +1693,43 @@ VALIDATION-REPORT 已追加上述限制和重跑命令。当前剩余的第一�
 **第一阶段不包含真实 Agent 调用。** 这阶段一旦 exact checkout 测试通过即可关闭；真实 Agent Sandbox / Oracle Isolation 是第二阶段，双 Agent 互操作是第三阶段，不再把它们绑定成一个无法收口的“大任务”。
 
 当前没有可诚实承诺的日历完成日期；执行阻塞是本环境的 GitHub DNS/checkout 能力，而不是还需要再写一轮设计说明。
+
+
+## 最新执行记录（2026-11-13）：双实现原型收口与 Sandbox 阶段切换
+
+### PR #11 当前状态
+
+- PR #11：Open + Draft，base feat/governance-consistency-audit。
+- 最新代码提交（本记录写入前）：f37bc16a4976a389494e33139cba93b0e8f2a1d0。
+- main 保持 02f8dde262455f15029a54694e129b05b70013a4；PR #10 保持 Open + Draft、未合并。
+- PR #11 不合并；不修改 main、PR #10、项目版本或 Tag，不新增 CI Workflow / Gate。
+
+### 双实现原型验证
+
+在隔离临时目录中，执行了从 GitHub API 取回并按 Git Blob SHA 身份核验的 PR 源码副本：
+- Node.js 测试通过，三个 Context、40 个 expected assertion leaves；
+- Python 测试 2/2 通过；
+- Context Blob SHA 3/3 核验；
+- Request、Normalized Result、Oracle Report 共 9/9 个生成文件逐字节一致。
+
+执行前逐项验证 GitHub API 返回的源码和 Fixture Blob SHA。由于运行环境无法解析 github.com，没有把这次执行描述为完整 Git checkout。具体身份和执行输出见 prototypes/scp-fixtures/0.1/VALIDATION-REPORT.md。
+
+另发现并修复 observation package 未绑定 Context fixture identity 的问题：Node/Python 现在都要求 observation fixture_id 精确等于 Context fixture_id，错配负例在两套测试中均被拒绝。修正提交为 f37bc16a4976a389494e33139cba93b0e8f2a1d0。
+
+### CI 证据（单独记录）
+
+Head db0d26f5e82997b664ebb15871dc3d9e80ab4c53 的既有 Standards CI 两次运行：
+- 43408727534：8/8 矩阵任务 success；
+- 43408720794：8/8 矩阵任务 success。
+
+该 workflow 不执行 prototypes/scp-fixtures/0.1/run-parity.sh，CI 结果不替代原型专项测试。fixture-ID 修正的 f37bc16 Head 已触发新一轮 CI，须按该 Head 单独核验。
+
+### 阶段状态与下一工作
+
+- Stage 1：三个固定 synthetic Context 的 Node/Python Adapter、Normalizer、Oracle 原型与列明的验证矩阵已通过，按当前范围收口。
+- Stage 2：进行 OS-enforced Client Sandbox / Oracle Isolation 设计和 backend adversarial validation。首先只测试恶意 synthetic child process 和 synthetic client shim，不接真实 Agent、不使用真实凭据、不访问外部 Provider、不触碰用户仓库。
+- Stage 3：真实双 Agent 客户端互操作，只有在 Stage 2 的 OS 隔离证据充分且单独明确授权后再启动。
+
+Stage 2 设计位于 schemas/scp-fixtures/0.1/RUN-MANIFEST-DESIGN.md §21。当前更新只补设计与测试边界，不实现 Agent Runner、Sandbox Runtime、Registry、Writer、Store、Schema 或 CI Gate。
+
+D0 保持用户已确认冻结；D1/D2/D3、Context、Normalized Result、Run Manifest 均未冻结。所有相关工作继续保持 Draft。

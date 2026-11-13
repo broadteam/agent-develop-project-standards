@@ -1087,6 +1087,100 @@ A source review after the first prototype commit identified three semantics that
 2. **Duplicate expected keys:** projection construction now rejects duplicate expected `claim_ref` and `operation_scope` keys before client evaluation. JSON Schema `uniqueItems` does not guarantee property-level key uniqueness.
 3. **Human-readable user decisions:** `user_decisions_needed` is a set of exact non-empty Unicode strings, not an action-identifier namespace. The action identifier grammar applies only to `permitted_actions` and `prohibited_actions`; the reason-code namespace applies only to `reason_codes`. Node.js and Python validators are aligned, with English/Chinese ordering test vectors.
 
-Regression tests for these corrections have been added to both implementations. They are committed test source, but their execution is not yet established for the exact current PR Head. The existing repository CI does not run the prototype script. Do not claim these new cases passed until `run-parity.sh` is executed against a checkout of the exact committed Head.
+Regression tests for these corrections have been executed after API-retrieving the exact source and fixture Git blobs from PR Head and verifying their Blob SHA identities. A further observation fixture-ID association check is implemented and tested in both languages. Execution provenance and scope limitations are recorded in prototypes/scp-fixtures/0.1/VALIDATION-REPORT.md. The execution was API-retrieved and blob-identity-verified, not a full Git checkout; the existing repository CI does not invoke the prototype-specific parity script.
 
 These are implementation corrections to the Draft candidate, not a new machine contract or a freeze decision.
+
+## 21. Client Sandbox and Oracle Isolation Gate (design only)
+
+Status: security design proposal; not an executable sandbox, approved runtime contract, JSON Schema, Driver, Runner or CI gate. This section defines the evidence required before a real Agent client can be invoked against SCP fixtures.
+
+### 21.1 Protected assets and threat model
+
+The Client Under Test is treated as untrusted code once invoked. Its process and every descendant may execute arbitrary tools or commands available to that client, inspect accessible files and environment variables, create symlinks, spawn child processes, attempt network access, and emit malformed or secret-bearing output.
+
+The isolation boundary protects:
+- full Context bytes, all expected values and the complete assertion inventory;
+- Oracle source, evaluator memory, expected/actual comparison results and unpublished Run Manifest data;
+- host credentials, SSH material, API tokens, browser profiles, agent login material and unrelated user files;
+- the host project checkout, Git metadata, local configuration and any non-fixture workspace;
+- evidence integrity, including the relationship between a Context and its actual observation package.
+
+Prompt instructions, hidden system prompts, tool descriptions, filename obscurity and "do not read this file" conventions are not security boundaries.
+
+### 21.2 Trust zones and permitted information flow
+
+| Zone | Holds | May expose | Must not expose |
+|---|---|---|---|
+| Harness Control Plane | Full Context, expected values, pinned artifact set, Registry metadata and orchestration state | Only the values-stripped request projection and explicitly selected fixture artifacts | Context path/mount, expected values, Oracle state or host credentials to the client |
+| Disposable Fixture Zone | Synthetic Packet/Schema, synthetic repository/provider fixtures and actual observations | Read-only fixture inputs plus the minimum fixture-specific writable scratch area | Host checkout, user home, SSH directory, container-runtime sockets, real provider credentials |
+| Client Sandbox | One Client Under Test and its child processes | Only allow-listed request files, a bounded private scratch area and explicitly measured capabilities | Control Plane, evaluator, evidence store, host filesystem and default external network |
+| Evaluator Zone | Hidden expected values, Oracle implementation and sanitized normalized result | A one-way normalized-result input after the client process has ended | Client invocation authority, fixture mutation authority, host credentials or arbitrary client tools |
+| Evidence Store | Redacted run metadata, immutable input pins, normalized actual output and final assertions | Sanitized artifacts by explicit reference and digest | Raw client output, secret-bearing URLs/headers, environment dumps or unredacted diagnostics |
+
+The information flow is one-way: Control Plane prepares a minimal request; the client sees only its sandbox projection; the completed response is captured and sanitized; the Evaluator receives only normalized actual output; the Evidence Store receives sanitized results after policy checks.
+
+### 21.3 OS-enforced controls
+
+A future backend must provide a disposable OS isolation boundary with a dedicated low-privilege identity or equivalent VM boundary. It must not rely solely on a temporary working directory or ordinary file permissions when the client can execute arbitrary commands under the same host identity.
+
+Minimum controls to be measured and recorded by the backend:
+1. Filesystem: explicit read-only allow-list for Packet, Packet Schema and required synthetic fixtures; a separate writable scratch root; no mount or traversal access to Context, repository root, parent directories, home directories, user config, SSH material, evaluator or evidence store. Canonical path containment and symlink handling must be checked after resolution, not by string prefix.
+2. Identity and privilege: non-administrative identity; no privilege escalation, mount, namespace, debug/ptrace, host-control socket or equivalent escape capability. Do not run the client as the user's interactive account.
+3. Environment: construct a new minimal environment from an allow-list. Do not inherit host environment, shell startup files, agent credentials, API tokens, SSH agent sockets, browser profile paths, package-manager credentials or user-specific config.
+4. Network: deny external egress by default, including DNS. A fixture may opt into a local stub only through a named endpoint/port allow-list; the stub must be synthetic and incapable of forwarding to an external provider.
+5. Process lifecycle: contain the full descendant process tree, enforce wall-clock/CPU/memory/output limits, capture bounded stdout/stderr, and terminate all descendants on timeout/cancellation. A child process may not outlive the run.
+6. Mount and IPC: no host container-runtime sockets, desktop session sockets, shared evaluator directories, inherited file descriptors or writable evidence-store mounts. Input transfer should use immutable read-only artifacts or a brokered one-way channel.
+7. Cleanup: destroy only Harness-owned resources whose owner marker and canonical location are revalidated. If cleanup fails or cannot be observed, quarantine the resource and prohibit reuse.
+
+A container label or an OS name is not proof that these controls are active. Linux, Windows and macOS require distinct, explicitly tested backend implementations. A backend is eligible only when its policy revision/digest and the relevant controls are measured successfully on that platform. Missing or unobservable controls fail closed; they are not inferred from the backend's advertised feature list.
+
+### 21.4 Oracle separation
+
+- The complete Context and expected values are stored outside every path, mount, environment variable, command argument, process handle and IPC channel visible to the Client Sandbox.
+- No parent directory containing the Oracle may be mounted into the sandbox. Merely hiding the filename or removing it from the working directory is insufficient.
+- The client receives a values-stripped projection descriptor only. It must never receive expected enum values, expected actions, assertion outcomes, hidden test metadata or the Run Manifest.
+- The Evaluator starts only after the Client Under Test and all descendants have exited or have been terminated and their access boundary is closed.
+- The Evaluator accepts one bounded, sanitized normalized-result payload. It does not execute client tools, access the network or write to the fixture.
+- The client cannot call the Evaluator, mutate expected data, write assertion results or select the final conformance outcome.
+- Raw client responses remain in bounded memory until secret scanning/redaction completes. No raw stdout, stderr, transcript, environment dump or crash bundle is persisted before redaction. If sanitization fails or is ambiguous, discard the raw payload from persistent storage and mark the run failed/inconclusive.
+
+### 21.5 Isolation evidence (proposed, not a frozen Manifest shape)
+
+A future isolation attestation should bind the run to:
+- sandbox backend name/version, platform and backend policy digest;
+- dedicated process identity and privilege level;
+- canonical read-only input mounts and isolated writable roots;
+- environment allow-list identity (record names/policy, not secret values);
+- network-deny result or exact local-stub allow-list;
+- process-tree containment and resource-limit outcomes;
+- forbidden-path and forbidden-socket canary probe outcomes;
+- response-size limit, redaction result and evidence-store write decision;
+- cleanup outcome and quarantine reference, if any.
+
+Record the source and time of each measurement. A declared policy is not evidence that it was actually applied.
+
+### 21.6 Adversarial acceptance matrix
+
+| Probe | Expected result | Failure classification |
+|---|---|---|
+| Read a planted expected-value canary at its former/shared path | Path is absent or access is denied; no canary bytes returned | Isolation failed; do not invoke a real Agent |
+| Enumerate host home, project checkout, .git, SSH/config and agent credential locations | Outside paths are unavailable | Isolation failed |
+| Traverse with parent references, symlinks, hardlinks, process handles or equivalent path/handle tricks | No access outside the allow-list | Isolation failed |
+| Open host container/runtime, desktop, evaluator or evidence-store sockets | Socket unavailable/denied | Isolation failed |
+| Attempt DNS, HTTP and arbitrary outbound connections | Blocked; explicit local stub only when declared | Isolation failed |
+| Spawn a descendant and let the parent exit or exceed timeout | Entire process tree is contained and terminated | Harness failed; quarantine if termination is uncertain |
+| Write outside the fixture scratch root | Denied | Isolation failed |
+| Emit a synthetic secret marker in stdout/stderr or malformed response | Marker absent from all persisted logs/artifacts; response remains bounded | Redaction/storage gate failed |
+| Force cleanup failure or make cleanup status unobservable | Resource quarantined and never reused | Harness failed |
+| Attempt to access or invoke the Oracle/Evaluator | No route, file, socket, process handle or API is available | Isolation failed |
+
+A probe that cannot be executed or whose outcome cannot be observed is not a pass. A sandbox with one failed critical control is ineligible for client invocation; classify the attempt as not_run or harness failure, never as client conformance or non-conformance.
+
+### 21.7 Staged implementation gates
+
+- Gate A — backend validation: evaluate one candidate OS backend using synthetic hostile child-process probes; no Agent client or production credential is present.
+- Gate B — synthetic client shim: invoke a deliberately adversarial local shim that attempts every forbidden access, emits synthetic secret markers and spawns descendants. Prove denial, bounded capture, redaction, process termination and cleanup/quarantine.
+- Gate C — real Agent client: only after Gates A and B pass on the chosen platform, the sandbox policy and artifact flow receive explicit approval. Client-specific authentication, network access and permissions require a separate least-privilege decision; no production credential is implied by this design.
+
+The current Node/Python prototype does not implement any of these OS controls. Its values-stripped request check proves only a property of the request object, not filesystem or process isolation. No real Agent invocation is authorized by this section. The Run Manifest Schema Gate remains closed until isolation and cleanup evidence can be represented and independently validated.

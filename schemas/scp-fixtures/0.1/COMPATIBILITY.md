@@ -213,13 +213,21 @@ Equal parity does not imply conformance: two clients can agree on the same wrong
 
 These rules are companion design semantics. They do not alter Context Schema 0.1.0 and are not mechanically enforced today.
 
+
+### 11.5 Observation-to-Context identity binding
+
+A synthetic or live observation package is scoped to exactly one Context fixture. Its fixture_id must exactly equal the pinned Context fixture_id before event, observation or capability reconciliation is accepted. Matching event sequences or byte-identical records do not make an observation package from another fixture interchangeable. A mismatch is a pre-invocation provenance failure (not_run / Harness failure), not an ordinary client result and not a value that may be normalized away.
+
+This identity check is implemented in both prototype reconcilers and covered by a negative vector in each language. It does not add a Context field or freeze Context Contract 0.1.0.
+
 ## 12. Adapter trust boundary and interoperability design
 
-The two-adapter blueprint is in [RUN-MANIFEST-DESIGN.md](./RUN-MANIFEST-DESIGN.md) §19. This is design guidance only; no executable adapter interface exists.
+The two-adapter blueprint is in [RUN-MANIFEST-DESIGN.md](./RUN-MANIFEST-DESIGN.md) §19 and the OS-level sandbox gate is in §21. These are design proposals; no executable Agent sandbox or client invocation interface exists.
 
 ### 12.1 Oracle isolation
 
 - Full Context and `expected` values stay in the Harness control plane.
+- This is a logical trust-zone rule, not proof of runtime isolation: the OS boundary must ensure the Client Under Test cannot read control-plane accounts, memory, paths, mounts, environment or IPC endpoints.
 - Client Under Test receives Packet/Packet Schema bytes or immutable read-only handles, reconciled actual fixture observations, relevant measured capabilities, deterministic clock and a values-stripped projection descriptor.
 - It must not receive the Context file/path, expected values, assertions, answer key, Run Manifest or Oracle Evaluator artifacts.
 - Oracle Evaluator compares the normalized result only after client evaluation.

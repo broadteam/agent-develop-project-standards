@@ -53,7 +53,7 @@ The local development implementation demonstrated byte-identical Client Evaluati
 - No Normalized Result or Run Manifest JSON Schema, Writer, Store, Runner or CI gate was created.
 - A synthetic Oracle result of conformant only means that a fixed response vector matches the Context expected projection; it is not Agent conformance evidence.
 
-## Post-baseline source review changes (not yet executed)
+## Post-baseline source review changes (historical status; superseded below)
 
 After the baseline local working-copy run, source review produced additional changes on the PR branch:
 
@@ -62,9 +62,7 @@ After the baseline local working-copy run, source review produced additional cha
 - `user_decisions_needed` accepts non-empty exact Unicode/natural-language strings, while action-ID syntax is limited to permitted/prohibited actions;
 - regression cases for these behaviors were added to both Node.js and Python test suites.
 
-These post-baseline source and test changes have **not** been executed in this environment. A direct checkout attempt of the PR branch failed because this runtime could not resolve `github.com`; do not infer test success from source inspection or the repository's unrelated existing CI checks. The exact committed suite remains pending execution in an environment that can checkout the PR Head.
-
-The successful baseline numbers above apply only to the earlier local working copy and must not be attributed to the later committed changes.
+At the time this section was first written, these post-baseline changes had not yet been executed because a direct Git checkout could not resolve github.com. This was the historical state before the API-assisted source reconstruction and execution recorded below. The successful baseline numbers above still apply only to the earlier working copy.
 
 
 ## Launcher portability review
@@ -92,6 +90,39 @@ After those test-only corrections, the isolated run completed:
 - Context Git blob SHA-1 checks: 3/3 passed.
 - Cross-language generated artifacts: all 9 Request / Normalized Result / Oracle Report files were byte-identical.
 
-The current repository CI run `43387906296` for the prior Head completed 8/8 matrix jobs successfully. Its workflow does **not** invoke `prototypes/scp-fixtures/0.1/run-parity.sh`; that CI result is recorded separately and is not counted as prototype-suite execution.
+The prior Head CI run 43387906296 completed 8/8 matrix jobs successfully. For PR Head db0d26f5e82997b664ebb15871dc3d9e80ab4c53, the subsequent existing-workflow runs 43408727534 and 43408720794 each completed 8/8 matrix jobs successfully. The workflow does not invoke prototypes/scp-fixtures/0.1/run-parity.sh; these CI results are separate from prototype-suite execution.
 
-This remains a synthetic fixture prototype. No live Agent client, Provider endpoint, Git observer, OS-level sandbox, or production Runner was exercised. The corrected test files and this report update are being committed to the Draft PR; a fresh run against the resulting Head remains the final verification step.
+This remains a synthetic fixture prototype. No live Agent client, Provider endpoint, Git observer, OS-level sandbox, or production Runner was exercised. The corrected test files were committed in the next PR update. The later exact-blob execution and fixture-identity correction are recorded below.
+
+
+## 2026-11-13 follow-up: observation fixture identity and Stage 1 closeout
+
+A further provenance review found that both observation reconcilers validated the package contract/source, event sequence, companion observations, Profile pin and capability set, but did not bind the observation package to the Context that requested it. A package from another fixture could therefore be paired with the current Context if its other records happened to match.
+
+The Node.js and Python implementations now require the observation package fixture_id to exactly equal the Context fixture_id. Both test suites include a negative case that substitutes a different fixture ID and requires rejection before request construction. This is a provenance association check; it does not change Context 0.1.0 or add a new protocol field.
+
+The correction was committed to the Draft PR in commit f37bc16a4976a389494e33139cba93b0e8f2a1d0:
+- Node adapter and test: Blob SHAs 834b5d10f9ffcd6a9a867762c992b9ff31e605c5 and b512d848c0df00fd83b7d6fd8408e721da219169.
+- Python adapter and test: Blob SHAs dc687c1127d34c045295fc96944c6a50bd2ae0b4 and 443bdc7e2c8b41e6ffdae516f59a42bc0af49594.
+
+After this correction, the full command sh prototypes/scp-fixtures/0.1/run-parity.sh was run in the isolated execution directory and passed:
+- Node.js test suite: PASS; three Context fixtures and 40 expected assertion leaves checked.
+- Python test suite: 2/2 tests PASS.
+- Context Git Blob SHA-1 checks: 3/3 PASS.
+- Generated Client Evaluation Requests: 3/3 byte-identical across implementations.
+- Generated Normalized Results: 3/3 byte-identical.
+- Generated Oracle reports: 3/3 byte-identical.
+- Total cross-language artifacts: 9/9 byte-identical.
+- Negative tests include fixture-ID mismatch, event-sequence mismatch, observation mismatch, capability mismatch, duplicate JSON members/keys, Unicode scalar validation, duplicate expected keys, empty-row omission, null/unknown distinction, invalid enums/actions/reason codes and exact Unicode IDs.
+
+### Source execution provenance
+
+The runtime could not complete git clone because DNS resolution for github.com failed. Source and fixture files were fetched from the GitHub Contents API at the exact PR Head, reconstructed in an isolated temporary directory and independently checked against their Git Blob SHA values before execution. This is an API-retrieved, blob-identity-verified execution, not a full Git checkout. The final adapter and test files from commit f37bc16 were committed after the follow-up correction and then rerun from the corresponding isolated working copy.
+
+### GitHub Actions result (separate from prototype execution)
+
+For PR Head db0d26f5e82997b664ebb15871dc3d9e80ab4c53, the existing workflow runs 43408727534 and 43408720794 each completed 8/8 matrix jobs successfully. Those checks validate the repository's existing standards CI matrix. The workflow does not invoke the SCP prototype parity script, and the result is not counted as prototype-suite execution. The fixture-ID correction in f37bc16 triggers a separate CI run; its result must be checked against that exact Head.
+
+### Stage 1 closeout boundary
+
+The Node.js/Python synthetic adapter, normalizer and oracle prototype is complete for the three pinned Context fixtures and the test vectors listed above. This does not establish real Agent conformance, real Provider authority, a live Git observer, OS-level sandbox enforcement, credential-redaction guarantees or production Runner/Manifest/Store behavior. Those are separate gates. D0 remains the only user-confirmed frozen decision; D1/D2/D3 and the associated schemas/contracts remain Draft.
