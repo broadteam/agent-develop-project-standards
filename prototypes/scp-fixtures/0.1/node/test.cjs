@@ -50,6 +50,8 @@ decisionRaw.recovery[0].user_decisions_needed=[''];assert.throws(()=>A.norm(deci
 let bo=structuredClone(o);bo.executed_event_sequences=[];assert.throws(()=>A.request(c,bo,pins[1],ob),/event sequence/);
 bo=structuredClone(o);bo.records=[];assert.throws(()=>A.request(c,bo,pins[1],ob),/observation mismatch/);
 bo=structuredClone(o);bo.capability_observation.available_capabilities=[];assert.throws(()=>A.request(c,bo,pins[1],ob),/capability mismatch/);
+bo=structuredClone(o);bo.capability_observation.available_capabilities.push(bo.capability_observation.available_capabilities[0]);assert.throws(()=>A.request(c,bo,pins[1],ob),/capability mismatch/);
+bo=structuredClone(o);bo.capability_observation='not-an-object';assert.throws(()=>A.request(c,bo,pins[1],ob),/capability mismatch/);
 bad=structuredClone(raw);bad.claims.find(x=>x.claim_ref.endsWith('checkout')).identity_state='resolved';assert.equal(evaluate(c,A.norm(bad,q.projection)).conformance_outcome,'non_conformant');
 assert.equal(evaluate(c,null,false).conformance_outcome,'not_run');assert.equal(evaluate(c,null,false).assertion_counts.not_run,15);
 let ec=structuredClone(c);ec.expected.claims=[{claim_ref:'synthetic.empty.set',applicability:'applicable'}];ec.expected.recovery=[{operation_scope:'synthetic.empty.scope',recovery_mode:'restricted',permitted_actions:[],prohibited_actions:[]}];
