@@ -2075,8 +2075,8 @@ Schema 设计要点：
 5. Provider authoritative 404 必须引用固定 SHA 的 provider contract evidence；路径等价观察必须绑定 profile revision。
 6. Context 不含项目状态源、真实凭据、任意脚本、实际 Run Result 或项目写入授权；Run Manifest 与输入分离且尚未定义为机器 Schema。
 
-当前 Context Schema blob SHA：`9348e22ac0ee450ce6689cec4fb87f0aa985104c`。
-当前标准验证：Python `jsonschema 4.26.0`，`Draft202012Validator.check_schema` + `FormatChecker()`；meta-schema 检查通过，3 个正例通过，5 个负例拒绝，合法/非法 date-time 及 namespaced/unqualified extension probes 符合预期。验证报告位于 `schemas/scp-fixtures/0.1/VALIDATION-REPORT.md`。
+当前 Context Schema blob SHA：`06db7a81e0f814d153c13db9df8b39986db9d4ac`。
+此前 Python `jsonschema 4.26.0` 的 Draft202012Validator + FormatChecker 结果针对旧 Schema blob `9348e22ac0ee450ce6689cec4fb87f0aa985104c`：meta-schema、3 正例、5 负例及 format/extension probes 通过。2026-11-14 确认当前 Schema blob `06db7a81e0f814d153c13db9df8b39986db9d4ac` 是旧 Schema 仅将 driver_bundle_sha256 改名为 driver_descriptor_sha256 后的精确内容；三个正例 Context 也仅做相同字段替换，五个负例 Blob 未变。当前 Schema JSON 解析、driver_ref 新字段结构及三个正例 Driver member-set 检查通过；完整 Draft202012Validator 未在本轮针对新 Blob 重新执行。验证报告位于 `schemas/scp-fixtures/0.1/VALIDATION-REPORT.md`。
 
 边界：上述验证只覆盖 Context JSON Schema 形状与格式，不证明 Profile/Driver Registry、provider stub、Git fixture、真实客户端观察或 Run Manifest 实际存在。Current driver descriptors 均是 `contract_only`，不能运行。
 

@@ -1,6 +1,6 @@
 # SCP Fixture Context 0.1.0 Validation Report
 
-**Status:** Draft schema validation record. This report validates the current Schema blob and the exact Context fixture bytes pinned below. It does not report a Fixture Runner execution and does not freeze the Context Contract.
+**Status:** Draft schema validation record. The formal Draft 2020-12 run below was performed before the Driver descriptor field rename; the 2026-11-14 follow-up records exact Blob-level equivalence to the current renamed Schema and Context examples. It does not report a Fixture Runner execution and does not freeze the Context Contract.
 
 ## Validation target
 
@@ -76,7 +76,7 @@ All three descriptor Git blob SHAs were read from the pinned source repository r
 
 ## Interpretation and limits
 
-- The current Schema blob `9348e22ac0ee450ce6689cec4fb87f0aa985104c` passed the Draft 2020-12 meta-schema check.
+- The pre-rename Schema blob `9348e22ac0ee450ce6689cec4fb87f0aa985104c` passed the Draft 2020-12 meta-schema check. The current Schema blob and the renamed positive Context instances are covered by the exact-equivalence follow-up below.
 - The 3 positive and 5 negative instances listed above were validated with this exact Schema using `Draft202012Validator(schema, format_checker=FormatChecker())`. Their reconstructed canonical JSON bytes were checked against the Git blob IDs; all 8 matched the repository's exact blob IDs.
 - All three Context instances pin source repository revision `1670320ea980368ed74cd4edd11cba4297467bde`, which was verified to contain the exact Packet, Packet Schema, Profile, Driver descriptor and Provider contract artifacts they reference. The Context instances also pin the Packet Schema blob `a2f2097a17c08bf0a2ae733ab43a8f1919b48813` and the individual Packet Git blob IDs. Context validation does not revalidate those Packet instances; the separate Packet report is `schemas/scp/0.2/fixtures/VALIDATION-REPORT.md`.
 - The authoritative not-found Context pins the synthetic provider evidence artifact above. A boolean authority flag without this artifact reference is rejected.
@@ -86,3 +86,20 @@ All three descriptor Git blob SHAs were read from the pinned source repository r
 - Actual Run Manifests, Semantic Validator, Fixture Runner, client adapters and CI gate are not implemented.
 - The existing Standards CI workflow does not validate this Context Schema; the results above come from the independent Python Validator run.
 - Context Schema 0.1.0 remains Draft. This report does not freeze D1, D2, D3 or the separate Context Contract.
+
+
+## 2026-11-14 Driver descriptor field rename: schema validation equivalence
+
+The current Draft Schema Blob is `06db7a81e0f814d153c13db9df8b39986db9d4ac`. It was fetched and parsed as JSON; its driver_ref required/properties lists both contain exactly driver_id, driver_contract_version and driver_descriptor_sha256, and no driver_bundle_sha256 member.
+
+A byte-for-byte source comparison established:
+- Replacing every occurrence of driver_bundle_sha256 with driver_descriptor_sha256 in the previously formally validated Schema Blob `9348e22ac0ee450ce6689cec4fb87f0aa985104c` produces the current Schema Blob content exactly.
+- Applying the same one-field rename to each previous positive Context produces each current positive Context byte-for-byte:
+  - fingerprint path-set mismatch: `542c5c6748fc5056c1fb4a080d9e2a4f8995789e` → `d3661577a6585afc65003d635768257308e688a0`;
+  - identity source reference unresolvable: `9c42e9626e484a2b0c830a845097467450dfcd47` → `16217a4f6aa01464e54c912d6836dec5e1f0c76f`;
+  - credentialed project repository: `37ea051aae40443abfe425c59e46282962bac9fe` → `eead3afee0d0183a5bc8c5ca0c4fe5d776d184c8`.
+- All five negative Context fixture Blob IDs listed above are unchanged at the current PR Head.
+
+Therefore the prior formal Schema/positive/negative result is semantically preserved by the exact, schema-and-instance-symmetric field rename; no schema constraints, formats, examples or negative fixture bytes were otherwise changed. The three current positive Context JSON documents were also parsed and their exact renamed Driver member sets checked. **The Python Draft202012Validator was not rerun against the new Schema bytes in this follow-up**, so this note records exact structural equivalence rather than claiming a fresh full validator invocation.
+
+The Context Schema remains Draft. This does not freeze D1/D2/D3, instantiate a Registry/Driver, or create a Runner/CI gate.

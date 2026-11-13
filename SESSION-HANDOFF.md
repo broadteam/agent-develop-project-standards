@@ -1264,7 +1264,7 @@ Context Schema 独立于 Packet 0.2.0，不添加 Packet fields。
 
 ### 当前 Schema 和样例
 
-- Context Schema SHA：`9348e22ac0ee450ce6689cec4fb87f0aa985104c`。
+- Context Schema SHA：`06db7a81e0f814d153c13db9df8b39986db9d4ac`。
 - Context 正例：3 个。
 - Context 结构负例：5 个。
 - Capability Profiles：3 个。
@@ -1312,7 +1312,7 @@ Context Schema 独立于 Packet 0.2.0，不添加 Packet fields。
 - Driver `driver_descriptor_sha256` 是 exact descriptor bytes 的 SHA-256，不是 executable bundle digest。若未来登记 runnable Driver，Registry 必须独立 pin 可执行包 SHA-256 和 immutable Registry snapshot。
 - 这三个 Driver 仍为 `contract_only`；即使哈希匹配，也不能执行。
 
-当前 Context Schema SHA：`9348e22ac0ee450ce6689cec4fb87f0aa985104c`。当前 3 个正例和 5 个负例均经 Python `jsonschema 4.26.0` 标准 Draft 2020-12 Validator + `FormatChecker()` 验证，实际 Git blob SHA 与重新计算的 canonical JSON Blob SHA 相符。细节见 `schemas/scp-fixtures/0.1/VALIDATION-REPORT.md`。
+当前 Context Schema SHA：`06db7a81e0f814d153c13db9df8b39986db9d4ac`。当前 3 个正例和 5 个负例均经 Python `jsonschema 4.26.0` 标准 Draft 2020-12 Validator + `FormatChecker()` 验证，实际 Git blob SHA 与重新计算的 canonical JSON Blob SHA 相符。细节见 `schemas/scp-fixtures/0.1/VALIDATION-REPORT.md`。
 
 本次引用复核未改变 Context Schema 或 Packet Schema，也未增加 Context/Packet Fixture 数量。
 
