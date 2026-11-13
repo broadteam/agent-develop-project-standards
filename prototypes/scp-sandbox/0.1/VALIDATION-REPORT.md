@@ -91,9 +91,9 @@ Gate C (real Agent invocation) remains closed. Before it can be considered, the 
 
 A separate seccomp-BPF smoke test was compiled with GCC and executed successfully. It set `no_new_privs`, installed a classic BPF filter using `PR_SET_SECCOMP`, denied the harmless `getppid` syscall with `EPERM`, and printed `SECCOMP_FILTER=PASS`. This proves only that this process/kernel accepted that small filter. The filter is **not installed by the current namespace/chroot sandbox probe** and is not evidence of syscall restriction in the Gate A/B run.
 
-The cgroup v2 hierarchy exposed controllers `cpuset cpu io memory hugetlb pids`, but the mounted `/sys/fs/cgroup` root was not writable and no child cgroup could be created. The current probe therefore relies on per-process `prlimit` bounds; it does not claim cgroup-enforced aggregate resource limits.
+The cgroup v2 hierarchy exposed controllers cpuset cpu io memory hugetlb pids, but /sys/fs/cgroup is mounted read-only and the process cannot create a child cgroup or write cgroup.subtree_control. The current probe therefore relies on per-process prlimit bounds; it does not claim cgroup-enforced aggregate resource limits.
 
-A Landlock ABI version query using the expected Linux syscall did not return within a 2-second bounded probe in this environment. Landlock availability is therefore **unknown** here; no Landlock support or enforcement is claimed and the syscall probe was not integrated.
+A direct C probe of landlock_create_ruleset (x86_64 syscall 444 with LANDLOCK_CREATE_RULESET_VERSION) returned ENOSYS under a 3-second timeout. Landlock is therefore **unavailable in this tested kernel/runtime**, rather than merely unverified; no Landlock policy is installed or claimed.
 
 These findings refine, but do not change, the core Gate A/B result above: the namespace/chroot and synthetic-shim checks pass, while seccomp remains an unintegrated primitive, cgroup delegation is unavailable in this runtime, and Landlock remains unverified.
 
@@ -173,3 +173,10 @@ Exact local-execution Git Blob SHAs:
 - run-seccomp-integration.sh: `f683504f88d38e515dee58be62716d513aa03a94`
 
 The exact updated files were run through the full seccomp integration harness. Both parent and child passed the syscall-denial matrix, cwd canary, readonly fixture read, root-write denial, scratch write and fork+exec inheritance check.
+
+
+## 2026-11-14 Landlock and cgroup definitive capability check
+
+The earlier Landlock timeout note is superseded by a direct C syscall probe. Calling landlock_create_ruleset(NULL, 0, LANDLOCK_CREATE_RULESET_VERSION) using x86_64 syscall 444 returned ENOSYS (bounded by a 3-second timeout). The tested kernel/runtime does not expose the Landlock syscall; no Landlock policy is present.
+
+The cgroup v2 mount exposes cpuset cpu io memory hugetlb pids in cgroup.controllers, but /sys/fs/cgroup is mounted read-only, cgroup.subtree_control is empty, and creating a child cgroup fails. The current runtime cannot delegate cgroup resource control. Per-process prlimit remains in place, but is not aggregate CPU/memory/PID accounting.

@@ -1809,3 +1809,10 @@ Exact current file SHAs at commit 864d48f:
 - run-seccomp-integration.sh: f683504f88d38e515dee58be62716d513aa03a94
 
 The filter remains an x86_64 denylist with default ALLOW. No production syscall allowlist, cross-platform equivalence, cgroup delegation or Landlock enforcement is claimed. Gate C remains closed.
+
+
+### 2026-11-14 definitive Landlock/cgroup result
+
+- Landlock: a direct C call to landlock_create_ruleset returned ENOSYS within a bounded 3-second probe. Unavailable in the tested kernel/runtime; no Landlock policy can be installed here.
+- cgroup v2: controllers are visible, but /sys/fs/cgroup is mounted read-only, cgroup.subtree_control is empty and child cgroup creation fails. No delegation is available.
+- Resource limits therefore remain per-process prlimit only; do not describe them as cgroup aggregate CPU/memory/PID enforcement.

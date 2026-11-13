@@ -268,7 +268,7 @@ A Linux x86_64 namespace/chroot probe now provides limited Gate A/B evidence for
 These results are not a portable guarantee and do not establish production isolation. Seccomp, Landlock, cgroup v2, LSM policy, kernel-escape testing, general secret scanning, Windows/macOS implementations and real client authentication/network policy remain unimplemented. See [the sandbox prototype validation report](../../../prototypes/scp-sandbox/0.1/VALIDATION-REPORT.md) for exact provenance and non-claims. Gate C remains closed.
 
 
-The current backend's separate seccomp smoke test is not an active sandbox policy. cgroup v2 delegation was not available in the tested runtime, and Landlock availability remains unverified. Per-process `prlimit` bounds are not equivalent to cgroup-level accounting. These distinctions are recorded in the sandbox validation report; no capability is inferred merely because a kernel/controller advertises a name.
+The current backend's separate seccomp smoke test is not an active sandbox policy. cgroup v2 delegation was unavailable because the cgroup2 mount is read-only; Landlock returned ENOSYS in the tested kernel/runtime. Per-process `prlimit` bounds are not equivalent to cgroup-level accounting. These distinctions are recorded in the sandbox validation report; no capability is inferred merely because a kernel/controller advertises a name.
 
 
 ### 12.5 Seccomp launch-chain test boundary
@@ -281,3 +281,6 @@ The Linux prototype now tests a seccomp-BPF denylist after namespace/chroot/UID 
 The Linux seccomp regression client now verifies modern mount API denial, pidfd/process-handle denial, and chroot working-directory containment. A host-only canary is placed in the parent temporary directory; the host-side cwd is moved there before chroot, and the client must not read it by relative path. The parent and fork+exec child repeat the relevant checks. See the Linux Sandbox validation report for exact source Blob identities and test scope.
 
 These are targeted x86_64 denylist probes. They do not establish full syscall mediation, kernel-escape resistance or portability to other architectures.
+
+
+A direct Landlock ABI probe returned ENOSYS; this is a tested-runtime unavailability result, not an unknown timeout. The cgroup v2 hierarchy exposes controllers but is read-only and cannot delegate child cgroups. Neither mechanism is active in the prototype.

@@ -2431,3 +2431,8 @@ The Linux sandbox regression suite was extended beyond legacy mount and namespac
 All listed calls and cwd probes pass in both the main synthetic client and its fork+exec child. Ordinary fixture reads and dedicated scratch writes remain allowed; rootfs writes remain EROFS. The final source file Git Blob identities and execution command are in the validation report.
 
 This remains an x86_64 syscall denylist with default ALLOW, not a complete allowlist or production certification. cgroup delegation is unavailable in the tested environment; Landlock remains unverified; real Agent invocation remains closed.
+
+
+#### 17.40 Definitive Landlock/cgroup capability status
+
+A bounded C probe of landlock_create_ruleset returned ENOSYS in the tested Linux runtime; Landlock is unavailable there. cgroup v2 controllers are visible but the cgroup2 mount is read-only and cannot delegate child cgroups. The Linux prototype therefore uses per-process prlimit and does not claim aggregate cgroup resource enforcement. This supersedes earlier handoff language that described Landlock as merely unknown.

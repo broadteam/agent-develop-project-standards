@@ -41,7 +41,7 @@ The launcher expands it into a fresh temporary file, runs Python, removes the te
 
 - Linux x86_64 only; no Windows or macOS implementation.
 - This probes namespace/chroot isolation inside the current execution environment. It is not a general-purpose sandbox manager or an approved Agent Runner.
-- Seccomp is now tested in a separate launch-chain harness as a denylist defense-in-depth profile, not a complete syscall allowlist. Landlock policy, cgroup v2 delegation, AppArmor/SELinux policy and kernel-escape testing remain out of scope.
+- Seccomp is tested in the launch chain as a denylist defense-in-depth profile, not a complete syscall allowlist. Landlock returned ENOSYS in the tested kernel/runtime. The cgroup v2 mount is read-only and cannot delegate child cgroups; per-process prlimit is used instead. AppArmor/SELinux policy and kernel-escape testing remain out of scope.
 - Network evidence is limited to the isolated namespace and a host-loopback reachability probe. No live DNS/provider/network allow-list integration is implemented.
 - The redactor only recognizes the exact synthetic test marker. It is not a general secret scanner.
 - Cleanup quarantine was exercised with deterministic state/failure injection, not by forcing a real host filesystem deletion failure.
@@ -77,3 +77,8 @@ The main launcher now runs a separate C-based integration harness after the name
 The current Linux launch-chain test explicitly denies the modern mount API family (`open_tree`, `move_mount`, `fsopen`, `fsconfig`, `fsmount`, `fspick`, `mount_setattr`) and process-handle interfaces (`pidfd_getfd`, `pidfd_send_signal`, `process_madvise`, `kcmp`). The test also checks the less-visible chroot working-directory boundary: it places a world-readable synthetic canary in the host temporary directory, changes the parent working directory there before invoking chroot, then proves the client cannot open the canary by relative path. Both the parent and fork+exec child must report `DENIED inherited-host-cwd`.
 
 This is still a documented denylist, not a syscall allowlist. Unlisted syscalls remain available unless denied by other OS controls.
+
+
+### Resource-control environment result
+
+The cgroup v2 controller list is visible, but the cgroup2 mount is read-only and cannot create a delegated child cgroup. A direct Landlock ABI call returns ENOSYS on this tested kernel/runtime. Neither Landlock nor cgroup enforcement is active in this prototype.

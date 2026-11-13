@@ -1236,7 +1236,7 @@ A separate classic seccomp-BPF smoke program successfully installed a filter wit
 
 The cgroup v2 mount lists `cpuset`, `cpu`, `io`, `memory`, `hugetlb` and `pids` controllers, but the current hierarchy is not writable and does not allow child cgroup creation. The prototype uses `prlimit` only and has no cgroup-enforced aggregate resource accounting.
 
-A Landlock ABI query did not return within a bounded 2-second probe. Availability is unknown and Landlock is not used. Do not infer support or enforcement from the kernel version alone.
+A direct C probe of landlock_create_ruleset returned ENOSYS under a bounded 3-second timeout. Landlock is unavailable in this tested kernel/runtime and is not used. Do not infer support or enforcement from the kernel version alone.
 
 
 ### 22.6 Seccomp launch-chain integration (prototype)
@@ -1253,3 +1253,8 @@ The syscall denylist and regression client now explicitly cover the newer mount 
 The launch-chain also verifies the chroot cwd invariant. Before invoking chroot, the outer namespace process changes cwd to the host temporary directory and creates a world-readable synthetic canary there. The client attempts to open the canary by relative path. The test passes only when the file is absent from the new root and cannot be reached through an inherited host cwd (ENOENT). This supplements absolute path and symlink probes.
 
 These checks remain Linux x86_64-specific regression evidence. The BPF policy is a denylist with default ALLOW and is not a complete syscall allowlist.
+
+
+### 22.9 Definitive Landlock and cgroup capability result
+
+The earlier Landlock probe was repeated with a small C program invoking x86_64 syscall 444 and LANDLOCK_CREATE_RULESET_VERSION; the kernel returned ENOSYS within three seconds. Landlock is unavailable in this tested runtime. The cgroup v2 controller list is visible, but the cgroup2 filesystem is mounted read-only, cgroup.subtree_control is empty, and creating child cgroups is denied. The prototype therefore has neither Landlock nor cgroup-enforced aggregate limits; prlimit is a per-process fallback only.
