@@ -22,6 +22,10 @@ for(let i=0;i<3;i++){
  assert.equal(A.stable(A.norm(rev,q.projection)),A.stable(z));
 }
 const n=names[1],c=A.read(path.join(F,'context',n+'.json')),ob=fs.readFileSync(path.join(F,'observations',n+'.json')),o=A.read(path.join(F,'observations',n+'.json')),raw=A.read(path.join(F,'client-output',n+'.json')),q=A.request(c,o,pins[1],ob);
+let duplicateExpected=structuredClone(c);duplicateExpected.expected.claims.push(structuredClone(duplicateExpected.expected.claims[0]));
+assert.throws(()=>A.projection(duplicateExpected),/duplicate expected projection key/);
+duplicateExpected=structuredClone(c);duplicateExpected.expected.recovery.push(structuredClone(duplicateExpected.expected.recovery[0]));
+assert.throws(()=>A.projection(duplicateExpected),/duplicate expected projection key/);
 assert.throws(()=>A.parseBytes(Buffer.from('{"x":1,"x":2}')),/duplicate/);
 assert.throws(()=>A.parseBytes(Buffer.from([123,34,120,34,58,255,125]),'bad'),/UTF-8/);
 assert.throws(()=>A.parseBytes(Buffer.from('{"x":"\\uD800"}')),/surrogate/);
