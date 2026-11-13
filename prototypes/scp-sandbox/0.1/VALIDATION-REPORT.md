@@ -105,3 +105,17 @@ The main Linux run.sh will run run-seccomp-integration.sh after the namespace/ch
 The client verifies that mount, umount2, ptrace, unshare, BPF, userfaultfd and a test-only getppid sentinel return EPERM, while getpid, fixture reads and scratch writes remain usable. A write to the read-only rootfs is denied with EROFS. The client then forks and execs a child, which repeats the same checks to prove filter inheritance. The integration command passed locally with GCC -Wall -Wextra -Werror.
 
 This is a denylist with default ALLOW, not a comprehensive production Agent syscall allowlist. It is a launch-chain integration harness, not kernel-escape certification; cgroup, Landlock and LSM limitations remain.
+
+
+## 2026-11-14 exact remote launch-chain correction and verification
+
+The first seccomp integration commit exposed two packaging defects during execution of the exact remote files: the temporary path was created as a file rather than a directory, and the compact C launcher triggered GCC's -Wmisleading-indentation under the required -Werror build. These defects were fixed in the follow-up commit; the shell launcher now uses mktemp -d and the C entry points use explicit statement blocks.
+
+The corrected remote source files were then fetched, checked against their Git Blob SHA values, and executed in the isolated Linux environment:
+- seccomp-exec.c Blob SHA: f32ba52465d7576149ec247b260ae8629efa4708
+- seccomp-child-test.c Blob SHA: fb1a201235d856208c67fe5e3e390957e4d13c33
+- run-seccomp-integration.sh Blob SHA: 0eb9698e781653660060d5fbce2916a78b0de71a
+
+Result: GCC -Wall -Wextra -Werror compiled both programs; the integration run passed. The parent and fork+exec child both observed EPERM for the test sentinel, mount, umount2, ptrace, unshare, BPF and userfaultfd. Both could still call getpid, read the read-only synthetic fixture, were denied writes to the read-only rootfs with EROFS, and could write to the dedicated scratch mount. The final marker was SECCOMP_FORK_EXEC_INHERITANCE=PASS.
+
+This is still a denylist with default ALLOW, not a full Agent syscall allowlist. The filter is a defense-in-depth layer in the tested launch chain, not a production security certification.

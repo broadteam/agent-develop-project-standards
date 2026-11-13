@@ -131,4 +131,10 @@ int main(int argc,char **argv){int i=1;
  if(argc>1&&!strcmp(argv[1],"--test-mode"))i=2;
 #endif
  if(argc<=i){fprintf(stderr,"usage: %s [--test-mode] command [args...]\n",argv[0]);return 64;}
- if(install())return 70;execvp(argv[i],&argv[i]);perror("execvp");return 71;}
+ if (install()) {
+  return 70;
+ }
+ execvp(argv[i], &argv[i]);
+ perror("execvp");
+ return 71;
+}
