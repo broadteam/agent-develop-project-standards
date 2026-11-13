@@ -117,7 +117,7 @@ After this correction, the full command sh prototypes/scp-fixtures/0.1/run-parit
 
 ### Source execution provenance
 
-The runtime could not complete git clone because DNS resolution for github.com failed. Source and fixture files were fetched from the GitHub Contents API at the exact PR Head, reconstructed in an isolated temporary directory and independently checked against their Git Blob SHA values before execution. This is an API-retrieved, blob-identity-verified execution, not a full Git checkout. The final adapter and test files from commit f37bc16 were committed after the follow-up correction and then rerun from the corresponding isolated working copy.
+The runtime could not complete git clone because DNS resolution for github.com failed. Source and fixture files were fetched from the GitHub Contents API at the exact PR Head, reconstructed in an isolated temporary directory and independently checked against their Git Blob SHA values before execution. This is an API-retrieved, blob-identity-verified execution, not a full Git checkout. The Node/Python adapter and Python test changes from commit f37bc16 were subsequently checked against the final PR files. A duplicate let declaration remained in the Node test file from that update; it was corrected in commit 17e14191, and the local execution was rerun with source bytes whose Git Blob SHA values match the final four PR files.
 
 ### GitHub Actions result (separate from prototype execution)
 
@@ -126,3 +126,29 @@ For PR Head db0d26f5e82997b664ebb15871dc3d9e80ab4c53, the existing workflow runs
 ### Stage 1 closeout boundary
 
 The Node.js/Python synthetic adapter, normalizer and oracle prototype is complete for the three pinned Context fixtures and the test vectors listed above. This does not establish real Agent conformance, real Provider authority, a live Git observer, OS-level sandbox enforcement, credential-redaction guarantees or production Runner/Manifest/Store behavior. Those are separate gates. D0 remains the only user-confirmed frozen decision; D1/D2/D3 and the associated schemas/contracts remain Draft.
+
+
+## 2026-11-13 final Head verification
+
+Final prototype source and test files at PR Head 17e14191ab184e974247df2a81444a73fe566793 were retrieved through the GitHub Contents API. Their Git Blob SHA values match the files executed in the isolated temporary directory:
+
+| File | Remote Git Blob SHA | Local executed bytes |
+|---|---|---|
+| node/adapter.cjs | 834b5d10f9ffcd6a9a867762c992b9ff31e605c5 | exact match |
+| python/adapter.py | dc687c1127d34c045295fc96944c6a50bd2ae0b4 | exact match |
+| node/test.cjs | f93d8bf95a8271138c0e723533c8ad37001f15b3 | exact match |
+| python/test_adapter.py | 443bdc7e2c8b41e6ffdae516f59a42bc0af49594 | exact match |
+
+The final Node test correction replaces a second let declaration with assignment for the existing test variable. This was caught by comparing the local test file's Git Blob SHA with the PR file, corrected on the PR, then verified by matching the local executed bytes to the new remote Blob SHA. The full parity script was rerun after this correction and passed.
+
+For the final executable source set:
+- Node.js: PASS, three Context fixtures and 40 expected assertions.
+- Python: 2/2 tests PASS.
+- Context Blob SHA checks: 3/3 PASS.
+- Request/Normalized Result/Oracle outputs: 9/9 byte-identical.
+
+For final PR Head 17e14191ab184e974247df2a81444a73fe566793, the two existing Standards CI runs completed successfully:
+- 43411433407: 8/8 matrix jobs success.
+- 43411426571: 8/8 matrix jobs success.
+
+These GitHub Actions runs do not execute the SCP prototype parity script. They are separate CI evidence. No CI workflow or gate was added.

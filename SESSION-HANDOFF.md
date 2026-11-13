@@ -1700,7 +1700,7 @@ VALIDATION-REPORT 已追加上述限制和重跑命令。当前剩余的第一�
 ### PR #11 当前状态
 
 - PR #11：Open + Draft，base feat/governance-consistency-audit。
-- 最新代码提交（本记录写入前）：f37bc16a4976a389494e33139cba93b0e8f2a1d0。
+- 当前 PR Head：17e14191ab184e974247df2a81444a73fe566793；其中 fixture identity 修正提交为 f37bc16a4976a389494e33139cba93b0e8f2a1d0，Node test 声明修正提交为 17e14191ab184e974247df2a81444a73fe566793。
 - main 保持 02f8dde262455f15029a54694e129b05b70013a4；PR #10 保持 Open + Draft、未合并。
 - PR #11 不合并；不修改 main、PR #10、项目版本或 Tag，不新增 CI Workflow / Gate。
 
@@ -1722,7 +1722,7 @@ Head db0d26f5e82997b664ebb15871dc3d9e80ab4c53 的既有 Standards CI 两次运�
 - 43408727534：8/8 矩阵任务 success；
 - 43408720794：8/8 矩阵任务 success。
 
-该 workflow 不执行 prototypes/scp-fixtures/0.1/run-parity.sh，CI 结果不替代原型专项测试。fixture-ID 修正的 f37bc16 Head 已触发新一轮 CI，须按该 Head 单独核验。
+该 workflow 不执行 prototypes/scp-fixtures/0.1/run-parity.sh，CI 结果不替代原型专项测试。最新 Head 17e14191 的两次运行 43411433407 与 43411426571 均已完成 8/8 success。
 
 ### 阶段状态与下一工作
 
@@ -1733,3 +1733,10 @@ Head db0d26f5e82997b664ebb15871dc3d9e80ab4c53 的既有 Standards CI 两次运�
 Stage 2 设计位于 schemas/scp-fixtures/0.1/RUN-MANIFEST-DESIGN.md §21。当前更新只补设计与测试边界，不实现 Agent Runner、Sandbox Runtime、Registry、Writer、Store、Schema 或 CI Gate。
 
 D0 保持用户已确认冻结；D1/D2/D3、Context、Normalized Result、Run Manifest 均未冻结。所有相关工作继续保持 Draft。
+
+
+### 最终源码身份核验补充
+
+最新 PR Head 17e14191 的四个 Node/Python adapter/test 文件 Git Blob SHA 与执行环境中的本地文件字节完全一致。Node 测试文件曾在 f37 更新时留下重复 let 声明；在 17e14191 中改为复用变量，并在这一最终文件版本上重新运行了完整 parity 脚本。结果仍为 Node PASS、Python 2/2 PASS、40 个 expected assertion、9/9 产物逐字节一致。详细 Blob SHA 和验证来源见 VALIDATION-REPORT。
+
+本次源文件执行仍是 GitHub API retrieval + Git Blob identity verification，不宣称 Git clone 成功。最新 Head 的两次既有 CI matrix 均已 8/8 success，但不执行 prototype 专用脚本。
