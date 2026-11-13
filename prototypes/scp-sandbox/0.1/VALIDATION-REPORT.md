@@ -153,3 +153,10 @@ Source Blob identities for the exact tested local bytes:
 - `seccomp-child-test.c`: `fd114870ac09fd63bb6538f1a10ccee8a467556c`
 
 This remains a denylist with default ALLOW, not a complete syscall allowlist or production Agent policy. The tests cover the listed interfaces on this Linux x86_64 kernel only; they do not establish equivalent behavior on other architectures or kernels.
+
+
+## 2026-11-14 pidfd signal and kcmp enforcement regression tests
+
+The seccomp denylist already included `pidfd_send_signal` and `kcmp`; the synthetic client regression suite now explicitly exercises both. It expects `pidfd_send_signal` to return EPERM and uses a self-to-self `kcmp(KCMP_FILES)` probe to require EPERM rather than a normal comparison result. The exact updated test file was run in the same namespace/chroot/UID/seccomp harness as the launcher. Both the parent and fork+exec child denied the test sentinel, legacy/new mount APIs, pidfd_getfd, pidfd_send_signal, kcmp, process_madvise, namespace creation paths, BPF and userfaultfd. Both continued to read the fixture, write dedicated scratch and receive EROFS for rootfs writes. Fork+exec filter inheritance passed.
+
+Exact test source Git Blob SHA: `88804bb1e67f1ef03f41233c3dfc7bf822295a2f`.

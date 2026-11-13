@@ -45,6 +45,15 @@ static int check(void) {
 #ifdef SYS_pidfd_getfd
  bad += blocked(SYS_pidfd_getfd, "pidfd_getfd");
 #endif
+#ifdef SYS_pidfd_send_signal
+ bad += blocked(SYS_pidfd_send_signal, "pidfd_send_signal");
+#endif
+#ifdef SYS_kcmp
+ errno = 0;
+ long compare = syscall(SYS_kcmp, getpid(), getpid(), 0, 0, 0);
+ if (compare != -1 || errno != EPERM) { fprintf(stderr, "FAIL kcmp result=%ld errno=%d\n", compare, errno); bad++; }
+ else puts("DENIED kcmp");
+#endif
 #ifdef SYS_process_madvise
  bad += blocked(SYS_process_madvise, "process_madvise");
 #endif
