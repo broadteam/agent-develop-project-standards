@@ -48,7 +48,7 @@ let decisionNormalized=A.norm(decisionRaw,decisionProjection);
 assert.deepEqual(decisionNormalized.recovery[0].user_decisions_needed,['Confirm repository ownership','确认仓库归属'].sort(A.cmp));
 decisionRaw.recovery[0].user_decisions_needed=[''];assert.throws(()=>A.norm(decisionRaw,decisionProjection),/empty user decision/);
 let bo=structuredClone(o);bo.fixture_id='different-fixture';assert.throws(()=>A.request(c,bo,pins[1],ob),/fixture_id mismatch/);
-let bo=structuredClone(o);bo.executed_event_sequences=[];assert.throws(()=>A.request(c,bo,pins[1],ob),/event sequence/);
+bo=structuredClone(o);bo.executed_event_sequences=[];assert.throws(()=>A.request(c,bo,pins[1],ob),/event sequence/);
 bo=structuredClone(o);bo.records=[];assert.throws(()=>A.request(c,bo,pins[1],ob),/observation mismatch/);
 bo=structuredClone(o);bo.capability_observation.available_capabilities=[];assert.throws(()=>A.request(c,bo,pins[1],ob),/capability mismatch/);
 bo=structuredClone(o);bo.capability_observation.available_capabilities.push(bo.capability_observation.available_capabilities[0]);assert.throws(()=>A.request(c,bo,pins[1],ob),/capability mismatch/);
