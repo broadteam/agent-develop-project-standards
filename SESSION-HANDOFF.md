@@ -1930,3 +1930,10 @@ At PR Head `51840a92772119e0733f6e15543a592abbee3168`, existing Standards CI com
 ## 2026-11-14 Draft Context Driver digest naming correction
 
 The Draft Context field was renamed from `driver_bundle_sha256` to `driver_descriptor_sha256`. Its existing values are SHA-256 digests of the exact UTF-8 Driver descriptor files, not executable bundle digests. The schema, three Context examples, fixture README, Node/Python test blob pins, Compatibility, Context README/validation report, SCP design and this handoff were synchronized. Future executable Driver bundles must be resolved by a pinned immutable Harness Registry and carry a separate bundle SHA-256; the current three descriptors remain `contract_only` and are not runnable. This is a Draft contract clarification only: no D1/D2/D3 freeze, no Runner/Registry implementation, no Agent invocation, no CI workflow or gate.
+
+
+## 2026-11-14 Stage 1 exact-Blob rerun closeout after Driver pin rename
+
+At PR Head cfd237dbb53ae10aba0de6a914839904fb598d3b, the updated Node.js/Python Stage 1 suite was rerun after the Draft Context field rename to driver_descriptor_sha256. All 15 relevant source/fixture files matched their exact Git Blob SHA-1 values before execution. Environment: Linux x86_64 / kernel 6.18.57, Node.js 22.16.0, Python 3.13.5. Node suite passed (3 Contexts, 40 expected leaves); Python suite passed 2/2 tests (same three Contexts and 40 leaves); nine generated Request/Normalized Result/Oracle artifacts matched byte-for-byte (9/9). Exact source identities and negative-vector scope are in prototypes/scp-fixtures/0.1/VALIDATION-REPORT.md.
+
+This closes the previously pending rerun for the renamed Context pins. Source was reconstructed from exact GitHub Blob responses because a full Git checkout was not available; this is exact-Blob execution, not full clone provenance. The work remains synthetic-only: no executable Driver/Registry, real Git observer, live Provider, Agent client, production credential, user repository or OS-level client sandbox was exercised. Existing Standards CI is separate and does not execute the Stage 1 suite.

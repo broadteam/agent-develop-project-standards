@@ -157,3 +157,55 @@ These GitHub Actions runs do not execute the SCP prototype parity script. They a
 ## 2026-11-14 Draft Context descriptor-pin rename
 
 The Context Driver pin field was renamed to `driver_descriptor_sha256` to describe its actual semantics: SHA-256 of the exact `contract_only` descriptor bytes, not an executable Driver package. The three Context blob pins changed and both Node.js/Python test pin arrays were updated. This metadata/fixture identity correction does not change adapter or normalizer behavior. The existing recorded parity execution predates these new Context bytes; the exact updated fixture/test sources must be rerun before extending the Stage 1 execution claim to the renamed Context blobs. No Driver was made executable and no Harness Registry or Agent client was implemented.
+
+
+## 2026-11-14 exact-Blob Stage 1 rerun after Driver descriptor pin rename
+
+This section supersedes the preceding note that the renamed Context fixtures still required execution. The Stage 1 Node.js/Python synthetic prototype was rerun against the exact files committed at PR #11 Head cfd237dbb53ae10aba0de6a914839904fb598d3b.
+
+### Execution environment and method
+
+- OS/runtime: Linux x86_64, kernel 6.18.57.
+- Node.js: v22.16.0.
+- Python: 3.13.5.
+- Source acquisition: repository GitHub Contents/Blob API; a normal Git checkout was not available in this isolated execution environment.
+- Before execution, the 15 source/fixture files below were reconstructed and each local Git Blob SHA-1 was recalculated using Git's blob object framing. All 15 matched the exact expected remote Blob SHA.
+- The committed Node test entry point and Python unittest entry point were executed separately with isolated output directories. Their nine generated Request / Normalized Result / Oracle JSON artifacts were then compared byte-for-byte. The shell wrapper itself was not invoked.
+
+### Exact Blob identity set
+
+| File | Git Blob SHA-1 |
+|---|---|
+| node/adapter.cjs | 834b5d10f9ffcd6a9a867762c992b9ff31e605c5 |
+| node/oracle.cjs | 0adbfac3ed78193db21ad6f388a110d3d2fb48ef |
+| node/test.cjs | bc9598e4247ba20f1a0cea261408c44108a9b54d |
+| python/adapter.py | dc687c1127d34c045295fc96944c6a50bd2ae0b4 |
+| python/oracle.py | b9f73ac77702b5183f1b674c64c105d59711d7da |
+| python/test_adapter.py | b3e6978f8538870e0bf9c00330a637d1c50cb4bd |
+| fixtures/context/credentialed-project-repository.json | eead3afee0d0183a5bc8c5ca0c4fe5d776d184c8 |
+| fixtures/context/identity-source-reference-unresolvable.json | 16217a4f6aa01464e54c912d6836dec5e1f0c76f |
+| fixtures/context/fingerprint-path-set-mismatch.json | d3661577a6585afc65003d635768257308e688a0 |
+| fixtures/observations/credentialed-project-repository.json | 3f71a9fbac9fb5120d15fcdb41470d88481dbdaa |
+| fixtures/observations/identity-source-reference-unresolvable.json | 024ad682c52c168623ff18139c53139fe565e21c |
+| fixtures/observations/fingerprint-path-set-mismatch.json | edc3dcde97e36d546a3af6fb2f0fd08cbbb5f1ce |
+| fixtures/client-output/credentialed-project-repository.json | cf8c2abfc5a5f829b80798311cd87703b449bf75 |
+| fixtures/client-output/identity-source-reference-unresolvable.json | 4171f09d90e380f593a9b36b0136a069dcb5f6fe |
+| fixtures/client-output/fingerprint-path-set-mismatch.json | 358724ca28ba3a16702887b8ecf68db7fca3619e |
+
+### Results
+
+- Exact Git Blob identity: 15/15 PASS.
+- Node.js prototype: PASS; three pinned Contexts, 40 expected assertion leaves and adversarial regression cases.
+- Python prototype: 2/2 tests PASS; same three pinned Contexts and 40 expected assertion leaves.
+- Generated Client Evaluation Requests: 3/3 byte-identical.
+- Generated Normalized Results: 3/3 byte-identical.
+- Generated Oracle reports: 3/3 byte-identical.
+- Total cross-implementation artifacts: 9/9 byte-identical.
+
+Negative coverage includes duplicate JSON members, invalid UTF-8, unpaired surrogates, __proto__ handling, duplicate expected/actual keys, missing versus explicit unknown, null rejection, unknown fields/enums, duplicate set members, invalid reason/action identifiers, human-readable Unicode decisions, observation fixture-ID/event/profile mismatch, and non-conformant/not_run/inconclusive classifications.
+
+### Interpretation and boundary
+
+The descriptor pin rename is now covered by the exact committed Context Blob pins and exact committed Node/Python test files. This closes the previously pending Stage 1 rerun.
+
+All observations and Client Under Test responses remain fixed synthetic fixtures. No executable Driver, Harness Registry, live Git observer, live Provider endpoint, ChatGPT/Claude/Codex invocation, OS-level client isolation, real credential or user repository was used. A synthetic response that matches the hidden fixture projection is not evidence of real Agent conformance or interoperability. The existing Standards CI remains separate and does not run this Stage 1 suite; no CI workflow or gate was added. D0 remains the only user-confirmed frozen decision; D1/D2/D3 and related contracts remain Draft.
