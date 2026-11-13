@@ -70,3 +70,28 @@ The successful baseline numbers above apply only to the earlier local working co
 ## Launcher portability review
 
 The committed launcher now accepts `NODE` and `PYTHON` executable overrides and probes `python3` then `python`. It still requires a POSIX-compatible shell and standard `mktemp`/`cmp` utilities. This source update is not part of an executed exact-Head run.
+
+
+## 2026-11-13 API-assisted execution of the PR Head sources
+
+The container could not resolve `github.com` for a Git clone. The prototype files were therefore retrieved through the GitHub Contents API at PR Head `d6090eb51194ce3272816b2da10aa75e0c3da4c2` and reconstructed in an isolated temporary directory.
+
+Before test-harness corrections, the retrieved implementation and fixture files were checked against their Git object identities:
+- 14/14 unchanged files matched the Head blob SHA exactly: Node/Python adapters and Oracles, the launcher, and all nine Context/observation/client-output fixtures.
+- Both original test files were also independently checked against their Head blob SHA before correction (16/16 original blobs verified in total).
+
+The first execution exposed test-harness defects, not adapter/Oracle implementation failures:
+- Node selected `claims[0]` for a negative `reason_codes` test, but that row does not declare the field. The test therefore failed on projection-scope validation before reaching the intended invalid-reason-code check.
+- Python had the same wrong-row assumption, omitted the `ordered` helper from its imports, and expected the error text `invalid set member` although the adapter consistently reports `invalid action identifier`.
+
+The tests are corrected to select a claim that declares `reason_codes`, import `ordered`, and assert the adapter's actual action-identifier error. No Node/Python adapter or Oracle implementation changes were needed for these corrections.
+
+After those test-only corrections, the isolated run completed:
+- Node.js: 3 pinned Context fixtures and 40 Oracle assertions passed.
+- Python: both test cases passed.
+- Context Git blob SHA-1 checks: 3/3 passed.
+- Cross-language generated artifacts: all 9 Request / Normalized Result / Oracle Report files were byte-identical.
+
+The current repository CI run `43387906296` for the prior Head completed 8/8 matrix jobs successfully. Its workflow does **not** invoke `prototypes/scp-fixtures/0.1/run-parity.sh`; that CI result is recorded separately and is not counted as prototype-suite execution.
+
+This remains a synthetic fixture prototype. No live Agent client, Provider endpoint, Git observer, OS-level sandbox, or production Runner was exercised. The corrected test files and this report update are being committed to the Draft PR; a fresh run against the resulting Head remains the final verification step.

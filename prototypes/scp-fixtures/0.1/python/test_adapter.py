@@ -1,7 +1,7 @@
 """Tests for the independent Python fixture adapter prototype."""
 import copy,hashlib,json,os,unittest
 from pathlib import Path
-from adapter import read_json,parse_bytes,request,norm,projection,stable
+from adapter import read_json,parse_bytes,request,norm,projection,stable,ordered
 from oracle import evaluate
 ROOT=Path(__file__).resolve().parents[1]; F=ROOT/"fixtures"
 NAMES=["credentialed-project-repository","identity-source-reference-unresolvable","fingerprint-path-set-mismatch"]
@@ -63,10 +63,10 @@ class PrototypeTests(unittest.TestCase):
   self.assertEqual(evaluate(c,omitted)["conformance_outcome"],"inconclusive")
   bad=copy.deepcopy(raw);next(x for x in bad["claims"] if x["claim_ref"].endswith("checkout"))["identity_state"]="maybe"
   with self.assertRaisesRegex(ValueError,"unsupported enum"):norm(bad,q["projection"])
-  bad=copy.deepcopy(raw);bad["claims"][0]["reason_codes"]=["scp.fixture.Bad-Code"]
+  bad=copy.deepcopy(raw);next(x for x in bad["claims"] if "reason_codes" in x)["reason_codes"]=["scp.fixture.Bad-Code"]
   with self.assertRaisesRegex(ValueError,"invalid reason code"):norm(bad,q["projection"])
   bad=copy.deepcopy(raw);bad["recovery"][0]["permitted_actions"]=["BadAction"]
-  with self.assertRaisesRegex(ValueError,"invalid set member"):norm(bad,q["projection"])
+  with self.assertRaisesRegex(ValueError,"invalid action identifier"):norm(bad,q["projection"])
   decision_context=copy.deepcopy(c);decision_context["expected"]["recovery"][0]["user_decisions_needed"]=["Confirm repository ownership","确认仓库归属"]
   decision_projection=projection(decision_context);decision_raw=copy.deepcopy(raw)
   decision_raw["recovery"][0]["user_decisions_needed"]=["确认仓库归属","Confirm repository ownership"]
