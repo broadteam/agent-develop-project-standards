@@ -164,3 +164,51 @@ If a measured capability or permission set differs, comparison must be reported 
 - Retry lineage is cross-Manifest: `run_id` is unique; `attempt_number` increases within a `retry_group_id`; a resolvable `retry_of` points to the immediately preceding terminal attempt in the same group.
 - Cleanup can target only a Harness-owned disposable root whose run ID/ownership marker and canonical containment are revalidated. A failed/unknown cleanup quarantines the root; later attempts cannot reuse it.
 - These relationships cannot be established by this Context Schema alone. Until a Run Manifest Schema/semantic validator is separately approved, treat these clauses as design review rules, not executable validation.
+
+## 11. Normalized Actual Result contract (design companion)
+
+The candidate result contract is documented in [RUN-MANIFEST-DESIGN.md](./RUN-MANIFEST-DESIGN.md) §17. Its candidate identity is `scp-fixture-normalized-result/0.1.0`. It is separate from Context 0.1.0 and is not currently a JSON Schema or runtime API.
+
+### 11.1 Projection and exact key mapping
+
+- The pinned Context `expected` is the source of the tested claim refs, operation scopes and expected field names.
+- The adapter/normalizer may use that structure to select the projection keys and fields, but must not copy expected values into actual output.
+- Actual claims match by exact `claim_ref`; recovery records match by exact `operation_scope`.
+- Each output record may contain only result fields in the corresponding expected projection. It must not add unrelated records/fields or unknown core properties.
+- Claim/recovery array ordering is ignored; duplicate keys are invalid.
+- A complete assertion inventory contains exactly one tuple `(subject_kind, subject_ref, field)` for every expected property except its record key (`claim_ref` / `operation_scope`). Packet-level expected fields use `subject_kind=packet` and no subject ref.
+- A set-valued property (reason codes, permitted actions, prohibited actions, user decisions needed) is one assertion, not one assertion per element.
+
+### 11.2 Values and missing-state rules
+
+The Context 0.1.0 field enums are reused without coercion. Exact values compare exactly. In particular:
+
+- explicit enum `unknown` is an observed protocol state;
+- absent field is missing output and makes that assertion inconclusive/not_run;
+- `null` is invalid;
+- an unrecognized enum/core field is unsupported/invalid, not coerced to unknown;
+- `not_applicable` and `not_configured` remain applicability values and never become freshness values;
+- empty array means an explicitly observed empty set and differs from absence.
+
+Opaque IDs compare as exact Unicode scalar sequences. Do not trim, case-fold, URL-decode, path-normalize or Unicode-normalize them. Reject malformed UTF-8/unpaired surrogates. Array order for claim/recovery rows and set-valued properties is non-semantic; canonical presentation sorts keys and set members by UTF-8 byte sequence.
+
+### 11.3 Conformance and parity are independent
+
+The evaluator builds expected assertion tuples from the pinned Context and compares them with actual values. The Manifest records exactly one outcome per expected tuple: passed, failed, inconclusive or not_run. No missing required tuple can be treated as pass.
+
+Cross-client parity is a separate derived artifact with four result classes:
+
+- `equal`: comparable inputs and complete normalized projections are equal;
+- `divergent`: comparable inputs and complete projections differ;
+- `incomplete`: inputs are comparable, but at least one projection/required observation is incomplete;
+- `incomparable`: a required immutable input pin or relevant capability/permission observation differs.
+
+Malformed or unsupported normalized output is rejected as `invalid_result`, not counted as a parity result.
+
+Exact comparison requires matching Context/Schema/Packet/Packet Schema/source revision/Profile/Driver/Provider/Registry pins, deterministic clock/event inputs, normalized-result contract version and relevant measured capability/permission observations. Client/adapter/normalizer implementation identity may differ and must be recorded. Attempt IDs, timestamps and temporary paths are traceability metadata, not parity values.
+
+Context 0.1.0 has no per-assertion capability dependency map. Therefore a material capability/permission difference makes the entire run pair incomparable; do not invent a shared assertion subset. A future Context contract may explicitly define dependencies before common-subset comparison is allowed.
+
+Equal parity does not imply conformance: two clients can agree on the same wrong value. Each Manifest is independently evaluated against Context expected values. Unknown is an exact value, never a wildcard.
+
+These rules are companion design semantics. They do not alter Context Schema 0.1.0 and are not mechanically enforced today.
