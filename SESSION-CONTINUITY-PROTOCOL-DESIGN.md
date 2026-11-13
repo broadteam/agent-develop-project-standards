@@ -2412,3 +2412,10 @@ A standalone C smoke test installed a minimal classic seccomp-BPF filter with `P
 The cgroup v2 controller list is visible (`cpuset cpu io memory hugetlb pids`), but the cgroup hierarchy is not writable and does not permit creating a delegated child cgroup. The current sandbox probe therefore uses per-process `prlimit`, not cgroup resource accounting.
 
 The Landlock ABI query did not return within a bounded 2-second probe. Landlock support is unknown in this environment and is not claimed. These checks are recorded in the Sandbox validation report and are not upgrades to the Gate A/B acceptance result.
+
+
+### 17.37 Seccomp launch-chain integration test (2026-11-14)
+
+The Linux Sandbox launcher now runs a second integration harness after the namespace/chroot core probe. A C wrapper installs an x86_64 architecture-checked seccomp-BPF denylist after UID/capability drop and before execing a synthetic client. It denies a defined set of high-risk syscalls, rejects x32 ABI syscall-number tagging, and sets no_new_privs. The client verifies blocked operations, allowed PID/fixture/scratch operations, read-only-root write denial, and filter inheritance through fork+exec. The test passed locally with GCC -Wall -Wextra -Werror.
+
+The filter is a denylist with default ALLOW and must not be described as a production syscall allowlist. This does not prove kernel-escape resistance or replace cgroup/Landlock/LSM policy. Gate C remains closed.

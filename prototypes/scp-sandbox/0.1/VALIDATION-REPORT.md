@@ -10,7 +10,7 @@
 - Kernel: 6.18.57
 - Runtime: isolated Kata/container execution environment with effective UID 0
 - Python: system Python 3 (standard library only)
-- Required host utilities: `unshare`, `mount`, `chroot`, `setpriv`, `prlimit`, `ldd`, BusyBox
+- Required host utilities: GCC, `unshare`, `mount`, `chroot`, `setpriv`, `prlimit`, `ldd`, BusyBox
 - Source size: 20,304 bytes before gzip; 6,563 bytes compressed
 - Compressed Git Blob SHA: `ae64fb2f651018e53705990c2f715ea25fa465b9`
 - Decompressed source Git Blob SHA: `88e08595b3f74fc7c5c59fb13c9473f94dbb5503`
@@ -70,7 +70,7 @@ RESULT=GATE_A_AND_B_CORE_PROBES_PASS; NOT A PRODUCTION SANDBOX CERTIFICATION
 This is a narrow prototype, not a production security boundary certification. It does **not** prove:
 
 - resistance to kernel vulnerabilities or namespace/chroot escape exploits;
-- syscall filtering via seccomp, Landlock, LSM/AppArmor/SELinux or cgroup-enforced resource accounting;
+- a complete syscall allowlist, Landlock, LSM/AppArmor/SELinux or cgroup-enforced resource accounting;
 - a complete general secret-scanning/redaction policy;
 - behavior on Windows, macOS or other Linux kernels/container runtimes;
 - arbitrary network policy or approved egress to a real service;
@@ -96,3 +96,12 @@ The cgroup v2 hierarchy exposed controllers `cpuset cpu io memory hugetlb pids`,
 A Landlock ABI version query using the expected Linux syscall did not return within a 2-second bounded probe in this environment. Landlock availability is therefore **unknown** here; no Landlock support or enforcement is claimed and the syscall probe was not integrated.
 
 These findings refine, but do not change, the core Gate A/B result above: the namespace/chroot and synthetic-shim checks pass, while seccomp remains an unintegrated primitive, cgroup delegation is unavailable in this runtime, and Landlock remains unverified.
+
+
+## Seccomp launch-chain integration follow-up
+
+The main Linux run.sh will run run-seccomp-integration.sh after the namespace/chroot core probe. That harness compiles seccomp-exec.c and seccomp-child-test.c with GCC -Wall -Wextra -Werror, then launches the client test inside user/mount/network/PID namespaces, a read-only chroot, a writable scratch mount and UID/GID 65534. The wrapper sets no_new_privs, installs an x86_64 architecture-checked classic BPF denylist (including x32 ABI rejection), then execs the synthetic client.
+
+The client verifies that mount, umount2, ptrace, unshare, BPF, userfaultfd and a test-only getppid sentinel return EPERM, while getpid, fixture reads and scratch writes remain usable. A write to the read-only rootfs is denied with EROFS. The client then forks and execs a child, which repeats the same checks to prove filter inheritance. The integration command passed locally with GCC -Wall -Wextra -Werror.
+
+This is a denylist with default ALLOW, not a comprehensive production Agent syscall allowlist. It is a launch-chain integration harness, not kernel-escape certification; cgroup, Landlock and LSM limitations remain.

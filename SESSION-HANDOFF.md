@@ -1783,3 +1783,12 @@ The exact scope and limitations are in the validation report. This is not produc
 - Landlock ABI probing timed out within the bounded check; availability remains unknown.
 
 These are explicitly separated from the Gate A/B core pass and are documented in the prototype README and validation report. No seccomp enforcement, cgroup accounting or Landlock enforcement is claimed for the current sandbox.
+
+
+## 2026-11-14 seccomp launch-chain hardening
+
+- Added seccomp-exec.c: x86_64 architecture check, x32 ABI rejection, no_new_privs, and a classic BPF denylist for high-risk mount/namespace/ptrace/process-memory/kernel/BPF/perf/keyring/userfaultfd/io_uring operations. Unlisted syscalls default to ALLOW; this is not a complete production allowlist.
+- Added seccomp-child-test.c: checks blocked calls, allowed getpid/fixture read/scratch write, read-only-root write denial, and filter inheritance after fork+exec.
+- Added run-seccomp-integration.sh: compiles both sources and executes the filter inside user/mount/network/PID namespaces, read-only chroot, dedicated writable scratch and UID/GID 65534.
+- Updated the Linux run.sh entry point to run the original namespace/chroot probe and then the seccomp launch-chain integration.
+- Local execution passed with GCC -Wall -Wextra -Werror. cgroup delegation remains unavailable, Landlock status remains unknown, and Gate C remains closed.

@@ -8,3 +8,6 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 gzip -dc "$HERE/probe.py.gz" > "$TMP"
 python3 "$TMP" "$@"
+
+# Exercise seccomp after namespace/chroot/UID setup using a synthetic child client.
+"$HERE/run-seccomp-integration.sh"

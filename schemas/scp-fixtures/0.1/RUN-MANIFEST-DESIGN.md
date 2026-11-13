@@ -1237,3 +1237,10 @@ A separate classic seccomp-BPF smoke program successfully installed a filter wit
 The cgroup v2 mount lists `cpuset`, `cpu`, `io`, `memory`, `hugetlb` and `pids` controllers, but the current hierarchy is not writable and does not allow child cgroup creation. The prototype uses `prlimit` only and has no cgroup-enforced aggregate resource accounting.
 
 A Landlock ABI query did not return within a bounded 2-second probe. Availability is unknown and Landlock is not used. Do not infer support or enforcement from the kernel version alone.
+
+
+### 22.6 Seccomp launch-chain integration (prototype)
+
+A C launcher is exercised inside the namespace/chroot/UID launch chain before the synthetic client begins. It enables no_new_privs, checks the x86_64 audit architecture, rejects x32 syscall tagging, and returns EPERM for defined high-risk syscalls including mount/namespace transitions, ptrace/process-memory access, kernel module/BPF/perf/keyring operations, userfaultfd and io_uring setup. The synthetic client verifies these denials while confirming ordinary process execution, fixture reads and scratch writes continue. A forked+execed child repeats the checks, proving filter inheritance. The test-only getppid sentinel is excluded from non-test builds.
+
+This is a defense-in-depth denylist; all unlisted syscalls remain allowed. It is not a production syscall allowlist and does not replace filesystem, namespace, network or privilege controls. The integrated test is run by the Linux run.sh entry point.
