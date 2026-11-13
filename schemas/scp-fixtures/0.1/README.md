@@ -88,3 +88,21 @@ The field mapping, Context 0.1.0 cross-record rules and review vectors are recor
 Current disposition: **design candidate complete; Schema gate not met**. No `run-manifest.schema.json`, Writer, Store, finalizer, Harness/Client Adapter, Runner or CI Gate exists. The main blockers are the absence of two independent Harness implementations emitting equivalent normalized results, executable Driver/Registry infrastructure, and executable redaction/cleanup negative tests. The examples in §§15 are design review vectors, not schema-valid fixtures or execution evidence.
 
 This review does not change Context 0.1.0 or Packet 0.2.0 fields and does not freeze either contract.
+
+## Normalized Actual Result design status
+
+The candidate language-neutral result projection is specified in [RUN-MANIFEST-DESIGN.md](./RUN-MANIFEST-DESIGN.md) §17 and cross-referenced in [COMPATIBILITY.md](./COMPATIBILITY.md) §11.
+
+Candidate identity: `scp-fixture-normalized-result/0.1.0` (design only; no machine Schema).
+
+Key rules:
+- Context `expected` selects the claim refs, operation scopes and field names to project; expected values must never be copied into actual output.
+- Claim and recovery rows match by exact `claim_ref` and `operation_scope`; array order is ignored and duplicate keys are invalid.
+- Missing field, explicit `unknown`, `null` and unsupported values have distinct meanings.
+- Expected property completeness is enumerated into exact assertion tuples; set-valued arrays are atomic assertions.
+- Cross-client parity requires equal immutable pins and relevant measured capabilities/permissions; different client/adapter/normalizer implementations are expected and independently recorded.
+- Parity equality does not imply conformance; every Manifest is separately checked against Context expected values.
+
+Three existing Context projections have 12, 15 and 13 expected assertion fields respectively. These are counts derived from the current Context documents, not executed adapter results.
+
+No Adapter prototype, Harness Registry, Normalized Result Schema, Run Manifest Schema, Runner, Writer or CI Gate is implemented. Design review does not establish cross-client interoperability.
