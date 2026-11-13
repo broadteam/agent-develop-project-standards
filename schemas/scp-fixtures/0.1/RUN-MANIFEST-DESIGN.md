@@ -524,3 +524,297 @@ The minimum field mapping, Context linkage and deterministic review vectors are 
 **Decision: do not create `run-manifest.schema.json` in this iteration.** Creating it now would give untested assumptions a machine-contract appearance, especially around normalized client output, transitive Registry resolution, retry lineage and artifact sanitization.
 
 Next prerequisite is not a Writer or CI Gate. It is an independently reviewable normalized-output contract plus two small, separate Harness/adapter implementations (or equivalent conformance producers) that consume the same pinned Context and emit the same normalized field/claim/scope set. After those results and redaction/cleanup contract tests exist, revisit the Schema gate. This is a design hold, not a freeze or rejection of the Run Manifest concept.
+
+## 17. Normalized Actual Result Contract (design candidate)
+
+This section defines the cross-client result representation used by future Harness adapters. It is a language-neutral logical contract, not a JSON Schema, runtime API or implementation. Candidate contract identity: `scp-fixture-normalized-result/0.1.0`, versioned independently from Packet, Context and Run Manifest.
+
+### 17.1 Purpose and projection rule
+
+A normalized result is a **test-scoped projection** of one client evaluation, not a complete dump of the client's internal state.
+
+- The pinned Context `expected` determines the claim keys, operation-scope keys and field names that are in scope for this run.
+- The adapter/normalizer may read the expected structure to discover those keys/field names, but it must not copy expected values into the actual result or use them to manufacture client observations.
+- The normalizer emits only values actually returned/observed by the Client Under Test for the in-scope projection.
+- A claim/operation or field outside the Context projection is not added to the normalized result. Unknown field names or values in the adapter's normalized contract are rejected as unsupported/invalid; the normalizer must not silently reinterpret them.
+- Missing actual values remain missing. They are not filled with Context expected values, cached values, another claim's value or a default.
+- The result projection does not prove that the client has no additional internal claims; it only makes the exact tested surface deterministic.
+
+This bounds the interface and prevents client-specific extra data from becoming an accidental compatibility requirement.
+
+### 17.2 Candidate envelope and field catalogue
+
+The conceptual envelope is:
+
+```json
+{
+  "contract": "scp-fixture-normalized-result",
+  "result_version": "0.1.0",
+  "packet_schema_validation": "valid",
+  "protocol_compatibility": "compatible",
+  "claims": [
+    {
+      "claim_ref": "project.repository_identity.checkout",
+      "freshness": "unknown",
+      "applicability": "applicable",
+      "identity_state": "unknown"
+    }
+  ],
+  "recovery": [
+    {
+      "operation_scope": "read_local_project_rules",
+      "recovery_mode": "restricted",
+      "permitted_actions": ["read_project_rules"],
+      "prohibited_actions": ["cross_repository_write"]
+    }
+  ]
+}
+```
+
+The top-level `contract`, `result_version`, `claims` and `recovery` envelope members are required. `claims` and `recovery` may be empty when no corresponding actual record was emitted; expected-but-missing records then produce incomplete assertions. The two packet-level result fields may be absent in a partial result. They are mandatory in Context 0.1.0 expected data, so their absence cannot pass those assertions.
+
+Allowed normalized fields are exactly those already defined by Context 0.1.0:
+
+| Subject | Key | Allowed value |
+|---|---|---|
+| packet | none | `packet_schema_validation`: valid / invalid / unsupported |
+| packet | none | `protocol_compatibility`: compatible / unsupported / incompatible / unknown |
+| claim | `claim_ref` | `freshness`: current / stale / conflict / unknown |
+| claim | `claim_ref` | `applicability`: applicable / not_applicable / not_configured / unknown |
+| claim | `claim_ref` | `identity_state`: resolved / provisional / ambiguous / conflict / unknown |
+| claim | `claim_ref` | `path_identity_state`: unique / ambiguous / conflict / unknown |
+| claim | `claim_ref` | `fingerprint_coverage`: complete / partial / unknown |
+| claim | `claim_ref` | `observation_consistency`: stable / changed_during_capture / unknown |
+| claim | `claim_ref` | `reason_codes`: unique strings in the `scp.fixture.*` namespace |
+| recovery | `operation_scope` | `recovery_mode`: normal / restricted / blocked |
+| recovery | `operation_scope` | `permitted_actions`: unique action identifiers |
+| recovery | `operation_scope` | `prohibited_actions`: unique action identifiers |
+| recovery | `operation_scope` | `user_decisions_needed`: unique exact strings |
+
+A normalized claim row requires `claim_ref`; each recognized result field is optional so a partial observation can be represented without inventing a value. A normalized recovery row requires `operation_scope`; its result fields are optional for the same reason. A row with no actual result fields should be omitted. Duplicate claim keys, duplicate operation scopes, or duplicate values in set-valued arrays invalidate the normalized projection.
+
+### 17.3 Missing, unknown, null and unsupported are different
+
+These meanings are normative for this candidate:
+
+| Representation | Meaning | Assertion handling |
+|---|---|---|
+| Field absent | Client/adapter supplied no value for this expected field | inconclusive if evaluation ran; not_run if evaluation never ran |
+| Explicit enum `unknown` | Client explicitly concluded the value cannot be established | Compare exactly to expected; may pass when expected is `unknown` |
+| Explicit `not_applicable` / `not_configured` | Client explicitly classified applicability/configuration | Compare exactly; never convert to freshness |
+| JSON `null` | Not part of the normalized result vocabulary | Invalid normalized output; do not convert to absent or unknown |
+| Unrecognized enum or core field | Result contract is unsupported/incompatible | Reject normalization; do not coerce to unknown |
+| Malformed/undecodable client response | No trustworthy normalized value can be derived | Preserve diagnostics safely; assertion is inconclusive/not_run, not an invented pass/fail |
+
+A deterministic fixture that injects a Provider 403 and expects freshness `unknown` should pass when the client explicitly returns `unknown`. The same expected field omitted from the actual projection is inconclusive. This is the central distinction between an observed unknown state and an unobserved state.
+
+### 17.4 Key identity and string comparison
+
+- Match claim rows by exact `claim_ref` and recovery rows by exact `operation_scope`.
+- Compare identifiers as exact Unicode scalar sequences encoded in valid UTF-8. Do not trim whitespace, lowercase, case-fold, URL-decode, path-normalize, or Unicode-normalize these opaque IDs.
+- Reject invalid UTF-8 and unpaired surrogate code points before comparison.
+- Object member order is irrelevant.
+- Claim and recovery array order is irrelevant; a canonical presentation sorts rows by their key's UTF-8 byte sequence.
+- The sets `reason_codes`, `permitted_actions`, `prohibited_actions` and `user_decisions_needed` are order-insensitive. Reject duplicates, then compare as exact string sets; canonical presentation sorts by UTF-8 byte sequence.
+- Empty array is a concrete empty set. It is not equivalent to a missing field.
+- String equality is exact. Human-readable diagnostics are not compared and must never substitute for a protocol field.
+
+The comparison is over parsed, typed values, not raw JSON text. Whitespace, object key order and array ordering of set-like collections do not create false differences. This section does not define a Manifest self-hash serialization algorithm.
+
+### 17.5 Projection completeness and assertion derivation
+
+For the pinned Context expected object, construct the required assertion key set mechanically:
+
+1. Add packet keys `(packet, absent, packet_schema_validation)` and `(packet, absent, protocol_compatibility)`.
+2. For each expected claim row, add one key `(claim, claim_ref, field)` for every result field present in that row, excluding the key field `claim_ref`.
+3. For each expected recovery row, add one key `(recovery, operation_scope, field)` for every result field present in that row, excluding the key field `operation_scope`.
+4. Arrays such as `reason_codes`, action lists and decision lists are one atomic set-valued field and therefore produce one assertion, not one assertion per array element.
+5. Reject duplicate expected claim keys, operation scopes or assertion tuples before evaluation.
+
+For every required key, exactly one assertion outcome is recorded in the Manifest:
+
+- `passed`: an actual value exists and exactly matches the expected typed value after the declared set normalization.
+- `failed`: an actual value exists and differs from the expected typed value.
+- `inconclusive`: evaluation ran but the actual field/value could not be established or safely normalized.
+- `not_run`: the evaluation stage for that field never ran.
+
+No extra assertion key is allowed. A missing required assertion record is itself a Manifest completeness defect and cannot be treated as a pass. The normalizer does not generate assertion outcomes; the Harness evaluator derives them from pinned Context expected values and normalized actual values.
+
+Conformance derivation from §13.6 remains unchanged: any proven mismatch yields non_conformant; absent/uncertain required values with no proven mismatch yield inconclusive; conformant requires every required assertion passed. A passing subset never establishes conformance.
+
+### 17.6 Three concrete projection examples from Context 0.1.0
+
+The following are design examples of the normalized actual-result contract, not run evidence. They show the exact expected projection surfaces for existing Context instances.
+
+**A. Credential-bearing repository locator**
+
+For `credentialed-project-repository`, the expected projection contains 2 packet fields, 4 claim fields and 6 recovery fields: 12 assertions.
+
+```json
+{
+  "contract": "scp-fixture-normalized-result",
+  "result_version": "0.1.0",
+  "packet_schema_validation": "valid",
+  "protocol_compatibility": "compatible",
+  "claims": [
+    {
+      "claim_ref": "project.repository",
+      "freshness": "unknown",
+      "applicability": "applicable",
+      "identity_state": "unknown",
+      "reason_codes": ["scp.fixture.identity.credentialed_locator"]
+    }
+  ],
+  "recovery": [
+    {
+      "operation_scope": "read_local_project_rules",
+      "recovery_mode": "restricted",
+      "permitted_actions": ["read_project_rules"],
+      "prohibited_actions": ["log_credential_material"]
+    },
+    {
+      "operation_scope": "publish_using_project_repository_locator",
+      "recovery_mode": "blocked",
+      "permitted_actions": ["read_project_rules"],
+      "prohibited_actions": ["persist_credentialed_locator", "push", "publish"]
+    }
+  ]
+}
+```
+
+**B. Authenticated authoritative Provider not-found**
+
+For `identity-source-reference-unresolvable`, the expected projection contains 2 packet fields, 7 claim fields and 6 recovery fields: 15 assertions. The explicit `unknown` identity state for the checkout is a value, not a missing observation.
+
+```json
+{
+  "contract": "scp-fixture-normalized-result",
+  "result_version": "0.1.0",
+  "packet_schema_validation": "valid",
+  "protocol_compatibility": "compatible",
+  "claims": [
+    {
+      "claim_ref": "project.repository_identity.checkout",
+      "freshness": "unknown",
+      "applicability": "applicable",
+      "identity_state": "unknown"
+    },
+    {
+      "claim_ref": "project.repository_identity.source_refs[0]",
+      "freshness": "stale",
+      "applicability": "applicable",
+      "identity_state": "unknown",
+      "reason_codes": ["scp.fixture.identity.authoritative_not_found"]
+    }
+  ],
+  "recovery": [
+    {
+      "operation_scope": "read_local_project_rules",
+      "recovery_mode": "restricted",
+      "permitted_actions": ["read_project_rules"],
+      "prohibited_actions": ["cross_repository_write"]
+    },
+    {
+      "operation_scope": "resolve_or_push_to_checkout_identity",
+      "recovery_mode": "blocked",
+      "permitted_actions": ["read_project_rules"],
+      "prohibited_actions": ["cross_repository_write", "publish", "push"]
+    }
+  ]
+}
+```
+
+**C. Fingerprint path-set mismatch**
+
+For `fingerprint-path-set-mismatch`, the expected projection contains 2 packet fields, 5 claim fields and 6 recovery fields: 13 assertions. The affected modify operation is blocked while the unrelated local read scope remains restricted.
+
+```json
+{
+  "contract": "scp-fixture-normalized-result",
+  "result_version": "0.1.0",
+  "packet_schema_validation": "valid",
+  "protocol_compatibility": "compatible",
+  "claims": [
+    {
+      "claim_ref": "code.worktree_fingerprint",
+      "freshness": "conflict",
+      "applicability": "applicable",
+      "fingerprint_coverage": "unknown",
+      "observation_consistency": "stable",
+      "reason_codes": ["scp.fixture.fingerprint.path_set_mismatch"]
+    }
+  ],
+  "recovery": [
+    {
+      "operation_scope": "modify:notes/changed.md",
+      "recovery_mode": "blocked",
+      "permitted_actions": ["read_project_rules"],
+      "prohibited_actions": ["modify_affected_path", "push"]
+    },
+    {
+      "operation_scope": "read_unrelated_project_rules",
+      "recovery_mode": "restricted",
+      "permitted_actions": ["read_project_rules"],
+      "prohibited_actions": ["write"]
+    }
+  ]
+}
+```
+
+These examples are expected-result-shaped projections. A real run must source every actual value from the Client Under Test/adapter observation and then derive assertion outcomes; copying these values from Context would invalidate the test.
+
+### 17.7 Cross-client comparison matrix
+
+A comparison report is a separate derived test artifact. It does not alter either Manifest and does not establish project authorization or Evidence.
+
+| Comparison condition | Classification | Permitted interpretation |
+|---|---|---|
+| Same Context/Schema/Packet/Packet Schema/source revision/Profile/Driver/Provider/Registry pins; same deterministic clock and event inputs; same relevant measured capability and permission observations; same normalized-result contract version; both projections complete and equal | `equal` | Normalized outputs are interoperable for this tested projection |
+| Same comparable inputs; both projections complete but at least one expected field differs | `divergent` | Preserve both actual outputs; report exact mismatching assertion keys |
+| Inputs are comparable but one/both projections omit required actual fields or lack required observations | `incomplete` | No parity pass; identify missing assertion keys |
+| Context, schema, packet, profile, driver, provider, Registry or required input pins differ | `incomparable` | Do not combine or average these runs |
+| A relevant measured capability/permission differs and Context 0.1.0 supplies no per-field capability dependency map | `incomparable` | No safe common-subset inference is available in 0.1.0 |
+| A normalized result cannot be parsed or violates the result contract | `invalid_result` | Preserve sanitized diagnostics; no parity/conformance pass |
+
+Important distinctions:
+
+- Client, adapter and normalizer implementation identities are expected to differ in an interoperability exercise; record them rather than treating their difference as an input mismatch. The normalized-result **contract version** must match.
+- Exact input equivalence compares immutable artifact pins, deterministic fixture inputs and the relevant observed capability/permission projection. OS name alone neither proves nor disproves equivalence.
+- Attempt-specific run IDs, timestamps, temporary directory names and locally generated snapshot IDs are not parity values. Compare snapshot roles/phases and content digests; retain local IDs only for traceability.
+- Because Context 0.1.0 does not declare capability dependencies per expected leaf, a material capability/permission difference makes the entire result incomparable. Do not invent a common subset. A future Context minor version may define explicit dependency mapping.
+- `unknown` equals `unknown` only as an exact expected/result value; it is not a wildcard matching current, stale or any other state.
+- `equal` parity does not prove conformance: two clients can return the same wrong value. Each Manifest's conformance outcome is evaluated independently against the pinned Context.
+- `divergent` parity does not by itself identify which client is correct; evaluate each result against the same expected projection.
+
+### 17.8 Review vectors for normalized output
+
+| ID | Input | Output condition | Required interpretation |
+|---|---|---|---|
+| NR-P01 | Two clients evaluate the same authoritative-not-found Context | One emits claim/recovery rows in reverse array order; set-valued members also have different ordering | Equal after key/set normalization |
+| NR-P02 | Context expects freshness unknown | Client explicitly emits `unknown` | Exact value; assertion may pass |
+| NR-P03 | Context expects freshness unknown | Client omits the freshness field | Incomplete/inconclusive, not equal to unknown |
+| NR-N01 | Same Context | Actual field is JSON null | Invalid normalized result |
+| NR-N02 | Same Context | Duplicate `claim_ref` or `operation_scope` | Invalid normalized result |
+| NR-N03 | Same Context | Claim key differs only by case, whitespace or Unicode normalization | Different opaque key; expected assertion is missing; no fuzzy match |
+| NR-N04 | Same Context | Actual output includes a field not in the expected projection or an unrecognized core field | Reject as invalid/unsupported projection; do not silently drop/coerce |
+| NR-N05 | Same Context | A required expected leaf is omitted from Manifest assertions | Manifest incomplete; cannot be conformant |
+| NR-N06 | Same Context, same measured environment | Both outputs are complete but one expected field differs | Divergent parity; evaluate each conformance result separately |
+| NR-N07 | Same Context, different relevant permission/capability observation | Outputs happen to match | Incomparable in Context 0.1.0; matching values cannot erase input difference |
+| NR-N08 | Same Context | One client returns explicit `not_configured` where expected is `unknown` | Exact mismatch; applicability and unknown are not interchangeable |
+
+These vectors are logical review cases only. They are not executable adapter tests or Schema-valid fixture files.
+
+### 17.9 Design conclusion
+
+The normalized projection is now precise enough for independent adapter prototypes to implement without inventing field names, ordering rules, missing-value semantics or assertion identities. This does not mean the prototypes have been authorized or implemented.
+
+Before Run Manifest Schema creation, two independently implemented adapters must:
+1. Consume the same pinned Context/Packet/Schema/Profile/Driver and deterministic observations.
+2. Produce the same normalized-result contract version and required claim/scope/field projection.
+3. Demonstrate exact equality for NR-P01 and the three existing Context projections.
+4. Preserve absent versus explicit unknown, reject null/duplicate/unknown core data, and produce the expected incomplete/invalid classifications.
+5. Produce independently pinned implementation/normalizer identities so shared code cannot hide a common adapter defect.
+
+A third-party or second implementation must not be a copy of the first adapter with only a different client label. The two implementations need independently authored normalization/adapter paths, while sharing only this normative contract and immutable fixture inputs.
+
+**Disposition:** normalized-result design candidate complete for independent review; no machine Schema, executable adapter, Harness Registry, Runner, Writer, Validator, Store or CI Gate is created in this section. The Run Manifest Schema gate in §16 remains closed pending independent implementation and redaction/cleanup evidence.
