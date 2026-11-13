@@ -2228,3 +2228,35 @@ Manifest 自身 digest 由外部存储计算，不能在内容内自引用。Exp
 **当前判断：Normalized Actual Result Contract 的设计候选达到可供独立实现评审的程度；Run Manifest Schema Gate 仍未满足。** 两个独立 Adapter 尚不存在，Driver 仍是 contract_only，redaction/cleanup 的可执行负例也不存在。本轮不创建 JSON Schema、Fixture Runner、Semantic Validator、Harness Registry、Writer、Store 或 CI Gate，不代表已经验证跨客户端互操作。
 
 下一项允许继续的工作是对 Normalized Result 候选做独立反例审查，并形成两种独立 Adapter 的接口/测试蓝图；实际 Adapter 原型实现应在用户明确授权后进行。
+
+### 17.31 Normalized Result Oracle 隔离与双 Adapter 蓝图（2026-11-13）
+
+本轮独立反例审查发现：单纯要求 Normalizer“不复制 expected”不足以防止 Oracle leakage；若完整 Context 挂载到被测 Agent 可访问的 worktree/tool scope，测试仍会泄露答案。已在 Run Manifest Design §18–§19 与 Context Compatibility §12 补齐。
+
+#### 信任区与输入边界
+
+- Harness Control Plane 持有完整 Context/expected 和 immutable pins。
+- Client Sandbox 仅接收 Packet/Packet Schema、实际 reconciled fixture observations、相关 measured capabilities/permissions、deterministic clock，以及只含 claim_ref / operation_scope / field names 的 values-stripped projection descriptor。
+- Oracle Evaluator 独立持有 expected values，只在 Client Under Test 返回后执行比较；expected、assertions、Manifest 和 oracle artifact 不能进入客户端可访问范围。
+- Harness preflight 只检查 Context/schema/artifact/Registry/fixture 输入，不能把 Harness 自己验证 Packet Schema 的结果伪装成 Client 的 `packet_schema_validation` 结果。
+- Context companion observations 是 fixture 预期输入；Harness 必须现场采集 actual observations 并对照，不能复制 Context 内容冒充现场证据。
+
+#### 双 Adapter 互操作拆分
+
+三个相互独立的验收结果：
+1. Harness-input parity：两个独立 Adapter 构造的 Packet/Schema/observations/capability/projection inputs 是否一致。
+2. Normalizer parity：两个独立 Normalizer 对同一组 raw-response synthetic vectors 是否给出相同的严格规范化结果。
+3. Client-output parity + per-client conformance：两个不同 Agent 客户端接收等价输入后的输出是否一致；每个客户端再分别对照同一 hidden expected oracle。
+
+独立实现不得仅靠不同名称/版本包装同一个共享 Normalizer。共享规范文档和 immutable fixtures 可以；共享被测归一化代码不可以。不同语言/runtime 是额外证据，但单凭语言差异不足以证明独立。
+
+#### 新增反例向量
+
+NR-N09–NR-N16 覆盖 expected 泄露、Harness 预检结果冒充 client output、Context observation 冒充现场采集、unknown core field 被静默丢弃、locale/Unicode 排序差异、共享 Normalizer 冒充独立实现、空集合与缺失字段混淆。
+
+#### 当前处置
+
+- Normalized Result 候选经上述修正后可进入独立实现审查。
+- Run Manifest Schema Gate 仍未满足；没有创建 Schema、Harness、Adapter、Registry、Runner、Writer、Store 或 CI Gate。
+- 两 Adapter 原型需要执行代码、依赖与隔离测试，尚未实现；本轮只建立实施蓝图。实际原型实施属于单独授权步骤。
+- D0 保持已确认冻结；D1/D2/D3/Context 0.1.0 仍未冻结。PR #11 保持 Open + Draft，不合并、不更改 PR #10/main、不 bump 版本、不打 Tag。
