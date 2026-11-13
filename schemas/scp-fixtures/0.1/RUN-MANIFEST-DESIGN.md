@@ -921,3 +921,157 @@ Before any Run Manifest Schema or CI gate, the next deliverable should be an ada
 - separate Harness-input parity and Client-output parity reports.
 
 The prototype implementation itself remains a separate authorization step. Until that step is explicitly authorized, all work stays at the design and review level.
+
+## 19. Two independent Adapter implementation blueprint (design only)
+
+This blueprint defines the smallest independently implementable boundary without selecting a programming language, Agent vendor, transport or executable bundle. It is not a source-code API, JSON Schema, Driver, Runner or authorization to implement prototypes.
+
+### 19.1 Logical components and trust zones
+
+| Component | Receives | Must not receive | Responsibility |
+|---|---|---|---|
+| Context Loader / Harness Control Plane | Full Context, immutable artifact pins, Registry/Profile/Driver metadata | — | Validate Context, retain oracle values, resolve exact test inputs |
+| Fixture Driver + Observation Adapter | Driver/Profile, disposable fixture recipe, event barriers | Expected assertion values | Create isolated fixture and collect actual observations |
+| Projection Builder | Context expected structure | Client response not yet available | Emit keys/field names only; strip every expected value |
+| Client Adapter | Client Evaluation Request and client transport | Full Context, expected values, assertion results, Run Manifest, oracle artifacts | Invoke one Agent client through its documented interface |
+| Result Normalizer | Projection descriptor + client response | Expected values | Produce strict Normalized Actual Result projection |
+| Oracle Evaluator | Expected values + normalized actual result | Client invocation authority / production write APIs | Generate assertion outcomes and conformance result |
+| Manifest Finalizer | Lifecycle, pins, sanitized refs, normalized result, assertions, cleanup evidence | Raw credentials or unsanitized raw response | Finalize one immutable per-attempt record |
+
+The Context file and expected values live only in the Harness control plane. A Client Adapter must not be given a path, URI, mounted directory, environment variable or tool that can read them.
+
+### 19.2 Client Evaluation Request (conceptual DTO)
+
+The only test input handed to a Client Adapter is a value object with the following logical fields:
+
+| Field | Required | Content |
+|---|---:|---|
+| `request_id` | yes | Per-invocation opaque ID; not the retry-group identity |
+| `packet` | yes | Exact Packet artifact bytes or read-only artifact handle, Git blob SHA and Packet schema version |
+| `packet_schema` | yes | Exact pinned Packet Schema bytes or read-only handle and Git blob SHA |
+| `observations` | yes | Actual reconciled observation records, ordered event/snapshot refs and content digests; synthetic only |
+| `capability_profile` | yes | Exact immutable declared Profile reference plus measured relevant capabilities and permission observations |
+| `projection` | yes | Packet field names, claim refs + field names, operation scopes + field names; contains no expected values |
+| `fixture_clock` | yes | Deterministic Context clock input, distinct from Harness wall-clock timestamps |
+| `protocol_contracts` | conditional | Exact protocol/schema compatibility material needed by the client; immutable refs/bytes |
+
+The request contains no Context blob, Context path, `expected`, expected values, expected reason-code arrays, assertion outcomes, Run Manifest, test answer key or oracle artifact reference. It also contains no user's production repository/worktree or real credentials.
+
+The Client Adapter must expose the Packet/Schema/observations read-only. The Agent may inspect the synthetic test Packet, including intentionally credential-shaped fixture strings, but the Adapter and logs must redact those values before diagnostic persistence.
+
+### 19.3 Projection Descriptor (values stripped)
+
+The projection descriptor is mechanically derived from Context `expected` by removing all values and retaining only the expected field inventory. Example:
+
+```json
+{
+  "packet_fields": [
+    "packet_schema_validation",
+    "protocol_compatibility"
+  ],
+  "claims": [
+    {
+      "claim_ref": "project.repository_identity.checkout",
+      "fields": ["freshness", "applicability", "identity_state"]
+    },
+    {
+      "claim_ref": "project.repository_identity.source_refs[0]",
+      "fields": ["freshness", "applicability", "identity_state", "reason_codes"]
+    }
+  ],
+  "recovery": [
+    {
+      "operation_scope": "read_local_project_rules",
+      "fields": ["recovery_mode", "permitted_actions", "prohibited_actions"]
+    },
+    {
+      "operation_scope": "resolve_or_push_to_checkout_identity",
+      "fields": ["recovery_mode", "permitted_actions", "prohibited_actions"]
+    }
+  ]
+}
+```
+
+This descriptor says *which outputs are requested*, not *what the outputs should be*. It contains no expected enum values, expected action values or pass/fail labels. The Harness must verify by construction that stripping expected values leaves no literal answer material. It may be passed to the client as output-shape guidance, but the Client Under Test must not be able to read the original Context or Oracle Evaluator memory.
+
+### 19.4 Invocation and response boundary
+
+The adapter lifecycle is:
+
+1. Validate Context, exact Schema/Packet/Profile/Driver/provider refs and Registry snapshot in the control plane.
+2. Build the disposable fixture from the allow-listed Driver; collect actual observations and reconcile them with the Context-declared companion observations.
+3. If fixture observations or required capabilities do not match, stop before client invocation and record not_run/inconclusive as applicable.
+4. Build the values-stripped projection descriptor and read-only Client Evaluation Request.
+5. Invoke the named Client Under Test using its supported interface. Do not call production write APIs, real provider endpoints or real repository mutations.
+6. Capture a bounded client response in memory; classify returned/timeout/crashed/cancelled/malformed transport state. Do not persist raw output before secret redaction.
+7. Normalize the client response using the pinned Normalized Result contract and projection descriptor. If no trustworthy result exists, leave actual_result absent and preserve sanitized diagnostic/transport state.
+8. Pass normalized actual values and hidden expected values separately to the Oracle Evaluator. Persist assertion outcomes and then perform Harness-owned cleanup/finalization.
+
+Harness preflight validates the *test input artifacts*. It does not supply the Client Under Test's `packet_schema_validation` or `protocol_compatibility` result. Those fields must come from client behavior.
+
+### 19.5 Three distinct interoperability tests
+
+Do not collapse the following into one “two clients passed” statement.
+
+**A. Harness-input parity**
+
+Both independently implemented Harness adapters consume the same pinned Context and construct a Client Evaluation Request. Compare:
+- Packet and Packet Schema blob SHA/bytes;
+- actual observation package by role/phase/content digest;
+- Profile/Driver/Provider/Registry pins;
+- deterministic clock and event sequence;
+- measured relevant capability/permission map;
+- values-stripped projection descriptor.
+
+The input-parity report is `equal` only when all required inputs match. If an observation is missing or capability is unknown, report incomplete/incomparable, not equal.
+
+**B. Normalizer contract parity**
+
+Feed the same pinned synthetic raw-response vectors to the two independently implemented normalizers. Compare their output against the same Normalized Result contract vectors, including:
+- exact IDs with whitespace/case/Unicode edge cases;
+- reordered claim/recovery rows and set-valued arrays;
+- missing vs explicit unknown vs empty set vs null;
+- duplicate keys and duplicate set members;
+- unknown enum/core properties;
+- malformed UTF-8/unpaired surrogate input;
+- sanitized diagnostics for credential-shaped values.
+
+This detects common wrapper assumptions before a live Agent client is involved.
+
+**C. Client-output parity and per-client conformance**
+
+Invoke two distinct Agent clients with equivalent Client Evaluation Requests. Compare normalized output projections using §17.7 and evaluate each independently against the same hidden Context expected oracle. Report:
+- each client's conformance outcome;
+- input parity outcome;
+- normalized result parity outcome;
+- any Harness/normalizer validity failure.
+
+No client is declared correct merely because it agrees with the other. Two clients can be identically wrong; parity and conformance remain separate.
+
+### 19.6 Minimum acceptance matrix
+
+| Test | Adapter A | Adapter B | Acceptance evidence |
+|---|---|---|---|
+| Context preflight | Same immutable fixtures | Same immutable fixtures | Equal resolved pins and exact Context/Packet/Schema checks |
+| Fixture observations | Independently setup/observe | Independently setup/observe | Equal observation content digests and capability projection |
+| Projection descriptor | Independently derive | Independently derive | Byte/structural equality; no expected values present |
+| Normalizer positive vectors | Independent implementation | Independent implementation | Both match same normative normalized outputs |
+| Normalizer negative vectors | Independent implementation | Independent implementation | Both reject or classify all NR negative vectors identically |
+| Agent invocation | Client A via its documented connector | Client B via its documented connector | No oracle access; same equivalent request |
+| Oracle evaluation | Separate hidden evaluator | Same hidden expected values | Per-client assertion completeness and conformance |
+| Cleanup | Own disposable root only | Own disposable root only | Ownership proof, cleanup result and quarantine on uncertainty |
+
+At least one fixture must exercise an intentionally unknown client state, one must exercise a missing observation, and one must exercise a credential-shaped synthetic Packet value without leaking it to logs/artifacts.
+
+A meaningful interoperability claim requires the two adapter implementations to be independently authored and pinned. Sharing this document and immutable fixture artifacts is allowed; sharing the normalization code under test is not. A different language/runtime is recommended as additional evidence, but does not by itself establish independence.
+
+### 19.7 Authorization and implementation boundary
+
+This blueprint is sufficient to scope two minimal prototypes, but no prototype is implemented by this design update. Implementation requires explicit authorization because it creates executable Harness/Adapter code and may introduce dependencies, temporary storage and test execution behavior.
+
+Until authorized:
+- do not create adapter source code or Driver bundles;
+- do not introduce arbitrary commands/scripts into Context;
+- do not create Normalized Result or Run Manifest JSON Schemas;
+- do not create a Registry, Runner, Writer, Store, redaction service or CI gate;
+- keep all current contracts Draft and all results design-only.
