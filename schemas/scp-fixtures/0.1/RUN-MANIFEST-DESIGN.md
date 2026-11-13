@@ -338,7 +338,7 @@ This section proposes the smallest stable field model that can identify an attem
 | `environment` | yes | Declared profile reference plus separately measured platform/runtime/capability/permission facts |
 | `lifecycle` | yes | Independent preflight, setup, stimulus, observation, evaluation and cleanup states |
 | `observation_refs` | yes | Ordered event-log reference and the snapshot references actually observed; empty only when the corresponding phase did not run |
-| `actual_result` | conditional | Complete normalized client output when available; absent/null only when evaluation never produced one |
+| `actual_result` | conditional | Trustworthy normalized projection when available; it may be partial; absent when no trustworthy envelope can be normalized. JSON `null` is invalid |
 | `assertions` | yes | One result for each expected comparison leaf, including explicit `not_run` or `inconclusive` outcomes |
 | `outcomes` | yes | Separate `conformance_outcome` and `harness_outcome`; never a combined Boolean |
 | `cleanup` | yes | Disposable-root identity, cleanup result and quarantine reference/state; no arbitrary filesystem path |
