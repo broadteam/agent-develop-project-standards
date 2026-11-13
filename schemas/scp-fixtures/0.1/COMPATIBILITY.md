@@ -212,3 +212,33 @@ Context 0.1.0 has no per-assertion capability dependency map. Therefore a materi
 Equal parity does not imply conformance: two clients can agree on the same wrong value. Each Manifest is independently evaluated against Context expected values. Unknown is an exact value, never a wildcard.
 
 These rules are companion design semantics. They do not alter Context Schema 0.1.0 and are not mechanically enforced today.
+
+## 12. Adapter trust boundary and interoperability design
+
+The two-adapter blueprint is in [RUN-MANIFEST-DESIGN.md](./RUN-MANIFEST-DESIGN.md) §19. This is design guidance only; no executable adapter interface exists.
+
+### 12.1 Oracle isolation
+
+- Full Context and `expected` values stay in the Harness control plane.
+- Client Under Test receives Packet/Packet Schema bytes or immutable read-only handles, reconciled actual fixture observations, relevant measured capabilities, deterministic clock and a values-stripped projection descriptor.
+- It must not receive the Context file/path, expected values, assertions, answer key, Run Manifest or Oracle Evaluator artifacts.
+- Oracle Evaluator compares the normalized result only after client evaluation.
+- Harness preflight validates test artifact pins and Context readiness; it cannot substitute its own Packet Schema validation or protocol compatibility result for client output.
+
+### 12.2 Actual observation inputs
+
+Context `companion_observations` describe what the fixture is expected to produce. The Harness must collect actual observations from its disposable fixture and reconcile them before client evaluation. Context observation data cannot be copied into actual run evidence.
+
+If required observation inputs are missing or disagree with the pinned Context/event/profile expectations, do not invoke the client on a fixture claimed to be valid. Record not_run/inconclusive and preserve the mismatch.
+
+### 12.3 Independent interoperability dimensions
+
+Report three results separately:
+
+1. Harness-input parity: two independent adapters produce identical pinned Packet/Schema, observation, capability/permission, event and values-stripped projection inputs.
+2. Normalizer parity: independent normalizers process the same synthetic response vectors and produce the same strict normalized projections/classifications.
+3. Client-output parity plus per-client conformance: distinct Agent clients evaluate equivalent requests; normalized results are compared, while each client is independently checked against the hidden expected oracle.
+
+Sharing the normative specification and immutable fixtures is allowed. Sharing the normalization implementation under test is not. Different language/runtime adds evidence but does not alone prove independence.
+
+No client is correct merely because it agrees with another client; parity equality and conformance are independent results.
