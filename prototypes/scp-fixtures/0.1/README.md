@@ -19,7 +19,7 @@ From the repository root:
 
     sh prototypes/scp-fixtures/0.1/run-parity.sh
 
-Requirements: Node.js 20+ and Python 3.10+. No third-party package is required.
+Requirements: Node.js 20+, Python 3.10+ and a POSIX-compatible shell (`sh`, including Git Bash on Windows). No third-party package is required. Set `NODE` or `PYTHON` to override executable paths; otherwise the script detects `python3` and then `python`.
 
 The script creates a fresh temporary directory outside the repository, generates artifacts there, compares nine outputs byte-for-byte, and removes the temporary directory on exit.
 
