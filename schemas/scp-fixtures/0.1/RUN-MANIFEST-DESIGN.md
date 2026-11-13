@@ -533,8 +533,9 @@ This section defines the cross-client result representation used by future Harne
 
 A normalized result is a **test-scoped projection** of one client evaluation, not a complete dump of the client's internal state.
 
-- The pinned Context `expected` determines the claim keys, operation-scope keys and field names that are in scope for this run.
-- The adapter/normalizer may read the expected structure to discover those keys/field names, but it must not copy expected values into the actual result or use them to manufacture client observations.
+- The Harness control plane holds the pinned Context, including `expected`; the Client Under Test must not receive the full Context file/object or expected values.
+- A projection descriptor may be derived from the expected structure, but it contains only the allowed claim refs, operation scopes and field names—never expected values. It is safe to provide this descriptor to the adapter/client only to define the requested output surface.
+- The Oracle Evaluator retains expected values in a separate trust boundary and compares them only after the Client Under Test has returned. The result normalizer receives the projection descriptor and client output, not the expected values.
 - The normalizer emits only values actually returned/observed by the Client Under Test for the in-scope projection.
 - A claim/operation or field outside the Context projection is not added to the normalized result. Unknown field names or values in the adapter's normalized contract are rejected as unsupported/invalid; the normalizer must not silently reinterpret them.
 - Missing actual values remain missing. They are not filled with Context expected values, cached values, another claim's value or a default.
@@ -818,3 +819,105 @@ Before Run Manifest Schema creation, two independently implemented adapters must
 A third-party or second implementation must not be a copy of the first adapter with only a different client label. The two implementations need independently authored normalization/adapter paths, while sharing only this normative contract and immutable fixture inputs.
 
 **Disposition:** normalized-result design candidate complete for independent review; no machine Schema, executable adapter, Harness Registry, Runner, Writer, Validator, Store or CI Gate is created in this section. The Run Manifest Schema gate in §16 remains closed pending independent implementation and redaction/cleanup evidence.
+
+## 18. Independent adversarial review of Normalized Result (2026-11-13)
+
+This review tests whether the result projection itself could leak the oracle, hide missing evidence, or compare unlike observations as equivalent. It does not authorize implementation.
+
+### 18.1 Oracle separation is a mandatory execution boundary
+
+The earlier “do not copy expected values” rule is insufficient if the full Context is visible to the Client Under Test. Future Harness architecture must keep three trust zones distinct:
+
+1. **Harness control plane:** loads and validates the immutable Context; retains the complete `expected` object and exact input pins.
+2. **Client sandbox:** receives the Packet, required protocol/schema bytes, fixture observations and a projection descriptor containing only allowed `claim_ref`, `operation_scope` and field names. It must not receive the Context file, expected values, assertion outcomes, validation report containing expected answers, or oracle artifact paths.
+3. **Oracle Evaluator:** receives the pinned expected values and the normalized actual projection only after client evaluation. It computes assertion outcomes; it is not exposed as a client tool, workspace file or environment variable.
+
+The projection descriptor is derived by stripping values from Context `expected`; it contains only record keys and property names. It is a transient Harness DTO, not a third persisted state file or a new Context field.
+
+The adapter/normalizer is not permitted to pass hidden expected values through prompt text, tool metadata, environment variables, logs, filenames or diagnostics. When the Client Under Test is an Agent with filesystem/tool access, the Context/Run Manifest/oracle artifacts must reside outside its accessible project/worktree and connector scope. Passing a sanitized projection descriptor does not authorize mounting the source Context.
+
+Harness preflight may validate Context Schema, artifact availability, blob pins, Registry allow-list and fixture setup. It must **not** substitute its own Packet validation result for the Client Under Test's normalized `packet_schema_validation` field. The latter is a behavior under test and is produced only by the Client Under Test. The same separation applies to `protocol_compatibility`.
+
+If oracle isolation cannot be established, the run is invalid as a conformance experiment: mark it not_run/inconclusive and do not claim a client pass.
+
+### 18.2 Fixture observation reconciliation precedes client evaluation
+
+Context companion observations are declared fixture inputs/expected observations, not proof that setup actually produced them.
+
+The Harness must:
+1. Build only the declared disposable fixture from the pinned Driver/Profile.
+2. Collect actual observations through the observation adapter.
+3. Reconcile actual observations against the exact Context event sequence and companion-observation expectations.
+4. Supply the reconciled observations to the Client Under Test.
+5. Retain actual snapshot/event refs separately from Context inputs.
+
+If required fixture observations are absent, differ from the expected input, have the wrong profile/provider contract revision, or cannot be verified, reject the fixture before client evaluation (`not_run`) or mark the affected evaluation `inconclusive` when the discrepancy is discovered after invocation. Never copy Context companion observations into the Manifest's actual-observation refs.
+
+A Harness preflight success proves only that the exact test inputs and fixture environment are ready; it does not prove the Client Under Test has validated the Packet or produced a correct Bootstrap result.
+
+### 18.3 Projection and extra-output handling
+
+Three layers must not be conflated:
+
+- **Raw client response:** client-specific output; it may contain unrelated internal metadata, which must not be copied into the normalized result or diagnostic artifacts without explicit sanitization.
+- **Projection descriptor:** only the expected keys and field names, with all expected values removed.
+- **Normalized projection:** strict candidate contract output containing only the selected keys/fields.
+
+Recognized but out-of-scope client fields are excluded by the explicit projection rule; this is intentional filtering, not a claim that they were tested. An unknown core field/value in the normalized-result contract is invalid/unsupported and must not be silently discarded or coerced. A normalized projection containing a claim/scope/field outside the projection descriptor is invalid.
+
+For an emitted normalized envelope, `claims` and `recovery` arrays are present. A missing expected row or field produces an incomplete assertion. An explicitly emitted empty set is a value: it passes only when the Context expected set is also empty. A missing array field is not an empty array. If no trustworthy envelope can be normalized at all, omit `actual_result` and record the failed/partial evaluation with sanitized diagnostics.
+
+### 18.4 Cross-platform string and ordering stability
+
+The review confirms the proposed exact-string semantics are portable only when implementations avoid locale APIs:
+
+- Decode source JSON as strict UTF-8 and reject invalid encodings and unpaired surrogate values.
+- Compare opaque keys by exact Unicode scalar sequence; no trimming, case folding, NFC/NFD normalization, URL decoding or filesystem path rewriting.
+- For deterministic presentation, sort keys and set members lexicographically by **unsigned UTF-8 bytes**, not locale collation, language-default string sort or OS path sort.
+- Equality is independent of JSON object-member order and claim/recovery array order.
+- Set-valued arrays reject duplicates; after duplicate rejection, membership is exact. Empty set and absent property remain distinct.
+
+Because valid UTF-8 byte order preserves Unicode scalar order, the specified byte comparator can be implemented consistently without relying on each language's locale configuration. This contract does not redefine Git path identity; path equivalence remains an input observation governed by the pinned capability profile.
+
+### 18.5 Independent implementation is more than different labels
+
+Two implementations do not count as independent merely because they have different client names, command wrappers or version strings.
+
+For an interoperability acceptance claim:
+- the two Harness/adapter/normalizer paths must be independently implemented and separately versioned/pinned;
+- they must not call the same shared normalization library for the logic being tested;
+- they may share this normative specification and immutable fixture artifacts;
+- each must independently implement strict UTF-8 handling, exact key matching, missing/unknown/null semantics, set normalization and assertion projection;
+- each must produce an observation-input digest that can be compared before client evaluation;
+- each must produce a normalized output that can be independently checked against the same expected oracle;
+- a second implementation should use a materially independent runtime or language where practical. A different language is useful evidence of implementation independence, but not sufficient if both wrappers delegate to the same hidden normalizer.
+
+At least one vector must be run through two distinct Agent clients as well as two independent adapter paths. Harness-input parity and Client-output parity are separate acceptance results.
+
+### 18.6 Additional adversarial vectors
+
+| ID | Counterexample | Required handling |
+|---|---|---|
+| NR-N09 | Full Context or expected values are mounted into the Client Under Test workspace/tool scope | Oracle isolation failure; run not valid for conformance |
+| NR-N10 | Harness preflight validates Packet and copies its result into Client actual `packet_schema_validation` | Invalid test architecture; packet validation must be emitted by the Client Under Test |
+| NR-N11 | Context companion observation is copied into actual observation refs without collecting it from the disposable fixture | Missing observation; not_run/inconclusive |
+| NR-N12 | Normalizer silently drops an unknown normalized core field or maps it to unknown | Invalid/unsupported result; no pass |
+| NR-N13 | Cross-platform implementation sorts with locale collation or normalizes Unicode keys | Non-deterministic/incompatible comparison |
+| NR-N14 | Two adapters use the same normalization library but claim independent implementations | Independence criterion not met |
+| NR-N15 | Context expected set is empty and actual field is absent | Inconclusive; absence is not the empty set |
+| NR-N16 | Context expected set is empty and actual explicitly emits [] | Exact empty-set match; may pass |
+
+### 18.7 Review conclusion and next gate
+
+The Normalized Result contract is design-complete only after these trust-zone and input-observation clarifications are incorporated. The previous §17 examples remain projections, not executed outputs. No Adapter has been run, and no interoperability evidence exists.
+
+Before any Run Manifest Schema or CI gate, the next deliverable should be an adapter implementation blueprint specifying:
+- a client-facing request DTO that excludes Context expected values;
+- an observation input package with exact artifact pins and measured capability profile;
+- a projection descriptor containing keys/field names only;
+- a strict normalized-result response envelope;
+- an Oracle Evaluator interface inaccessible to the Client Under Test;
+- independent adapter test vectors for oracle leakage, missing observations, exact unknown, empty set, null, duplicate keys and cross-platform sorting;
+- separate Harness-input parity and Client-output parity reports.
+
+The prototype implementation itself remains a separate authorization step. Until that step is explicitly authorized, all work stays at the design and review level.
