@@ -1871,3 +1871,19 @@ Follow-on code change from PR #11 Head `4ef2854cdb9499e41a62c60222e3344c434ae569
 - The complete integration harness passed twice on Linux x86_64 / kernel 6.18.57 / GCC 14.2.0 with `-Wall -Wextra -Werror`.
 
 This improves confidence that each declared denylist rule is actually hit, but it remains a denylist with default ALLOW. It does not prove full syscall mediation or production Agent sandbox safety. Gate C remains closed.
+
+
+## 2026-11-14 real filesystem cleanup-failure regression
+
+Added `prototypes/scp-sandbox/0.1/linux/cleanup-failure-integration.sh` and wired the main `linux/run.sh` to execute it after the seccomp harness. The test uses a private user + mount namespace and a disposable tmpfs mounted below an owned resource root.
+
+Three consecutive runs passed:
+- `os.rmdir(mountpoint)` received actual kernel `EBUSY`;
+- owner record persisted `quarantining` before the owned resource tree was moved;
+- the resource tree was moved to a separate quarantine path and the `quarantined` state persisted;
+- the owner-record guard rejected reuse while the mounted canary remained available in quarantine;
+- explicit unmount and removal of owned paths allowed the state to become `cleaned`.
+
+Cleanup harness Git Blob SHA: `97aaea4f700ff15e91ab127774b21b5dce76521d`. Main launcher updated to call both helper scripts through `sh`, avoiding reliance on executable mode for the helper files.
+
+This is real filesystem failure evidence for the mountpoint-busy case and the persisted quarantine invariant. The original Python core probe still uses deterministic state-machine failure injection; the supplemental helper does not integrate with every production resource-owner code path or test every filesystem failure mode.

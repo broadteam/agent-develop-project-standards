@@ -45,7 +45,7 @@ The complete probe was run three times in the same isolated execution environmen
 
 The synthetic shim attempted to read the expected-value/Oracle path, Context path, host canary, host proc-root path and container-runtime socket; write outside its scratch root; reach the host loopback listener; and inspect an environment variable that existed only in the host parent. Each attempt was denied or absent, and the shim completed with the expected denial markers.
 
-The output-flood probe produced more than the 4096-byte allowance. The capture routine retained at most 4096 bytes, terminated the namespace owner, and did not persist the raw overflow output. The cleanup fault case was injected into the ownership/quarantine state transition; it verified non-reuse after quarantine but did not simulate a real filesystem deletion failure.
+The output-flood probe produced more than the 4096-byte allowance. The capture routine retained at most 4096 bytes, terminated the namespace owner, and did not persist the raw overflow output. The core probe's cleanup fault case was injected into the ownership/quarantine state transition. A separate real-filesystem regression is now run by the main launcher and is recorded below; it forces EBUSY using a mounted tmpfs root and exercises a persisted quarantine lifecycle.
 
 Final command output ended with:
 
@@ -75,7 +75,7 @@ This is a narrow prototype, not a production security boundary certification. It
 - behavior on Windows, macOS or other Linux kernels/container runtimes;
 - arbitrary network policy or approved egress to a real service;
 - actual Agent client behavior, Provider authority or real Git/filesystem observations;
-- real host filesystem deletion-failure behavior (the cleanup failure was injected at the state-machine boundary);
+- general-purpose cleanup failure handling in a production resource manager (the supplemental regression covers a real mounted-tmpfs EBUSY path and a small persisted owner-record/quarantine lifecycle only);
 - production-grade evidence retention, immutable Run Manifest storage or CI enforcement.
 
 The current implementation also requires an environment capable of creating the explicit UID/GID maps; a typical locked-down container may reject this. The launcher reports failure rather than falling back to a weaker test.
@@ -250,3 +250,25 @@ The test harness now compiles both a test-only pair and a production pair. In te
 The synthetic client now has 42 generic denial assertions plus dedicated kcmp, clone namespace-flag, clone3 fallback and x32 ABI probes. The x32 test runs in a forked child and requires SIGSYS. The production build separately confirms getppid is allowed while denied operations return EPERM. Both build variants run the runtime-identity, capability, inherited-FD/cwd, read-only-root, tmpfs quota, fixture/scratch I/O and fork+exec inheritance checks in parent and child.
 
 Environment: Linux x86_64, kernel 6.18.57, GCC 14.2.0, effective UID 0. Both complete integration-harness runs passed with `-Wall -Wextra -Werror`. This remains synthetic Linux x86_64 validation only; it does not create a production syscall allowlist or authorize real Agent execution.
+
+
+## 2026-11-14 real filesystem cleanup-failure and quarantine regression
+
+A supplementary integration test was added as `linux/cleanup-failure-integration.sh` and is invoked by the main `linux/run.sh` entry point after the seccomp integration harness.
+
+The script ran three times on Linux x86_64 / kernel 6.18.57 inside the same isolated Kata/container environment. Each run created a private user + mount namespace and mounted a disposable tmpfs below an owned resource root. An actual `os.rmdir(mountpoint)` call returned kernel `EBUSY`; any other errno would fail the test.
+
+All three runs produced the same results:
+
+```text
+REAL_CLEANUP_FAILURE=PASS errno=EBUSY
+QUARANTINE_REUSE_GUARD=PASS
+QUARANTINED_RESOURCE_PRESERVED=PASS
+QUARANTINE_RECOVERY_AND_CLEANUP=PASS
+```
+
+Before renaming the owned resource tree, the helper atomically persists the `quarantining` state. It then moves the tree to a distinct quarantine path, persists `quarantined`, reads the owner record back and verifies reuse is rejected while the mounted canary remains accessible only through the quarantine path. Explicit `umount` and owned-path removal are required before the state becomes `cleaned`.
+
+Exact cleanup harness Git Blob SHA: `97aaea4f700ff15e91ab127774b21b5dce76521d`.
+
+Scope: this demonstrates a genuine filesystem cleanup failure and a focused persisted quarantine/non-reuse/recovery flow. The core Python probe's own cleanup-failure state-machine branch remains deterministic fault injection; the supplemental harness is not a full integration of every production resource-owner path and does not cover every possible filesystem failure mode.

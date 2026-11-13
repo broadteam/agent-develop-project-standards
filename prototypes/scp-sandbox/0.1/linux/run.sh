@@ -11,3 +11,6 @@ python3 "$TMP" "$@"
 
 # Exercise seccomp after namespace/chroot/UID setup using a synthetic child client.
 "$HERE/run-seccomp-integration.sh"
+
+# Exercise a real filesystem-level cleanup failure and persistent quarantine guard.
+sh "$HERE/cleanup-failure-integration.sh"

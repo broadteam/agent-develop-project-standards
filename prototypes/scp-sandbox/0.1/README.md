@@ -25,7 +25,8 @@ No third-party Python package is required. All test data is synthetic. The probe
 - A hostile synthetic shell shim cannot read Oracle/Context/host canaries or write outside scratch.
 - Bounded output capture (4096-byte flood probe), process timeout and namespace-descendant teardown.
 - A synthetic-marker-only redaction check before writing the sanitized output artifact.
-- Owner-record/path containment checks, normal cleanup and injected cleanup-failure quarantine/non-reuse behavior.
+- Owner-record/path containment checks, normal cleanup and injected cleanup-failure quarantine/non-reuse behavior in the core probe.
+- A separate real-filesystem cleanup regression that mounts tmpfs under an owned resource, requires `rmdir` to return `EBUSY`, persists a quarantine state, blocks reuse, then explicitly unmounts and cleans the resource.
 
 ## Inspect the implementation
 
@@ -35,7 +36,7 @@ The source is stored as a deterministic gzip payload to keep the prototype artif
 gzip -dc prototypes/scp-sandbox/0.1/linux/probe.py.gz
 ```
 
-The launcher expands it into a fresh temporary file, runs Python, removes the temporary source, then compiles and runs the seccomp launch-chain integration test.
+The launcher expands it into a fresh temporary file, runs Python, removes the temporary source, then runs the seccomp launch-chain integration and the real-filesystem cleanup-failure regression.
 
 ## Known limits
 
@@ -44,7 +45,7 @@ The launcher expands it into a fresh temporary file, runs Python, removes the te
 - Seccomp is tested in the launch chain as a denylist defense-in-depth profile, not a complete syscall allowlist. Landlock returned ENOSYS in the tested kernel/runtime. The cgroup v2 mount is read-only and cannot delegate child cgroups; per-process prlimit is used instead. AppArmor/SELinux policy and kernel-escape testing remain out of scope.
 - Network evidence is limited to the isolated namespace and a host-loopback reachability probe. No live DNS/provider/network allow-list integration is implemented.
 - The redactor only recognizes the exact synthetic test marker. It is not a general secret scanner.
-- Cleanup quarantine was exercised with deterministic state/failure injection, not by forcing a real host filesystem deletion failure.
+- The core probe's owner-state-machine fault branch still uses deterministic injection. In addition, `cleanup-failure-integration.sh` forces a genuine `EBUSY` filesystem cleanup failure by attempting to remove a mounted tmpfs root, persists `quarantining`/`quarantined`, rejects reuse and performs explicit recovery. This is a focused invariant test, not a full production cleanup-manager audit.
 - No real Agent client, production credential, Provider request, user repository, production Git observer or persistent Run Manifest store is involved.
 
 The result is therefore **Gate A + Gate B core-probe evidence for one Linux environment**, not production readiness. Gate C (real Agent invocation) remains closed pending a separate security review and explicit authorization.
@@ -84,3 +85,13 @@ The seccomp exec wrapper closes inherited file descriptors 3 and above before st
 
 
 The synthetic client also verifies its runtime identity and privilege state: UID/GID 65534, no supplementary groups, no_new_privs=1, seccomp filter mode active, empty effective/permitted/inheritable capabilities and an empty capability bounding set. These checks run in the parent and fork+exec child.
+
+
+
+## Real filesystem cleanup-failure regression
+
+The main Linux launcher also invokes `cleanup-failure-integration.sh`. Inside a private user + mount namespace, the script mounts a disposable tmpfs below an owned resource directory, then attempts to remove the mounted directory. The kernel must return `EBUSY`; any other result fails the test.
+
+The helper persists a fail-closed `quarantining` state before moving the resource tree into quarantine, records the final `quarantined` state, confirms the mounted canary remains at the quarantined path, and refuses reuse based on the persisted owner record. Recovery is explicit: unmount the quarantined tmpfs, remove the owned paths, persist `cleaned`, then remove the owner record.
+
+This is real filesystem-level failure evidence for the quarantine lifecycle invariant. It supplements, but does not replace, a fault injected into the core probe's own owner-state-machine path or a broader production cleanup-manager review.

@@ -2464,3 +2464,14 @@ The Linux seccomp integration now compiles and runs both test-mode and productio
 The synthetic client has 42 generic denial assertions and dedicated probes for kcmp, legacy clone namespace flags, clone3's ENOSYS fallback behavior and x32 syscall-number rejection (the x32 child must terminate with SIGSYS). It exercises the current denylist entries from mount/filesystem APIs through process-memory and pidfd operations, kernel/module/BPF/perf/keyring calls, handle APIs, namespace changes, io_uring and system-level operations. Both wrapper variants execute under the namespace/chroot/UID/capability setup; both parent and fork+exec child repeat the relevant checks.
 
 The two full integration-harness runs passed on Linux x86_64, kernel 6.18.57, GCC 14.2.0. This is still a targeted x86_64 denylist, not a production syscall allowlist, general Agent Runner certification or kernel-escape proof. Gate C remains closed.
+
+
+### 17.45 Real filesystem cleanup-failure quarantine probe (2026-11-14)
+
+A supplemental executable probe now exercises a genuine cleanup failure rather than relying only on the core Python probe's injected state-machine branch. Inside a private user + mount namespace, it mounts a disposable tmpfs below an owned resource directory. Calling `os.rmdir` on the mounted directory must return the kernel error `EBUSY`.
+
+Before moving the owned tree to quarantine, the test atomically persists a `quarantining` state. It then moves the tree to a separate quarantine path, persists `quarantined`, reads the owner record back and verifies that reuse is refused. The mounted canary remains readable at the quarantined path. Only explicit unmount and deletion of the owned paths allow the record to transition to `cleaned`.
+
+Three consecutive executions passed on Linux x86_64 / kernel 6.18.57. The script is `prototypes/scp-sandbox/0.1/linux/cleanup-failure-integration.sh`, invoked by the main `linux/run.sh` entry point. Its Git Blob SHA is `97aaea4f700ff15e91ab127774b21b5dce76521d`.
+
+Scope qualification: this validates one real mountpoint-busy cleanup failure and a focused persisted quarantine/reuse-guard/recovery flow. It supplements rather than replaces deterministic fault injection in the core probe, and it does not certify a general cleanup manager or all filesystem failure modes. Gate C remains closed.

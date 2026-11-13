@@ -1216,7 +1216,7 @@ The result is Gate A + Gate B *core-probe evidence for this one runtime*. It is 
 
 ### 22.3 Limitations and remaining security work
 
-The Linux launch-chain now exercises a seccomp-BPF denylist for the synthetic client, but does not provide a complete syscall allowlist or a general Agent Runner policy. The prototype still does not implement or prove Landlock, cgroup v2 delegation, AppArmor/SELinux policy, kernel-escape resistance, Windows/macOS backends, general secret scanning, a real network egress allow-list, production evidence storage or an immutable Run Manifest finalizer. The redactor only recognizes the exact synthetic marker. Cleanup quarantine was tested through deterministic fault injection rather than a genuine host filesystem deletion failure.
+The Linux launch-chain now exercises a seccomp-BPF denylist for the synthetic client, but does not provide a complete syscall allowlist or a general Agent Runner policy. The prototype still does not implement or prove Landlock, cgroup v2 delegation, AppArmor/SELinux policy, kernel-escape resistance, Windows/macOS backends, general secret scanning, a real network egress allow-list, production evidence storage or an immutable Run Manifest finalizer. The redactor only recognizes the exact synthetic marker. The core probe's cleanup-failure branch remains deterministic injection; a supplemental mounted-tmpfs EBUSY test now validates a real filesystem failure, persisted quarantine/non-reuse and explicit recovery, but is not a full production cleanup-manager integration.
 
 No real Agent client, real Provider endpoint, production credential, user repository or production Git observer was used. No real Agent invocation is authorized by this evidence.
 
@@ -1277,3 +1277,18 @@ This limits inherited host handles and empty-file/inode exhaustion in the scratc
 ### 22.12 Runtime identity and capability state assertions
 
 The synthetic seccomp client now reads back and validates its runtime identity in both parent and fork+exec child: real/effective UID/GID 65534, zero supplementary groups, no_new_privs=1, PR_GET_SECCOMP=SECCOMP_MODE_FILTER, empty effective/permitted/inheritable capability sets via capget, and an empty capability bounding set via PR_CAPBSET_READ across CAP_LAST_CAP. This verifies the privilege-reduction state after exec rather than merely trusting launcher arguments.
+
+
+### 22.13 Real filesystem cleanup-failure quarantine regression (2026-11-14)
+
+The main Linux launcher now invokes a supplemental cleanup test in a private user + mount namespace. The test mounts a disposable tmpfs beneath an owned resource root and attempts to remove the mountpoint. The kernel must return `EBUSY`; this is an actual filesystem cleanup failure, not a synthesized exception or forced state transition.
+
+The test then atomically records `quarantining` before moving the owned resource tree to a separate quarantine path, records `quarantined`, reads the persistent owner record back and verifies that the resource is not reusable. The mounted canary remains accessible at the quarantine path. Only explicit unmount and path cleanup permit the state to become `cleaned`.
+
+Three consecutive executions passed on Linux x86_64 / kernel 6.18.57:
+- real mounted-filesystem deletion failure: EBUSY;
+- persisted quarantine/reuse guard: PASS;
+- quarantined resource preservation: PASS;
+- explicit unmount and cleanup recovery: PASS.
+
+The test is implemented in `prototypes/scp-sandbox/0.1/linux/cleanup-failure-integration.sh`. It demonstrates the quarantine lifecycle invariant for a real mountpoint-busy failure, but does not replace the core probe's state-machine fault injection or certify a production cleanup manager across arbitrary resource types and failure modes.

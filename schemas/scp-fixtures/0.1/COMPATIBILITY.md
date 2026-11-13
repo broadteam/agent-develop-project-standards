@@ -298,3 +298,10 @@ The seccomp exec wrapper closes non-standard inherited descriptors before client
 ### 12.9 Runtime privilege-state verification
 
 The synthetic client verifies UID/GID 65534, no supplementary groups, no_new_privs, active seccomp mode, empty capability sets and empty capability bounding set in both parent and fork+exec child. The checks read back kernel state after exec; they do not rely only on the launcher command line.
+
+
+### 12.10 Real filesystem cleanup-failure quarantine boundary
+
+A supplemental Linux regression mounts a disposable tmpfs below an owned resource root and confirms that removing the mountpoint returns the real kernel error EBUSY. The test persists `quarantining` before moving the resource tree, persists `quarantined`, verifies the owner-record reuse guard and then explicitly unmounts and cleans the quarantined resource before marking it `cleaned`.
+
+This is targeted evidence for a real mountpoint-busy cleanup failure and a fail-closed quarantine lifecycle. The core probe's owner-state-machine failure path remains deterministic injection; this supplemental test is not a complete production cleanup manager or a test of all filesystem deletion failure modes.
