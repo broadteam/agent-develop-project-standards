@@ -35,3 +35,8 @@ The script creates a fresh temporary directory outside the repository, generates
 8. No Normalized Result or Run Manifest Schema, Writer, Store, Runner, Harness Registry, executable Driver Bundle, CI gate or production write API is included.
 
 Use these prototypes to review implementation divergence and tighten the interface. Do not describe their synthetic outputs as cross-Agent interoperability or production-ready security evidence.
+
+
+## Validation provenance
+
+The validation report distinguishes the local development working-copy run from the exact files committed to the current PR Head. The committed prototype script is intended to be rerun after checkout; the existing repository CI does not execute this prototype suite. No CI workflow or gate was added.
