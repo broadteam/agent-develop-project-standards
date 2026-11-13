@@ -1887,3 +1887,6 @@ Three consecutive runs passed:
 Cleanup harness Git Blob SHA: `97aaea4f700ff15e91ab127774b21b5dce76521d`. Main launcher updated to call both helper scripts through `sh`, avoiding reliance on executable mode for the helper files.
 
 This is real filesystem failure evidence for the mountpoint-busy case and the persisted quarantine invariant. The original Python core probe still uses deterministic state-machine failure injection; the supplemental helper does not integrate with every production resource-owner code path or test every filesystem failure mode.
+
+
+The cleanup regression's state writes now flush/fsync the temporary owner-record file before atomic replace and fsync the owner-record directory afterward. This strengthens the tested fail-closed sequence around quarantine. It does not establish crash-recovery guarantees for arbitrary filesystems or production storage.

@@ -7,6 +7,7 @@
 #include <sys/statvfs.h>
 #include <sys/vfs.h>
 #include <sys/wait.h>
+#include <sys/resource.h>
 #include <sys/prctl.h>
 #include <grp.h>
 #include <linux/capability.h>
@@ -25,6 +26,43 @@ static int blocked(long n, const char *s) {
  if (r == -1 && errno == SCP_EXPECTED_DENIAL_ERRNO) { printf("DENIED %s\n", s); return 0; }
  fprintf(stderr, "FAIL %s result=%ld errno=%d\n", s, r, errno);
  return 1;
+}
+static int check_resource_limits(void) {
+ struct limit_check {
+  int resource;
+  const char *name;
+  rlim_t ceiling;
+ };
+ const struct limit_check limits[] = {
+  { RLIMIT_CORE, "core", 0 },
+  { RLIMIT_CPU, "cpu-seconds", 10 },
+  { RLIMIT_FSIZE, "file-size-bytes", 1048576 },
+  { RLIMIT_NOFILE, "open-fds", 64 },
+  { RLIMIT_NPROC, "processes-per-uid", 64 },
+  { RLIMIT_AS, "address-space-bytes", 268435456 }
+ };
+ int bad = 0;
+ for (size_t i = 0; i < sizeof(limits) / sizeof(limits[0]); i++) {
+  struct rlimit actual;
+  if (getrlimit(limits[i].resource, &actual) != 0) {
+   fprintf(stderr, "FAIL getrlimit %s errno=%d\\n", limits[i].name, errno);
+   bad++;
+   continue;
+  }
+  if (actual.rlim_cur == RLIM_INFINITY || actual.rlim_max == RLIM_INFINITY ||
+      actual.rlim_cur > limits[i].ceiling || actual.rlim_max > limits[i].ceiling) {
+   fprintf(stderr, "FAIL rlimit %s soft=%llu hard=%llu ceiling=%llu\\n",
+           limits[i].name, (unsigned long long)actual.rlim_cur,
+           (unsigned long long)actual.rlim_max,
+           (unsigned long long)limits[i].ceiling);
+   bad++;
+  } else {
+   printf("PASS rlimit-%s soft=%llu hard=%llu\\n", limits[i].name,
+          (unsigned long long)actual.rlim_cur,
+          (unsigned long long)actual.rlim_max);
+  }
+ }
+ return bad;
 }
 static int check_runtime_identity(void) {
  int bad = 0;
@@ -53,6 +91,7 @@ static int check_runtime_identity(void) {
 }
 static int check(void) {
  int bad = check_runtime_identity();
+ bad += check_resource_limits();
 #ifdef SCP_SECCOMP_TEST_MODE
  bad += blocked(SYS_getppid, "test-sentinel");
 #else

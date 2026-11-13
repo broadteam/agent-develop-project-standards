@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-for c in gcc ldd unshare mount chroot setpriv prlimit busybox awk; do command -v "$c" >/dev/null 2>&1 || { echo "missing $c" >&2; exit 127; }; done
+for c in gcc ldd unshare mount chroot setpriv prlimit busybox awk timeout; do command -v "$c" >/dev/null 2>&1 || { echo "missing $c" >&2; exit 127; }; done
 TMP=$(mktemp -d /tmp/scp-seccomp-integration.XXXXXX);cleanup(){ rm -rf "$TMP"; };trap cleanup EXIT HUP INT TERM
 R="$TMP/rootfs";mkdir -p "$R/bin" "$R/usr/bin" "$R/work"
 copy_to(){ src=$1;dst="$R$2";mkdir -p "$(dirname "$dst")";cp -L "$src" "$dst";chmod 0555 "$dst";ldd "$src"|awk '{for(i=1;i<=NF;i++)if($i~/^\//)print $i}'|while read -r lib;do [ -e "$lib" ]||continue;out="$R$lib";mkdir -p "$(dirname "$out")";cp -L "$lib" "$out";chmod 0555 "$out";done; }
@@ -17,7 +17,7 @@ printf 'host-fd-canary-secret\n' > "$TMP/host-fd-canary"; chmod 0444 "$TMP/host-
 exec 9<"$TMP/host-fd-canary"
 ln -s busybox "$R/bin/sh";printf 'seccomp-fixture-read-ok\n' > "$R/fixture.txt";chmod 0666 "$R/fixture.txt"
 chmod 0555 "$R" "$R/bin" "$R/usr" "$R/usr/bin" "$R/work"
-HOST_SECRET_CANARY=must-not-enter-client unshare --user --map-users "0:$(id -u):1" --map-users 1:1:65535 --map-groups "0:$(id -g):1" --map-groups 1:1:65535 --mount --net --pid --fork sh -c '
+HOST_SECRET_CANARY=must-not-enter-client timeout --signal=TERM --kill-after=3s 60s unshare --user --map-users "0:$(id -u):1" --map-users 1:1:65535 --map-groups "0:$(id -g):1" --map-groups 1:1:65535 --mount --net --pid --fork sh -c '
  set -eu;cd "$2";mount --make-rprivate /;mount --bind "$1" "$1";mount -o remount,ro,bind "$1";mount -t tmpfs -o size=32m,nr_inodes=4096,nosuid,nodev,noexec,mode=1777 tmpfs "$1/work"
  env -i HOME=/tmp PATH=/bin:/usr/bin /usr/bin/prlimit --core=0 --cpu=10 --fsize=1048576 --nofile=64 --nproc=64 --as=268435456 -- /usr/sbin/chroot "$1" /usr/bin/setpriv --reuid=65534 --regid=65534 --clear-groups --bounding-set=-all --inh-caps=-all --ambient-caps=-all --no-new-privs -- /usr/bin/seccomp-exec --test-mode /usr/bin/seccomp-child-test
  env -i HOME=/tmp PATH=/bin:/usr/bin /usr/bin/prlimit --core=0 --cpu=10 --fsize=1048576 --nofile=64 --nproc=64 --as=268435456 -- /usr/sbin/chroot "$1" /usr/bin/setpriv --reuid=65534 --regid=65534 --clear-groups --bounding-set=-all --inh-caps=-all --ambient-caps=-all --no-new-privs -- /usr/bin/seccomp-exec-prod /usr/bin/seccomp-child-test-prod

@@ -95,3 +95,6 @@ The main Linux launcher also invokes `cleanup-failure-integration.sh`. Inside a 
 The helper persists a fail-closed `quarantining` state before moving the resource tree into quarantine, records the final `quarantined` state, confirms the mounted canary remains at the quarantined path, and refuses reuse based on the persisted owner record. Recovery is explicit: unmount the quarantined tmpfs, remove the owned paths, persist `cleaned`, then remove the owner record.
 
 This is real filesystem-level failure evidence for the quarantine lifecycle invariant. It supplements, but does not replace, a fault injected into the core probe's own owner-state-machine path or a broader production cleanup-manager review.
+
+
+The cleanup helper flushes and fsyncs each temporary owner-record file before atomic replacement and fsyncs the containing directory after replacement. This makes the tested state transition more crash-consistent; it does not certify durable storage across all filesystems or hardware.

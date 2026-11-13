@@ -1,12 +1,12 @@
 #!/bin/sh
 set -eu
-for c in unshare mount umount python3 mktemp; do
+for c in unshare mount umount python3 mktemp timeout; do
   command -v "$c" >/dev/null 2>&1 || { echo "missing $c" >&2; exit 127; }
 done
 TMP=$(mktemp -d /tmp/scp-cleanup-failure.XXXXXX)
 cleanup() { rm -rf "$TMP"; }
 trap cleanup EXIT HUP INT TERM
-unshare --user --map-root-user --mount --fork sh -eu -c '
+timeout --signal=TERM --kill-after=2s 15s unshare --user --map-root-user --mount --fork sh -eu -c '
   TMP=$1
   mount --make-rprivate /
   python3 - "$TMP" <<'"'"'PY'"'"'
@@ -36,8 +36,16 @@ subprocess.run(["mount", "-t", "tmpfs", "-o", "size=1m,nosuid,nodev,noexec", "tm
 record = {"run_id": run_id, "state": "active", "owned_root": str(owned), "quarantine_root": str(quarantined)}
 def persist():
     temporary = record_path.with_suffix(".tmp")
-    temporary.write_text(json.dumps(record, sort_keys=True), encoding="utf-8")
+    with temporary.open("w", encoding="utf-8") as stream:
+        stream.write(json.dumps(record, sort_keys=True))
+        stream.flush()
+        os.fsync(stream.fileno())
     os.replace(temporary, record_path)
+    directory_fd = os.open(base, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
 persist()
 
 try:

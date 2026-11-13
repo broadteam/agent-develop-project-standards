@@ -1292,3 +1292,6 @@ Three consecutive executions passed on Linux x86_64 / kernel 6.18.57:
 - explicit unmount and cleanup recovery: PASS.
 
 The test is implemented in `prototypes/scp-sandbox/0.1/linux/cleanup-failure-integration.sh`. It demonstrates the quarantine lifecycle invariant for a real mountpoint-busy failure, but does not replace the core probe's state-machine fault injection or certify a production cleanup manager across arbitrary resource types and failure modes.
+
+
+The real cleanup-failure regression now fsyncs the temporary owner record before atomic replacement and fsyncs the containing directory after each state update. The intended ordering is: persist `quarantining`, rename the owned tree to quarantine, persist `quarantined`; only explicit resource release may persist `cleaned`. This is a targeted crash-consistency measure, not universal filesystem durability proof.

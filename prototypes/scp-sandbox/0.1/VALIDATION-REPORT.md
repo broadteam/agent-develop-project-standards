@@ -272,3 +272,8 @@ Before renaming the owned resource tree, the helper atomically persists the `qua
 Exact cleanup harness Git Blob SHA: `97aaea4f700ff15e91ab127774b21b5dce76521d`.
 
 Scope: this demonstrates a genuine filesystem cleanup failure and a focused persisted quarantine/non-reuse/recovery flow. The core Python probe's own cleanup-failure state-machine branch remains deterministic fault injection; the supplemental harness is not a full integration of every production resource-owner path and does not cover every possible filesystem failure mode.
+
+
+The cleanup helper's owner-record update now flushes and fsyncs the temporary file before atomic replacement, then fsyncs the containing directory. This orders the persisted `quarantining` state before the quarantine rename and persists the follow-up state transitions. The behavior is exercised on the temporary filesystem in the integration test; it is not a durability certification for arbitrary filesystems or storage hardware.
+
+The latest local re-run used source copies reconstructed from the GitHub-returned file contents. The seccomp test/production harness passed twice, with the six RLIMIT ceilings read back in both parent and fork+exec child; the real tmpfs EBUSY/quarantine test passed three times. However, the local copies were not proven byte-identical to the remote Git Blob values. Treat these results as local behavior validation, not exact-Blob replay evidence.

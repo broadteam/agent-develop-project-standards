@@ -305,3 +305,6 @@ The synthetic client verifies UID/GID 65534, no supplementary groups, no_new_pri
 A supplemental Linux regression mounts a disposable tmpfs below an owned resource root and confirms that removing the mountpoint returns the real kernel error EBUSY. The test persists `quarantining` before moving the resource tree, persists `quarantined`, verifies the owner-record reuse guard and then explicitly unmounts and cleans the quarantined resource before marking it `cleaned`.
 
 This is targeted evidence for a real mountpoint-busy cleanup failure and a fail-closed quarantine lifecycle. The core probe's owner-state-machine failure path remains deterministic injection; this supplemental test is not a complete production cleanup manager or a test of all filesystem deletion failure modes.
+
+
+The cleanup-failure helper fsyncs each temporary owner record before atomic replacement and fsyncs the containing directory after replacement. This supports fail-closed quarantine-state ordering for the tested filesystem; it is not a general crash-recovery certification.

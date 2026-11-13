@@ -2475,3 +2475,10 @@ Before moving the owned tree to quarantine, the test atomically persists a `quar
 Three consecutive executions passed on Linux x86_64 / kernel 6.18.57. The script is `prototypes/scp-sandbox/0.1/linux/cleanup-failure-integration.sh`, invoked by the main `linux/run.sh` entry point. Its Git Blob SHA is `97aaea4f700ff15e91ab127774b21b5dce76521d`.
 
 Scope qualification: this validates one real mountpoint-busy cleanup failure and a focused persisted quarantine/reuse-guard/recovery flow. It supplements rather than replaces deterministic fault injection in the core probe, and it does not certify a general cleanup manager or all filesystem failure modes. Gate C remains closed.
+
+
+### 17.47 Cleanup owner-record ordering (2026-11-14)
+
+The cleanup failure helper now flushes and fsyncs the temporary owner-record file before atomic replacement, then fsyncs the containing directory. This ensures the test orders the persisted `quarantining` record before the owned-tree rename, persists `quarantined` after the rename, and only records `cleaned` after explicit unmount and owned-path removal.
+
+This is a targeted ordering and filesystem-level test on the current Linux runtime. It does not claim universal crash durability across all filesystem implementations, storage hardware or production resource managers.
