@@ -1892,11 +1892,14 @@ This is real filesystem failure evidence for the mountpoint-busy case and the pe
 The cleanup regression's state writes now flush/fsync the temporary owner-record file before atomic replace and fsync the owner-record directory afterward. This strengthens the tested fail-closed sequence around quarantine. It does not establish crash-recovery guarantees for arbitrary filesystems or production storage.
 
 
-## 2026-11-14 post-commit exact-source audit correction
+## 2026-11-14 exact-blob seccomp and cleanup replay
 
-At PR Head `43e3aba62fb77314601bc9eb735c41b9a72513c2`, exact local Blob matches were verified for:
+At PR Head `e069e4cbec2ef079081a1926278f10718d11b857`, local Git Blob checks matched the committed sources:
 - seccomp-exec.c: `eb5e61964858111c5a3e51f2b2c7a6670a431d19`;
+- seccomp-child-test.c: `c9dcf4768f0704efa99466437d02acf598a1f2ae`;
 - run-seccomp-integration.sh: `4975a6883fa628c1fe5e5c92a49458a2da96f8fa`;
 - cleanup-failure-integration.sh: `8e21f56b26ad2620556f8c1406ba44d9f150b30f`.
 
-The seccomp wrapper/launcher combination passed twice; the exact cleanup helper passed three times. The RLIMIT-enhanced local client-test source had SHA `c9dcf4768f0704efa99466437d02acf598a1f2ae`, which did not match the committed expected Blob `dffed957ae963eb37c53aaed4fa5a173bdf0b3ba`. Therefore the RLIMIT readback behavior passed on the reconstructed client source but is not yet exact-Blob validated. The Python gzip core probe was not re-run because its local temporary copy failed gzip validation. No full `run.sh` end-to-end claim is made.
+The exact-Blob seccomp harness passed twice with test-mode and production-mode builds. Both parent and fork+exec child passed syscall-denial, clone/clone3, x32 ABI SIGSYS, identity/capability, inherited FD/cwd, readonly root, bounded tmpfs, fixture/scratch I/O and all six RLIMIT readback checks. Production mode allowed getppid. The exact-Blob cleanup helper passed three runs with real EBUSY, quarantine/non-reuse and explicit recovery.
+
+The compressed Python core probe was not re-run because its local temporary gzip copy failed gzip validation. Earlier three-run core-probe evidence remains separately recorded; this replay does not claim full run.sh end-to-end execution.

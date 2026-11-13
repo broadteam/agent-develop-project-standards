@@ -45,7 +45,7 @@
 
 ## Validation provenance
 
-The post-commit source audit established exact Git Blob matches for seccomp-exec.c, run-seccomp-integration.sh and cleanup-failure-integration.sh. The matching seccomp wrapper/launcher passed twice; the exact cleanup helper passed three times. The RLIMIT-enhanced seccomp-child-test.c local reconstruction did not match the committed Blob SHA, so its RLIMIT assertions are behavior-tested but not exact-Blob verified. The compressed Python probe was not re-run because the local temporary gzip copy failed gzip validation; the prior three-run core-probe record remains separate. The PR's committed Blob identities and precise replay boundary are recorded in VALIDATION-REPORT.md.
+The post-commit source audit established exact Git Blob matches for seccomp-exec.c, seccomp-child-test.c, run-seccomp-integration.sh and cleanup-failure-integration.sh. The exact-Blob seccomp harness passed twice, including all six RLIMIT readbacks in parent and fork+exec child; the exact cleanup helper passed three times. The compressed Python core probe was not re-run because the local temporary gzip copy failed gzip validation; the prior three-run core-probe record remains separate, so this is not full run.sh end-to-end evidence. Precise hashes and execution scope are recorded in VALIDATION-REPORT.md.
 
 ## Repository governance
 

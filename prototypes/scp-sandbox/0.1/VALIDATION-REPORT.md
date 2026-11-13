@@ -279,18 +279,18 @@ The cleanup helper's owner-record update now flushes and fsyncs the temporary fi
 The latest local re-run used source copies reconstructed from the GitHub-returned file contents. The seccomp test/production harness passed twice, with the six RLIMIT ceilings read back in both parent and fork+exec child; the real tmpfs EBUSY/quarantine test passed three times. However, the local copies were not proven byte-identical to the remote Git Blob values. Treat these results as local behavior validation, not exact-Blob replay evidence.
 
 
-## 2026-11-14 post-commit source-identity audit and replay
+## 2026-11-14 exact-blob seccomp and cleanup replay
 
-After the previous provenance note, the three integration inputs were checked individually using local `git hash-object` against the GitHub Blob SHAs at PR Head `43e3aba62fb77314601bc9eb735c41b9a72513c2`:
+At PR Head `e069e4cbec2ef079081a1926278f10718d11b857`, all four helper inputs used for the latest replay were verified locally with `git hash-object` and matched their committed GitHub Blob SHAs:
 
-- `seccomp-exec.c`: local SHA `eb5e61964858111c5a3e51f2b2c7a6670a431d19` — **exact match**.
-- `run-seccomp-integration.sh`: local SHA `4975a6883fa628c1fe5e5c92a49458a2da96f8fa` — **exact match**.
-- `cleanup-failure-integration.sh`: local SHA `8e21f56b26ad2620556f8c1406ba44d9f150b30f` — **exact match**.
-- `seccomp-child-test.c`: expected remote SHA `dffed957ae963eb37c53aaed4fa5a173bdf0b3ba`; local reconstructed RLIMIT-enhanced source SHA `c9dcf4768f0704efa99466437d02acf598a1f2ae` — **not a match**.
+- `seccomp-exec.c`: `eb5e61964858111c5a3e51f2b2c7a6670a431d19` — exact match.
+- `seccomp-child-test.c`: `c9dcf4768f0704efa99466437d02acf598a1f2ae` — exact match.
+- `run-seccomp-integration.sh`: `4975a6883fa628c1fe5e5c92a49458a2da96f8fa` — exact match.
+- `cleanup-failure-integration.sh`: `8e21f56b26ad2620556f8c1406ba44d9f150b30f` — exact match.
 
-The exact-matching seccomp wrapper and launcher were executed twice. Both runs passed the test-mode and production-mode seccomp integration, including syscall denial, clone/clone3, x32 ABI kill, fixture/scratch access, inherited descriptor and cwd denial, tmpfs checks, production getppid allowance and fork+exec filter inheritance. The RLIMIT-enhanced local client reconstruction reported all six configured soft/hard limits in both parent and fork+exec child. Because its Blob SHA did not match the committed client test file, the RLIMIT assertions are **behavior-tested on the reconstructed source but not yet verified on the exact committed C file**.
+The exact-Blob seccomp harness was run twice with GCC `-Wall -Wextra -Werror`. Both test-mode and production-mode variants passed, including the declared syscall-denial probes, clone/clone3 namespace bypass cases, x32 ABI SIGSYS, fixture/scratch access, read-only-root denial, inherited FD/cwd canaries, bounded tmpfs, production getppid allowance and fork+exec filter inheritance. The six soft/hard RLIMIT ceilings (CORE 0, CPU 10s, FSIZE 1 MiB, NOFILE 64, NPROC 64, AS 256 MiB) were read back successfully in both parent and fork+exec child. Resource-limit probe output formatting was corrected to emit normal line breaks before this replay.
 
-The exact-matching cleanup helper was executed three times. Each run produced:
+The exact-Blob cleanup helper was run three times. Every run returned the real kernel EBUSY for the mounted tmpfs removal, persisted quarantine state, blocked reuse, preserved the quarantined mount and completed explicit unmount/recovery:
 ```text
 REAL_CLEANUP_FAILURE=PASS errno=EBUSY
 QUARANTINE_REUSE_GUARD=PASS
@@ -298,4 +298,4 @@ QUARANTINED_RESOURCE_PRESERVED=PASS
 QUARANTINE_RECOVERY_AND_CLEANUP=PASS
 ```
 
-The compressed Python core probe was not re-run in this pass because the local temporary gzip copy failed `gzip -t`; prior three-run core-probe evidence remains separate. Therefore this is not a full `run.sh` end-to-end replay. The current committed gzip blob remains `ae64fb2f651018e53705990c2f715ea25fa465b9`; no repository source was altered by the local replay attempt.
+The compressed Python core probe was not re-run in this pass because the local temporary gzip copy failed `gzip -t`; prior three-run core-probe evidence remains separate. Therefore this is exact-Blob replay of the seccomp and cleanup helpers, **not** a full `run.sh` end-to-end replay. The committed gzip blob remains `ae64fb2f651018e53705990c2f715ea25fa465b9`.
