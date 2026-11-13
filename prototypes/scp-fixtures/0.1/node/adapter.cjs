@@ -30,7 +30,20 @@ function parseBytes(bytes){
  let x=value();ws();if(i!==s.length)throw Error('trailing JSON data');return x
 }
 function read(p){return parseBytes(fs.readFileSync(p))}
-function projection(c){let e=c.expected;return{packet_fields:['packet_schema_validation','protocol_compatibility'],claims:e.claims.map(r=>({claim_ref:r.claim_ref,fields:Object.keys(r).filter(k=>k!=='claim_ref').sort(cmp)})).sort((a,b)=>cmp(a.claim_ref,b.claim_ref)),recovery:e.recovery.map(r=>({operation_scope:r.operation_scope,fields:Object.keys(r).filter(k=>k!=='operation_scope').sort(cmp)})).sort((a,b)=>cmp(a.operation_scope,b.operation_scope))}}
+function projection(c){
+ const e=c.expected;
+ function rows(items,key){
+  const seen=new Set();
+  return items.map(r=>{
+   if(!r||typeof r[key]!=='string')throw Error('expected projection row key missing');
+   scalar(r[key]);
+   if(seen.has(r[key]))throw Error('duplicate expected projection key');
+   seen.add(r[key]);
+   return {[key]:r[key],fields:Object.keys(r).filter(k=>k!==key).sort(cmp)};
+  }).sort((a,b)=>cmp(a[key],b[key]));
+ }
+ return {packet_fields:['packet_schema_validation','protocol_compatibility'],claims:rows(e.claims,'claim_ref'),recovery:rows(e.recovery,'operation_scope')};
+}
 function reconcile(c,o){if(o.contract!=='scp-synthetic-observation-package'||o.source!=='independent-test-vector')throw Error('synthetic observation package required');if(stable(c.stimulus.events.map(x=>x.sequence))!==stable(o.executed_event_sequences))throw Error('event sequence mismatch');if(stable(c.companion_observations)!==stable(o.records))throw Error('observation mismatch');let p=c.environment.capability_profile,profile=PROFILES[p.profile_id],cap=o.capability_observation;if(!profile||profile.version!==p.profile_version||profile.sha!==p.profile_blob_sha)throw Error('profile pin mismatch');if(c.environment.profiles.some(x=>!profile.profiles.includes(x)))throw Error('unsupported declared profile');if(!cap||cap.source!=='synthetic_profile_fixture'||stable([...cap.available_capabilities].sort(cmp))!==stable([...profile.caps].sort(cmp)))throw Error('synthetic capability mismatch');return{source:'synthetic_fixture_vector',executed_event_sequences:o.executed_event_sequences,records:o.records,capability_observation:cap}}
 function request(c,o,ctxSha,obsBytes){return{contract:'scp-client-evaluation-request',request_version:'0.1.0',fixture_id:c.fixture_id,deterministic_clock:c.environment.clock,inputs:{packet:c.target.packet,packet_schema:c.target.packet_schema,source_repository_revision:c.target.repository_revision,capability_profile:c.environment.capability_profile,driver:c.setup.driver,context_blob_sha:ctxSha},declared_profiles:c.environment.profiles,observation_package:reconcile(c,o),observation_package_sha256:'sha-256:'+createHash('sha256').update(obsBytes).digest('hex'),projection:projection(c)}}
 function norm(raw,proj){
