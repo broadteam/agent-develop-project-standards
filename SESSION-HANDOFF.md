@@ -1635,3 +1635,37 @@ PR #11 新增路径前缀：`prototypes/scp-fixtures/0.1/`，当前原型共 19 
 - D0 保持用户已确认冻结；D1/D2/D3、Context Contract 0.1.0、Run Manifest、Normalized Result 均未冻结。
 - PR #11 继续 Open + Draft；PR #10 保持 Open + Draft。
 - 不合并、不修改 main、不 bump 项目整体版本、不打 Tag。
+
+## 第二轮原型代码审查与待执行门（2026-11-13）
+
+### 新发现并已修复
+
+1. **Empty actual row**：只有 `claim_ref` 或 `operation_scope`、没有实际字段的响应行应被省略；预期断言因此 inconclusive。Node/Python Normalizer 已同步实现。
+2. **Duplicate expected keys**：Projection Builder 现在拒绝重复 expected `claim_ref` / `operation_scope`，避免同一 Assertion Tuple 被生成多次。
+3. **user_decisions_needed 语义**：这是非空、精确 Unicode/自然语言字符串集合，可包含空格和中文；不应使用 action-ID regex。只有 permitted_actions / prohibited_actions 使用 action identifier grammar；reason_codes 使用专用 namespace。Node/Python 已修正并增加英文/中文排序回归向量。
+
+相应测试已分别加入 Node/Python 测试文件。
+
+### 验证状态必须区分
+
+- 早期本地开发工作副本 baseline：三份 Context、40 个 expected assertion，Node/Python 测试通过，9/9 个生成产物逐字节一致。
+- 上述 baseline 早于当前最新一批提交；空结果行、expected duplicate key 和 user decision 字符串相关回归用例不在该次运行内。
+- 本环境尝试 checkout GitHub PR 分支时，网络无法解析 `github.com`，因此**不能声称当前最新提交代码已实际运行**。
+- 现有 GitHub Actions 检查不执行 prototype `run-parity.sh`。CI 成功不替代原型专项测试。
+
+VALIDATION-REPORT 已追加上述限制和重跑命令。当前剩余的第一个明确完成门是：在能 checkout 精确 PR Head 的环境执行 `sh prototypes/scp-fixtures/0.1/run-parity.sh`，修复差异并更新报告。完成该门后，Node/Python synthetic prototype milestone 可关闭。
+
+### 阶段收口和时间预期
+
+不要把“真实 Agent 互操作”与当前双实现原型收口混成一个无限期任务：
+- **当前原型里程碑**：以 exact committed checkout 运行两套测试、9 个产物 parity、回归向量通过和报告与实际一致为完成条件。
+- **下一里程碑**：OS-level Agent Sandbox / Oracle Isolation；先证明被测 Agent 不能读取 expected/Manifest/Oracle，再做真实客户端调用。
+- **后续里程碑**：真实两个 Agent 客户端互操作和真实 Observation Driver。
+
+这几个里程碑没有可诚实承诺的日历完成日期；完成依据是明确的验收结果，不以持续增加设计文档代替验收。当前工作集中在关闭第一项，不扩大范围。
+
+### 冻结与分支边界
+
+- D0 已确认冻结；D1/D2/D3、Context 0.1.0、Run Manifest、Normalized Result 均未冻结。
+- PR #11 继续 Open + Draft；PR #10 不变；main 不变。
+- 不合并、不升级整体版本、不打 Tag，不新增 CI gate。
