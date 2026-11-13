@@ -100,7 +100,7 @@ def norm(raw,proj):
    if k in seen:raise ValueError("duplicate row key")
    seen.add(k)
    if k not in allowed:raise ValueError("row outside projection")
-   if len(r)==1:raise ValueError("empty result row")
+   if len(r)==1:continue
    if set(r)-({key}|allowed[k]):raise ValueError("field outside projection")
    z={key:k}
    for f in ordered([x for x in r if x!=key]):z[f]=field(f,r[f])
