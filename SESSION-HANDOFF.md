@@ -1445,3 +1445,52 @@ PR #11 在上述文档变更前的 Head `c64411ebe0d6b8b0af06b6451f9bd5bb725e117
 ### 下一步（唯一首选）
 
 先对 normalized actual-result contract 与 assertion completeness 做独立审查，形成跨客户端一致的规范化输入/输出样例和对照矩阵；随后再由用户决定是否授权建立两个最小 Harness Adapter 互操作原型。只有双实现结果与 redaction/cleanup 负例稳定后，才重开 Run Manifest Schema Gate。
+
+## Normalized Actual Result Contract 审查（2026-11-13）
+
+### 本轮实际完成
+
+新增：
+- `schemas/scp-fixtures/0.1/RUN-MANIFEST-DESIGN.md` §17：候选 Normalized Actual Result Contract `scp-fixture-normalized-result/0.1.0`、projection 规则、field catalogue、missing/unknown/null/unsupported 语义、精确 key/string 比较、assertion completeness 算法、三个 Context 的结果投影示例、跨客户端比较矩阵及 NR-P01–P03 / NR-N01–N08 审查向量。
+- `schemas/scp-fixtures/0.1/COMPATIBILITY.md` §11：Normalized Result 与 Context 0.1.0 的交叉映射、比较和兼容规则。
+- `schemas/scp-fixtures/0.1/README.md`：同步规范化结果契约状态。
+- `SESSION-CONTINUITY-PROTOCOL-DESIGN.md` §17.30：记录本轮收敛和门槛。
+- 本 Handoff 更新本节。
+
+### 核心规则
+
+1. Normalized Result 是 test-scoped projection，不是客户端内部状态的完整 dump。Context expected 仅提供 projection keys/field names；实际值必须来自客户端观察，禁止复制 expected values。
+2. Claim 按精确 `claim_ref`，Recovery 按精确 `operation_scope` 匹配；数组顺序无语义，重复 key 非法。
+3. missing field 与 explicit `unknown` 分离：缺失= inconclusive/not_run；显式 unknown 是确切状态值，可与 expected unknown 匹配；null invalid；未知 enum/core field unsupported/invalid，不可降级成 unknown。
+4. Reason codes、permitted/prohibited actions、user decisions 是 set-valued properties；重复值拒绝、顺序忽略，空数组与字段缺失不同。
+5. 断言 key 使用 `(subject_kind, subject_ref, field)`；expected 每一个规范字段恰对应一个 assertion。集合字段整体为一个断言。
+6. 当前三个 Context 的 expected projection 分别推导出 12 / 15 / 13 个 assertion tuples；这是结构计数，不是执行测试结果。
+7. Cross-client parity：`equal` / `divergent` / `incomplete` / `incomparable`；无效规范化输出另标 `invalid_result`。必须精确比较 immutable inputs、deterministic event inputs 和 relevant measured capability/permission；Context 0.1.0 没有 per-field capability dependency map，有实质能力差异时整体 incomparable。
+8. Parity equal 不代表符合 expected；每个 Manifest 仍须独立评估。unknown 不是 wildcard。
+
+### 本轮设计判断
+
+Normalized Actual Result 候选已达到独立实现评审的具体程度。**Run Manifest Schema Gate 仍不满足**：没有两个独立 Harness/Adapter、可执行 Driver/Registry、redaction/cleanup 负例、finalizer 和 immutable store。
+
+因此仍未创建任何 Normalized Result JSON Schema、Run Manifest JSON Schema、Adapter、Harness Registry、Runner、Writer、Semantic Validator 或 CI Gate。设计文档不等于跨客户端互操作已验证。
+
+### 最新文档内容 SHA（Git Blob SHA）
+
+- RUN-MANIFEST-DESIGN.md：`f91eef7ab05c1a9070377fc587730cbf28a5222d`
+- COMPATIBILITY.md：`e812e58392e1611efb894520a9298bff8c83e201`
+- CONTINUITY-PROTOCOL-DESIGN.md：`7a8a9d9855c0e42f69b082ac0f052d20fab0bea5`（注意仓库真实文件名是 `SESSION-CONTINUITY-PROTOCOL-DESIGN.md`）
+- Fixture README：`866abe06e37958a61bf175b9f7c322e1fd39e7da`
+
+这些是文件 Blob SHA；最终 PR Head / CI 以本 Handoff 提交后现场查询为准。
+
+### 范围与冻结状态
+
+- D0 已确认冻结。
+- D1、D2、D3、Fixture Context 0.1.0 均未冻结。
+- Run Manifest 与 Normalized Result 都是设计候选，未形成机器契约。
+- PR #11 保持 Open + Draft；PR #10 保持 Open + Draft。
+- 不合并、不修改 main、不升级项目整体版本、不打 Tag。
+
+### 下一步（唯一首选）
+
+对 §17 的 Normalized Result Contract 做一次独立 adversarial review，特别检查：Context expected projection 是否会导致 adapter 偷看 oracle、空数组/缺失/unknown 的 assertion 边界、extra output 的处置、跨平台字符串排序稳定性、双实现独立性是否足以排除共同模式错误。审查通过后形成两个独立 Adapter 的最小接口与 fixture 运行蓝图，**先由用户确认是否授权原型实现**；未获授权前不写可执行 Harness / Adapter。
