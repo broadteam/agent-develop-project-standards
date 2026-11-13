@@ -289,3 +289,8 @@ A direct Landlock ABI probe returned ENOSYS; this is a tested-runtime unavailabi
 ### 12.7 Bounded tmpfs scratch boundary
 
 The Linux seccomp integration now uses a private 32 MiB tmpfs scratch mount with nosuid,nodev,noexec instead of a writable host bind mount. The synthetic client verifies tmpfs type, mount flags, size ceiling and write behavior in both parent and fork+exec child. This reduces host filesystem exposure and bounds scratch capacity, but does not provide aggregate CPU/memory/PID accounting.
+
+
+### 12.8 Inherited descriptor and scratch quota boundary
+
+The seccomp exec wrapper closes non-standard inherited descriptors before client invocation; a host-only FD 9 canary must be unavailable to the client and fork+exec child. The dedicated tmpfs scratch is bounded by both 32 MiB and 4096 inodes, with nosuid,nodev,noexec flags verified by the synthetic client. This reduces host-FD leakage and scratch-storage exhaustion but is not a replacement for cgroup-level CPU/memory/PID accounting.

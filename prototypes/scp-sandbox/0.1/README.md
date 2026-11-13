@@ -85,3 +85,6 @@ The cgroup v2 controller list is visible, but the cgroup2 mount is read-only and
 
 
 The seccomp integration now uses a dedicated 32 MiB tmpfs scratch mount with nosuid,nodev,noexec instead of a writable host bind mount. The synthetic client verifies tmpfs type, mount flags, configured size ceiling, writable scratch behavior and readonly-root write denial in both the parent and fork+exec child.
+
+
+The seccomp exec wrapper closes inherited file descriptors 3 and above before starting the client (close_range with a bounded fallback). The test runner passes a host-only canary as FD 9 and the client must observe EBADF. Scratch tmpfs is bounded to 32 MiB and 4096 inodes, and the client verifies tmpfs type, nosuid,nodev,noexec flags, byte/inode limits and write behavior.

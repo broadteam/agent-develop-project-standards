@@ -6,6 +6,7 @@
 #include <string.h>
 #include <sys/prctl.h>
 #include <sys/syscall.h>
+#include <sys/resource.h>
 #include <unistd.h>
 #include <sched.h>
 #include <linux/audit.h>
@@ -17,6 +18,15 @@ static void stmt(unsigned short c,unsigned int k){if(n>=MAX_INSNS)exit(90);f[n++
 static void jump(unsigned short c,unsigned int k,unsigned char t,unsigned char q){if(n>=MAX_INSNS)exit(90);f[n++]=(struct sock_filter)BPF_JUMP(c,k,t,q);}
 static void deny_errno(int x,int e){if(x<0)return;jump(BPF_JMP|BPF_JEQ|BPF_K,(unsigned)x,0,1);stmt(BPF_RET|BPF_K,SECCOMP_RET_ERRNO|((unsigned)e&SECCOMP_RET_DATA));}
 static void deny(int x){deny_errno(x,EPERM);}
+static void close_extra_fds(void) {
+#ifdef __NR_close_range
+ if (syscall(__NR_close_range, 3U, ~0U, 0U) == 0) return;
+#endif
+ struct rlimit lim;
+ unsigned long end = 65536UL;
+ if (getrlimit(RLIMIT_NOFILE, &lim) == 0 && lim.rlim_cur < end) end = (unsigned long)lim.rlim_cur;
+ for (unsigned long fd = 3; fd < end; fd++) close((int)fd);
+}
 static int install(void){
  struct sock_fprog p;n=0;
  stmt(BPF_LD|BPF_W|BPF_ABS,(unsigned)offsetof(struct seccomp_data,arch));
@@ -204,6 +214,7 @@ int main(int argc,char **argv){int i=1;
  if(argc>1&&!strcmp(argv[1],"--test-mode"))i=2;
 #endif
  if(argc<=i){fprintf(stderr,"usage: %s [--test-mode] command [args...]\n",argv[0]);return 64;}
+ close_extra_fds();
  if (install()) {
   return 70;
  }

@@ -191,3 +191,17 @@ Exact local-execution source Git Blob SHAs:
 - run-seccomp-integration.sh: 83f0dd5c1c1019fc2f638e7f7057d5621027d95e
 
 This confines client scratch writes to a bounded ephemeral filesystem inside the mount namespace rather than a host bind mount. It does not provide aggregate CPU/memory/PID accounting; cgroup delegation remains unavailable and per-process prlimit remains the only resource limit outside the tmpfs byte ceiling.
+
+
+## 2026-11-14 inherited descriptor closure and inode-bounded scratch
+
+The seccomp launcher now closes file descriptors 3 and above before execing the synthetic client. It uses close_range where available and falls back to an RLIMIT_NOFILE-bounded close loop. The regression runner deliberately opens a host-only canary as FD 9 before entering the user/mount/network/PID namespace chain. The client must observe EBADF for FD 9; both the initial process and fork+exec child pass this assertion.
+
+The scratch tmpfs now has both a 32 MiB byte ceiling and an explicit 4096-inode ceiling, in addition to nosuid,nodev,noexec. The client checks TMPFS_MAGIC, mount flags, f_blocks/f_frsize capacity, f_files inode count, and actual write behavior. Both parent and fork+exec child pass.
+
+Exact local-execution source Git Blob SHAs:
+- seccomp-exec.c: b36b72376cec0b8fc1b2b9b32519b6f077798b1a
+- seccomp-child-test.c: 2871732dd3e946b9bdaac71d2a3dfd7f421b1029
+- run-seccomp-integration.sh: 0b762b0daf763d3a3ef7f5a358060c17b8efa5c6
+
+These checks reduce inherited-descriptor and scratch-exhaustion exposure. They do not establish cgroup CPU/memory/PID aggregation, Landlock availability, complete syscall mediation, or production Agent safety.

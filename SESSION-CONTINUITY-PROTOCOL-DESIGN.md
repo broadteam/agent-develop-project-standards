@@ -2443,3 +2443,10 @@ A bounded C probe of landlock_create_ruleset returned ENOSYS in the tested Linux
 The Linux seccomp integration replaced its host-directory scratch bind mount with a tmpfs mounted inside the private mount namespace. The mount is capped at 32 MiB and uses nosuid,nodev,noexec. The synthetic client checks TMPFS_MAGIC, ST_NOEXEC, ST_NOSUID, ST_NODEV, the reported size ceiling and successful marker creation in both the parent and fork+exec child. The host-only writable scratch directory is no longer mounted into the chroot.
 
 This bounds file-backed scratch capacity and prevents execution from the scratch mount. It is not aggregate cgroup resource accounting: cgroup v2 delegation is unavailable in the tested runtime, and process-level prlimit remains the only CPU/address-space/process resource bound.
+
+
+### 17.42 Inherited FD closure and bounded scratch filesystem (2026-11-14)
+
+The seccomp exec wrapper now closes file descriptors 3+ before execing the synthetic client: close_range is used where available, with an RLIMIT_NOFILE-bounded close loop as fallback. The runner opens a host-only canary as FD 9; both client and fork+exec child must observe EBADF. The scratch tmpfs now specifies size=32m,nr_inodes=4096,nosuid,nodev,noexec. Regression code checks tmpfs magic, all mount flags, byte and inode ceilings, and actual scratch write in both processes.
+
+This closes an inherited-FD access path and bounds both bytes and inode count in scratch. It does not prove aggregate cgroup accounting or a complete syscall allowlist; Gate C remains closed.

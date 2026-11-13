@@ -10,9 +10,11 @@ gcc -Wall -Wextra -Werror -O2 -o "$TMP/seccomp-child-test" "$HERE/seccomp-child-
 copy_to "$(command -v busybox)" /bin/busybox;copy_to "$(command -v setpriv)" /usr/bin/setpriv
 copy_to "$TMP/seccomp-exec" /usr/bin/seccomp-exec;copy_to "$TMP/seccomp-child-test" /usr/bin/seccomp-child-test
 printf 'host-cwd-canary-secret\n' > "$TMP/host-cwd-canary"; chmod 0444 "$TMP/host-cwd-canary"
+printf 'host-fd-canary-secret\n' > "$TMP/host-fd-canary"; chmod 0444 "$TMP/host-fd-canary"
+exec 9<"$TMP/host-fd-canary"
 ln -s busybox "$R/bin/sh";printf 'seccomp-fixture-read-ok\n' > "$R/fixture.txt";chmod 0666 "$R/fixture.txt"
 chmod 0555 "$R" "$R/bin" "$R/usr" "$R/usr/bin" "$R/work"
 HOST_SECRET_CANARY=must-not-enter-client unshare --user --map-users "0:$(id -u):1" --map-users 1:1:65535 --map-groups "0:$(id -g):1" --map-groups 1:1:65535 --mount --net --pid --fork sh -c '
- set -eu;cd "$2";mount --make-rprivate /;mount --bind "$1" "$1";mount -o remount,ro,bind "$1";mount -t tmpfs -o size=32m,nosuid,nodev,noexec,mode=1777 tmpfs "$1/work"
+ set -eu;cd "$2";mount --make-rprivate /;mount --bind "$1" "$1";mount -o remount,ro,bind "$1";mount -t tmpfs -o size=32m,nr_inodes=4096,nosuid,nodev,noexec,mode=1777 tmpfs "$1/work"
  env -i HOME=/tmp PATH=/bin:/usr/bin /usr/bin/prlimit --core=0 --cpu=10 --fsize=1048576 --nofile=64 --nproc=64 --as=268435456 -- /usr/sbin/chroot "$1" /usr/bin/setpriv --reuid=65534 --regid=65534 --clear-groups --bounding-set=-all --inh-caps=-all --ambient-caps=-all --no-new-privs -- /usr/bin/seccomp-exec --test-mode /usr/bin/seccomp-child-test
 ' sh "$R" "$TMP"

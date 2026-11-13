@@ -83,6 +83,10 @@ static int check(void) {
  if (getpid() <= 0) { bad++; }
  puts("ALLOWED getpid");
  errno = 0;
+ if (fcntl(9, F_GETFD) != -1 || errno != EBADF) {
+  fprintf(stderr, "FAIL inherited host fd 9 is reachable errno=%d\n", errno); bad++;
+ } else { puts("DENIED inherited-host-fd"); }
+ errno = 0;
  int cwd_canary_fd = open("host-cwd-canary", O_RDONLY | O_CLOEXEC);
  if (cwd_canary_fd >= 0) {
   close(cwd_canary_fd);
@@ -111,10 +115,10 @@ static int check(void) {
  } else { puts("PASS bounded-tmpfs-scratch"); }
  struct statvfs work_vfs;
  if (statvfs("/work", &work_vfs) != 0 || !(work_vfs.f_flag & ST_NOEXEC) ||
-     !(work_vfs.f_flag & ST_NOSUID) || !(work_vfs.f_flag & ST_NODEV) ||
+     !(work_vfs.f_flag & ST_NOSUID) || !(work_vfs.f_flag & ST_NODEV) || work_vfs.f_files > 4096 ||
      (unsigned long long)work_vfs.f_blocks * work_vfs.f_frsize > 33ULL * 1024ULL * 1024ULL) {
   fputs("FAIL scratch tmpfs mount flags/size\n", stderr); bad++;
- } else { puts("PASS scratch-nosuid-nodev-noexec-32m-limit"); }
+ } else { puts("PASS scratch-nosuid-nodev-noexec-32m-4096-inode-limit"); }
  fd = open("/work/seccomp-marker", O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
  if (fd < 0 || write(fd, "ok\n", 3) != 3) { perror("scratch write"); bad++; }
  else { puts("ALLOWED scratch-write"); }

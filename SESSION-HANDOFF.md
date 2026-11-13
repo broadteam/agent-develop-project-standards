@@ -1826,3 +1826,13 @@ The filter remains an x86_64 denylist with default ALLOW. No production syscall 
 - The check runs in both the initial client and its fork+exec child.
 - Exact executed blobs: seccomp-child-test.c 21667e37e1c2d75ce9448194df06c504cdb33a5b; run-seccomp-integration.sh 83f0dd5c1c1019fc2f638e7f7057d5621027d95e.
 - This bounds scratch file storage and removes the host writable bind mount from the client. It does not replace cgroup CPU/memory/PID controls; those remain unavailable in this runtime.
+
+
+### 2026-11-14 inherited FD and scratch inode controls
+
+- Seccomp wrapper closes FD 3+ with close_range or an RLIMIT_NOFILE-bounded fallback before exec.
+- Runner opens a host-only canary as FD 9; both the initial client and fork+exec child must observe EBADF.
+- Scratch uses private tmpfs: size=32m, nr_inodes=4096, nosuid,nodev,noexec.
+- Client verifies TMPFS_MAGIC, NOEXEC/NOSUID/NODEV, byte and inode ceilings, allowed scratch writes and readonly-root write denial.
+- Executed source Blob SHAs: seccomp-exec.c b36b72376cec0b8fc1b2b9b32519b6f077798b1a; seccomp-child-test.c 2871732dd3e946b9bdaac71d2a3dfd7f421b1029; run-seccomp-integration.sh 0b762b0daf763d3a3ef7f5a358060c17b8efa5c6.
+- These controls reduce inherited host-handle and scratch exhaustion exposure, but do not provide aggregate cgroup CPU/memory/PID accounting or production Agent certification.

@@ -1265,3 +1265,10 @@ The earlier Landlock probe was repeated with a small C program invoking x86_64 s
 The seccomp launch-chain integration no longer bind-mounts a writable host directory as the Client scratch. It mounts a dedicated tmpfs at /work inside the private mount namespace with a 32 MiB size ceiling and nosuid,nodev,noexec. The regression client checks the filesystem type, all three mount flags, the reported capacity ceiling, and successful scratch writes in both the parent and fork+exec child. The host temporary directory is not exposed as a writable mount.
 
 This bounds scratch capacity and prevents execution from the scratch filesystem. It does not replace cgroup CPU/memory/PID accounting; cgroup delegation remains unavailable in the tested runtime.
+
+
+### 22.11 Inherited descriptor closure and inode-bounded scratch
+
+The seccomp wrapper closes file descriptors 3 and above before client exec, using close_range where available and an RLIMIT_NOFILE-bounded fallback. The synthetic runner intentionally opens a host-only canary as FD 9; the client and its fork+exec child must observe EBADF. The scratch tmpfs has both size=32m and nr_inodes=4096, plus nosuid,nodev,noexec. The client checks filesystem type, mount flags, capacity and inode ceiling, then validates an allowed scratch write.
+
+This limits inherited host handles and empty-file/inode exhaustion in the scratch area. It is still not aggregate cgroup CPU/memory/PID accounting, and it does not provide a full syscall allowlist.
