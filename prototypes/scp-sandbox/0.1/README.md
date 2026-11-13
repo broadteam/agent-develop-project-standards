@@ -98,3 +98,10 @@ This is real filesystem-level failure evidence for the quarantine lifecycle inva
 
 
 The cleanup helper flushes and fsyncs each temporary owner-record file before atomic replacement and fsyncs the containing directory after replacement. This makes the tested state transition more crash-consistent; it does not certify durable storage across all filesystems or hardware.
+
+
+## 2026-11-14 exact-source replay status
+
+The current validation report records exact Git Blob verification and separate execution for all three components: the compressed Python core probe (compressed SHA `ae64fb2f651018e53705990c2f715ea25fa465b9`, decompressed source SHA `88e08595b3f74fc7c5c59fb13c9473f94dbb5503`, 90-second watchdog, PASS); the seccomp launch-chain harness (two exact-Blob runs, test and production variants, PASS); and the real cleanup-failure harness (three exact-Blob runs, including kernel EBUSY and persisted quarantine recovery, PASS).
+
+These component results do not claim that `linux/run.sh` itself was executed end-to-end in one invocation. The existing repository Standards CI does not run this prototype. Production Sandbox acceptance, cross-platform acceptance and Gate C remain closed; see [STAGE2-ACCEPTANCE.md](./STAGE2-ACCEPTANCE.md).

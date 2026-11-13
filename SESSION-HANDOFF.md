@@ -1903,3 +1903,25 @@ At PR Head `e069e4cbec2ef079081a1926278f10718d11b857`, local Git Blob checks mat
 The exact-Blob seccomp harness passed twice with test-mode and production-mode builds. Both parent and fork+exec child passed syscall-denial, clone/clone3, x32 ABI SIGSYS, identity/capability, inherited FD/cwd, readonly root, bounded tmpfs, fixture/scratch I/O and all six RLIMIT readback checks. Production mode allowed getppid. The exact-Blob cleanup helper passed three runs with real EBUSY, quarantine/non-reuse and explicit recovery.
 
 The compressed Python core probe was not re-run because its local temporary gzip copy failed gzip validation. Earlier three-run core-probe evidence remains separately recorded; this replay does not claim full run.sh end-to-end execution.
+
+
+## 2026-11-14 Stage 2 bounded prototype replay closeout (supersedes earlier pending-core note)
+
+Current PR #11 Head before this handoff-only update: `51840a92772119e0733f6e15543a592abbee3168`.
+
+The previously pending exact-Blob Python core replay has now completed. The GitHub Contents API copy of `prototypes/scp-sandbox/0.1/linux/probe.py.gz` matched compressed Git Blob SHA `ae64fb2f651018e53705990c2f715ea25fa465b9`; after decompression, the source matched Git Blob SHA `88e08595b3f74fc7c5c59fb13c9473f94dbb5503`. `gzip -t` passed. The exact source ran under a 90-second watchdog on Linux x86_64 / kernel 6.18.57 and ended with `RESULT=GATE_A_AND_B_CORE_PROBES_PASS; NOT A PRODUCTION SANDBOX CERTIFICATION`.
+
+The exact-Blob seccomp launch-chain harness passed twice with test-mode and production-mode builds, including syscall regression, clone/clone3 namespace bypass, x32 SIGSYS, privilege/capability readback, inherited FD/cwd, read-only root, bounded tmpfs, permitted fixture/scratch I/O, fork+exec inheritance and all six RLIMIT readbacks in parent and child. The exact-Blob cleanup helper passed three runs: real mounted-tmpfs EBUSY, persisted quarantine, reuse rejection, resource preservation and explicit recovery.
+
+The evidence is component-exact but **not a one-invocation end-to-end execution of `linux/run.sh`**. Keep that distinction in all future reporting. Existing Standards CI is a separate matrix and does not invoke SCP sandbox tests.
+
+### Bounded milestone disposition
+
+- Stage 1 dual Node.js/Python synthetic adapter/normalizer/oracle fixture milestone: complete for the three pinned fixtures and documented vectors only.
+- Stage 2 Linux x86_64 synthetic Sandbox Gate A/B: limited prototype evidence recorded for the exact tested controls; no production acceptance.
+- Production Sandbox: NOT ACCEPTED. cgroup v2 delegation unavailable, Landlock ENOSYS, syscall policy remains denylist/default ALLOW, no LSM/kernel-escape review, no generalized secret scanner or production cleanup manager.
+- Cross-platform backends: NOT IMPLEMENTED / NOT ACCEPTED.
+- Stage 3 / Gate C real Agent invocation: CLOSED; no live Agent, Provider, production credential or user repository is authorized by this work.
+- D0 remains the only user-confirmed frozen decision. D1/D2/D3, Context, Normalized Result and Run Manifest remain Draft.
+
+At PR Head `51840a92772119e0733f6e15543a592abbee3168`, existing Standards CI completed 16/16 success. The follow-up documentation-only commit will trigger the same existing matrix; report its result only after polling that new Head. PR #11 remains Open + Draft and must not be merged. `main`, PR #10, tags, project version and the existing workflow are unchanged.
