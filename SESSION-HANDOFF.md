@@ -1553,3 +1553,10 @@ Run Manifest Schema Gate 仍关闭。不得把设计向量说成实际测试通�
 - 不创建 Run Manifest Schema、Writer/Store/CI Gate，除非后续另行审查和批准。
 
 若未获授权，保持设计状态，不自动转入可执行实现。
+
+### 一致性回看修正（2026-11-13）
+
+复核发现 §13.1 的旧表格将 `actual_result` 限定为完整结果，与 §17–§18 新增的部分可信投影规则不一致。已修正为：可信 normalized projection 可以是 partial；只有无法构造可信 envelope 时才省略 `actual_result`；JSON null 仍非法。
+
+修正提交：`fd749cc13bc782231d476fd4e7c907f82ff85cc4`。
+修正后 RUN-MANIFEST-DESIGN.md Blob SHA：`4b245b47958a0f7d1be761c7a23106046a94ff2a`。
