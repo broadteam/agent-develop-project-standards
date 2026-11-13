@@ -2378,3 +2378,28 @@ The next implementation sequence is:
 4. Only after the first two gates are independently evidenced should real Agent invocation be considered, under separate explicit authorization and least-privilege credential decision.
 
 No OS sandbox implementation, real Agent invocation, schema, Runner, Registry, Writer, Store or CI gate is created in this update. D0 remains the only user-confirmed frozen decision; D1/D2/D3 and all SCP fixture/Manifest/Normalized Result contracts remain Draft.
+
+
+### 17.36 Linux x86_64 Sandbox Gate A/B prototype evidence (2026-11-13)
+
+The first executable OS-isolation prototype is now recorded under \`prototypes/scp-sandbox/0.1/linux/\`.
+
+**Measured outcome:** three complete runs passed the Linux x86_64 Gate A/B core-probe matrix. The tested environment was Linux x86_64, kernel 6.18.57, inside an isolated Kata/container runtime with effective UID 0. A user namespace could be created first, allowing nested mount/network/PID namespaces even though direct namespace creation was denied by the outer runtime.
+
+The probe exercised:
+- read-only minimal rootfs and a separately writable scratch mount;
+- UID/GID 65534, no supplementary groups, dropped capability sets and \`no_new_privs\`;
+- host canary and symlink traversal denial; \`/proc\`, \`/sys\` and container runtime sockets were not exposed;
+- inability to reach a host loopback listener from the network namespace;
+- no inheritance of a host-only environment marker;
+- PID namespace descendant termination;
+- synthetic hostile shim denial of Oracle/Context/host-path reads and writes outside scratch;
+- 4096-byte combined output capture limit, overflow termination and no persistence of raw overflow output;
+- redaction of the exact synthetic test token before persisting the captured response;
+- owner-record containment, normal cleanup and injected cleanup-failure quarantine/non-reuse.
+
+The executable command is documented in the prototype README. The full output and source digests are in its VALIDATION-REPORT.
+
+**Scope boundary:** this is not a production Sandbox certification. It does not cover seccomp, Landlock, cgroup v2 delegation, LSM policy, kernel-escape testing, general secret scanning, actual filesystem cleanup failure, Windows/macOS, real Agent clients, Provider endpoints, production credentials or user repositories. The redactor recognizes only one synthetic marker. The environment must allow UID/GID mapping and namespace creation; otherwise the probe fails closed.
+
+Stage 2 status is now **Linux x86_64 Gate A/B core prototype passed; production backend and cross-platform acceptance remain incomplete**. Gate C (real Agent invocation) remains closed pending further security review and explicit authorization. D0 remains the only user-confirmed frozen decision; D1/D2/D3 and all SCP fixture/Manifest/Normalized Result contracts remain Draft.

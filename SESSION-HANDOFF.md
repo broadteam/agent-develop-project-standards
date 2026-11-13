@@ -1750,3 +1750,27 @@ D0 保持用户已确认冻结；D1/D2/D3、Context、Normalized Result、Run Ma
 - The prototype-specific run-parity.sh was run against local bytes matching the four final remote adapter/test Git Blob SHAs from commit 17e14191. The final result remains Node PASS, Python 2/2 PASS, 40 expected assertion leaves and 9/9 byte-identical generated artifacts.
 - PR #11 remains Open + Draft, unmerged. main remains 02f8dde262455f15029a54694e129b05b70013a4; PR #10 remains Open + Draft and unmerged.
 - Stage 1 synthetic prototype is complete within its declared fixture/test scope. Stage 2 is currently design-only at RUN-MANIFEST-DESIGN.md §21. No sandbox runtime, Runner, real Agent invocation, schema, Registry, Writer, Store or CI gate has been implemented.
+
+
+## 2026-11-13 Stage 2 Linux Sandbox probe execution
+
+### New prototype artifacts
+
+- \`prototypes/scp-sandbox/0.1/linux/probe.py.gz\`: deterministic gzip of the 20,304-byte standard-library Python probe source. The decompressed Git Blob SHA is \`88e08595b3f74fc7c5c59fb13c9473f94dbb5503\`; compressed blob SHA is \`ae64fb2f651018e53705990c2f715ea25fa465b9\`.
+- \`prototypes/scp-sandbox/0.1/linux/run.sh\`: expands to a temporary source file, executes it with Python 3 and removes it on exit.
+- \`prototypes/scp-sandbox/0.1/README.md\` and \`VALIDATION-REPORT.md\`: prerequisites, execution command, repeat-run results and non-claims.
+
+### Execution results
+
+Three complete Linux x86_64 runs passed. The core probes demonstrated user+mount+network+PID namespaces, read-only rootfs, dedicated writable scratch, UID/GID 65534, dropped capability sets, no_new_privs, host path/symlink denial, hidden proc/sys, host loopback network isolation, host environment non-inheritance, PID descendant teardown, hostile synthetic shim denials, 4096-byte output cap, exact synthetic-marker redaction before persistence, normal cleanup and injected quarantine/non-reuse.
+
+The exact scope and limitations are in the validation report. This is not production sandbox certification. No real Agent, Provider, credential, user repository or production write path was used.
+
+### Stage 2 status
+
+- Gate A: passed for the tested Linux x86_64 runtime and listed probes.
+- Gate B: passed for the synthetic hostile shim and listed output/cleanup probes.
+- Cross-platform support, syscall filtering, resource-accounting enforcement, general secret redaction and real filesystem cleanup failure are not yet proven.
+- Gate C (real Agent invocation) remains closed; do not start it without further security review and explicit authorization.
+- No CI workflow/gate, Schema, Runner, Registry, Writer, Store or production Agent integration was added.
+- PR #11 remains Open + Draft; main and PR #10 remain unchanged; D0 is still the only user-confirmed frozen decision.

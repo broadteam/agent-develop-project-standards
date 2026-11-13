@@ -1184,3 +1184,47 @@ A probe that cannot be executed or whose outcome cannot be observed is not a pas
 - Gate C — real Agent client: only after Gates A and B pass on the chosen platform, the sandbox policy and artifact flow receive explicit approval. Client-specific authentication, network access and permissions require a separate least-privilege decision; no production credential is implied by this design.
 
 The current Node/Python prototype does not implement any of these OS controls. Its values-stripped request check proves only a property of the request object, not filesystem or process isolation. No real Agent invocation is authorized by this section. The Run Manifest Schema Gate remains closed until isolation and cleanup evidence can be represented and independently validated.
+
+
+## 22. Linux x86_64 Sandbox Prototype Evidence (Gate A/B)
+
+**Status:** one-platform prototype evidence only; not a frozen runtime contract, approved sandbox backend, production security certification, JSON Schema, Agent Runner or CI gate.
+
+A Linux x86_64 namespace/chroot probe has been added at \`prototypes/scp-sandbox/0.1/linux/\`. Its implementation, invocation instructions and repeat-run report are recorded in that directory.
+
+### 22.1 Environment and measured namespace behavior
+
+The validation environment was Linux x86_64, kernel 6.18.57, in an isolated Kata/container execution environment with effective UID 0. Direct creation of mount/network/PID namespaces was denied by the outer runtime. Creating a user namespace first and then creating the mount, network and PID namespaces succeeded. The probe makes mount propagation private. Nested procfs mounting was not permitted, so \`/proc\` and \`/sys\` are deliberately not mounted into the disposable chroot.
+
+The probe requires explicit UID/GID mapping and refuses to silently fall back to an ordinary temporary directory. The client shim executes as UID/GID 65534 with empty supplementary groups, empty capability bounding/inheritable/ambient sets and \`no_new_privs=1\`.
+
+### 22.2 Gate A/B core evidence
+
+Three complete runs succeeded. The observed checks cover:
+- read-only minimal rootfs plus a dedicated writable scratch mount;
+- host canary and symlink traversal denial;
+- no procfs/sysfs or container runtime socket exposure;
+- host loopback listener unreachable from the sandbox network namespace;
+- a minimal reconstructed environment with no host-only secret variable;
+- PID namespace descendant teardown when the namespace owner is terminated;
+- hostile synthetic client shim attempts to read Oracle/Context/host canaries and write outside scratch;
+- a 4096-byte combined output capture ceiling with process termination on overflow;
+- replacement of one known synthetic secret marker before writing the sanitized output artifact;
+- owner-record/path-containment checks, normal cleanup, and injected cleanup-failure quarantine/non-reuse behavior.
+
+The result is Gate A + Gate B *core-probe evidence for this one runtime*. It is not evidence that every OS or kernel provides equivalent controls.
+
+### 22.3 Limitations and remaining security work
+
+This prototype does not implement or prove seccomp syscall filtering, Landlock, cgroup v2 delegation, AppArmor/SELinux policy, kernel-escape testing, Windows/macOS backends, general secret scanning, a real network egress allow-list, production evidence storage or an immutable Run Manifest finalizer. The redactor only recognizes the exact synthetic marker. Cleanup quarantine was tested through deterministic fault injection rather than a genuine host filesystem deletion failure.
+
+No real Agent client, real Provider endpoint, production credential, user repository or production Git observer was used. No real Agent invocation is authorized by this evidence.
+
+### 22.4 Acceptance interpretation
+
+- Gate A: **passed for the tested Linux x86_64 runtime**, limited to the controls and probes enumerated above.
+- Gate B: **passed for the synthetic hostile shim**, bounded output and synthetic-marker persistence check.
+- Production sandbox certification: **not passed / not claimed**.
+- Gate C (real Agent invocation): **closed** pending a separate platform security review, stronger syscall/resource enforcement and explicit client/credential/network authorization.
+
+The existing repository CI does not execute this probe. No workflow or CI gate was added. This section records evidence; it does not freeze D1/D2/D3 or any SCP fixture/Manifest contract.
