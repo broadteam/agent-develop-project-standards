@@ -49,9 +49,16 @@ def stable(v): return json.dumps(v,ensure_ascii=False,sort_keys=True,separators=
 def ordered(xs): return sorted(xs,key=lambda x:x.encode("utf-8","strict"))
 def projection(c):
  e=c["expected"]
- return {"packet_fields":["packet_schema_validation","protocol_compatibility"],
-  "claims":[{"claim_ref":r["claim_ref"],"fields":ordered([k for k in r if k!="claim_ref"])} for r in sorted(e["claims"],key=lambda r:r["claim_ref"].encode())],
-  "recovery":[{"operation_scope":r["operation_scope"],"fields":ordered([k for k in r if k!="operation_scope"])} for r in sorted(e["recovery"],key=lambda r:r["operation_scope"].encode())]}
+ def rows(items,key):
+  seen=set(); result=[]
+  for r in items:
+   if not isinstance(r,dict) or not isinstance(r.get(key),str): raise ValueError("expected projection row key missing")
+   scalar(r[key])
+   if r[key] in seen: raise ValueError("duplicate expected projection key")
+   seen.add(r[key])
+   result.append({key:r[key],"fields":ordered([k for k in r if k!=key])})
+  return sorted(result,key=lambda r:r[key].encode("utf-8"))
+ return {"packet_fields":["packet_schema_validation","protocol_compatibility"],"claims":rows(e["claims"],"claim_ref"),"recovery":rows(e["recovery"],"operation_scope")}
 def reconcile(c,o):
  if o.get("contract")!="scp-synthetic-observation-package" or o.get("source")!="independent-test-vector": raise ValueError("synthetic observation package required")
  if stable([e["sequence"] for e in c["stimulus"]["events"]])!=stable(o.get("executed_event_sequences")): raise ValueError("event sequence mismatch")
