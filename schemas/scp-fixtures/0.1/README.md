@@ -106,3 +106,18 @@ Key rules:
 Three existing Context projections have 12, 15 and 13 expected assertion fields respectively. These are counts derived from the current Context documents, not executed adapter results.
 
 No Adapter prototype, Harness Registry, Normalized Result Schema, Run Manifest Schema, Runner, Writer or CI Gate is implemented. Design review does not establish cross-client interoperability.
+
+## Adapter trust boundary and prototype blueprint
+
+The independent adversarial review and two-Adapter implementation blueprint are in [RUN-MANIFEST-DESIGN.md](./RUN-MANIFEST-DESIGN.md) §§18–19 and [COMPATIBILITY.md](./COMPATIBILITY.md) §12.
+
+The design separates:
+- Harness control plane (holds Context expected values and immutable pins);
+- Client sandbox (receives Packet/Schema, reconciled actual observations, measured capabilities and a values-stripped projection descriptor only);
+- Oracle Evaluator (compares normalized actual output to hidden expected values after client evaluation).
+
+Context companion observations must be collected from the disposable fixture and reconciled; they cannot be copied into actual evidence. Harness preflight cannot substitute its own Packet Schema validation result for the Client Under Test's output.
+
+Future interoperability evidence must distinguish Harness-input parity, Normalizer parity and distinct-Agent client-output parity/per-client conformance. Two independent implementations may share the specification and immutable fixtures, but not the normalization implementation under test.
+
+The Adapter blueprint is design-only. No executable Adapter, Driver Bundle, Registry, Runner, Writer, Store, Normalized Result Schema, Run Manifest Schema or CI Gate is present. Prototype implementation remains a separate authorization step.
