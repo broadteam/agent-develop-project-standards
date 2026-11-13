@@ -69,6 +69,27 @@ static int install(void){
 #ifdef __NR_umount2
  deny(__NR_umount2);
 #endif
+#ifdef __NR_open_tree
+ deny(__NR_open_tree);
+#endif
+#ifdef __NR_move_mount
+ deny(__NR_move_mount);
+#endif
+#ifdef __NR_fsopen
+ deny(__NR_fsopen);
+#endif
+#ifdef __NR_fsconfig
+ deny(__NR_fsconfig);
+#endif
+#ifdef __NR_fsmount
+ deny(__NR_fsmount);
+#endif
+#ifdef __NR_fspick
+ deny(__NR_fspick);
+#endif
+#ifdef __NR_mount_setattr
+ deny(__NR_mount_setattr);
+#endif
 #ifdef __NR_pivot_root
  deny(__NR_pivot_root);
 #endif
@@ -83,6 +104,18 @@ static int install(void){
 #endif
 #ifdef __NR_process_vm_writev
  deny(__NR_process_vm_writev);
+#endif
+#ifdef __NR_pidfd_getfd
+ deny(__NR_pidfd_getfd);
+#endif
+#ifdef __NR_pidfd_send_signal
+ deny(__NR_pidfd_send_signal);
+#endif
+#ifdef __NR_process_madvise
+ deny(__NR_process_madvise);
+#endif
+#ifdef __NR_kcmp
+ deny(__NR_kcmp);
 #endif
 #ifdef __NR_kexec_load
  deny(__NR_kexec_load);

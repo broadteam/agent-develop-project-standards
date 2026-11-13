@@ -138,3 +138,18 @@ The profile remains an x86_64 denylist with default ALLOW. It is not a complete 
 ## Final seccomp launcher blob verification
 
 The final seccomp launcher source, including legacy clone namespace-flag inspection and clone3 ENOSYS fallback behavior, is Git Blob aed40a67bda0231c6e567a06c286378e4eb023b4. This exact source was compiled locally with GCC -Wall -Wextra -Werror and exercised by the namespace/chroot integration harness. The synthetic client and its fork+exec child both reported clone(CLONE_NEWUSER) denied with EPERM and clone3 denied with ENOSYS, while ordinary fork/exec, fixture reads and scratch writes remained successful. The accompanying test source is Blob 87825be539a33647939eb46f4aa725b563dc28ce and the integration launcher is Blob 0eb9698e781653660060d5fbce2916a78b0de71a.
+
+
+## 2026-11-14 modern mount API and process-handle regression coverage
+
+A further seccomp review identified newer interfaces that could bypass a policy limited to legacy `mount(2)` and `unshare(2)`. The denylist and synthetic regression client now also cover:
+- mount API: `open_tree`, `move_mount`, `fsopen`, `fsconfig`, `fsmount`, `fspick`, and `mount_setattr`;
+- process/handle APIs: `pidfd_getfd`, `pidfd_send_signal`, `process_madvise`, and `kcmp`.
+
+The exact latest local source files were executed through the namespace/mount/network/PID/chroot/UID/seccomp integration harness. GCC `-Wall -Wextra -Werror` compilation succeeded. Both the original client and its fork+exec child observed EPERM for open_tree, move_mount, fsopen, fsmount, mount_setattr, pidfd_getfd and process_madvise, along with the earlier blocked syscalls. Ordinary getpid, read-only Fixture reads and dedicated Scratch writes remained available; writes to the read-only root returned EROFS; fork+exec filter inheritance passed.
+
+Source Blob identities for the exact tested local bytes:
+- `seccomp-exec.c`: `6ab19f64773794f36eb402853c76ff591b4c4f28`
+- `seccomp-child-test.c`: `fd114870ac09fd63bb6538f1a10ccee8a467556c`
+
+This remains a denylist with default ALLOW, not a complete syscall allowlist or production Agent policy. The tests cover the listed interfaces on this Linux x86_64 kernel only; they do not establish equivalent behavior on other architectures or kernels.

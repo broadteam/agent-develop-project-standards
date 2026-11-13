@@ -24,8 +24,29 @@ static int check(void) {
 #ifdef SYS_umount2
  bad += blocked(SYS_umount2, "umount2");
 #endif
+#ifdef SYS_open_tree
+ bad += blocked(SYS_open_tree, "open_tree");
+#endif
+#ifdef SYS_move_mount
+ bad += blocked(SYS_move_mount, "move_mount");
+#endif
+#ifdef SYS_fsopen
+ bad += blocked(SYS_fsopen, "fsopen");
+#endif
+#ifdef SYS_fsmount
+ bad += blocked(SYS_fsmount, "fsmount");
+#endif
+#ifdef SYS_mount_setattr
+ bad += blocked(SYS_mount_setattr, "mount_setattr");
+#endif
 #ifdef SYS_ptrace
  bad += blocked(SYS_ptrace, "ptrace");
+#endif
+#ifdef SYS_pidfd_getfd
+ bad += blocked(SYS_pidfd_getfd, "pidfd_getfd");
+#endif
+#ifdef SYS_process_madvise
+ bad += blocked(SYS_process_madvise, "process_madvise");
 #endif
 #ifdef SYS_unshare
  bad += blocked(SYS_unshare, "unshare");
