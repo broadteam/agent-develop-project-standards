@@ -90,7 +90,8 @@ def norm(raw,proj):
   if k in SETS:
    if not isinstance(v,list) or any(not isinstance(x,str) for x in v) or len(set(v))!=len(v): raise ValueError("invalid/duplicate set")
    if k=="reason_codes" and any(re.fullmatch(r"scp\.fixture\.[a-z0-9][a-z0-9._-]*",x) is None for x in v): raise ValueError("invalid reason code")
-   if k!="reason_codes" and any(re.fullmatch(r"[a-z][a-z0-9._:-]*",x) is None for x in v): raise ValueError("invalid set member")
+   if k in {"permitted_actions","prohibited_actions"} and any(re.fullmatch(r"[a-z][a-z0-9._:-]*",x) is None for x in v): raise ValueError("invalid action identifier")
+   if k=="user_decisions_needed" and any(not x for x in v): raise ValueError("empty user decision")
    return ordered(v)
   if not isinstance(v,str): raise ValueError("string enum required")
   scalar(v)
