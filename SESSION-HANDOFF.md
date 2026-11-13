@@ -1560,3 +1560,78 @@ Run Manifest Schema Gate 仍关闭。不得把设计向量说成实际测试通�
 
 修正提交：`fd749cc13bc782231d476fd4e7c907f82ff85cc4`。
 修正后 RUN-MANIFEST-DESIGN.md Blob SHA：`4b245b47958a0f7d1be761c7a23106046a94ff2a`。
+
+## 双 Adapter 原型阶段执行记录（2026-11-13）
+
+### 用户授权范围
+
+用户明确授权开始最小双实现原型，范围限于：
+- 三个现有 SCP Fixture Context 0.1.0；
+- synthetic-only observation 与 synthetic client-response vectors；
+- 独立 Node.js / Python 标准库实现；
+- 隔离临时目录运行和清理测试输出。
+
+未授权、也未执行真实 Agent 调用、真实仓库写入、真实 Provider 请求、生产凭据使用、Runner/Registry/Writer/Store 或 CI Gate 实现。
+
+### 已提交文件
+
+PR #11 新增路径前缀：`prototypes/scp-fixtures/0.1/`，当前原型共 19 个文件：
+- Node.js adapter / strict parser / Normalizer / Oracle / test；
+- Python adapter / strict parser / Normalizer / Oracle / unittest；
+- 3 个原有 Context 的精确副本；
+- 3 个 synthetic observation packages；
+- 3 个 synthetic client-output vectors；
+- run-parity.sh、README、fixtures README、VALIDATION-REPORT。
+
+关键提交：
+- 原型代码与 fixtures：`34eff9387ea7347bb71ad1b923148bc924cc7e77`
+- 验证报告来源限制：`319bbe08324999f9cbb45b441031702f64bf7f61`
+- README 同步：`3c188eb3b044ff10d103c54d9f8f007d37a4949b`
+- SCP 设计 §17.32：`f632e53538c6d393c5a02b9de383344c0259d38f`
+
+### 实现边界
+
+- Node 与 Python 各自独立实现；不 import/call/shell out 到对方。
+- 两套实现只使用各自标准库，不新增第三方依赖。
+- Client Evaluation Request 只带 Packet/Schema/Profile/Driver/Repository pins、synthetic observation package 和 values-stripped projection descriptor。
+- Context expected values、assertion outcomes、Oracle object 不进入 Client Evaluation Request。
+- Observation package 必须和 Context 的事件序列、companion observations、profile pin、capability set 逐项匹配。
+- Normalizer 对 claim_ref / operation_scope 做精确键匹配；区分缺失、explicit unknown、null、空集合和重复成员。
+- Oracle 独立按每个 expected leaf 生成 assertion outcome；synthetic value mismatch 会归入 non_conformant，而不是把 Manifest/测试记录判为不可解析。
+
+### 本地工作副本验证（必须保留来源限制）
+
+本地开发工作副本的运行环境：
+- Linux x86_64
+- Node.js v22.16.0
+- Python 3.13.5
+- 第三方依赖：无
+
+运行结果：
+- 3 个 Context，expected assertion projection 合计 40（12 + 15 + 13）；
+- Node 与 Python 两套测试通过；
+- 3 个请求 + 3 个 Normalized Result + 3 个 Oracle report，9 / 9 逐字节一致；
+- 覆盖 strict JSON / UTF-8 / surrogate、duplicate keys、missing vs unknown、null、empty set、duplicate member/claim key、unsupported field、event/observation/profile mismatch、Unicode exact identifier、mismatch 与 not_run。
+
+**重要：** 以上运行针对本地开发工作副本，不是当前 PR Head 上 exact Git Blob 文件的直接执行报告。文件镜像提交到 PR 后没有在当前容器中重新 checkout 并执行。VALIDATION-REPORT 已明确这个差异。现有 GitHub Actions workflow 没有运行这个 prototype suite；不能把当前 PR CI 当成原型测试通过证明。下次在正常 checkout 环境应运行：
+
+`sh prototypes/scp-fixtures/0.1/run-parity.sh`
+
+### 未完成和限制
+
+- 未调用任何 Agent 客户端；client-output 文件是人工维护的 synthetic responses。
+- 未运行真实 Git/FS/submodule/Provider observers。
+- 现有 Driver 仍为 contract_only；尚无可执行 Harness Registry/Driver。
+- 没有 OS-level client sandbox；只检查请求 DTO 不含 Oracle 成员，不代表能阻止拥有 unrestricted host access 的 Agent 读取可访问文件。
+- 没有通用 secret redaction、cleanup ownership/quarantine、retry store、immutable Manifest store/finalizer。
+- 没有 Normalized Result / Run Manifest Schema、Writer、Store、Runner 或 CI Gate。
+
+### 下一步唯一首选
+
+先在 checkout PR 分支的环境中重跑 exact committed prototypes，并审查 Node/Python 两套代码和实际 byte parity。之后再设计 synthetic Driver/Observation Adapter 的可执行边界及 Agent Sandbox 的 oracle isolation 验收；先证明 Agent 不可读 expected / Manifest / Oracle artifact，再考虑接入任一 Agent。Run Manifest Schema Gate 继续关闭。
+
+### 当前约束
+
+- D0 保持用户已确认冻结；D1/D2/D3、Context Contract 0.1.0、Run Manifest、Normalized Result 均未冻结。
+- PR #11 继续 Open + Draft；PR #10 保持 Open + Draft。
+- 不合并、不修改 main、不 bump 项目整体版本、不打 Tag。
