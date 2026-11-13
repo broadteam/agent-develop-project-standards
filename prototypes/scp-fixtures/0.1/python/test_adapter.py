@@ -74,6 +74,8 @@ class PrototypeTests(unittest.TestCase):
   self.assertEqual(decision_normalized["recovery"][0]["user_decisions_needed"],ordered(["Confirm repository ownership","确认仓库归属"]))
   decision_raw["recovery"][0]["user_decisions_needed"]=[""]
   with self.assertRaisesRegex(ValueError,"empty user decision"):norm(decision_raw,decision_projection)
+  obad=copy.deepcopy(o);obad["fixture_id"]="different-fixture"
+  with self.assertRaisesRegex(ValueError,"fixture_id mismatch"):request(c,obad,PINS[1],ob)
   obad=copy.deepcopy(o);obad["executed_event_sequences"]=[]
   with self.assertRaisesRegex(ValueError,"event sequence mismatch"):request(c,obad,PINS[1],ob)
   obad=copy.deepcopy(o);obad["records"]=[]

@@ -61,6 +61,7 @@ def projection(c):
  return {"packet_fields":["packet_schema_validation","protocol_compatibility"],"claims":rows(e["claims"],"claim_ref"),"recovery":rows(e["recovery"],"operation_scope")}
 def reconcile(c,o):
  if o.get("contract")!="scp-synthetic-observation-package" or o.get("source")!="independent-test-vector": raise ValueError("synthetic observation package required")
+ if o.get("fixture_id")!=c.get("fixture_id"): raise ValueError("observation fixture_id mismatch")
  if stable([e["sequence"] for e in c["stimulus"]["events"]])!=stable(o.get("executed_event_sequences")): raise ValueError("event sequence mismatch")
  if stable(c["companion_observations"])!=stable(o.get("records")): raise ValueError("observation mismatch")
  p=c["environment"]["capability_profile"]; profile=PROFILES.get(p["profile_id"]); cap=o.get("capability_observation")
