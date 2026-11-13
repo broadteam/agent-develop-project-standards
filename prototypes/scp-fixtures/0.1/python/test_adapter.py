@@ -54,7 +54,9 @@ class PrototypeTests(unittest.TestCase):
   bad=copy.deepcopy(raw);bad["claims"].append({"claim_ref":"outside.scope","freshness":"unknown"})
   with self.assertRaisesRegex(ValueError,"row outside projection"):norm(bad,q["projection"])
   bad=copy.deepcopy(raw);bad["claims"]=[{"claim_ref":c["expected"]["claims"][0]["claim_ref"]}]
-  with self.assertRaisesRegex(ValueError,"empty result row"):norm(bad,q["projection"])
+  omitted=norm(bad,q["projection"])
+  self.assertFalse(any(x["claim_ref"]==c["expected"]["claims"][0]["claim_ref"] for x in omitted["claims"]))
+  self.assertEqual(evaluate(c,omitted)["conformance_outcome"],"inconclusive")
   bad=copy.deepcopy(raw);next(x for x in bad["claims"] if x["claim_ref"].endswith("checkout"))["identity_state"]="maybe"
   with self.assertRaisesRegex(ValueError,"unsupported enum"):norm(bad,q["projection"])
   bad=copy.deepcopy(raw);bad["claims"][0]["reason_codes"]=["scp.fixture.Bad-Code"]
