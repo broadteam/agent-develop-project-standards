@@ -119,3 +119,17 @@ The corrected remote source files were then fetched, checked against their Git B
 Result: GCC -Wall -Wextra -Werror compiled both programs; the integration run passed. The parent and fork+exec child both observed EPERM for the test sentinel, mount, umount2, ptrace, unshare, BPF and userfaultfd. Both could still call getpid, read the read-only synthetic fixture, were denied writes to the read-only rootfs with EROFS, and could write to the dedicated scratch mount. The final marker was SECCOMP_FORK_EXEC_INHERITANCE=PASS.
 
 This is still a denylist with default ALLOW, not a full Agent syscall allowlist. The filter is a defense-in-depth layer in the tested launch chain, not a production security certification.
+
+
+## 2026-11-14 clone-family namespace bypass regression
+
+The seccomp launcher now checks the legacy clone flags argument and returns EPERM whenever a supported CLONE_NEW* namespace flag is present. clone3 is denied with ENOSYS because classic seccomp BPF cannot dereference the userspace clone_args pointer; ENOSYS permits libc to fall back to legacy clone, whose flags are checked. The synthetic client test verifies clone(CLONE_NEWUSER) -> EPERM, clone3(NULL, 0) -> ENOSYS, and confirms that ordinary fork+exec still succeeds. Both the parent and its fork+exec child repeat these checks.
+
+Final source Blob SHAs for the expanded regression set:
+- seccomp-exec.c: aed40a67bda0231c6e567a06c286378e4eb023b4
+- seccomp-child-test.c: 87825be539a33647939eb46f4aa725b563dc28ce
+- run-seccomp-integration.sh: 0eb9698e781653660060d5fbce2916a78b0de71a
+
+The integration harness was rerun after the clone/clone3 checks were added. GCC -Wall -Wextra -Werror succeeded; both parent and child reported DENIED for the test sentinel, mount, umount2, ptrace, unshare, clone namespace flags, clone3 fallback, BPF and userfaultfd; both reported ALLOWED for getpid, fixture read and scratch write; both reported DENIED for writes to the read-only root. The final line was SECCOMP_FORK_EXEC_INHERITANCE=PASS.
+
+The profile remains an x86_64 denylist with default ALLOW. It is not a complete syscall allowlist and does not constitute production sandbox certification.

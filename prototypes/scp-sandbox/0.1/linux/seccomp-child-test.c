@@ -5,6 +5,8 @@
 #include <string.h>
 #include <sys/syscall.h>
 #include <sys/wait.h>
+#include <sched.h>
+#include <signal.h>
 #include <unistd.h>
 static int blocked(long n, const char *s) {
  errno = 0;
@@ -27,6 +29,18 @@ static int check(void) {
 #endif
 #ifdef SYS_unshare
  bad += blocked(SYS_unshare, "unshare");
+#endif
+#ifdef SYS_clone
+ errno = 0;
+ long namespace_clone = syscall(SYS_clone, (unsigned long)(CLONE_NEWUSER | SIGCHLD), NULL, NULL, NULL, 0);
+ if (namespace_clone != -1 || errno != EPERM) { fprintf(stderr, "FAIL clone namespace flags result=%ld errno=%d\n", namespace_clone, errno); bad++; }
+ else puts("DENIED clone-namespace-flags");
+#endif
+#ifdef SYS_clone3
+ errno = 0;
+ long clone3 = syscall(SYS_clone3, NULL, 0);
+ if (clone3 != -1 || errno != ENOSYS) { fprintf(stderr, "FAIL clone3 result=%ld errno=%d\n", clone3, errno); bad++; }
+ else puts("DENIED clone3-with-libc-fallback");
 #endif
 #ifdef SYS_bpf
  bad += blocked(SYS_bpf, "bpf");
