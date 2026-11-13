@@ -41,6 +41,10 @@ class PrototypeTests(unittest.TestCase):
   proto=parse_bytes(b'{"__proto__":{"polluted":true},"safe":1}')
   self.assertEqual(proto["safe"],1);self.assertIn("__proto__",proto)
   n=NAMES[1];c=read_json(F/"context"/(n+".json"));o=read_json(F/"observations"/(n+".json"));ob=(F/"observations"/(n+".json")).read_bytes();raw=read_json(F/"client-output"/(n+".json"));q=request(c,o,PINS[1],ob)
+  duplicate_expected=copy.deepcopy(c);duplicate_expected["expected"]["claims"].append(copy.deepcopy(duplicate_expected["expected"]["claims"][0]))
+  with self.assertRaisesRegex(ValueError,"duplicate expected projection key"):projection(duplicate_expected)
+  duplicate_expected=copy.deepcopy(c);duplicate_expected["expected"]["recovery"].append(copy.deepcopy(duplicate_expected["expected"]["recovery"][0]))
+  with self.assertRaisesRegex(ValueError,"duplicate expected projection key"):projection(duplicate_expected)
   missing=copy.deepcopy(raw);del missing["claims"][0]["freshness"]
   self.assertEqual(evaluate(c,norm(missing,q["projection"]))["conformance_outcome"],"inconclusive")
   bad=copy.deepcopy(raw);bad["claims"][0]["freshness"]=None
