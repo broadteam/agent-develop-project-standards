@@ -235,3 +235,18 @@ Execution environment: Linux x86_64, kernel 6.18.57, GCC 14.2.0, effective UID 0
 Both the initial synthetic client and its fork+exec child verified UID/GID 65534, zero supplementary groups, `no_new_privs=1`, active seccomp filter mode, empty capability sets and an empty capability bounding set. Both denied the test sentinel, legacy and modern mount APIs, ptrace, pidfd/process-handle calls, kcmp, process_madvise, namespace transitions, clone namespace flags, clone3 (ENOSYS fallback), BPF and userfaultfd. Both retained the expected `getpid`, fixture-read and bounded-tmpfs scratch-write behavior; rejected writes to the read-only rootfs; observed EBADF for inherited host FD 9; and observed ENOENT for the inherited-host-cwd canary. The run ended with `SECCOMP_FORK_EXEC_INHERITANCE=PASS`.
 
 This re-run executes the standalone seccomp integration harness, not the full `linux/run.sh` entry point or the separate Python namespace/chroot probe. The existing PR Standards CI is a separate signal and does not execute this harness. The policy remains an x86_64 denylist with default ALLOW; it is not a production syscall allowlist or Agent sandbox certification.
+
+
+## 2026-11-14 complete seccomp denylist regression coverage and production-mode check
+
+PR #11 Head before this code update: `4ef2854cdb9499e41a62c60222e3344c434ae569`. The updated files were locally executed twice; the resulting source Blob identities are:
+
+- `seccomp-exec.c`: `eb5e61964858111c5a3e51f2b2c7a6670a431d19`
+- `seccomp-child-test.c`: `39f3c8ac94631e0931db8bb82c1d63e31d693891`
+- `run-seccomp-integration.sh`: `c1189d6bb93957e31a9023bc4a3033f0894d3fa4`
+
+The test harness now compiles both a test-only pair and a production pair. In test mode, denied syscalls return EACCES (instead of EPERM) so a matching result distinguishes a seccomp rule hit from ordinary permission checks performed by the kernel or LSM. The production build keeps EPERM and leaves the test-only getppid sentinel allowed. This test-mode errno override changes only the denial result used for measurement; the syscall match set is shared with the production build.
+
+The synthetic client now has 42 generic denial assertions plus dedicated kcmp, clone namespace-flag, clone3 fallback and x32 ABI probes. The x32 test runs in a forked child and requires SIGSYS. The production build separately confirms getppid is allowed while denied operations return EPERM. Both build variants run the runtime-identity, capability, inherited-FD/cwd, read-only-root, tmpfs quota, fixture/scratch I/O and fork+exec inheritance checks in parent and child.
+
+Environment: Linux x86_64, kernel 6.18.57, GCC 14.2.0, effective UID 0. Both complete integration-harness runs passed with `-Wall -Wextra -Werror`. This remains synthetic Linux x86_64 validation only; it does not create a production syscall allowlist or authorize real Agent execution.

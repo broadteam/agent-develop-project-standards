@@ -62,7 +62,7 @@ The active denylist integration is exercised by `run-seccomp-integration.sh`, wh
 
 ## Seccomp launch-chain integration
 
-The main launcher now runs a separate C-based integration harness after the namespace/chroot probe. It installs an x86_64 architecture-checked seccomp-BPF denylist after namespace/chroot/UID setup, rejects x32 syscall-number tagging, and denies a documented set of high-risk syscalls. A synthetic client verifies syscall denial, allowed fixture reads and scratch writes, read-only-root write denial, and filter inheritance through fork+exec. The profile is a denylist with default ALLOW, not a production syscall allowlist; a test-only getppid sentinel proves that the filter is active.
+The main launcher now runs a separate C-based integration harness after the namespace/chroot probe. It builds both test and production variants of the seccomp wrapper/client. The test variant returns a test-only EACCES sentinel for denied syscalls so policy hits can be distinguished from ordinary kernel permission failures; the production variant retains EPERM and confirms that getppid remains allowed. The synthetic client checks all syscall entries in the current denylist, clone/clone3 namespace-creation paths, x32 ABI rejection (SIGSYS), allowed fixture and scratch I/O, read-only-root write denial, and fork+exec filter inheritance. The profile remains an x86_64 denylist with default ALLOW, not a production syscall allowlist.
 
 
 ### Additional syscall and chroot-boundary regression coverage

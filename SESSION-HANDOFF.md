@@ -1857,3 +1857,17 @@ The standalone integration harness was run twice on Linux x86_64 / kernel 6.18.5
 Scope qualification: this was an exact-Blob re-run of `run-seccomp-integration.sh`, not a rerun of the complete `linux/run.sh` including the Python core probe. The seccomp policy is a Linux x86_64 denylist with default ALLOW, not a complete production syscall allowlist. Landlock returned ENOSYS, cgroup v2 child delegation was unavailable, and resource bounds remain per-process `prlimit` plus bounded tmpfs. No real Agent, Provider, production credential or user repository was accessed. Gate C remains closed.
 
 The previous README/Compatibility/Run Manifest statements that described seccomp only as an unintegrated primitive smoke test are superseded by the integrated launch-chain test; the standalone `seccomp-smoke.c` remains only as a historical optional kernel-primitive check.
+
+
+## 2026-11-14 seccomp denylist test coverage hardening
+
+Follow-on code change from PR #11 Head `4ef2854cdb9499e41a62c60222e3344c434ae569`:
+
+- The seccomp helper uses EPERM in production builds and a test-only EACCES denial result under `SCP_SECCOMP_TEST_MODE`. The unique test errno distinguishes policy matches from kernel/LSM permission failures.
+- Added client assertions covering the declared syscall denylist entries, including mount/filesystem APIs, process-memory/pidfd calls, kernel module/BPF/perf/keyring calls, handle APIs, setns/unshare, io_uring, swap/reboot and I/O privilege operations.
+- Added an x32 ABI probe in a forked child; the required result is SIGSYS. Existing clone namespace-flag and clone3 ENOSYS fallback probes remain.
+- The harness builds and runs both test-mode and production-mode wrapper/client pairs. Production mode confirms getppid is allowed and denied operations return EPERM.
+- Resulting source Blob SHAs: seccomp-exec.c `eb5e61964858111c5a3e51f2b2c7a6670a431d19`; seccomp-child-test.c `39f3c8ac94631e0931db8bb82c1d63e31d693891`; run-seccomp-integration.sh `c1189d6bb93957e31a9023bc4a3033f0894d3fa4`.
+- The complete integration harness passed twice on Linux x86_64 / kernel 6.18.57 / GCC 14.2.0 with `-Wall -Wextra -Werror`.
+
+This improves confidence that each declared denylist rule is actually hit, but it remains a denylist with default ALLOW. It does not prove full syscall mediation or production Agent sandbox safety. Gate C remains closed.

@@ -2455,3 +2455,12 @@ This closes an inherited-FD access path and bounds both bytes and inode count in
 ### 17.43 Runtime privilege-state readback (2026-11-14)
 
 The Linux regression client now verifies actual runtime identity and privilege state after seccomp exec: real/effective UID/GID 65534; zero supplementary groups; PR_GET_NO_NEW_PRIVS=1; PR_GET_SECCOMP=SECCOMP_MODE_FILTER; capget effective/permitted/inheritable sets all zero; and PR_CAPBSET_READ reports an empty bounding set for every capability through CAP_LAST_CAP. Both parent and fork+exec child pass. This validates runtime state rather than simply trusting launcher flags.
+
+
+### 17.44 Seccomp denylist test-mode discrimination and rule coverage (2026-11-14)
+
+The Linux seccomp integration now compiles and runs both test-mode and production-mode wrapper/client pairs. Test mode maps a denylist hit to EACCES, while production mode retains EPERM. This distinct test result avoids confusing a seccomp match with the kernel's ordinary permission rejection for privileged syscalls. The test-only getppid sentinel is blocked only in test mode; production mode explicitly confirms getppid remains allowed.
+
+The synthetic client has 42 generic denial assertions and dedicated probes for kcmp, legacy clone namespace flags, clone3's ENOSYS fallback behavior and x32 syscall-number rejection (the x32 child must terminate with SIGSYS). It exercises the current denylist entries from mount/filesystem APIs through process-memory and pidfd operations, kernel/module/BPF/perf/keyring calls, handle APIs, namespace changes, io_uring and system-level operations. Both wrapper variants execute under the namespace/chroot/UID/capability setup; both parent and fork+exec child repeat the relevant checks.
+
+The two full integration-harness runs passed on Linux x86_64, kernel 6.18.57, GCC 14.2.0. This is still a targeted x86_64 denylist, not a production syscall allowlist, general Agent Runner certification or kernel-escape proof. Gate C remains closed.

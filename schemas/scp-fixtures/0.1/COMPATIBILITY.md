@@ -272,7 +272,7 @@ The standalone `seccomp-smoke.c` file is only a historical kernel-primitive chec
 
 ### 12.5 Seccomp launch-chain test boundary
 
-The Linux prototype now tests a seccomp-BPF denylist after namespace/chroot/UID setup and before a synthetic child client executes. The filter is inherited across fork+exec; dangerous syscall denial and permitted fixture/scratch I/O are tested. It is a denylist with default ALLOW, not a full production allowlist. No cross-platform or production Agent syscall policy is inferred.
+The Linux prototype now tests a seccomp-BPF denylist after namespace/chroot/UID setup and before a synthetic child client executes. Test builds return a unique EACCES value for denied syscall rules; production builds retain EPERM and allow the test sentinel getppid call. The synthetic client has explicit checks for the current denylist entries, clone/clone3 namespace paths and x32 ABI rejection, and verifies filter inheritance across fork+exec plus permitted fixture/scratch I/O. It remains a denylist with default ALLOW, not a full production allowlist. No cross-platform or production Agent syscall policy is inferred.
 
 
 ### 12.6 Modern syscall and chroot cwd regression boundary

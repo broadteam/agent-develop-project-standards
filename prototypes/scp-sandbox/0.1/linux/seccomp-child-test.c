@@ -14,10 +14,15 @@
 #include <sched.h>
 #include <signal.h>
 #include <unistd.h>
+#ifdef SCP_SECCOMP_TEST_MODE
+#define SCP_EXPECTED_DENIAL_ERRNO EACCES
+#else
+#define SCP_EXPECTED_DENIAL_ERRNO EPERM
+#endif
 static int blocked(long n, const char *s) {
  errno = 0;
  long r = syscall(n, 0, 0, 0, 0, 0, 0);
- if (r == -1 && errno == EPERM) { printf("DENIED %s\n", s); return 0; }
+ if (r == -1 && errno == SCP_EXPECTED_DENIAL_ERRNO) { printf("DENIED %s\n", s); return 0; }
  fprintf(stderr, "FAIL %s result=%ld errno=%d\n", s, r, errno);
  return 1;
 }
@@ -48,7 +53,12 @@ static int check_runtime_identity(void) {
 }
 static int check(void) {
  int bad = check_runtime_identity();
+#ifdef SCP_SECCOMP_TEST_MODE
  bad += blocked(SYS_getppid, "test-sentinel");
+#else
+ if (getppid() <= 0) { fputs("FAIL getppid production allow\n", stderr); bad++; }
+ else puts("ALLOWED getppid-production");
+#endif
 #ifdef SYS_mount
  bad += blocked(SYS_mount, "mount");
 #endif
@@ -70,6 +80,18 @@ static int check(void) {
 #ifdef SYS_mount_setattr
  bad += blocked(SYS_mount_setattr, "mount_setattr");
 #endif
+#ifdef SYS_fsconfig
+ bad += blocked(SYS_fsconfig, "fsconfig");
+#endif
+#ifdef SYS_fspick
+ bad += blocked(SYS_fspick, "fspick");
+#endif
+#ifdef SYS_pivot_root
+ bad += blocked(SYS_pivot_root, "pivot_root");
+#endif
+#ifdef SYS_chroot
+ bad += blocked(SYS_chroot, "chroot");
+#endif
 #ifdef SYS_ptrace
  bad += blocked(SYS_ptrace, "ptrace");
 #endif
@@ -82,8 +104,14 @@ static int check(void) {
 #ifdef SYS_kcmp
  errno = 0;
  long compare = syscall(SYS_kcmp, getpid(), getpid(), 0, 0, 0);
- if (compare != -1 || errno != EPERM) { fprintf(stderr, "FAIL kcmp result=%ld errno=%d\n", compare, errno); bad++; }
+ if (compare != -1 || errno != SCP_EXPECTED_DENIAL_ERRNO) { fprintf(stderr, "FAIL kcmp result=%ld errno=%d\n", compare, errno); bad++; }
  else puts("DENIED kcmp");
+#endif
+#ifdef SYS_process_vm_readv
+ bad += blocked(SYS_process_vm_readv, "process_vm_readv");
+#endif
+#ifdef SYS_process_vm_writev
+ bad += blocked(SYS_process_vm_writev, "process_vm_writev");
 #endif
 #ifdef SYS_process_madvise
  bad += blocked(SYS_process_madvise, "process_madvise");
@@ -94,7 +122,7 @@ static int check(void) {
 #ifdef SYS_clone
  errno = 0;
  long namespace_clone = syscall(SYS_clone, (unsigned long)(CLONE_NEWUSER | SIGCHLD), NULL, NULL, NULL, 0);
- if (namespace_clone != -1 || errno != EPERM) { fprintf(stderr, "FAIL clone namespace flags result=%ld errno=%d\n", namespace_clone, errno); bad++; }
+ if (namespace_clone != -1 || errno != SCP_EXPECTED_DENIAL_ERRNO) { fprintf(stderr, "FAIL clone namespace flags result=%ld errno=%d\n", namespace_clone, errno); bad++; }
  else puts("DENIED clone-namespace-flags");
 #endif
 #ifdef SYS_clone3
@@ -103,8 +131,84 @@ static int check(void) {
  if (clone3 != -1 || errno != ENOSYS) { fprintf(stderr, "FAIL clone3 result=%ld errno=%d\n", clone3, errno); bad++; }
  else puts("DENIED clone3-with-libc-fallback");
 #endif
+#if defined(__X32_SYSCALL_BIT) && defined(SYS_getpid)
+ pid_t x32_child = fork();
+ if (x32_child < 0) { perror("fork x32 probe"); bad++; }
+ else if (x32_child == 0) {
+  (void)syscall(__X32_SYSCALL_BIT | SYS_getpid);
+  _exit(0);
+ } else {
+  int x32_status = 0;
+  if (waitpid(x32_child, &x32_status, 0) != x32_child || !WIFSIGNALED(x32_status) || WTERMSIG(x32_status) != SIGSYS) {
+   fprintf(stderr, "FAIL x32 syscall was not killed status=%d\n", x32_status); bad++;
+  } else { puts("DENIED x32-abi"); }
+ }
+#endif
 #ifdef SYS_bpf
  bad += blocked(SYS_bpf, "bpf");
+#endif
+#ifdef SYS_kexec_load
+ bad += blocked(SYS_kexec_load, "kexec_load");
+#endif
+#ifdef SYS_kexec_file_load
+ bad += blocked(SYS_kexec_file_load, "kexec_file_load");
+#endif
+#ifdef SYS_init_module
+ bad += blocked(SYS_init_module, "init_module");
+#endif
+#ifdef SYS_finit_module
+ bad += blocked(SYS_finit_module, "finit_module");
+#endif
+#ifdef SYS_delete_module
+ bad += blocked(SYS_delete_module, "delete_module");
+#endif
+#ifdef SYS_perf_event_open
+ bad += blocked(SYS_perf_event_open, "perf_event_open");
+#endif
+#ifdef SYS_keyctl
+ bad += blocked(SYS_keyctl, "keyctl");
+#endif
+#ifdef SYS_add_key
+ bad += blocked(SYS_add_key, "add_key");
+#endif
+#ifdef SYS_request_key
+ bad += blocked(SYS_request_key, "request_key");
+#endif
+#ifdef SYS_open_by_handle_at
+ bad += blocked(SYS_open_by_handle_at, "open_by_handle_at");
+#endif
+#ifdef SYS_name_to_handle_at
+ bad += blocked(SYS_name_to_handle_at, "name_to_handle_at");
+#endif
+#ifdef SYS_setns
+ bad += blocked(SYS_setns, "setns");
+#endif
+#ifdef SYS_io_uring_setup
+ bad += blocked(SYS_io_uring_setup, "io_uring_setup");
+#endif
+#ifdef SYS_io_uring_enter
+ bad += blocked(SYS_io_uring_enter, "io_uring_enter");
+#endif
+#ifdef SYS_io_uring_register
+ bad += blocked(SYS_io_uring_register, "io_uring_register");
+#endif
+#ifdef SYS_swapon
+ bad += blocked(SYS_swapon, "swapon");
+#endif
+#ifdef SYS_swapoff
+ bad += blocked(SYS_swapoff, "swapoff");
+#endif
+#ifdef SYS_reboot
+ bad += blocked(SYS_reboot, "reboot");
+#endif
+#ifdef SYS_iopl
+ bad += blocked(SYS_iopl, "iopl");
+#endif
+#ifdef SYS_ioperm
+ bad += blocked(SYS_ioperm, "ioperm");
+#endif
+#ifdef SYS_syslog
+ bad += blocked(SYS_syslog, "syslog");
 #endif
 #ifdef SYS_userfaultfd
  bad += blocked(SYS_userfaultfd, "userfaultfd");

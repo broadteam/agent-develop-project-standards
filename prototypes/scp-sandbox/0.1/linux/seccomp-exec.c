@@ -13,11 +13,16 @@
 #include <linux/filter.h>
 #include <linux/seccomp.h>
 #define MAX_INSNS 128
+#ifdef SCP_SECCOMP_TEST_MODE
+#define SCP_DENY_ERRNO EACCES
+#else
+#define SCP_DENY_ERRNO EPERM
+#endif
 static struct sock_filter f[MAX_INSNS]; static unsigned int n;
 static void stmt(unsigned short c,unsigned int k){if(n>=MAX_INSNS)exit(90);f[n++]=(struct sock_filter)BPF_STMT(c,k);}
 static void jump(unsigned short c,unsigned int k,unsigned char t,unsigned char q){if(n>=MAX_INSNS)exit(90);f[n++]=(struct sock_filter)BPF_JUMP(c,k,t,q);}
 static void deny_errno(int x,int e){if(x<0)return;jump(BPF_JMP|BPF_JEQ|BPF_K,(unsigned)x,0,1);stmt(BPF_RET|BPF_K,SECCOMP_RET_ERRNO|((unsigned)e&SECCOMP_RET_DATA));}
-static void deny(int x){deny_errno(x,EPERM);}
+static void deny(int x){deny_errno(x,SCP_DENY_ERRNO);}
 static void close_extra_fds(void) {
 #ifdef __NR_close_range
  if (syscall(__NR_close_range, 3U, ~0U, 0U) == 0) return;
@@ -62,7 +67,7 @@ static int install(void){
   jump(BPF_JMP|BPF_JEQ|BPF_K,__NR_clone,0,3);
   stmt(BPF_LD|BPF_W|BPF_ABS,(unsigned)offsetof(struct seccomp_data,args[0]));
   jump(BPF_JMP|BPF_JSET|BPF_K,nsflags,0,1);
-  stmt(BPF_RET|BPF_K,SECCOMP_RET_ERRNO|(EPERM&SECCOMP_RET_DATA));
+  stmt(BPF_RET|BPF_K,SECCOMP_RET_ERRNO|(SCP_DENY_ERRNO&SECCOMP_RET_DATA));
   stmt(BPF_LD|BPF_W|BPF_ABS,(unsigned)offsetof(struct seccomp_data,nr));
  }
 #endif
