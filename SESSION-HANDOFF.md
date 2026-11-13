@@ -1890,3 +1890,13 @@ This is real filesystem failure evidence for the mountpoint-busy case and the pe
 
 
 The cleanup regression's state writes now flush/fsync the temporary owner-record file before atomic replace and fsync the owner-record directory afterward. This strengthens the tested fail-closed sequence around quarantine. It does not establish crash-recovery guarantees for arbitrary filesystems or production storage.
+
+
+## 2026-11-14 post-commit exact-source audit correction
+
+At PR Head `43e3aba62fb77314601bc9eb735c41b9a72513c2`, exact local Blob matches were verified for:
+- seccomp-exec.c: `eb5e61964858111c5a3e51f2b2c7a6670a431d19`;
+- run-seccomp-integration.sh: `4975a6883fa628c1fe5e5c92a49458a2da96f8fa`;
+- cleanup-failure-integration.sh: `8e21f56b26ad2620556f8c1406ba44d9f150b30f`.
+
+The seccomp wrapper/launcher combination passed twice; the exact cleanup helper passed three times. The RLIMIT-enhanced local client-test source had SHA `c9dcf4768f0704efa99466437d02acf598a1f2ae`, which did not match the committed expected Blob `dffed957ae963eb37c53aaed4fa5a173bdf0b3ba`. Therefore the RLIMIT readback behavior passed on the reconstructed client source but is not yet exact-Blob validated. The Python gzip core probe was not re-run because its local temporary copy failed gzip validation. No full `run.sh` end-to-end claim is made.

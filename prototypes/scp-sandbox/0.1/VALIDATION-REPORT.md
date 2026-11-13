@@ -277,3 +277,25 @@ Scope: this demonstrates a genuine filesystem cleanup failure and a focused pers
 The cleanup helper's owner-record update now flushes and fsyncs the temporary file before atomic replacement, then fsyncs the containing directory. This orders the persisted `quarantining` state before the quarantine rename and persists the follow-up state transitions. The behavior is exercised on the temporary filesystem in the integration test; it is not a durability certification for arbitrary filesystems or storage hardware.
 
 The latest local re-run used source copies reconstructed from the GitHub-returned file contents. The seccomp test/production harness passed twice, with the six RLIMIT ceilings read back in both parent and fork+exec child; the real tmpfs EBUSY/quarantine test passed three times. However, the local copies were not proven byte-identical to the remote Git Blob values. Treat these results as local behavior validation, not exact-Blob replay evidence.
+
+
+## 2026-11-14 post-commit source-identity audit and replay
+
+After the previous provenance note, the three integration inputs were checked individually using local `git hash-object` against the GitHub Blob SHAs at PR Head `43e3aba62fb77314601bc9eb735c41b9a72513c2`:
+
+- `seccomp-exec.c`: local SHA `eb5e61964858111c5a3e51f2b2c7a6670a431d19` — **exact match**.
+- `run-seccomp-integration.sh`: local SHA `4975a6883fa628c1fe5e5c92a49458a2da96f8fa` — **exact match**.
+- `cleanup-failure-integration.sh`: local SHA `8e21f56b26ad2620556f8c1406ba44d9f150b30f` — **exact match**.
+- `seccomp-child-test.c`: expected remote SHA `dffed957ae963eb37c53aaed4fa5a173bdf0b3ba`; local reconstructed RLIMIT-enhanced source SHA `c9dcf4768f0704efa99466437d02acf598a1f2ae` — **not a match**.
+
+The exact-matching seccomp wrapper and launcher were executed twice. Both runs passed the test-mode and production-mode seccomp integration, including syscall denial, clone/clone3, x32 ABI kill, fixture/scratch access, inherited descriptor and cwd denial, tmpfs checks, production getppid allowance and fork+exec filter inheritance. The RLIMIT-enhanced local client reconstruction reported all six configured soft/hard limits in both parent and fork+exec child. Because its Blob SHA did not match the committed client test file, the RLIMIT assertions are **behavior-tested on the reconstructed source but not yet verified on the exact committed C file**.
+
+The exact-matching cleanup helper was executed three times. Each run produced:
+```text
+REAL_CLEANUP_FAILURE=PASS errno=EBUSY
+QUARANTINE_REUSE_GUARD=PASS
+QUARANTINED_RESOURCE_PRESERVED=PASS
+QUARANTINE_RECOVERY_AND_CLEANUP=PASS
+```
+
+The compressed Python core probe was not re-run in this pass because the local temporary gzip copy failed `gzip -t`; prior three-run core-probe evidence remains separate. Therefore this is not a full `run.sh` end-to-end replay. The current committed gzip blob remains `ae64fb2f651018e53705990c2f715ea25fa465b9`; no repository source was altered by the local replay attempt.

@@ -45,7 +45,7 @@
 
 ## Validation provenance
 
-The latest local re-run used source copies reconstructed from GitHub-returned file contents. The seccomp test/production harness passed twice and the cleanup helper passed three times; the RLIMIT assertions were observed in parent and fork+exec children. The local copies were not proven byte-identical to the remote Git Blob values, so these runs are behavior validation, not exact-Blob replay evidence. The PR's remote Blob identities are available from the GitHub commit.
+The post-commit source audit established exact Git Blob matches for seccomp-exec.c, run-seccomp-integration.sh and cleanup-failure-integration.sh. The matching seccomp wrapper/launcher passed twice; the exact cleanup helper passed three times. The RLIMIT-enhanced seccomp-child-test.c local reconstruction did not match the committed Blob SHA, so its RLIMIT assertions are behavior-tested but not exact-Blob verified. The compressed Python probe was not re-run because the local temporary gzip copy failed gzip validation; the prior three-run core-probe record remains separate. The PR's committed Blob identities and precise replay boundary are recorded in VALIDATION-REPORT.md.
 
 ## Repository governance
 
