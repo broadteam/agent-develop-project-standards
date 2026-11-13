@@ -82,3 +82,6 @@ This is still a documented denylist, not a syscall allowlist. Unlisted syscalls 
 ### Resource-control environment result
 
 The cgroup v2 controller list is visible, but the cgroup2 mount is read-only and cannot create a delegated child cgroup. A direct Landlock ABI call returns ENOSYS on this tested kernel/runtime. Neither Landlock nor cgroup enforcement is active in this prototype.
+
+
+The seccomp integration now uses a dedicated 32 MiB tmpfs scratch mount with nosuid,nodev,noexec instead of a writable host bind mount. The synthetic client verifies tmpfs type, mount flags, configured size ceiling, writable scratch behavior and readonly-root write denial in both the parent and fork+exec child.

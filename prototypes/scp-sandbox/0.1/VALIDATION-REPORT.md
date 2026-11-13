@@ -180,3 +180,14 @@ The exact updated files were run through the full seccomp integration harness. B
 The earlier Landlock timeout note is superseded by a direct C syscall probe. Calling landlock_create_ruleset(NULL, 0, LANDLOCK_CREATE_RULESET_VERSION) using x86_64 syscall 444 returned ENOSYS (bounded by a 3-second timeout). The tested kernel/runtime does not expose the Landlock syscall; no Landlock policy is present.
 
 The cgroup v2 mount exposes cpuset cpu io memory hugetlb pids in cgroup.controllers, but /sys/fs/cgroup is mounted read-only, cgroup.subtree_control is empty, and creating a child cgroup fails. The current runtime cannot delegate cgroup resource control. Per-process prlimit remains in place, but is not aggregate CPU/memory/PID accounting.
+
+
+## 2026-11-14 bounded tmpfs scratch integration
+
+The seccomp launch-chain integration no longer bind-mounts a host writable scratch directory into the chroot. It now mounts a dedicated 32 MiB tmpfs at /work inside the private mount namespace with nosuid,nodev,noexec. The synthetic client checks the filesystem type (TMPFS_MAGIC), verifies the NOEXEC/NOSUID/NODEV flags and the configured size ceiling, then creates a scratch marker. Both the original process and its fork+exec child pass. The readonly rootfs still rejects writes with EROFS.
+
+Exact local-execution source Git Blob SHAs:
+- seccomp-child-test.c: 21667e37e1c2d75ce9448194df06c504cdb33a5b
+- run-seccomp-integration.sh: 83f0dd5c1c1019fc2f638e7f7057d5621027d95e
+
+This confines client scratch writes to a bounded ephemeral filesystem inside the mount namespace rather than a host bind mount. It does not provide aggregate CPU/memory/PID accounting; cgroup delegation remains unavailable and per-process prlimit remains the only resource limit outside the tmpfs byte ceiling.

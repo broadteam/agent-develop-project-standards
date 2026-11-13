@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/syscall.h>
+#include <sys/statvfs.h>
+#include <sys/vfs.h>
 #include <sys/wait.h>
 #include <sched.h>
 #include <signal.h>
@@ -103,6 +105,16 @@ static int check(void) {
  if (fd >= 0) { close(fd); fputs("FAIL root writable\n", stderr); bad++; }
  else if (errno == EROFS) { puts("DENIED root-write"); }
  else { fprintf(stderr, "root write errno=%d\n", errno); bad++; }
+ struct statfs work_fs;
+ if (statfs("/work", &work_fs) != 0 || (unsigned long)work_fs.f_type != 0x01021994UL) {
+  fputs("FAIL scratch is not tmpfs\n", stderr); bad++;
+ } else { puts("PASS bounded-tmpfs-scratch"); }
+ struct statvfs work_vfs;
+ if (statvfs("/work", &work_vfs) != 0 || !(work_vfs.f_flag & ST_NOEXEC) ||
+     !(work_vfs.f_flag & ST_NOSUID) || !(work_vfs.f_flag & ST_NODEV) ||
+     (unsigned long long)work_vfs.f_blocks * work_vfs.f_frsize > 33ULL * 1024ULL * 1024ULL) {
+  fputs("FAIL scratch tmpfs mount flags/size\n", stderr); bad++;
+ } else { puts("PASS scratch-nosuid-nodev-noexec-32m-limit"); }
  fd = open("/work/seccomp-marker", O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
  if (fd < 0 || write(fd, "ok\n", 3) != 3) { perror("scratch write"); bad++; }
  else { puts("ALLOWED scratch-write"); }
