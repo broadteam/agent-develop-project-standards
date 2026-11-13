@@ -7,6 +7,7 @@
 #include <sys/prctl.h>
 #include <sys/syscall.h>
 #include <unistd.h>
+#include <sched.h>
 #include <linux/audit.h>
 #include <linux/filter.h>
 #include <linux/seccomp.h>
@@ -14,12 +15,51 @@
 static struct sock_filter f[MAX_INSNS]; static unsigned int n;
 static void stmt(unsigned short c,unsigned int k){if(n>=MAX_INSNS)exit(90);f[n++]=(struct sock_filter)BPF_STMT(c,k);}
 static void jump(unsigned short c,unsigned int k,unsigned char t,unsigned char q){if(n>=MAX_INSNS)exit(90);f[n++]=(struct sock_filter)BPF_JUMP(c,k,t,q);}
-static void deny(int x){if(x<0)return;jump(BPF_JMP|BPF_JEQ|BPF_K,(unsigned)x,0,1);stmt(BPF_RET|BPF_K,SECCOMP_RET_ERRNO|(EPERM&SECCOMP_RET_DATA));}
+static void deny_errno(int x,int e){if(x<0)return;jump(BPF_JMP|BPF_JEQ|BPF_K,(unsigned)x,0,1);stmt(BPF_RET|BPF_K,SECCOMP_RET_ERRNO|((unsigned)e&SECCOMP_RET_DATA));}
+static void deny(int x){deny_errno(x,EPERM);}
 static int install(void){
  struct sock_fprog p;n=0;
  stmt(BPF_LD|BPF_W|BPF_ABS,(unsigned)offsetof(struct seccomp_data,arch));
  jump(BPF_JMP|BPF_JEQ|BPF_K,AUDIT_ARCH_X86_64,1,0);stmt(BPF_RET|BPF_K,SECCOMP_RET_KILL_PROCESS);
  stmt(BPF_LD|BPF_W|BPF_ABS,(unsigned)offsetof(struct seccomp_data,nr));
+#ifdef __NR_clone
+ unsigned int nsflags = 0;
+#ifdef CLONE_NEWNS
+ nsflags |= CLONE_NEWNS;
+#endif
+#ifdef CLONE_NEWCGROUP
+ nsflags |= CLONE_NEWCGROUP;
+#endif
+#ifdef CLONE_NEWUTS
+ nsflags |= CLONE_NEWUTS;
+#endif
+#ifdef CLONE_NEWIPC
+ nsflags |= CLONE_NEWIPC;
+#endif
+#ifdef CLONE_NEWUSER
+ nsflags |= CLONE_NEWUSER;
+#endif
+#ifdef CLONE_NEWPID
+ nsflags |= CLONE_NEWPID;
+#endif
+#ifdef CLONE_NEWNET
+ nsflags |= CLONE_NEWNET;
+#endif
+#ifdef CLONE_NEWTIME
+ nsflags |= CLONE_NEWTIME;
+#endif
+ if (nsflags) {
+  jump(BPF_JMP|BPF_JEQ|BPF_K,__NR_clone,0,3);
+  stmt(BPF_LD|BPF_W|BPF_ABS,(unsigned)offsetof(struct seccomp_data,args[0]));
+  jump(BPF_JMP|BPF_JSET|BPF_K,nsflags,0,1);
+  stmt(BPF_RET|BPF_K,SECCOMP_RET_ERRNO|(EPERM&SECCOMP_RET_DATA));
+  stmt(BPF_LD|BPF_W|BPF_ABS,(unsigned)offsetof(struct seccomp_data,nr));
+ }
+#endif
+#ifdef __NR_clone3
+ /* ENOSYS lets libc fall back to legacy clone, whose namespace flags are filtered above. */
+ deny_errno(__NR_clone3,ENOSYS);
+#endif
 #ifdef __X32_SYSCALL_BIT
  jump(BPF_JMP|BPF_JSET|BPF_K,__X32_SYSCALL_BIT,0,1);stmt(BPF_RET|BPF_K,SECCOMP_RET_KILL_PROCESS);
 #endif

@@ -133,3 +133,8 @@ Final source Blob SHAs for the expanded regression set:
 The integration harness was rerun after the clone/clone3 checks were added. GCC -Wall -Wextra -Werror succeeded; both parent and child reported DENIED for the test sentinel, mount, umount2, ptrace, unshare, clone namespace flags, clone3 fallback, BPF and userfaultfd; both reported ALLOWED for getpid, fixture read and scratch write; both reported DENIED for writes to the read-only root. The final line was SECCOMP_FORK_EXEC_INHERITANCE=PASS.
 
 The profile remains an x86_64 denylist with default ALLOW. It is not a complete syscall allowlist and does not constitute production sandbox certification.
+
+
+## Final seccomp launcher blob verification
+
+The final seccomp launcher source, including legacy clone namespace-flag inspection and clone3 ENOSYS fallback behavior, is Git Blob aed40a67bda0231c6e567a06c286378e4eb023b4. This exact source was compiled locally with GCC -Wall -Wextra -Werror and exercised by the namespace/chroot integration harness. The synthetic client and its fork+exec child both reported clone(CLONE_NEWUSER) denied with EPERM and clone3 denied with ENOSYS, while ordinary fork/exec, fixture reads and scratch writes remained successful. The accompanying test source is Blob 87825be539a33647939eb46f4aa725b563dc28ce and the integration launcher is Blob 0eb9698e781653660060d5fbce2916a78b0de71a.
