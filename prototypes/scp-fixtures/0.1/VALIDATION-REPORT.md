@@ -65,3 +65,8 @@ After the baseline local working-copy run, source review produced additional cha
 These post-baseline source and test changes have **not** been executed in this environment. A direct checkout attempt of the PR branch failed because this runtime could not resolve `github.com`; do not infer test success from source inspection or the repository's unrelated existing CI checks. The exact committed suite remains pending execution in an environment that can checkout the PR Head.
 
 The successful baseline numbers above apply only to the earlier local working copy and must not be attributed to the later committed changes.
+
+
+## Launcher portability review
+
+The committed launcher now accepts `NODE` and `PYTHON` executable overrides and probes `python3` then `python`. It still requires a POSIX-compatible shell and standard `mktemp`/`cmp` utilities. This source update is not part of an executed exact-Head run.
