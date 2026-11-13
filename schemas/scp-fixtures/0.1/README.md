@@ -41,9 +41,9 @@ The Context is test-harness input. It is not an SCP Packet, project state source
 
 ## Driver contract descriptors
 
-Git blob SHA identifies the file in the pinned repository snapshot. SHA-256 identifies the exact descriptor bytes and is the value currently pinned in Context examples. They are not interchangeable.
+Git blob SHA identifies the descriptor file in the pinned repository snapshot. `driver_descriptor_sha256` identifies the exact descriptor bytes and is the value pinned in Context examples. Neither value identifies an executable Driver bundle; a future Registry must pin and verify an executable bundle digest separately.
 
-| Driver ID | Descriptor | Driver bundle SHA-256 | Status |
+| Driver ID | Descriptor | Driver descriptor SHA-256 | Status |
 |---|---|---|---|
 | `packet.locator.inspection` | `../drivers/0.1/packet-locator-inspection.json` | `sha-256:161a7df5bbc28e9cf61bca0080d9a433b8ac247df8058898bee21b16c1be3222` | contract_only |
 | `git.path-set.mismatch` | `../drivers/0.1/git.path-set-mismatch.json` | `sha-256:27a0df17005a22f3da6901c45c768a8fbbdd9a34e8eea67b1d7c5493173e37e9` | contract_only |

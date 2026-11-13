@@ -39,9 +39,9 @@ Measured runtime capabilities are recorded in the Run Manifest, not written back
 A Driver reference is pinned by:
 - `driver_id`;
 - `driver_contract_version`;
-- `driver_bundle_sha256`.
+- `driver_descriptor_sha256`.
 
-The Registry must check the exact triple against an allow-listed descriptor and separately resolve an executable bundle with matching digest before execution. In the current Draft, all three driver descriptors are `implementation_status=contract_only`. Their SHA-256 values pin descriptor bytes only; **they are not executable driver packages** and must be rejected for execution.
+The Registry must check the exact descriptor triple against an allow-listed descriptor. `driver_descriptor_sha256` is SHA-256 of the exact descriptor bytes only; it is not an executable bundle digest. If a runnable implementation is introduced later, the Registry must resolve its executable bundle as a separate immutable artifact, verify that bundle's own SHA-256, and bind the resolution to an immutable Registry snapshot before execution. In the current Draft, all three descriptors are `implementation_status=contract_only`; they must be rejected for execution regardless of a matching descriptor digest.
 
 A Context never carries commands, shell fragments, source code or executable payloads. Registry lookup by mutable alias alone is forbidden.
 

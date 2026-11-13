@@ -62,9 +62,9 @@ The Git blob SHA of each positive and negative instance was recalculated locally
 
 This is synthetic local-stub fixture evidence only. It is not documentation or a claim about the behavior of the real GitHub API.
 
-## Pinned Driver descriptor bundle digests
+## Pinned Driver descriptor SHA-256 digests
 
-The values below are SHA-256 over the exact UTF-8 descriptor file bytes, including the final newline. The descriptors are marked `contract_only`; these hashes pin their descriptor bytes, **not executable Driver bundles**.
+The values below are SHA-256 over the exact UTF-8 descriptor file bytes, including the final newline. They are pinned as `driver_descriptor_sha256` in Context. The descriptors are marked `contract_only`; these hashes identify descriptor bytes only and are **not executable Driver bundle digests**.
 
 | Driver ID | Descriptor Git blob SHA | SHA-256 of exact descriptor bytes |
 |---|---|---|

@@ -2051,7 +2051,7 @@ CI 说明：当前 Standards CI workflow 的全绿结果不包含 SCP Schema 验
 4. **Reason codes 仅测试层：接受。** `scp.fixture.*` 只用于 Fixture Conformance，不加入 Packet 或 SCP runtime API。
 5. **Capability profile immutable ref + SHA：接受。** 首版不允许 fixture 级自由覆盖，能力差异通过另一个 immutable profile 表达。
 
-新增一个必要的完整性约束：setup driver 除 `driver_id` 外还必须 pin `driver_contract_version` 与 `driver_bundle_sha256`；仅写 `driver_revision=1` 无法确保代码内容可复现。Capability profile 同样 pin `profile_id`、`profile_version` 与 `profile_blob_sha`。Context 自身 SHA 由外部 run manifest pin，不能写入自身造成自引用。
+新增一个必要的完整性约束：setup driver 必须 pin `driver_id`、`driver_contract_version` 与 `driver_descriptor_sha256`，以标识确切的 Driver 描述文件；该摘要不是可执行包摘要。未来若允许 runnable Driver，Harness Registry 必须独立解析并校验 executable bundle 的 SHA-256，同时 pin 不可变 Registry snapshot，二者不能混用。Capability profile 同样 pin `profile_id`、`profile_version` 与 `profile_blob_sha`。Context 自身 SHA 由外部 Run Manifest pin，不能写入自身造成自引用。
 
 未来正式 Context Schema 的创建门槛见 `CONTEXT-CONTRACT-DESIGN.md` §14，包括所有引用不可变可解析、事件确定性、观察记录类型化、expected output 按 claim/scope 表达、无凭据/任意代码、缺输入 fail-closed、标准 Draft 2020-12 验证和两个独立 Harness adapter 对同一 Context 得到一致输入观察。
 
@@ -2070,7 +2070,7 @@ CI 说明：当前 Standards CI workflow 的全绿结果不包含 SCP Schema 验
 Schema 设计要点：
 1. Context 与 Packet 独立版本化；Context 固定 Packet path/blob SHA、Packet Schema path/blob SHA 和 source repository commit。
 2. Profile 使用 `profile_id + profile_version + profile_blob_sha`。
-3. Driver 使用 `driver_id + driver_contract_version + driver_bundle_sha256`；当前 descriptor 状态全部为 `contract_only`，不是可执行 bundle。
+3. Driver 使用 `driver_id + driver_contract_version + driver_descriptor_sha256` pin 描述文件字节；当前 descriptor 状态全部为 `contract_only`，不是可执行 bundle。未来 Registry 必须将 executable bundle digest 与 descriptor digest 分开校验和记录。
 4. Context 不含 `execution_status`，不能自己声明 runnable；由未来 Harness Registry 解析精确 Driver/Profile 及可执行包。
 5. Provider authoritative 404 必须引用固定 SHA 的 provider contract evidence；路径等价观察必须绑定 profile revision。
 6. Context 不含项目状态源、真实凭据、任意脚本、实际 Run Result 或项目写入授权；Run Manifest 与输入分离且尚未定义为机器 Schema。

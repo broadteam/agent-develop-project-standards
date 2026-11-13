@@ -4,7 +4,7 @@ const A=require('./adapter.cjs'),{evaluate}=require('./oracle.cjs');
 const ROOT=path.resolve(__dirname,'..'),F=path.join(ROOT,'fixtures'),OUT=process.env.SCP_PROTO_OUTPUT_DIR||path.join(ROOT,'artifacts');
 fs.mkdirSync(OUT,{recursive:true});
 const names=['credentialed-project-repository','identity-source-reference-unresolvable','fingerprint-path-set-mismatch'];
-const pins=['37ea051aae40443abfe425c59e46282962bac9fe','9c42e9626e484a2b0c830a845097467450dfcd47','542c5c6748fc5056c1fb4a080d9e2a4f8995789e'],counts=[12,15,13];
+const pins=['eead3afee0d0183a5bc8c5ca0c4fe5d776d184c8','16217a4f6aa01464e54c912d6836dec5e1f0c76f','d3661577a6585afc65003d635768257308e688a0'],counts=[12,15,13];
 const sha=b=>crypto.createHash('sha1').update(Buffer.concat([Buffer.from('blob '+b.length+'\0'),b])).digest('hex');
 const write=(n,v)=>fs.writeFileSync(path.join(OUT,n),A.stable(v)+'\n');
 for(let i=0;i<3;i++){

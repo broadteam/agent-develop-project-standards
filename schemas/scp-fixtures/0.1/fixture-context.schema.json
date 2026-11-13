@@ -275,7 +275,7 @@
       "required": [
         "driver_id",
         "driver_contract_version",
-        "driver_bundle_sha256"
+        "driver_descriptor_sha256"
       ],
       "properties": {
         "driver_id": {
@@ -287,7 +287,7 @@
           "type": "string",
           "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
         },
-        "driver_bundle_sha256": {
+        "driver_descriptor_sha256": {
           "type": "string",
           "pattern": "^sha-256:[0-9a-f]{64}$"
         }

@@ -28,7 +28,7 @@
     "driver": {
       "driver_id": "git.path-set.mismatch",
       "driver_contract_version": "0.1.0",
-      "driver_bundle_sha256": "sha-256:27a0df17005a22f3da6901c45c768a8fbbdd9a34e8eea67b1d7c5493173e37e9"
+      "driver_descriptor_sha256": "sha-256:27a0df17005a22f3da6901c45c768a8fbbdd9a34e8eea67b1d7c5493173e37e9"
     },
     "isolation": {
       "root_scope": "harness_disposable",

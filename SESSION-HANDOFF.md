@@ -1236,7 +1236,7 @@ Path identity：
 5. Capability profiles 使用 immutable reference + blob SHA；第一版不开放 per-fixture 自由 override。
 
 补充 pinning：
-- Setup driver 必须同时 pin `driver_id`、`driver_contract_version`、`driver_bundle_sha256`，不能仅依赖可变 ID 或版本文字。
+- Setup driver 必须同时 pin `driver_id`、`driver_contract_version`、`driver_descriptor_sha256`，不能仅依赖可变 ID 或版本文字。
 - Capability profile 必须 pin `profile_id`、`profile_version`、`profile_blob_sha`。
 - Context 自身 SHA 由 run manifest 外部绑定，避免自引用。
 
@@ -1304,12 +1304,12 @@ Context Schema 独立于 Packet 0.2.0，不添加 Packet fields。
 - 三份 Packet Git blob SHA 均与 Context `target.packet.blob_sha` 相符。
 - Packet Schema Git blob SHA 与 Context `target.packet_schema.blob_sha` 相符。
 - Profile Git blob SHA 与 `profile_blob_sha` 相符。
-- 三个 Driver descriptor 在该 revision 中存在；其 exact UTF-8 bytes SHA-256 与 `driver_bundle_sha256` 相符。
+- 三个 Driver descriptor 在该 revision 中存在；其 exact UTF-8 bytes SHA-256 与 `driver_descriptor_sha256` 相符。该值仅标识描述文件，不代表可执行 bundle。
 - Provider contract Git blob SHA 与 `not_found_authority_evidence.blob_sha` 相符。
 
 重要区分：
 - Git blob SHA 用于定位仓库中的精确文件对象。
-- Driver `driver_bundle_sha256` 是 exact descriptor bytes 的 SHA-256。
+- Driver `driver_descriptor_sha256` 是 exact descriptor bytes 的 SHA-256，不是 executable bundle digest。若未来登记 runnable Driver，Registry 必须独立 pin 可执行包 SHA-256 和 immutable Registry snapshot。
 - 这三个 Driver 仍为 `contract_only`；即使哈希匹配，也不能执行。
 
 当前 Context Schema SHA：`9348e22ac0ee450ce6689cec4fb87f0aa985104c`。当前 3 个正例和 5 个负例均经 Python `jsonschema 4.26.0` 标准 Draft 2020-12 Validator + `FormatChecker()` 验证，实际 Git blob SHA 与重新计算的 canonical JSON Blob SHA 相符。细节见 `schemas/scp-fixtures/0.1/VALIDATION-REPORT.md`。
@@ -1925,3 +1925,8 @@ The evidence is component-exact but **not a one-invocation end-to-end execution 
 - D0 remains the only user-confirmed frozen decision. D1/D2/D3, Context, Normalized Result and Run Manifest remain Draft.
 
 At PR Head `51840a92772119e0733f6e15543a592abbee3168`, existing Standards CI completed 16/16 success. The follow-up documentation-only commit will trigger the same existing matrix; report its result only after polling that new Head. PR #11 remains Open + Draft and must not be merged. `main`, PR #10, tags, project version and the existing workflow are unchanged.
+
+
+## 2026-11-14 Draft Context Driver digest naming correction
+
+The Draft Context field was renamed from `driver_bundle_sha256` to `driver_descriptor_sha256`. Its existing values are SHA-256 digests of the exact UTF-8 Driver descriptor files, not executable bundle digests. The schema, three Context examples, fixture README, Node/Python test blob pins, Compatibility, Context README/validation report, SCP design and this handoff were synchronized. Future executable Driver bundles must be resolved by a pinned immutable Harness Registry and carry a separate bundle SHA-256; the current three descriptors remain `contract_only` and are not runnable. This is a Draft contract clarification only: no D1/D2/D3 freeze, no Runner/Registry implementation, no Agent invocation, no CI workflow or gate.

@@ -5,7 +5,7 @@ from adapter import read_json,parse_bytes,request,norm,projection,stable,ordered
 from oracle import evaluate
 ROOT=Path(__file__).resolve().parents[1]; F=ROOT/"fixtures"
 NAMES=["credentialed-project-repository","identity-source-reference-unresolvable","fingerprint-path-set-mismatch"]
-PINS=["37ea051aae40443abfe425c59e46282962bac9fe","9c42e9626e484a2b0c830a845097467450dfcd47","542c5c6748fc5056c1fb4a080d9e2a4f8995789e"]
+PINS=["eead3afee0d0183a5bc8c5ca0c4fe5d776d184c8","16217a4f6aa01464e54c912d6836dec5e1f0c76f","d3661577a6585afc65003d635768257308e688a0"]
 COUNTS=[12,15,13]
 OUT=Path(os.environ.get("SCP_PROTO_OUTPUT_DIR",ROOT/"artifacts"))
 def blobsha(b):return hashlib.sha1(b"blob "+str(len(b)).encode()+b"\0"+b).hexdigest()

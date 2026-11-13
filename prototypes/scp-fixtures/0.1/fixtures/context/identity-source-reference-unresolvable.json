@@ -28,7 +28,7 @@
     "driver": {
       "driver_id": "provider.identity.lookup",
       "driver_contract_version": "0.1.0",
-      "driver_bundle_sha256": "sha-256:fb274c2eca75fdbaa9ad97f8e94bdfeb5a04bc2bf4757fe5abed6f593136770b"
+      "driver_descriptor_sha256": "sha-256:fb274c2eca75fdbaa9ad97f8e94bdfeb5a04bc2bf4757fe5abed6f593136770b"
     },
     "isolation": {
       "root_scope": "harness_disposable",

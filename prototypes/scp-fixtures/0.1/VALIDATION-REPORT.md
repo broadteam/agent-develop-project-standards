@@ -152,3 +152,8 @@ For final PR Head 17e14191ab184e974247df2a81444a73fe566793, the two existing Sta
 - 43411426571: 8/8 matrix jobs success.
 
 These GitHub Actions runs do not execute the SCP prototype parity script. They are separate CI evidence. No CI workflow or gate was added.
+
+
+## 2026-11-14 Draft Context descriptor-pin rename
+
+The Context Driver pin field was renamed to `driver_descriptor_sha256` to describe its actual semantics: SHA-256 of the exact `contract_only` descriptor bytes, not an executable Driver package. The three Context blob pins changed and both Node.js/Python test pin arrays were updated. This metadata/fixture identity correction does not change adapter or normalizer behavior. The existing recorded parity execution predates these new Context bytes; the exact updated fixture/test sources must be rerun before extending the Stage 1 execution claim to the renamed Context blobs. No Driver was made executable and no Harness Registry or Agent client was implemented.

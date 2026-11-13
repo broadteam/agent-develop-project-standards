@@ -8,8 +8,8 @@ The client-output directory contains fixed synthetic client-response vectors. Th
 
 | Context fixture | Context Blob SHA | Expected assertion count |
 |---|---|---:|
-| credentialed-project-repository | 37ea051aae40443abfe425c59e46282962bac9fe | 12 |
-| identity-source-reference-unresolvable | 9c42e9626e484a2b0c830a845097467450dfcd47 | 15 |
-| fingerprint-path-set-mismatch | 542c5c6748fc5056c1fb4a080d9e2a4f8995789e | 13 |
+| credentialed-project-repository | eead3afee0d0183a5bc8c5ca0c4fe5d776d184c8 | 12 |
+| identity-source-reference-unresolvable | 16217a4f6aa01464e54c912d6836dec5e1f0c76f | 15 |
+| fingerprint-path-set-mismatch | d3661577a6585afc65003d635768257308e688a0 | 13 |
 
 The source Packet Schema Blob SHA used by all three Contexts is a2f2097a17c08bf0a2ae733ab43a8f1919b48813. Source repository revision: 1670320ea980368ed74cd4edd11cba4297467bde.
