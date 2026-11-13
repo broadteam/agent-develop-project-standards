@@ -1,21 +1,21 @@
 # Prototype validation report
 
 **Date:** 2026-11-13  
-**Status:** Local prototype checks passed; no production interoperability claim.
+**Status:** Local development working-copy checks passed; submitted prototype files remain independently unverified in GitHub Actions. No production interoperability claim.
 
-## Environment
+## Environment used for the local run
 
 - OS: Linux x86_64
 - Node.js: v22.16.0
 - Python: 3.13.5
 - Third-party dependencies: none
-- Command: sh prototypes/scp-fixtures/0.1/run-parity.sh
+- Command: sh run-parity.sh from the isolated prototype development directory
 
-## Results
+## Results from the local development working copy
 
 | Check | Result |
 |---|---:|
-| Pinned Context copies verified by Git blob SHA | 3 / 3 |
+| Pinned Context copies verified by Git blob SHA-1 | 3 / 3 |
 | Node.js test suite | PASS |
 | Python test suite | PASS |
 | Expected assertion projections | 12 + 15 + 13 = 40 |
@@ -24,18 +24,29 @@
 | Oracle report byte comparisons | 3 / 3 equal |
 | Cross-implementation generated artifacts | 9 / 9 byte-identical |
 
-Covered negative/edge vectors include duplicate JSON members, invalid UTF-8, unpaired surrogate, missing field, explicit unknown, empty set, missing set, null, duplicate claim key, duplicate set member, unsupported core field/enum, out-of-projection row, event-sequence mismatch, observation mismatch, profile-capability mismatch, exact Unicode identifier mismatch, value mismatch and pre-evaluation not_run.
+Covered negative/edge vectors include duplicate JSON object members, invalid UTF-8, unpaired surrogate, __proto__ object-member handling, missing field versus explicit unknown, empty set versus missing array, JSON null, duplicate claim/scope keys, duplicate set members, unsupported fields/enums, exact Unicode identifiers (including NFC/NFD distinction), event-sequence mismatch, observation mismatch, capability/profile mismatch, value mismatch and pre-evaluation not_run.
+
+## Execution provenance and required re-run
+
+The test run above was performed against the isolated local development working copy before the prototype source files were mirrored into this PR branch. The files now committed under prototypes/scp-fixtures/0.1/ were independently authored to the same contract and are intended to be executed with the documented run-parity.sh, but this report does **not** claim that the exact Git blobs at the current PR Head have already been executed.
+
+After checking out the PR branch, run:
+
+    sh prototypes/scp-fixtures/0.1/run-parity.sh
+
+The repository's existing GitHub Actions checks do not currently execute this prototype suite. No workflow or CI gate was added.
 
 ## Interpretation
 
-Node.js and Python independently produced byte-identical requests, normalized projections and Oracle reports for the three fixed synthetic vectors. This is evidence of parity for the implemented DTO/normalization rules only.
+The local development implementation demonstrated byte-identical Client Evaluation Requests, normalized projections and Oracle assertion reports across independent Node.js and Python standard-library implementations for the three fixed synthetic Context vectors. This validates the tested projection/normalization rules in that working copy only.
 
 ## Not tested / not claimed
 
-- No Agent client was invoked.
-- No real Git, filesystem, submodule or Provider observer ran.
-- No executable Driver, Harness Registry, sandbox isolation, secret-redaction service, cleanup ownership/quarantine, retry store or immutable Manifest store exists.
-- Packet/Schema/Profile/Driver/Provider refs are propagated as pins, but not all referenced artifacts are fetched and dereferenced by these prototypes.
-- Current Drivers remain contract_only.
-- Synthetic conformant means only that the fixed response vector matches this Context expected projection; it is not Agent conformance evidence.
-- No Normalized Result or Run Manifest JSON Schema was created and no CI gate was changed.
+- No ChatGPT, Claude, Codex or other Agent client was invoked; client-output fixtures are synthetic vectors, not captured Agent responses.
+- No real Git worktree, filesystem capability probe, submodule, Provider endpoint or live observation adapter ran.
+- No executable Driver exists; the referenced repository Driver descriptors remain contract_only.
+- The prototype propagates exact Packet/Schema/Profile/Driver/Provider pins but does not fetch and independently dereference every transitive artifact.
+- The prototype checks that the Client Evaluation Request omits Context expected values, assertion outcomes and Oracle members. It does not provide OS-level process/container sandboxing or prove isolation against an Agent with unrestricted host access.
+- No general-purpose credential redaction service, cleanup ownership/quarantine implementation, retry store, immutable Run Manifest store/finalizer, Harness Registry or production write API exists.
+- No Normalized Result or Run Manifest JSON Schema, Writer, Store, Runner or CI gate was created.
+- A synthetic Oracle result of conformant only means that a fixed response vector matches the Context expected projection; it is not Agent conformance evidence.
