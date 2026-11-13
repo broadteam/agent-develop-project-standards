@@ -45,7 +45,7 @@
 
 ## Validation provenance
 
-The post-commit source audit established exact Git Blob matches for seccomp-exec.c, seccomp-child-test.c, run-seccomp-integration.sh and cleanup-failure-integration.sh. The exact-Blob seccomp harness passed twice, including all six RLIMIT readbacks in parent and fork+exec child; the exact cleanup helper passed three times. The compressed Python core probe was not re-run because the local temporary gzip copy failed gzip validation; the prior three-run core-probe record remains separate, so this is not full run.sh end-to-end evidence. Precise hashes and execution scope are recorded in VALIDATION-REPORT.md.
+The post-commit source audit established exact Git Blob matches for seccomp-exec.c, seccomp-child-test.c, run-seccomp-integration.sh and cleanup-failure-integration.sh. The exact-Blob seccomp harness passed twice, including all six RLIMIT readbacks in parent and fork+exec child; the exact cleanup helper passed three times. On 2026-11-14, the exact committed compressed Python core probe also passed gzip validation and execution after compressed/decompressed Git Blob SHA verification. The combined linux/run.sh wrapper was not executed end-to-end in one invocation; component evidence is recorded separately in VALIDATION-REPORT.md.
 
 ## Repository governance
 

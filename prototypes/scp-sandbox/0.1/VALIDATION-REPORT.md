@@ -299,3 +299,22 @@ QUARANTINE_RECOVERY_AND_CLEANUP=PASS
 ```
 
 The compressed Python core probe was not re-run in this pass because the local temporary gzip copy failed `gzip -t`; prior three-run core-probe evidence remains separate. Therefore this is exact-Blob replay of the seccomp and cleanup helpers, **not** a full `run.sh` end-to-end replay. The committed gzip blob remains `ae64fb2f651018e53705990c2f715ea25fa465b9`.
+
+
+## 2026-11-14 exact-Blob core-probe replay (superseding interim failure note)
+
+The earlier temporary-copy attempt failed `gzip -t`, so the compressed probe was not executed in that pass. This was a local transfer-artifact problem, not a defect in the committed gzip blob. The exact current PR file was subsequently fetched through the GitHub Contents API and revalidated before execution.
+
+- PR Head at replay: `c715a1bd48771d7fbab88036e662ef6da6ba7070`.
+- Compressed file: `prototypes/scp-sandbox/0.1/linux/probe.py.gz`.
+- Compressed Git Blob SHA-1: `ae64fb2f651018e53705990c2f715ea25fa465b9` (exact match).
+- `gzip -t`: PASS.
+- Decompressed source Git Blob SHA-1: `88e08595b3f74fc7c5c59fb13c9473f94dbb5503` (exact match).
+- Environment: Linux x86_64, kernel `6.18.57`, isolated container runtime, effective UID 0.
+- Execution: decompressed the exact verified gzip bytes and ran the source under `timeout --signal=TERM --kill-after=5s 90s python3`.
+
+Result: `RESULT=GATE_A_AND_B_CORE_PROBES_PASS; NOT A PRODUCTION SANDBOX CERTIFICATION`.
+
+The exact committed core probe passed its user/mount/network/PID namespace setup, UID/GID drop to 65534, no_new_privs and capability drop, read-only rootfs, host path and symlink containment, hidden proc/sys, dedicated scratch write, host loopback isolation, PID descendant teardown, host environment non-inheritance, synthetic shim access-denial probes, 4096-byte output cap with exact synthetic-marker redaction, cleanup ownership/quarantine and normal cleanup.
+
+This closes the previously outstanding exact-Blob **core-probe** replay. It does not claim that the complete `linux/run.sh` wrapper was executed end-to-end in one invocation: the exact-Blob seccomp integration and cleanup-failure helpers were exercised separately in their previously documented runs. Existing Standards CI is also separate and does not run these SCP-specific probes.
