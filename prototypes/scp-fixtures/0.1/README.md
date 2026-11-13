@@ -11,7 +11,7 @@ This directory contains two independently authored implementations of the curren
 
 Both implementations use only their respective standard libraries. Neither imports, shells out to, or calls the other implementation. They consume the same three pinned Context fixtures and separately authored synthetic observation/client-response vectors.
 
-The test suite covers strict UTF-8 and duplicate JSON-member rejection, unpaired surrogates, exact Context Git blob SHA-1 verification, immutable reference propagation, values-stripped projection descriptors, observation/profile reconciliation, normalized enum/value validation, absent versus explicit unknown, empty set versus absent, null rejection, duplicate keys/members, unsupported fields, exact Unicode identifiers, non-conformance and pre-evaluation not_run. It also compares the generated request, normalized result and Oracle report byte-for-byte across implementations.
+The test suite covers strict UTF-8 and duplicate JSON-member rejection, unpaired surrogates, exact Context Git blob SHA-1 verification, immutable reference propagation, values-stripped projection descriptors, observation/profile reconciliation, normalized enum/value validation, absent versus explicit unknown, empty set versus absent, null rejection, duplicate expected/actual keys and set members, empty-row omission, human-readable Unicode `user_decisions_needed`, unsupported fields, exact Unicode identifiers, non-conformance and pre-evaluation not_run. It also compares the generated request, normalized result and Oracle report byte-for-byte across implementations.
 
 ## Run
 
