@@ -24,7 +24,9 @@
 | Oracle report byte comparisons | 3 / 3 equal |
 | Cross-implementation generated artifacts | 9 / 9 byte-identical |
 
-Covered negative/edge vectors include duplicate JSON object members, invalid UTF-8, unpaired surrogate, __proto__ object-member handling, missing field versus explicit unknown, empty set versus missing array, JSON null, duplicate claim/scope keys, duplicate set members, unsupported fields/enums, exact Unicode identifiers (including NFC/NFD distinction), event-sequence mismatch, observation mismatch, capability/profile mismatch, value mismatch and pre-evaluation not_run.
+Negative/edge vectors exercised in the local development working-copy run included duplicate JSON object members, invalid UTF-8, unpaired surrogate, missing field versus explicit unknown, empty set versus missing array, JSON null, duplicate claim/scope keys, duplicate set members, unsupported fields/enums, exact Unicode identifiers (including NFC/NFD distinction), event-sequence mismatch, observation mismatch, capability/profile mismatch, value mismatch and pre-evaluation not_run.
+
+The committed Node.js source additionally includes an assertion for safe handling of an own "__proto__" JSON member, and the committed Python suite adds duplicate/malformed capability-profile observation cases. These additional assertions are present in the PR files but are **not** included in the local run results above.
 
 ## Execution provenance and required re-run
 
