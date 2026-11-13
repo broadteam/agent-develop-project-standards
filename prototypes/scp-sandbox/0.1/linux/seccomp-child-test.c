@@ -45,19 +45,19 @@ static int check_resource_limits(void) {
  for (size_t i = 0; i < sizeof(limits) / sizeof(limits[0]); i++) {
   struct rlimit actual;
   if (getrlimit(limits[i].resource, &actual) != 0) {
-   fprintf(stderr, "FAIL getrlimit %s errno=%d\\n", limits[i].name, errno);
+   fprintf(stderr, "FAIL getrlimit %s errno=%d\n", limits[i].name, errno);
    bad++;
    continue;
   }
   if (actual.rlim_cur == RLIM_INFINITY || actual.rlim_max == RLIM_INFINITY ||
       actual.rlim_cur > limits[i].ceiling || actual.rlim_max > limits[i].ceiling) {
-   fprintf(stderr, "FAIL rlimit %s soft=%llu hard=%llu ceiling=%llu\\n",
+   fprintf(stderr, "FAIL rlimit %s soft=%llu hard=%llu ceiling=%llu\n",
            limits[i].name, (unsigned long long)actual.rlim_cur,
            (unsigned long long)actual.rlim_max,
            (unsigned long long)limits[i].ceiling);
    bad++;
   } else {
-   printf("PASS rlimit-%s soft=%llu hard=%llu\\n", limits[i].name,
+   printf("PASS rlimit-%s soft=%llu hard=%llu\n", limits[i].name,
           (unsigned long long)actual.rlim_cur,
           (unsigned long long)actual.rlim_max);
   }
