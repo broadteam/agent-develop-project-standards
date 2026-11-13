@@ -2186,3 +2186,45 @@ Manifest 自身 digest 由外部存储计算，不能在内容内自引用。Exp
 - 不冻结 D1、D2、D3 或 Context Contract 0.1.0。
 - D0 保持用户已确认冻结。
 - PR #11 继续 Open + Draft；不合并、不修改 PR #10/main、不 bump 项目版本、不打 Tag。
+
+### 17.30 Normalized Actual Result Contract 与跨客户端对照矩阵（2026-11-13）
+
+本轮将 Run Manifest 的 actual-result 概念从字段映射收敛为可独立实现的规范化投影契约。详细条款及三个现有 Context 投影示例见 `schemas/scp-fixtures/0.1/RUN-MANIFEST-DESIGN.md` §17；与 Context 0.1.0 的交叉规则见 `schemas/scp-fixtures/0.1/COMPATIBILITY.md` §11。
+
+#### 规范化输出收敛
+
+候选 contract identity：`scp-fixture-normalized-result/0.1.0`，仅作为设计候选，尚无 JSON Schema。
+
+1. Normalized Result 是 test-scoped projection，不是客户端完整内部状态快照。
+2. Context `expected` 提供本次测试的 claim_ref、operation_scope 和字段名；Normalizer 可使用这些键构造投影，但不能复制 expected values 或把其当作 actual observation。
+3. Claim 以精确 `claim_ref` 匹配；Recovery 以精确 `operation_scope` 匹配；数组顺序不具语义，重复 key 非法。
+4. 允许的字段值直接复用 Context 0.1.0 的枚举和集合语义；不新增 Packet/Context 字段。
+5. 字段缺失、显式 `unknown`、`null`、未知 enum/core field 分开处理：缺失=inconclusive/not_run；显式 unknown 是可比较值；null invalid；未知核心语义 unsupported/invalid，禁止降级成 unknown。
+6. actions、reason_codes、user_decisions_needed 是集合型数组：拒绝重复值，忽略顺序，空集合与字段缺失不同。
+7. 断言完整性由 expected property 树机械枚举；packet 两字段、claim 每个非 key 字段、recovery 每个非 key 字段各产生一个稳定 tuple `(subject_kind, subject_ref, field)`。集合字段作为一个原子断言。
+8. 归一化结果只包含本 Context 预期投影内的记录和字段；不使用数组索引、客户端自定义计数器或自由文本作为断言身份。
+
+#### 跨客户端比较矩阵
+
+派生比较报告采用：`equal`、`divergent`、`incomplete`、`incomparable`；无效输出另判 `invalid_result`。
+
+- 只有相同 Context/Schema/Packet/Packet Schema/source revision/Profile/Driver/Provider/Registry pins、相同 deterministic clock/event inputs、相同相关 measured capability/permission 观察以及相同 normalized-result contract version 才可精确比较。
+- Client/Adapter/Normalizer 的实现身份可以不同，且必须分别记录；这是互操作测试的被测差异，不是输入不等价。
+- Attempt IDs、墙钟时间、临时路径和本地 snapshot ID 不是 parity value；对 snapshot 比较 phase/role 与内容摘要。
+- Context 0.1.0 没有 per-assertion capability dependency map，相关 capability/permission 有实质差异时整体 incomparable，不推测共同子集。
+- `unknown` 只与 `unknown` 精确相等，不是 wildcard。
+- parity equal 不代表 conformance；两个客户端可能以相同方式违反 expected。每份 Manifest 仍独立对照 Context 判定。
+- parity divergent 也不自动证明哪一方正确；需分别核验 expected assertions。
+
+#### 验收向量与当前结论
+
+已新增 NR-P01–P03、NR-N01–N08 设计向量，覆盖数组顺序、unknown/absence、null、重复 key、opaque ID、缺少 assertion、环境不等价和 exact mismatch。针对现有三个 Context 示例，expected projection 断言数分别为：
+- credentialed-project-repository：12；
+- identity-source-reference-unresolvable：15；
+- fingerprint-path-set-mismatch：13。
+
+上述数量由各 Context 的 expected property 结构推导，未运行客户端、Adapter 或 Harness。
+
+**当前判断：Normalized Actual Result Contract 的设计候选达到可供独立实现评审的程度；Run Manifest Schema Gate 仍未满足。** 两个独立 Adapter 尚不存在，Driver 仍是 contract_only，redaction/cleanup 的可执行负例也不存在。本轮不创建 JSON Schema、Fixture Runner、Semantic Validator、Harness Registry、Writer、Store 或 CI Gate，不代表已经验证跨客户端互操作。
+
+下一项允许继续的工作是对 Normalized Result 候选做独立反例审查，并形成两种独立 Adapter 的接口/测试蓝图；实际 Adapter 原型实现应在用户明确授权后进行。
