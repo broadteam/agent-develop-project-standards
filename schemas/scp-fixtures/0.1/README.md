@@ -105,7 +105,7 @@ Key rules:
 
 Three existing Context projections have 12, 15 and 13 expected assertion fields respectively. These are counts derived from the current Context documents, not executed adapter results.
 
-No Adapter prototype, Harness Registry, Normalized Result Schema, Run Manifest Schema, Runner, Writer or CI Gate is implemented. Design review does not establish cross-client interoperability.
+Two small synthetic Adapter/Normalizer/Oracle prototypes now exist under `prototypes/scp-fixtures/0.1/` (Node.js and Python). They do not include an executable Driver, full Harness Registry, Agent client invocation or OS-level Sandbox. No Normalized Result Schema, Run Manifest Schema, Runner, Writer or CI Gate is implemented. Local working-copy parity is not real Agent interoperability.
 
 ## Adapter trust boundary and prototype blueprint
 
