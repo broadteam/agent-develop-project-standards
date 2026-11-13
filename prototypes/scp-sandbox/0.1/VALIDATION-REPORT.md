@@ -160,3 +160,16 @@ This remains a denylist with default ALLOW, not a complete syscall allowlist or 
 The seccomp denylist already included `pidfd_send_signal` and `kcmp`; the synthetic client regression suite now explicitly exercises both. It expects `pidfd_send_signal` to return EPERM and uses a self-to-self `kcmp(KCMP_FILES)` probe to require EPERM rather than a normal comparison result. The exact updated test file was run in the same namespace/chroot/UID/seccomp harness as the launcher. Both the parent and fork+exec child denied the test sentinel, legacy/new mount APIs, pidfd_getfd, pidfd_send_signal, kcmp, process_madvise, namespace creation paths, BPF and userfaultfd. Both continued to read the fixture, write dedicated scratch and receive EROFS for rootfs writes. Fork+exec filter inheritance passed.
 
 Exact test source Git Blob SHA: `88804bb1e67f1ef03f41233c3dfc7bf822295a2f`.
+
+
+## 2026-11-14 inherited working-directory escape regression
+
+The seccomp integration runner now deliberately changes its host-side working directory to the disposable temporary directory before invoking chroot. A world-readable synthetic canary is placed in that host directory. The client attempts to open the canary by relative path (`host-cwd-canary`). If the chroot launcher were to preserve the caller's old working directory, the file would be readable and the test would fail. The required result is ENOENT. Both the initial client and its fork+exec child report `DENIED inherited-host-cwd`.
+
+The canary is mode 0444 so an unexpected access cannot be hidden by ordinary permission denial. This specifically verifies that the chroot invocation moves the process working directory into the new root before the unprivileged client starts; it supplements the absolute host-path and symlink checks.
+
+Exact local-execution Git Blob SHAs:
+- seccomp-child-test.c: `eccaa7a590b7683001148a50d0fce7767327340d`
+- run-seccomp-integration.sh: `f683504f88d38e515dee58be62716d513aa03a94`
+
+The exact updated files were run through the full seccomp integration harness. Both parent and child passed the syscall-denial matrix, cwd canary, readonly fixture read, root-write denial, scratch write and fork+exec inheritance check.

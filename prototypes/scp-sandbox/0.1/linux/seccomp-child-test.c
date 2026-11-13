@@ -80,6 +80,18 @@ static int check(void) {
 #endif
  if (getpid() <= 0) { bad++; }
  puts("ALLOWED getpid");
+ errno = 0;
+ int cwd_canary_fd = open("host-cwd-canary", O_RDONLY | O_CLOEXEC);
+ if (cwd_canary_fd >= 0) {
+  close(cwd_canary_fd);
+  fputs("FAIL inherited host cwd is reachable\n", stderr);
+  bad++;
+ } else if (errno == ENOENT) {
+  puts("DENIED inherited-host-cwd");
+ } else {
+  fprintf(stderr, "unexpected cwd canary errno=%d\n", errno);
+  bad++;
+ }
  char b[64] = {0};
  int fd = open("/fixture.txt", O_RDONLY | O_CLOEXEC);
  if (fd < 0 || read(fd, b, sizeof(b)-1) <= 0 || strcmp(b, "seccomp-fixture-read-ok\n")) {
