@@ -39,6 +39,14 @@ bad=structuredClone(raw);let rr=bad.claims.find(x=>x.reason_codes);rr.reason_cod
 bad=structuredClone(raw);bad.claims.push({claim_ref:'outside.scope',freshness:'unknown'});assert.throws(()=>A.norm(bad,q.projection),/outside projection/);
 bad=structuredClone(raw);bad.claims=[{claim_ref:c.expected.claims[0].claim_ref}];const omitted=A.norm(bad,q.projection);assert.equal(omitted.claims.some(x=>x.claim_ref===c.expected.claims[0].claim_ref),false);assert.equal(evaluate(c,omitted).conformance_outcome,'inconclusive');
 bad=structuredClone(raw);bad.claims.find(x=>x.claim_ref.endsWith('checkout')).identity_state='maybe';assert.throws(()=>A.norm(bad,q.projection),/unsupported enum/);
+bad=structuredClone(raw);bad.claims[0].reason_codes=['scp.fixture.Bad-Code'];assert.throws(()=>A.norm(bad,q.projection),/invalid reason code/);
+bad=structuredClone(raw);bad.recovery[0].permitted_actions=['BadAction'];assert.throws(()=>A.norm(bad,q.projection),/invalid action identifier/);
+let decisionContext=structuredClone(c);decisionContext.expected.recovery[0].user_decisions_needed=['Confirm repository ownership','确认仓库归属'];
+let decisionProjection=A.projection(decisionContext),decisionRaw=structuredClone(raw);
+decisionRaw.recovery[0].user_decisions_needed=['确认仓库归属','Confirm repository ownership'];
+let decisionNormalized=A.norm(decisionRaw,decisionProjection);
+assert.deepEqual(decisionNormalized.recovery[0].user_decisions_needed,['Confirm repository ownership','确认仓库归属'].sort(A.cmp));
+decisionRaw.recovery[0].user_decisions_needed=[''];assert.throws(()=>A.norm(decisionRaw,decisionProjection),/empty user decision/);
 let bo=structuredClone(o);bo.executed_event_sequences=[];assert.throws(()=>A.request(c,bo,pins[1],ob),/event sequence/);
 bo=structuredClone(o);bo.records=[];assert.throws(()=>A.request(c,bo,pins[1],ob),/observation mismatch/);
 bo=structuredClone(o);bo.capability_observation.available_capabilities=[];assert.throws(()=>A.request(c,bo,pins[1],ob),/capability mismatch/);
