@@ -52,3 +52,16 @@ The local development implementation demonstrated byte-identical Client Evaluati
 - No general-purpose credential redaction service, cleanup ownership/quarantine implementation, retry store, immutable Run Manifest store/finalizer, Harness Registry or production write API exists.
 - No Normalized Result or Run Manifest JSON Schema, Writer, Store, Runner or CI gate was created.
 - A synthetic Oracle result of conformant only means that a fixed response vector matches the Context expected projection; it is not Agent conformance evidence.
+
+## Post-baseline source review changes (not yet executed)
+
+After the baseline local working-copy run, source review produced additional changes on the PR branch:
+
+- empty actual rows are omitted by both Normalizers and should lead to inconclusive assertions;
+- duplicate expected claim refs and operation scopes are rejected when building the projection;
+- `user_decisions_needed` accepts non-empty exact Unicode/natural-language strings, while action-ID syntax is limited to permitted/prohibited actions;
+- regression cases for these behaviors were added to both Node.js and Python test suites.
+
+These post-baseline source and test changes have **not** been executed in this environment. A direct checkout attempt of the PR branch failed because this runtime could not resolve `github.com`; do not infer test success from source inspection or the repository's unrelated existing CI checks. The exact committed suite remains pending execution in an environment that can checkout the PR Head.
+
+The successful baseline numbers above apply only to the earlier local working copy and must not be attributed to the later committed changes.
