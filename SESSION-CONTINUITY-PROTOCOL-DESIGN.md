@@ -2260,3 +2260,54 @@ NR-N09–NR-N16 覆盖 expected 泄露、Harness 预检结果冒充 client outpu
 - Run Manifest Schema Gate 仍未满足；没有创建 Schema、Harness、Adapter、Registry、Runner、Writer、Store 或 CI Gate。
 - 两 Adapter 原型需要执行代码、依赖与隔离测试，尚未实现；本轮只建立实施蓝图。实际原型实施属于单独授权步骤。
 - D0 保持已确认冻结；D1/D2/D3/Context 0.1.0 仍未冻结。PR #11 保持 Open + Draft，不合并、不更改 PR #10/main、不 bump 版本、不打 Tag。
+
+### 17.32 双语言 Adapter/Normalizer/Oracle 原型实施记录（2026-11-13）
+
+用户已明确授权在三个既有 Context、合成测试数据和隔离临时目录范围内开始最小双实现原型。本轮已在 PR #11 新增：
+
+- `prototypes/scp-fixtures/0.1/node/`：独立 Node.js adapter/projection、strict JSON parser、Normalized Result normalizer、Oracle evaluator 和测试。
+- `prototypes/scp-fixtures/0.1/python/`：独立 Python 标准库实现，不导入、调用或 shell out 到 Node 版本。
+- `prototypes/scp-fixtures/0.1/fixtures/context/`：三个现有 Context 的精确副本；各文件 Git blob SHA 与源文件一致。
+- `fixtures/observations/` 与 `fixtures/client-output/`：独立维护的 synthetic observation package 和 synthetic client-response vectors。
+- `run-parity.sh`、README、VALIDATION-REPORT：运行入口、边界和验证来源说明。
+
+#### 实现能力
+
+1. strict UTF-8 JSON 解析、重复 object member 拒绝、非 Unicode scalar 字符串拒绝。
+2. Context expected 的 values-stripped projection descriptor；Client Evaluation Request 不包含完整 Context、expected 值、assertion outcome 或 Oracle 成员。
+3. Context/Packet/Packet Schema/Profile/Driver/Repository revision pins 的请求透传；三份 Context 的 Context Blob SHA 在测试加载时核验。
+4. 合成 observation 的 event sequence、companion observations、Profile pin 和 capability set reconciliation。
+5. Normalized Result 的字段/enum/set/key 校验、精确 claim/scope 匹配、数组顺序归一化、missing/unknown/null 分离。
+6. Oracle 对 Context expected projection 逐字段生成 assertion outcomes，并区分 conformant、non_conformant、inconclusive 和 not_run。
+
+#### 本地工作副本测试结果
+
+在 Linux x86_64、Node.js 22.16.0、Python 3.13.5 的隔离本地开发目录中运行了双实现测试：
+- 三份 Context；expected assertions 总数 40（12 + 15 + 13）。
+- Node 与 Python 各自测试套件通过。
+- 三组 Client Evaluation Request、Normalized Result、Oracle report 共 9 个文件逐字节一致。
+- 覆盖 duplicate JSON key、invalid UTF-8、unpaired surrogate、missing/unknown/null/empty set、duplicate key/member、unknown core field、event/observation/capability mismatch、Unicode NFC/NFD exact identity、value mismatch 和 pre-evaluation not_run。
+
+**验证来源限制：** 上述测试运行于本地开发工作副本；原型文件随后镜像提交到 PR 分支。当前 VALIDATION-REPORT 明确说明，它不是当前 PR Head 上 exact Git blobs 的运行报告。提交后的 GitHub Actions 检查也不执行这套原型。必须在 checkout PR 分支后运行 `sh prototypes/scp-fixtures/0.1/run-parity.sh`，才能取得提交内容自身的重跑证据。
+
+#### 明确未实现 / 未验证
+
+- 三份 Client Output 是合成向量；没有调用 ChatGPT、Claude、Codex 或其他 Agent。
+- 没有真实 Git worktree、文件系统能力探测、submodule 或 Provider observer。
+- 现有 Driver descriptor 仍为 `contract_only`；没有 Harness Registry / executable Driver。
+- 当前只透传依赖 artifact pins，没有完整下载并验证全部 transitive artifacts。
+- 没有 OS-level client sandbox，不能保证不受一个拥有 unrestricted host access 的 Agent 读取本地文件。
+- 没有通用 secret redaction、cleanup ownership/quarantine、retry persistence、immutable Manifest store/finalizer。
+- 未创建 Normalized Result / Run Manifest JSON Schema、Writer、Store、Runner 或 CI Gate。
+
+Synthetic Oracle 的 conformant 只表示固定的 synthetic response vector 匹配该 Context expected projection，不是任何 Agent 的 conformance 证据。
+
+#### 当前处置
+
+本轮证明了两条独立标准库实现的设计映射和本地开发工作副本的 parity；还没有证明真实 Agent 客户端互操作或安全隔离。下一道门不是 Run Manifest Schema，而是：
+1. checkout PR 分支后重跑 exact committed prototype files；
+2. 审查原型代码的安全与语义边界；
+3. 单独设计真实 Agent client invocation sandbox，先证明 oracle 不可见；
+4. 在真实 client 调用之前，补上可执行 synthetic Driver/Observation Adapter；实际生产 Provider 和用户仓库仍排除在外。
+
+D0 继续已确认冻结；D1/D2/D3、Context 0.1.0、Run Manifest 和 Normalized Result 均未冻结。PR #11 仍 Open + Draft；不合并、不修改 PR #10/main、不升级整体版本、不打 Tag。
