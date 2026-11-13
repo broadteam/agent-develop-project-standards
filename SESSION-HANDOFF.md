@@ -1478,7 +1478,7 @@ Normalized Actual Result 候选已达到独立实现评审的具体程度。**Ru
 
 - RUN-MANIFEST-DESIGN.md：`f91eef7ab05c1a9070377fc587730cbf28a5222d`
 - COMPATIBILITY.md：`e812e58392e1611efb894520a9298bff8c83e201`
-- CONTINUITY-PROTOCOL-DESIGN.md：`7a8a9d9855c0e42f69b082ac0f052d20fab0bea5`（注意仓库真实文件名是 `SESSION-CONTINUITY-PROTOCOL-DESIGN.md`）
+- SESSION-CONTINUITY-PROTOCOL-DESIGN.md：`7a8a9d9855c0e42f69b082ac0f052d20fab0bea5`（该 SHA 对应 §17.30 更新后的文件内容；后续 §17.31 已更新）
 - Fixture README：`866abe06e37958a61bf175b9f7c322e1fd39e7da`
 
 这些是文件 Blob SHA；最终 PR Head / CI 以本 Handoff 提交后现场查询为准。
@@ -1494,3 +1494,62 @@ Normalized Actual Result 候选已达到独立实现评审的具体程度。**Ru
 ### 下一步（唯一首选）
 
 对 §17 的 Normalized Result Contract 做一次独立 adversarial review，特别检查：Context expected projection 是否会导致 adapter 偷看 oracle、空数组/缺失/unknown 的 assertion 边界、extra output 的处置、跨平台字符串排序稳定性、双实现独立性是否足以排除共同模式错误。审查通过后形成两个独立 Adapter 的最小接口与 fixture 运行蓝图，**先由用户确认是否授权原型实现**；未获授权前不写可执行 Harness / Adapter。
+
+## Normalized Result 独立反例审查与双 Adapter 蓝图（2026-11-13）
+
+### 本轮修正与设计增量
+
+1. Run Manifest Design §18 增加 Oracle isolation 独立审查：
+   - Harness Control Plane 持有完整 Context/expected。
+   - Client Sandbox 只接收 Packet/Schema、现场收集并核对的 observations、measured capabilities/permissions、deterministic clock 和 values-stripped projection descriptor。
+   - Oracle Evaluator 只在客户端返回后使用 expected values；Context/expected/Manifest/assertion answer key 不可挂载进 Client Under Test 的 worktree/tool scope。
+   - Harness 预检仅验证测试输入准备情况，不能把 Harness 自己的 Packet Schema 验证结果冒充 Client 的 `packet_schema_validation`。
+   - Context companion observations 必须现场采集并 reconcile，不能复制成 actual observation refs。
+2. 增加 NR-N09–NR-N16，覆盖 oracle 泄露、Harness 预检与 client 输出混淆、伪造实际观察、unknown core field 静默丢弃、locale/Unicode 排序、共享 Normalizer 冒充独立实现、empty set 与 missing 混淆。
+3. Run Manifest Design §19 建立双 Adapter 最小实施蓝图：Client Evaluation Request、values-stripped Projection Descriptor、invocation/response boundary、Harness-input parity、Normalizer parity、Client-output parity + per-client conformance、最小验收矩阵。
+4. Context Compatibility §12、Fixture README、SCP Design §17.31 同步上述约束。
+
+### 独立实现验收的三个维度
+
+- **Harness-input parity**：两个 Harness 独立从相同 Context 产生完全相同的输入包和实际观察摘要。
+- **Normalizer parity**：两个独立 Normalizer 对相同 synthetic raw-response vectors 得到相同结果，且都遵守 missing/unknown/null/empty/duplicate/Unicode 规则。
+- **Client-output parity + conformance**：两个不同 Agent 客户端处理等价输入后对照；parity 与每个 client 对 hidden expected oracle 的 conformance 分开报告。
+
+两实现可以共享规范文档和 immutable fixture，但不能共享正在被验证的 Normalizer 实现。仅换名称、版本或命令包装不算独立实现。
+
+### 当前决策
+
+Normalized Result 和双 Adapter 蓝图已达到可供原型实施评审的设计具体度；但没有实际 Adapter/Harness 代码，也没有互操作证据。**本轮仍不创建任何可执行原型或机器 Schema**，原因是这会引入执行代码、依赖、临时资源和隔离行为，需要在设计完成后单独授权。
+
+Run Manifest Schema Gate 仍关闭。不得把设计向量说成实际测试通过。
+
+### 最新本轮新增提交
+
+- `fffc688b3978a21c4d3bd9bef54627ca2b51ce55`：Normalized Result 契约与示例。
+- `e84b149517431cbaae580e092090708b2410004a`：Context Compatibility §11。
+- `838f373d874323bd8f0e7702fd35c9ef39559ab7`：规范化示例数组/记录顺序修正。
+- `05542bf1e9ab3ef3ae51f4de7e4fd8cf7af9feca`：Oracle isolation 独立审查与 NR-N09–N16。
+- `663375749d500893701be5841789de3d569392b1`：双 Adapter 实施蓝图。
+- `b730c3b1c02a256dd963645fd40a961ca20122a5`：Context Compatibility §12。
+- `7065847d2d9f9e5a5abc42a372f050c4c03640ab`：SCP Design §17.31。
+- `aaed4c252113def4f7fd94b7a3af00eb0f43dfa9`：Fixture README。
+- 本 Handoff 将再单独提交并触发 CI。
+
+### 当前最新文件 Blob SHA（更新到本节前）
+
+- `RUN-MANIFEST-DESIGN.md`: `cf7b3b6f4b269e16932ec17d4bca745ce6307b5e`
+- `COMPATIBILITY.md`: `3b081a29cd57210326f2fb28c1e79db3e6c7c176`
+- `SESSION-CONTINUITY-PROTOCOL-DESIGN.md`: `f0d1811b9dfd9affc3d7723a8b6d38df954b47ac`
+- `schemas/scp-fixtures/0.1/README.md`: `bf1692fa24182fdcfd1121ccd23489de41a6011d`
+
+### 下一步（唯一首选）
+
+当前设计任务已完成。下一阶段应先让用户决定是否授权创建两个最小独立 Harness/Adapter 原型。若获授权，范围只限于：
+- 使用现有三个 Context 和 NR/RM vectors；
+- 在 Harness 临时目录搭建隔离、synthetic-only 的 fixture；
+- 实现值剥离的 projection DTO 与独立 Oracle Evaluator；
+- 在两种独立实现中分别完成 input/normalizer parity；
+- 不接真实生产仓库、真实 Provider、真实凭据或项目写接口；
+- 不创建 Run Manifest Schema、Writer/Store/CI Gate，除非后续另行审查和批准。
+
+若未获授权，保持设计状态，不自动转入可执行实现。
