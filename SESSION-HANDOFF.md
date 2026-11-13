@@ -1740,3 +1740,13 @@ D0 保持用户已确认冻结；D1/D2/D3、Context、Normalized Result、Run Ma
 最新 PR Head 17e14191 的四个 Node/Python adapter/test 文件 Git Blob SHA 与执行环境中的本地文件字节完全一致。Node 测试文件曾在 f37 更新时留下重复 let 声明；在 17e14191 中改为复用变量，并在这一最终文件版本上重新运行了完整 parity 脚本。结果仍为 Node PASS、Python 2/2 PASS、40 个 expected assertion、9/9 产物逐字节一致。详细 Blob SHA 和验证来源见 VALIDATION-REPORT。
 
 本次源文件执行仍是 GitHub API retrieval + Git Blob identity verification，不宣称 Git clone 成功。最新 Head 的两次既有 CI matrix 均已 8/8 success，但不执行 prototype 专用脚本。
+
+
+## 2026-11-13 remote-state correction (supersedes earlier current-head references)
+
+- Current PR #11 branch Head after the final source/report updates: 8088a792cd10a3d60018148007f96313a566feef.
+- The prototype code/test blobs were last changed in 17e14191ab184e974247df2a81444a73fe566793. Commit 8088a79 is a documentation-only update after that code commit; it does not change prototype sources or CI workflow.
+- For the current branch Head 8088a79, existing Standards CI runs 43411720331 and 43411713662 each completed 8/8 matrix jobs successfully.
+- The prototype-specific run-parity.sh was run against local bytes matching the four final remote adapter/test Git Blob SHAs from commit 17e14191. The final result remains Node PASS, Python 2/2 PASS, 40 expected assertion leaves and 9/9 byte-identical generated artifacts.
+- PR #11 remains Open + Draft, unmerged. main remains 02f8dde262455f15029a54694e129b05b70013a4; PR #10 remains Open + Draft and unmerged.
+- Stage 1 synthetic prototype is complete within its declared fixture/test scope. Stage 2 is currently design-only at RUN-MANIFEST-DESIGN.md §21. No sandbox runtime, Runner, real Agent invocation, schema, Registry, Writer, Store or CI gate has been implemented.
