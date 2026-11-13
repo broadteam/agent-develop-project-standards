@@ -1792,3 +1792,20 @@ These are explicitly separated from the Gate A/B core pass and are documented in
 - Added run-seccomp-integration.sh: compiles both sources and executes the filter inside user/mount/network/PID namespaces, read-only chroot, dedicated writable scratch and UID/GID 65534.
 - Updated the Linux run.sh entry point to run the original namespace/chroot probe and then the seccomp launch-chain integration.
 - Local execution passed with GCC -Wall -Wextra -Werror. cgroup delegation remains unavailable, Landlock status remains unknown, and Gate C remains closed.
+
+
+## 2026-11-14 modern syscall and chroot cwd validation follow-up
+
+The current PR Head adds regression cases for:
+- modern mount APIs: open_tree, move_mount, fsopen, fsconfig, fsmount, fspick, mount_setattr;
+- process handles: pidfd_getfd, pidfd_send_signal, process_madvise, kcmp;
+- chroot cwd escape: outer runner changes cwd to the host temporary directory and plants a world-readable synthetic canary there before chroot; the client must not read the canary by relative path.
+
+The full seccomp integration run passes for both the initial client and fork+exec child. The parent and child deny the syscall probes, deny relative host cwd canary access, read the readonly fixture, receive EROFS for rootfs writes, and write only to the dedicated scratch mount.
+
+Exact current file SHAs at commit 864d48f:
+- seccomp-exec.c: 6ab19f64773794f36eb402853c76ff591b4c4f28
+- seccomp-child-test.c: eccaa7a590b7683001148a50d0fce7767327340d
+- run-seccomp-integration.sh: f683504f88d38e515dee58be62716d513aa03a94
+
+The filter remains an x86_64 denylist with default ALLOW. No production syscall allowlist, cross-platform equivalence, cgroup delegation or Landlock enforcement is claimed. Gate C remains closed.

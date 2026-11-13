@@ -70,3 +70,10 @@ Expected output: `SECCOMP_FILTER=PASS`.
 ## Seccomp launch-chain integration
 
 The main launcher now runs a separate C-based integration harness after the namespace/chroot probe. It installs an x86_64 architecture-checked seccomp-BPF denylist after namespace/chroot/UID setup, rejects x32 syscall-number tagging, and denies a documented set of high-risk syscalls. A synthetic client verifies syscall denial, allowed fixture reads and scratch writes, read-only-root write denial, and filter inheritance through fork+exec. The profile is a denylist with default ALLOW, not a production syscall allowlist; a test-only getppid sentinel proves that the filter is active.
+
+
+### Additional syscall and chroot-boundary regression coverage
+
+The current Linux launch-chain test explicitly denies the modern mount API family (`open_tree`, `move_mount`, `fsopen`, `fsconfig`, `fsmount`, `fspick`, `mount_setattr`) and process-handle interfaces (`pidfd_getfd`, `pidfd_send_signal`, `process_madvise`, `kcmp`). The test also checks the less-visible chroot working-directory boundary: it places a world-readable synthetic canary in the host temporary directory, changes the parent working directory there before invoking chroot, then proves the client cannot open the canary by relative path. Both the parent and fork+exec child must report `DENIED inherited-host-cwd`.
+
+This is still a documented denylist, not a syscall allowlist. Unlisted syscalls remain available unless denied by other OS controls.

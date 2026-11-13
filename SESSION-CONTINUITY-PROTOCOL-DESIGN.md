@@ -2419,3 +2419,15 @@ The Landlock ABI query did not return within a bounded 2-second probe. Landlock 
 The Linux Sandbox launcher now runs a second integration harness after the namespace/chroot core probe. A C wrapper installs an x86_64 architecture-checked seccomp-BPF denylist after UID/capability drop and before execing a synthetic client. It denies a defined set of high-risk syscalls, rejects x32 ABI syscall-number tagging, and sets no_new_privs. The client verifies blocked operations, allowed PID/fixture/scratch operations, read-only-root write denial, and filter inheritance through fork+exec. The test passed locally with GCC -Wall -Wextra -Werror.
 
 The filter is a denylist with default ALLOW and must not be described as a production syscall allowlist. This does not prove kernel-escape resistance or replace cgroup/Landlock/LSM policy. Gate C remains closed.
+
+
+### 17.39 Modern mount/process-handle and chroot cwd bypass coverage (2026-11-14)
+
+The Linux sandbox regression suite was extended beyond legacy mount and namespace calls:
+- modern mount API: open_tree, move_mount, fsopen, fsconfig, fsmount, fspick and mount_setattr;
+- process handles: pidfd_getfd, pidfd_send_signal, process_madvise and kcmp;
+- chroot cwd: the host runner deliberately sets cwd to the parent temporary directory and places a world-readable canary there before chroot. The client must receive ENOENT when attempting to read the canary by relative path, proving that the chroot launch path moved cwd into the new root.
+
+All listed calls and cwd probes pass in both the main synthetic client and its fork+exec child. Ordinary fixture reads and dedicated scratch writes remain allowed; rootfs writes remain EROFS. The final source file Git Blob identities and execution command are in the validation report.
+
+This remains an x86_64 syscall denylist with default ALLOW, not a complete allowlist or production certification. cgroup delegation is unavailable in the tested environment; Landlock remains unverified; real Agent invocation remains closed.

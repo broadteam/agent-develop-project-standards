@@ -274,3 +274,10 @@ The current backend's separate seccomp smoke test is not an active sandbox polic
 ### 12.5 Seccomp launch-chain test boundary
 
 The Linux prototype now tests a seccomp-BPF denylist after namespace/chroot/UID setup and before a synthetic child client executes. The filter is inherited across fork+exec; dangerous syscall denial and permitted fixture/scratch I/O are tested. It is a denylist with default ALLOW, not a full production allowlist. No cross-platform or production Agent syscall policy is inferred.
+
+
+### 12.6 Modern syscall and chroot cwd regression boundary
+
+The Linux seccomp regression client now verifies modern mount API denial, pidfd/process-handle denial, and chroot working-directory containment. A host-only canary is placed in the parent temporary directory; the host-side cwd is moved there before chroot, and the client must not read it by relative path. The parent and fork+exec child repeat the relevant checks. See the Linux Sandbox validation report for exact source Blob identities and test scope.
+
+These are targeted x86_64 denylist probes. They do not establish full syscall mediation, kernel-escape resistance or portability to other architectures.

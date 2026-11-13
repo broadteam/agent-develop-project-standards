@@ -1244,3 +1244,12 @@ A Landlock ABI query did not return within a bounded 2-second probe. Availabilit
 A C launcher is exercised inside the namespace/chroot/UID launch chain before the synthetic client begins. It enables no_new_privs, checks the x86_64 audit architecture, rejects x32 syscall tagging, and returns EPERM for defined high-risk syscalls including mount/namespace transitions, ptrace/process-memory access, kernel module/BPF/perf/keyring operations, userfaultfd and io_uring setup. The synthetic client verifies these denials while confirming ordinary process execution, fixture reads and scratch writes continue. A forked+execed child repeats the checks, proving filter inheritance. The test-only getppid sentinel is excluded from non-test builds.
 
 This is a defense-in-depth denylist; all unlisted syscalls remain allowed. It is not a production syscall allowlist and does not replace filesystem, namespace, network or privilege controls. The integrated test is run by the Linux run.sh entry point.
+
+
+### 22.8 Modern mount API, process handles and cwd containment
+
+The syscall denylist and regression client now explicitly cover the newer mount API operations `open_tree`, `move_mount`, `fsopen`, `fsconfig`, `fsmount`, `fspick` and `mount_setattr`, plus `pidfd_getfd`, `pidfd_send_signal`, `process_madvise` and `kcmp`. Parent and fork+exec child processes must observe EPERM for the tested calls while ordinary fixture and scratch I/O remains functional.
+
+The launch-chain also verifies the chroot cwd invariant. Before invoking chroot, the outer namespace process changes cwd to the host temporary directory and creates a world-readable synthetic canary there. The client attempts to open the canary by relative path. The test passes only when the file is absent from the new root and cannot be reached through an inherited host cwd (ENOENT). This supplements absolute path and symlink probes.
+
+These checks remain Linux x86_64-specific regression evidence. The BPF policy is a denylist with default ALLOW and is not a complete syscall allowlist.
