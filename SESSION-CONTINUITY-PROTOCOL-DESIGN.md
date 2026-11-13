@@ -2450,3 +2450,8 @@ This bounds file-backed scratch capacity and prevents execution from the scratch
 The seccomp exec wrapper now closes file descriptors 3+ before execing the synthetic client: close_range is used where available, with an RLIMIT_NOFILE-bounded close loop as fallback. The runner opens a host-only canary as FD 9; both client and fork+exec child must observe EBADF. The scratch tmpfs now specifies size=32m,nr_inodes=4096,nosuid,nodev,noexec. Regression code checks tmpfs magic, all mount flags, byte and inode ceilings, and actual scratch write in both processes.
 
 This closes an inherited-FD access path and bounds both bytes and inode count in scratch. It does not prove aggregate cgroup accounting or a complete syscall allowlist; Gate C remains closed.
+
+
+### 17.43 Runtime privilege-state readback (2026-11-14)
+
+The Linux regression client now verifies actual runtime identity and privilege state after seccomp exec: real/effective UID/GID 65534; zero supplementary groups; PR_GET_NO_NEW_PRIVS=1; PR_GET_SECCOMP=SECCOMP_MODE_FILTER; capget effective/permitted/inheritable sets all zero; and PR_CAPBSET_READ reports an empty bounding set for every capability through CAP_LAST_CAP. Both parent and fork+exec child pass. This validates runtime state rather than simply trusting launcher flags.

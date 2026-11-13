@@ -1836,3 +1836,8 @@ The filter remains an x86_64 denylist with default ALLOW. No production syscall 
 - Client verifies TMPFS_MAGIC, NOEXEC/NOSUID/NODEV, byte and inode ceilings, allowed scratch writes and readonly-root write denial.
 - Executed source Blob SHAs: seccomp-exec.c b36b72376cec0b8fc1b2b9b32519b6f077798b1a; seccomp-child-test.c 2871732dd3e946b9bdaac71d2a3dfd7f421b1029; run-seccomp-integration.sh 0b762b0daf763d3a3ef7f5a358060c17b8efa5c6.
 - These controls reduce inherited host-handle and scratch exhaustion exposure, but do not provide aggregate cgroup CPU/memory/PID accounting or production Agent certification.
+
+
+### 2026-11-14 runtime identity and capability readback
+
+The seccomp child test now verifies in both parent and fork+exec child: UID/GID 65534, zero supplementary groups, no_new_privs=1, seccomp mode FILTER, empty effective/permitted/inheritable caps via capget, and empty capability bounding set across CAP_LAST_CAP. Exact test Blob SHA: c77f27b9062a8522f35a54c099dfb341a247a34c. Full integration passed with all prior modern mount/pidfd/clone/cwd/FD/tmpfs checks.

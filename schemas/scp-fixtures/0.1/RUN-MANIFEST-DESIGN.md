@@ -1272,3 +1272,8 @@ This bounds scratch capacity and prevents execution from the scratch filesystem.
 The seccomp wrapper closes file descriptors 3 and above before client exec, using close_range where available and an RLIMIT_NOFILE-bounded fallback. The synthetic runner intentionally opens a host-only canary as FD 9; the client and its fork+exec child must observe EBADF. The scratch tmpfs has both size=32m and nr_inodes=4096, plus nosuid,nodev,noexec. The client checks filesystem type, mount flags, capacity and inode ceiling, then validates an allowed scratch write.
 
 This limits inherited host handles and empty-file/inode exhaustion in the scratch area. It is still not aggregate cgroup CPU/memory/PID accounting, and it does not provide a full syscall allowlist.
+
+
+### 22.12 Runtime identity and capability state assertions
+
+The synthetic seccomp client now reads back and validates its runtime identity in both parent and fork+exec child: real/effective UID/GID 65534, zero supplementary groups, no_new_privs=1, PR_GET_SECCOMP=SECCOMP_MODE_FILTER, empty effective/permitted/inheritable capability sets via capget, and an empty capability bounding set via PR_CAPBSET_READ across CAP_LAST_CAP. This verifies the privilege-reduction state after exec rather than merely trusting launcher arguments.

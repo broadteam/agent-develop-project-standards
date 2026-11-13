@@ -88,3 +88,6 @@ The seccomp integration now uses a dedicated 32 MiB tmpfs scratch mount with nos
 
 
 The seccomp exec wrapper closes inherited file descriptors 3 and above before starting the client (close_range with a bounded fallback). The test runner passes a host-only canary as FD 9 and the client must observe EBADF. Scratch tmpfs is bounded to 32 MiB and 4096 inodes, and the client verifies tmpfs type, nosuid,nodev,noexec flags, byte/inode limits and write behavior.
+
+
+The synthetic client also verifies its runtime identity and privilege state: UID/GID 65534, no supplementary groups, no_new_privs=1, seccomp filter mode active, empty effective/permitted/inheritable capabilities and an empty capability bounding set. These checks run in the parent and fork+exec child.

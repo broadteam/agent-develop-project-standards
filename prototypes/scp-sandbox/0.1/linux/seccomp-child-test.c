@@ -7,6 +7,10 @@
 #include <sys/statvfs.h>
 #include <sys/vfs.h>
 #include <sys/wait.h>
+#include <sys/prctl.h>
+#include <grp.h>
+#include <linux/capability.h>
+#include <linux/seccomp.h>
 #include <sched.h>
 #include <signal.h>
 #include <unistd.h>
@@ -17,8 +21,33 @@ static int blocked(long n, const char *s) {
  fprintf(stderr, "FAIL %s result=%ld errno=%d\n", s, r, errno);
  return 1;
 }
-static int check(void) {
+static int check_runtime_identity(void) {
  int bad = 0;
+ if (getuid() != 65534 || geteuid() != 65534 || getgid() != 65534 || getegid() != 65534) {
+  fprintf(stderr, "FAIL uid/gid identity uid=%ld euid=%ld gid=%ld egid=%ld\n", (long)getuid(), (long)geteuid(), (long)getgid(), (long)getegid()); bad++;
+ } else { puts("PASS uid-gid-65534"); }
+ int groups = getgroups(0, NULL);
+ if (groups != 0) { fprintf(stderr, "FAIL supplementary groups count=%d\n", groups); bad++; }
+ else { puts("PASS no-supplementary-groups"); }
+ if (prctl(PR_GET_NO_NEW_PRIVS, 0, 0, 0, 0) != 1) { fputs("FAIL no_new_privs\n", stderr); bad++; }
+ else { puts("PASS no-new-privs"); }
+ if (prctl(PR_GET_SECCOMP, 0, 0, 0, 0) != SECCOMP_MODE_FILTER) { fputs("FAIL seccomp mode\n", stderr); bad++; }
+ else { puts("PASS seccomp-filter-active"); }
+ struct __user_cap_header_struct hdr = { .version = _LINUX_CAPABILITY_VERSION_3, .pid = 0 };
+ struct __user_cap_data_struct data[2] = {{0}};
+ if (syscall(SYS_capget, &hdr, data) != 0) { perror("capget"); bad++; }
+ else if (data[0].effective || data[0].permitted || data[0].inheritable || data[1].effective || data[1].permitted || data[1].inheritable) {
+  fputs("FAIL effective/permitted/inheritable capabilities not empty\n", stderr); bad++;
+ } else { puts("PASS capability-sets-empty"); }
+ for (int cap = 0; cap <= CAP_LAST_CAP; cap++) {
+  int state = prctl(PR_CAPBSET_READ, cap, 0, 0, 0);
+  if (state != 0) { fprintf(stderr, "FAIL capability bounding set cap=%d state=%d errno=%d\n", cap, state, errno); bad++; break; }
+ }
+ if (bad == 0) puts("PASS capability-bounding-set-empty");
+ return bad;
+}
+static int check(void) {
+ int bad = check_runtime_identity();
  bad += blocked(SYS_getppid, "test-sentinel");
 #ifdef SYS_mount
  bad += blocked(SYS_mount, "mount");

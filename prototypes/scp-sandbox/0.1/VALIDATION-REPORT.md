@@ -205,3 +205,18 @@ Exact local-execution source Git Blob SHAs:
 - run-seccomp-integration.sh: 0b762b0daf763d3a3ef7f5a358060c17b8efa5c6
 
 These checks reduce inherited-descriptor and scratch-exhaustion exposure. They do not establish cgroup CPU/memory/PID aggregation, Landlock availability, complete syscall mediation, or production Agent safety.
+
+
+## 2026-11-14 runtime identity and capability assertions
+
+The seccomp client test now reads back its actual execution identity rather than relying only on launch arguments. In both the initial client and its fork+exec child it verifies:
+- real/effective UID and GID are all 65534;
+- supplementary group count is zero;
+- PR_GET_NO_NEW_PRIVS returns 1;
+- PR_GET_SECCOMP reports SECCOMP_MODE_FILTER;
+- capget effective, permitted and inheritable capability sets are empty;
+- PR_CAPBSET_READ returns zero for every capability through CAP_LAST_CAP.
+
+The exact updated client was run in the full namespace/chroot/seccomp integration harness. Both parent and child passed all identity/capability assertions and the existing syscall denial, inherited FD/cwd canary, readonly rootfs, bounded tmpfs and allowed scratch I/O checks.
+
+Exact test Git Blob SHA: c77f27b9062a8522f35a54c099dfb341a247a34c.

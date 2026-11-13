@@ -294,3 +294,8 @@ The Linux seccomp integration now uses a private 32 MiB tmpfs scratch mount with
 ### 12.8 Inherited descriptor and scratch quota boundary
 
 The seccomp exec wrapper closes non-standard inherited descriptors before client invocation; a host-only FD 9 canary must be unavailable to the client and fork+exec child. The dedicated tmpfs scratch is bounded by both 32 MiB and 4096 inodes, with nosuid,nodev,noexec flags verified by the synthetic client. This reduces host-FD leakage and scratch-storage exhaustion but is not a replacement for cgroup-level CPU/memory/PID accounting.
+
+
+### 12.9 Runtime privilege-state verification
+
+The synthetic client verifies UID/GID 65534, no supplementary groups, no_new_privs, active seccomp mode, empty capability sets and empty capability bounding set in both parent and fork+exec child. The checks read back kernel state after exec; they do not rely only on the launcher command line.
