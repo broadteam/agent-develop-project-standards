@@ -667,16 +667,16 @@ For `credentialed-project-repository`, the expected projection contains 2 packet
   ],
   "recovery": [
     {
+      "operation_scope": "publish_using_project_repository_locator",
+      "recovery_mode": "blocked",
+      "permitted_actions": ["read_project_rules"],
+      "prohibited_actions": ["persist_credentialed_locator", "publish", "push"]
+    },
+    {
       "operation_scope": "read_local_project_rules",
       "recovery_mode": "restricted",
       "permitted_actions": ["read_project_rules"],
       "prohibited_actions": ["log_credential_material"]
-    },
-    {
-      "operation_scope": "publish_using_project_repository_locator",
-      "recovery_mode": "blocked",
-      "permitted_actions": ["read_project_rules"],
-      "prohibited_actions": ["persist_credentialed_locator", "push", "publish"]
     }
   ]
 }
