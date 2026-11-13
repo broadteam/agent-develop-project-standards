@@ -266,3 +266,6 @@ All four fields remain order-insensitive sets with duplicate rejection.
 A Linux x86_64 namespace/chroot probe now provides limited Gate A/B evidence for one tested runtime. It demonstrates a read-only fixture root, dedicated writable scratch, unprivileged UID/GID 65534, capability drop, \`no_new_privs\`, host-path/symlink denial, isolated network namespace, hidden proc/sys, descendant teardown, bounded output and a synthetic-shim redaction/cleanup test.
 
 These results are not a portable guarantee and do not establish production isolation. Seccomp, Landlock, cgroup v2, LSM policy, kernel-escape testing, general secret scanning, Windows/macOS implementations and real client authentication/network policy remain unimplemented. See [the sandbox prototype validation report](../../../prototypes/scp-sandbox/0.1/VALIDATION-REPORT.md) for exact provenance and non-claims. Gate C remains closed.
+
+
+The current backend's separate seccomp smoke test is not an active sandbox policy. cgroup v2 delegation was not available in the tested runtime, and Landlock availability remains unverified. Per-process `prlimit` bounds are not equivalent to cgroup-level accounting. These distinctions are recorded in the sandbox validation report; no capability is inferred merely because a kernel/controller advertises a name.

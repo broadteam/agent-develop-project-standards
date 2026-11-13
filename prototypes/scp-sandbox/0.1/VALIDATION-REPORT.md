@@ -85,3 +85,14 @@ The current implementation also requires an environment capable of creating the 
 The probe was run directly in the isolated execution environment. The repository's existing `.github/workflows/standards-ci.yml` does not run this prototype. No workflow, CI gate, schema, Runner, Registry, Writer, Store or production Agent integration was added.
 
 Gate C (real Agent invocation) remains closed. Before it can be considered, the backend needs a separate platform security review, additional adversarial probes (including syscall and resource enforcement), and explicit authorization for the specific client and credential/network scope.
+
+
+## Follow-up security primitive discovery
+
+A separate seccomp-BPF smoke test was compiled with GCC and executed successfully. It set `no_new_privs`, installed a classic BPF filter using `PR_SET_SECCOMP`, denied the harmless `getppid` syscall with `EPERM`, and printed `SECCOMP_FILTER=PASS`. This proves only that this process/kernel accepted that small filter. The filter is **not installed by the current namespace/chroot sandbox probe** and is not evidence of syscall restriction in the Gate A/B run.
+
+The cgroup v2 hierarchy exposed controllers `cpuset cpu io memory hugetlb pids`, but the mounted `/sys/fs/cgroup` root was not writable and no child cgroup could be created. The current probe therefore relies on per-process `prlimit` bounds; it does not claim cgroup-enforced aggregate resource limits.
+
+A Landlock ABI version query using the expected Linux syscall did not return within a 2-second bounded probe in this environment. Landlock availability is therefore **unknown** here; no Landlock support or enforcement is claimed and the syscall probe was not integrated.
+
+These findings refine, but do not change, the core Gate A/B result above: the namespace/chroot and synthetic-shim checks pass, while seccomp remains an unintegrated primitive, cgroup delegation is unavailable in this runtime, and Landlock remains unverified.

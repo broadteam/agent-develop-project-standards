@@ -50,3 +50,18 @@ The launcher expands it into a fresh temporary file, runs Python, and removes th
 The result is therefore **Gate A + Gate B core-probe evidence for one Linux environment**, not production readiness. Gate C (real Agent invocation) remains closed pending a separate security review and explicit authorization.
 
 This prototype is not invoked by the repository's existing CI workflow. No CI workflow or gate was added.
+
+
+## Separate seccomp kernel primitive smoke test
+
+An optional, deliberately narrow C smoke test shows that this kernel accepts a classic seccomp-BPF filter and returns `EPERM` for one harmless syscall (`getppid`). It is **not** applied by the main sandbox probe and is not counted as an enforced sandbox policy.
+
+On Linux with GCC:
+
+```sh
+gcc -Wall -Wextra -O2 -o /tmp/scp-seccomp-smoke prototypes/scp-sandbox/0.1/linux/seccomp-smoke.c
+/tmp/scp-seccomp-smoke
+```
+
+Expected output: `SECCOMP_FILTER=PASS`.
+

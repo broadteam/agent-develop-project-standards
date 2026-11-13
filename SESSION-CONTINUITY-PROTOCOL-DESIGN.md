@@ -2403,3 +2403,12 @@ The executable command is documented in the prototype README. The full output an
 **Scope boundary:** this is not a production Sandbox certification. It does not cover seccomp, Landlock, cgroup v2 delegation, LSM policy, kernel-escape testing, general secret scanning, actual filesystem cleanup failure, Windows/macOS, real Agent clients, Provider endpoints, production credentials or user repositories. The redactor recognizes only one synthetic marker. The environment must allow UID/GID mapping and namespace creation; otherwise the probe fails closed.
 
 Stage 2 status is now **Linux x86_64 Gate A/B core prototype passed; production backend and cross-platform acceptance remain incomplete**. Gate C (real Agent invocation) remains closed pending further security review and explicit authorization. D0 remains the only user-confirmed frozen decision; D1/D2/D3 and all SCP fixture/Manifest/Normalized Result contracts remain Draft.
+
+
+#### 17.36 supplementary security primitive findings
+
+A standalone C smoke test installed a minimal classic seccomp-BPF filter with `PR_SET_SECCOMP`, denied a harmless `getppid` syscall with `EPERM`, and passed in the current Linux runtime. This does not mean the main namespace/chroot probe installs or enforces a seccomp policy; the filter remains a separate capability check only.
+
+The cgroup v2 controller list is visible (`cpuset cpu io memory hugetlb pids`), but the cgroup hierarchy is not writable and does not permit creating a delegated child cgroup. The current sandbox probe therefore uses per-process `prlimit`, not cgroup resource accounting.
+
+The Landlock ABI query did not return within a bounded 2-second probe. Landlock support is unknown in this environment and is not claimed. These checks are recorded in the Sandbox validation report and are not upgrades to the Gate A/B acceptance result.

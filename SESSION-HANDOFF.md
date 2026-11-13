@@ -1774,3 +1774,12 @@ The exact scope and limitations are in the validation report. This is not produc
 - Gate C (real Agent invocation) remains closed; do not start it without further security review and explicit authorization.
 - No CI workflow/gate, Schema, Runner, Registry, Writer, Store or production Agent integration was added.
 - PR #11 remains Open + Draft; main and PR #10 remain unchanged; D0 is still the only user-confirmed frozen decision.
+
+
+### Supplementary Linux security primitive checks
+
+- A separate classic seccomp-BPF smoke test passed: the kernel accepted a filter and denied `getppid` with `EPERM`. This filter is not integrated into the current Sandbox probe.
+- cgroup v2 controllers are visible, but the cgroup mount is not writable and does not allow delegated child cgroups. The prototype's resource bounds are `prlimit`-based only.
+- Landlock ABI probing timed out within the bounded check; availability remains unknown.
+
+These are explicitly separated from the Gate A/B core pass and are documented in the prototype README and validation report. No seccomp enforcement, cgroup accounting or Landlock enforcement is claimed for the current sandbox.
