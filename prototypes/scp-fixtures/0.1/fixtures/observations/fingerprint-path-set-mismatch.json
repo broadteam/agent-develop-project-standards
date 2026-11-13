@@ -1,0 +1,31 @@
+{
+  "contract": "scp-synthetic-observation-package",
+  "fixture_id": "fingerprint-path-set-mismatch",
+  "source": "independent-test-vector",
+  "executed_event_sequences": [
+    1
+  ],
+  "records": [
+    {
+      "kind": "git_snapshot",
+      "snapshot_id": "git-snapshot-final-001",
+      "head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "index_snapshot_sha256": "sha-256:1111111111111111111111111111111111111111111111111111111111111111",
+      "status_paths": [
+        "notes/changed.md",
+        "src/agent.ts"
+      ],
+      "branch": "feature/scp-schema"
+    }
+  ],
+  "capability_observation": {
+    "source": "synthetic_profile_fixture",
+    "available_capabilities": [
+      "create_disposable_repository",
+      "read_git_head",
+      "read_git_index",
+      "read_porcelain_v2_status",
+      "inject_disposable_worktree_events"
+    ]
+  }
+}

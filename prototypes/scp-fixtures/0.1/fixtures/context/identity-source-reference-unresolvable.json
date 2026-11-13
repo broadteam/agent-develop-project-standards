@@ -1,0 +1,122 @@
+{
+  "contract": "scp-fixture-context",
+  "context_version": "0.1.0",
+  "fixture_id": "identity-source-reference-unresolvable",
+  "target": {
+    "packet": {
+      "path": "schemas/scp/0.2/fixtures/invalid/semantic/identity-source-reference-unresolvable.json",
+      "blob_sha": "37984b42595431526dcb7798fd48642d3e701328"
+    },
+    "packet_schema": {
+      "path": "schemas/scp/0.2/continuity-packet.schema.json",
+      "blob_sha": "a2f2097a17c08bf0a2ae733ab43a8f1919b48813"
+    },
+    "repository_revision": "1670320ea980368ed74cd4edd11cba4297467bde"
+  },
+  "environment": {
+    "profiles": [
+      "provider_stub"
+    ],
+    "clock": "2026-11-12T00:00:00Z",
+    "capability_profile": {
+      "profile_id": "provider-stub",
+      "profile_version": "0.1.0",
+      "profile_blob_sha": "7784c321f69e5f812b2bca22184ca13335c985e1"
+    }
+  },
+  "setup": {
+    "driver": {
+      "driver_id": "provider.identity.lookup",
+      "driver_contract_version": "0.1.0",
+      "driver_bundle_sha256": "sha-256:fb274c2eca75fdbaa9ad97f8e94bdfeb5a04bc2bf4757fe5abed6f593136770b"
+    },
+    "isolation": {
+      "root_scope": "harness_disposable",
+      "network_access": "disabled",
+      "credential_mode": "synthetic_only"
+    }
+  },
+  "stimulus": {
+    "events": [
+      {
+        "sequence": 1,
+        "event": "provider_response",
+        "response_class": "authoritative_not_found",
+        "provider_namespace": "fixture://provider/github.com",
+        "resource_id": "deleted-999",
+        "requested_revision": "fixture-revision-01",
+        "principal_id": "fixture-principal-01",
+        "authentication_state": "accepted",
+        "provider_contract_revision": "github-rest-fixture-contract/1",
+        "not_found_authority": true,
+        "not_found_authority_evidence": {
+          "path": "schemas/scp-fixtures/providers/0.1/github-rest-not-found-contract.json",
+          "blob_sha": "6573628ce89d1e9f0e43ad2ecc341dc99b29e887"
+        }
+      }
+    ]
+  },
+  "companion_observations": [
+    {
+      "kind": "provider_lookup",
+      "provider_namespace": "fixture://provider/github.com",
+      "resource_id": "deleted-999",
+      "requested_revision": "fixture-revision-01",
+      "principal_id": "fixture-principal-01",
+      "authentication_state": "accepted",
+      "response_class": "authoritative_not_found",
+      "provider_contract_revision": "github-rest-fixture-contract/1",
+      "not_found_authority": true,
+      "not_found_authority_evidence": {
+        "path": "schemas/scp-fixtures/providers/0.1/github-rest-not-found-contract.json",
+        "blob_sha": "6573628ce89d1e9f0e43ad2ecc341dc99b29e887"
+      }
+    }
+  ],
+  "expected": {
+    "packet_schema_validation": "valid",
+    "protocol_compatibility": "compatible",
+    "claims": [
+      {
+        "claim_ref": "project.repository_identity.source_refs[0]",
+        "freshness": "stale",
+        "applicability": "applicable",
+        "identity_state": "unknown",
+        "reason_codes": [
+          "scp.fixture.identity.authoritative_not_found"
+        ]
+      },
+      {
+        "claim_ref": "project.repository_identity.checkout",
+        "freshness": "unknown",
+        "applicability": "applicable",
+        "identity_state": "unknown"
+      }
+    ],
+    "recovery": [
+      {
+        "operation_scope": "read_local_project_rules",
+        "recovery_mode": "restricted",
+        "permitted_actions": [
+          "read_project_rules"
+        ],
+        "prohibited_actions": [
+          "cross_repository_write"
+        ]
+      },
+      {
+        "operation_scope": "resolve_or_push_to_checkout_identity",
+        "recovery_mode": "blocked",
+        "permitted_actions": [
+          "read_project_rules"
+        ],
+        "prohibited_actions": [
+          "push",
+          "publish",
+          "cross_repository_write"
+        ]
+      }
+    ]
+  },
+  "notes": "Design-only vector. The provider response is synthetic and explicitly authenticated/authoritative for the exact resource/revision. No real provider request or credential is used; the driver bundle is a declarative contract only."
+}
