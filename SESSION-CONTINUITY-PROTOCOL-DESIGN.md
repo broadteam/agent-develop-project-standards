@@ -2311,3 +2311,16 @@ Synthetic Oracle 的 conformant 只表示固定的 synthetic response vector 匹
 4. 在真实 client 调用之前，补上可执行 synthetic Driver/Observation Adapter；实际生产 Provider 和用户仓库仍排除在外。
 
 D0 继续已确认冻结；D1/D2/D3、Context 0.1.0、Run Manifest 和 Normalized Result 均未冻结。PR #11 仍 Open + Draft；不合并、不修改 PR #10/main、不升级整体版本、不打 Tag。
+
+### 17.33 第二轮源码审查修正与执行状态（2026-11-13）
+
+在 §17.32 原型代码提交后，进一步源码审查发现并修正：
+
+- **空 actual row**：仅含 claim_ref / operation_scope 的行不产生实际字段，Normalizer 现在省略该行，Oracle 对相应 expected leaves 生成 inconclusive；Node/Python 行为统一。
+- **expected duplicate keys**：Projection Builder 对重复 claim_ref 或 operation_scope 立即拒绝，避免重复 Assertion Tuple。
+- **user_decisions_needed**：允许非空精确 Unicode/自然语言字符串（包括中文）；只有 permitted_actions / prohibited_actions 使用 action identifier 语法；reason_codes 使用专有命名空间。
+- 两套测试均加入对应回归用例：空行省略、expected 重复键拒绝、自然语言/中文决策字符串排序和空字符串拒绝。
+
+上述修改已经提交在 PR #11，但**没有在当前执行环境中运行**。本环境无法解析 github.com，checkout PR Head 失败。VALIDATION-REPORT 明确区分早期本地工作副本通过的 baseline 和本次新提交、尚待执行的回归测试。仓库已有 CI 不运行该原型脚本，不可将其绿灯解释为本原型通过。
+
+因此第一阶段尚余一个明确的执行门：在能 checkout 精确 PR Head 的环境中运行 `sh prototypes/scp-fixtures/0.1/run-parity.sh`，修复差异并更新验证报告。完成这一门后，Node/Python synthetic prototype milestone 可以关闭；真实 Agent Sandbox、Agent invocation 和 interoperability 属于下一独立里程碑，不应混入本阶段。
