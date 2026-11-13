@@ -242,3 +242,13 @@ Report three results separately:
 Sharing the normative specification and immutable fixtures is allowed. Sharing the normalization implementation under test is not. Different language/runtime adds evidence but does not alone prove independence.
 
 No client is correct merely because it agrees with another client; parity equality and conformance are independent results.
+
+
+### 11.4 Set member syntax
+
+Set normalization is shared across clients, but member validation is field-specific:
+- `reason_codes` must use the `scp.fixture.*` namespace.
+- `permitted_actions` and `prohibited_actions` must use stable action identifiers.
+- `user_decisions_needed` contains non-empty exact Unicode strings and may contain spaces or natural-language text, including Chinese. It must not be forced through the action-identifier grammar.
+
+All four fields remain order-insensitive sets with duplicate rejection.
