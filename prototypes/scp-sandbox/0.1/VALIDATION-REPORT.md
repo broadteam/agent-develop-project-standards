@@ -466,3 +466,13 @@ Latest seccomp script Blob: `0ccc9c9f4582e907db95e1b9ad05f81a50cd77f2`. The full
 The other five required source Blobs remain exact: run.sh `83f55567bab49985083e6c5917467e89850de17e`; probe.py.gz `ae64fb2f651018e53705990c2f715ea25fa465b9` (decompressed source `88e08595b3f74fc7c5c59fb13c9473f94dbb5503`); cleanup-failure-integration.sh `bde76808b7dbf7af1dcf895fa207fe19e880d6e1`; seccomp-exec.c `d72380003e49e1850ce8c59990a92f18f6841ba0`; seccomp-child-test.c `8b947836d1048543bf756347e829ea98147983b4`.
 
 Scope: Linux x86_64 synthetic process-group teardown evidence in one tested runtime. It does not replace cgroup process-tree accounting, a production supervisor, complete client-specific syscall allowlist or independent security review.
+
+## 2026-11-14 four-case fail-closed `/proc` regression matrix
+
+The PGID inspector has four direct synthetic negative cases in addition to the real descendant teardown path: permission denied reading `/proc/<pid>/stat`, malformed record without the closing command delimiter, incomplete stat fields, and a non-numeric process-group ID. In every case the inspector must raise a hard teardown error. Only a PID that disappears between `scandir` and opening its stat file is treated as a benign race.
+
+Latest `run-seccomp-integration.sh` Git Blob: `091c9a64c5573d4158c2fe92b73b921bc5eb362e`. The exact current `linux/run.sh` full entry was executed three completed times after this change. Every run exited 0 and included all four `PASS process-group-inspection-fails-closed-*` markers, the orphan-descendant-after-normal-exit marker, exact-limit/overflow/timeout markers, close_range/FD/stdio/RLIMIT checks, seccomp denials and cleanup/quarantine markers. No `FAIL` output appeared.
+
+The other five source Blobs remain unchanged: run.sh `83f55567bab49985083e6c5917467e89850de17e`; probe.py.gz `ae64fb2f651018e53705990c2f715ea25fa465b9` (decompressed source `88e08595b3f74fc7c5c59fb13c9473f94dbb5503`); cleanup-failure-integration.sh `bde76808b7dbf7af1dcf895fa207fe19e880d6e1`; seccomp-exec.c `d72380003e49e1850ce8c59990a92f18f6841ba0`; seccomp-child-test.c `8b947836d1048543bf756347e829ea98147983b4`.
+
+This is still Linux x86_64 synthetic teardown evidence for one runtime, not production process supervision, aggregate cgroup resource enforcement or a general sandbox security certification.

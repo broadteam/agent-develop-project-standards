@@ -242,17 +242,31 @@ def self_test_bounded_capture(tmp):
         raise RuntimeError("orphaned descendant survived after the process-group leader exited")
     print("PASS bounded-capture-kills-orphaned-descendant-after-leader-exit")
 
-    fake_proc_root = os.path.join(tmp, "fake-proc-for-permission-test")
-    os.makedirs(os.path.join(fake_proc_root, "4242"), exist_ok=True)
-    try:
-        with patch("builtins.open", side_effect=PermissionError("synthetic unreadable proc entry")):
-            process_group_has_live_members(42, proc_root=fake_proc_root)
-    except RuntimeError as exc:
-        if "cannot inspect" not in str(exc):
-            raise
-        print("PASS process-group-inspection-fails-closed-on-permission-error")
-    else:
-        raise RuntimeError("process-group inspection incorrectly treated unreadable proc entry as empty")
+    malformed_proc_cases = [
+        ("permission-error", None, "cannot inspect", True),
+        ("malformed-record", "not-a-proc-stat-record", "malformed", False),
+        ("incomplete-fields", "4242 (synthetic) S", "incomplete", False),
+        ("invalid-pgid", "4242 (synthetic) S 1 not-a-number 1", "invalid process group", False),
+    ]
+    for case_name, stat_content, expected_error, inject_permission in malformed_proc_cases:
+        fake_proc_root = os.path.join(tmp, "fake-proc-" + case_name)
+        fake_stat_dir = os.path.join(fake_proc_root, "4242")
+        os.makedirs(fake_stat_dir, exist_ok=True)
+        if not inject_permission:
+            with open(os.path.join(fake_stat_dir, "stat"), "w", encoding="ascii") as stream:
+                stream.write(stat_content)
+        try:
+            if inject_permission:
+                with patch("builtins.open", side_effect=PermissionError("synthetic unreadable proc entry")):
+                    process_group_has_live_members(42, proc_root=fake_proc_root)
+            else:
+                process_group_has_live_members(42, proc_root=fake_proc_root)
+        except RuntimeError as exc:
+            if expected_error not in str(exc):
+                raise
+            print("PASS process-group-inspection-fails-closed-" + case_name)
+        else:
+            raise RuntimeError("process-group inspection incorrectly accepted invalid proc input: " + case_name)
 
 
 fd_source, rootfs, tmp = sys.argv[1:]

@@ -2033,3 +2033,11 @@ The PGID inspector previously skipped `PermissionError` and malformed `/proc/<pi
 Latest seccomp script Blob: `0ccc9c9f4582e907db95e1b9ad05f81a50cd77f2`. A synthetic fake-proc test injects `PermissionError` and requires fail-closed behavior. The current complete exact-Blob `linux/run.sh` entry was executed three completed times after this patch; each returned exit code 0 and passed the fail-closed proc marker, orphan-descendant cleanup, timeout/overflow, close_range, FD 9/100, stdio, RLIMIT, seccomp and real cleanup markers. No `FAIL` output appeared.
 
 The other five exact source Blobs remain unchanged from the immediately preceding 3/3 replay. This remains Linux x86_64 synthetic teardown evidence, not production supervisor certification.
+
+## 2026-11-14 four-case fail-closed `/proc` regression matrix
+
+The latest `run-seccomp-integration.sh` Blob is `091c9a64c5573d4158c2fe92b73b921bc5eb362e`. The process-group inspector now directly tests four invalid `/proc` cases: permission denied, malformed record, incomplete fields and non-numeric PGID. Each must raise a teardown error; only a PID disappearing between enumeration and open is treated as a benign race.
+
+The complete current `sh ./run.sh` entry passed three completed exact-source runs after this change, exit code 0 each time. All four `PASS process-group-inspection-fails-closed-*` markers, residual-descendant-after-normal-exit cleanup, output cap/overflow/timeout, close_range fail-closed, FD 9/100, stdio, RLIMIT, seccomp and EBUSY cleanup markers appeared in every run. No `FAIL` marker appeared.
+
+The other five required source Blobs did not change. This remains a single-runtime synthetic Linux x86_64 result, not production sandbox certification.
