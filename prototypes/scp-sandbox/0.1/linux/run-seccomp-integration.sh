@@ -101,32 +101,27 @@ def wait_for_process_group_exit(pgid, timeout_seconds):
 def terminate_process_group_members(pgid):
     """Reap the execution boundary even when its original leader already exited."""
     try:
-        has_live_members = process_group_has_live_members(pgid)
+        if not process_group_has_live_members(pgid):
+            return
+        os.killpg(pgid, signal.SIGTERM)
+        if wait_for_process_group_exit(pgid, 1.0):
+            return
+        os.killpg(pgid, signal.SIGKILL)
+        if not wait_for_process_group_exit(pgid, 2.0):
+            raise RuntimeError("child process group did not terminate after SIGKILL")
+    except ProcessLookupError:
+        return
     except Exception as exc:
-        # An unreadable process table is not proof that the owned group is empty.
-        # Send SIGKILL before propagating the failure so fail-closed inspection
-        # cannot leave supervised descendants running.
+        # Any inspection failure during either the initial scan or TERM grace
+        # period means group emptiness cannot be established. Escalate first,
+        # then preserve the failure instead of reporting unverified cleanup.
         try:
             os.killpg(pgid, signal.SIGKILL)
         except ProcessLookupError:
             pass
         except OSError as kill_exc:
-            raise RuntimeError("process-group inspection failed and SIGKILL could not be delivered") from kill_exc
-        raise RuntimeError("process-group inspection failed; SIGKILL sent but teardown cannot be verified") from exc
-    if not has_live_members:
-        return
-    try:
-        os.killpg(pgid, signal.SIGTERM)
-    except ProcessLookupError:
-        return
-    if wait_for_process_group_exit(pgid, 1.0):
-        return
-    try:
-        os.killpg(pgid, signal.SIGKILL)
-    except ProcessLookupError:
-        return
-    if not wait_for_process_group_exit(pgid, 2.0):
-        raise RuntimeError("child process group did not terminate after SIGKILL")
+            raise RuntimeError("process-group teardown failed and SIGKILL could not be delivered") from kill_exc
+        raise RuntimeError("process-group teardown could not be verified; SIGKILL sent") from exc
 
 
 def terminate_process_group(proc):
@@ -249,6 +244,25 @@ def self_test_bounded_capture(tmp):
                 raise RuntimeError("process-group inspection failure was not propagated")
             kill_group.assert_called_once_with(4242, signal.SIGKILL)
     print("PASS process-group-inspection-failure-forces-kill-before-failing")
+
+    with patch(
+        __name__ + ".process_group_has_live_members",
+        side_effect=[True, PermissionError("synthetic proc failure during TERM grace period")],
+    ):
+        with patch("os.killpg") as kill_group:
+            try:
+                terminate_process_group_members(4242)
+            except RuntimeError as exc:
+                if "SIGKILL sent" not in str(exc):
+                    raise
+            else:
+                raise RuntimeError("process-group wait scan failure was not propagated")
+            if kill_group.call_args_list != [
+                ((4242, signal.SIGTERM),),
+                ((4242, signal.SIGKILL),),
+            ]:
+                raise RuntimeError("wait-stage inspection failure did not escalate SIGTERM to SIGKILL")
+    print("PASS process-group-teardown-wait-scan-failure-forces-kill")
 
     rc, stdout, stderr = run_bounded(
         [sys.executable, "-c", "import sys; sys.stdout.buffer.write(b'x' * 65536)"],
