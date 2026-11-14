@@ -242,6 +242,12 @@ static int check(void) {
 #ifdef SYS_setns
  bad += blocked(SYS_setns, "setns");
 #endif
+#ifdef SYS_setsid
+ bad += blocked(SYS_setsid, "setsid");
+#endif
+#ifdef SYS_setpgid
+ bad += blocked(SYS_setpgid, "setpgid");
+#endif
 #ifdef SYS_io_uring_setup
  bad += blocked(SYS_io_uring_setup, "io_uring_setup");
 #endif

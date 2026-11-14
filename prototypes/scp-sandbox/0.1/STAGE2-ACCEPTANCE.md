@@ -12,7 +12,7 @@
 | Read-only rootfs / chroot / host path / symlink / cwd boundary | PASS (tested runtime) | Core probe plus targeted cwd canary regression. |
 | UID/GID 65534, empty groups and capability sets, no_new_privs | PASS (tested runtime) | Readback in seccomp client; parent and fork+exec child. |
 | Seccomp architecture check, x32 rejection, clone/clone3 namespace bypass | PASS (targeted x86_64) | Denylist only; test-mode EACCES distinguishes rule match; production mode retains EPERM. |
-| Seccomp syscall regression list | PASS (listed syscalls only) | Not a complete allowlist; unlisted syscalls default ALLOW. |
+| Seccomp syscall regression list | PARTIAL (new process-group denials pending) | Existing listed syscall probes have prior evidence; new `setsid` and `setpgid` denials are present to prevent session/process-group escape but await exact latest-source execution. Not a complete allowlist; unlisted syscalls default ALLOW. |
 | Bounded scratch | PASS (tested runtime) | 32 MiB / 4096 inode tmpfs with nosuid,nodev,noexec. |
 | Inherited host FD closure | PASS (prior exact harness revision) | The three POSIX-sh runs used `run-seccomp-integration.sh` Blob `14c7bb8504b2da6ed637501bf6f8a29085d6be5f`: close_range closes FD 9/100, and forced-unavailable exits 69 before client exec. The latest parent-wrapper revision has not yet been re-run end-to-end. |
 | Standard I/O descriptors 0–2 | PASS (prior exact harness revision) | The prior `14c7bb...` revision bound stdin to /dev/null and stdout/stderr to pipes; the client verified FD 0–2 in parent and fork+exec paths. This does not certify a production Runner. |
@@ -54,3 +54,6 @@ PR #11 remains Open + Draft. D0 is the only user-confirmed frozen decision. D1/D
 ### Latest seccomp parent revision
 
 The prior bounded-capture script Blob was `cfd709e8a668c578228bc34946c099730584dc3f`. The current script removes nested GNU `timeout`, launches `unshare` directly in a new session, corrects the double-escaped flood self-test and gives the parent ownership of the 60-second process-group timeout. The capture algorithm passed 3/3 separate local tests; the current integrated script and full seccomp launch-chain have not yet been re-run.
+### Process-group escape denials
+
+The current seccomp wrapper denies `setsid` and `setpgid`, and the synthetic child tests both. This is intended to keep client descendants inside the parent-owned process group for teardown. The current exact C source blobs have not yet been executed; do not mark this addition PASS until the latest seccomp harness is rerun.

@@ -378,3 +378,9 @@ The current `run-seccomp-integration.sh` removes the nested GNU `timeout` proces
 The continuous-output self-test had a double-escaped newline in its `python -c` source, so it could fail with a syntax error instead of exercising a sustained writer. The test source now contains a single escaped newline, which becomes a real line break in the child Python source. The bounded-capture algorithm was independently exercised locally: exact 65,536-byte output accepted; a continuous writer rejected at the cap with process-group termination; silent child terminated at the deadline (3/3).
 
 These local tests reproduce the helper algorithm, but the exact current integrated script Blob has not yet been executed through the seccomp namespace chain. The previous three-run FD / close_range / stdio evidence remains tied to script Blob `14c7bb8504b2da6ed637501bf6f8a29085d6be5f`. The integrated current script and the combined `linux/run.sh` remain pending.
+
+## 2026-11-14 process-group escape denial (new regression; execution pending)
+
+The seccomp denylist now explicitly denies `setsid` and `setpgid`, and the synthetic client probes both denials in test mode (EACCES) and production mode (EPERM). The reason is operational: the updated parent launches `unshare` directly in a dedicated session and relies on process-group TERM/KILL to enforce bounded cleanup. A client must not be allowed to move itself into a new session or process group to escape that teardown boundary.
+
+These two new syscall denials and their client assertions are present in the latest source, but the current exact C blobs have not yet been compiled/executed as part of the seccomp integration. This remains a denylist defense-in-depth profile, not a complete syscall allowlist. The exact latest integrated seccomp harness still requires execution; the complete `linux/run.sh` entry point also remains pending.

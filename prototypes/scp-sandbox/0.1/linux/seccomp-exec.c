@@ -181,6 +181,13 @@ static int install(void){
 #ifdef __NR_unshare
  deny(__NR_unshare);
 #endif
+/* Keep descendants in the supervisor-owned process group for bounded teardown. */
+#ifdef __NR_setsid
+ deny(__NR_setsid);
+#endif
+#ifdef __NR_setpgid
+ deny(__NR_setpgid);
+#endif
 #ifdef __NR_userfaultfd
  deny(__NR_userfaultfd);
 #endif
