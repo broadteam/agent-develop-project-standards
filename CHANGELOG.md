@@ -1,5 +1,8 @@
 ## Unreleased
 
+### Added
+- Add an end-to-end governance lifecycle fixture: initialize a disposable project, resolve task context, bind verification to a real fixture Git commit, reject partial evidence at closeout, check Node/Python gate parity and reconstruct cross-session context from repository-owned records.
+
 ### Changed
 - Define one repository-based AI governance work loop linking intent intake, task/risk classification, context loading, scoped execution, commit-bound verification, authoritative-state reconciliation and minimal handoff. Clarify the boundary between script/CI enforcement, AI semantic work and user decisions; preserve lightweight-task exemptions.
 
