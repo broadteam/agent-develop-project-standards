@@ -263,6 +263,7 @@
 - [x] Node/Python 行为一致，异常输入测试通过。→ `test-parity`；rc.15 起在真实 Windows 检出上逐字节一致，不再只在 CI 成立。
 - [x] 至少覆盖单栈、多栈、已有项目、空项目、Windows 路径和 POSIX 路径的模拟夹具。→ 单栈与多栈见 `test-init`；已有项目与空项目首次安装见 `test-migration-v2`；Windows 路径由本机实跑覆盖；POSIX 路径由 CI 的 ubuntu job 覆盖。
 - [x] 迁移文档经过从 1.2.x 到 2.0.0 的演练（只用临时 fixture，不接入真实业务项目）。→ `test-migration-v2`。
+- [x] 仓库内治理闭环在初始化后的临时项目中端到端运行，包含 partial 证据阻断、pass 证据收口、Node/Python parity 与跨会话恢复。→ `test-governance-lifecycle`（由现有 `test-migration-v2` 套件调用）；不宣称真实 Agent CLI 或业务项目集成。
 - [x] 仓库内治理闭环在初始化后的临时项目中端到端运行，包含 partial 证据阻断、pass 证据收口、Node/Python parity 与跨会话恢复。→ `test-governance-lifecycle`；不宣称真实 Agent CLI 或业务项目集成。
 - [x] 所有文档内链接和模板引用有效。→ `test-doc-links`，除 inline 链接外还解析 README 目录树与引用式链接定义。
 - [x] CI 全绿；未覆盖项明确列出。→ 8 任务矩阵（Ubuntu / Windows × Node 22/24 × Python 3.11/3.13）在 PR #2 的提交上全绿；未覆盖项见 §5「已知限制」。每次推送后按**该 commit 的 checks** 复核，不引用历史结论（见 `.memory/PITFALLS.md` P14）。
@@ -295,7 +296,7 @@
 | 3. 记忆与上下文管理 | done | `test-v2-spec`（记忆更新触发条件、模板路径存在、不重复记录任务流水）、`test-task-context-resolver`（按任务事实解析应读规范） | 跨客户端的实际上下文恢复效果未独立验证 |
 | 4. 任务、看板与路线图管理 | done | `test-parity`（状态合法、ID 唯一、BOARD 源哈希与生成哈希、归档索引双向一致、路径穿越、CRLF 看板）、`generate-board` | 真实项目规模（>200 张卡）下的索引维护体验未评估 |
 | 5. 工程治理与初始化机制 | done | `test-init`（dry-run 零写入、参数拒绝、Hook 保护、符号链接 fail-closed、故障注入回滚、占位符契约）、`test-migration-v2`（空项目首次安装、已有多栈项目、重复初始化、自定义文件保留） | 进程被强杀或断电不在事务保证内；POSIX 文件模式仅在 CI 覆盖 |
-| 6. 自动化验证与质量门禁 | done | `tests/test-governance-lifecycle.cjs`（空项目初始化 → 意图/需求 → Task Context Resolver → 真实 fixture Git Commit → partial 证据阻断 → pass 证据收口 → Node/Python parity → 跨会话恢复）；现有 `test-parity` 与回归测试在 CI 矩阵运行 | 真实 Agent CLI 与真实业务项目仍未接入；端到端夹具验证仓库治理链路，不代表跨客户端真实协作效果 |
+| 6. 自动化验证与质量门禁 | done | `test-governance-lifecycle.cjs`（通过已纳入 CI 的 `test-migration-v2.cjs` 调用）：空项目初始化 → 意图/需求 → Task Context Resolver → 真实 fixture Git Commit → partial 证据阻断 → pass 证据收口 → Node/Python parity → 跨会话恢复 | 真实 Agent CLI 与真实业务项目仍未接入；端到端夹具验证仓库治理链路，不代表跨客户端真实协作效果 |
 | 7. 长期演进与版本管理 | partial | `check-template-drift`（只读漂移）、`adopt-template-baseline`（显式采纳旧基线）、`plan-template-upgrade`（plan_schema 2 + source inventory）、`validate-template-upgrade-review`（review_schema 2）、`record-reviewed-template-upgrade`（登记 + defer 分批），对应 `test-template-*` 四组 | 自动升级应用器、自动回滚器、真实跨版本项目迁移均未实现，按 §4 不作为发布阻断，但任何文档都不得声称已支持自动迁移 |
 
 ### 7 的补充说明

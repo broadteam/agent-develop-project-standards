@@ -1,6 +1,9 @@
 ## Unreleased
 
 ### Added
+- Add an end-to-end governance lifecycle fixture invoked by the existing migration regression test: initialize a disposable project, resolve task context, bind verification to a real fixture Git commit, reject partial evidence at closeout, check Node/Python gate parity and reconstruct cross-session context from repository-owned records. The existing CI workflow remains unchanged.
+
+### Added
 - Add an end-to-end governance lifecycle fixture: initialize a disposable project, resolve task context, bind verification to a real fixture Git commit, reject partial evidence at closeout, check Node/Python gate parity and reconstruct cross-session context from repository-owned records.
 
 ### Changed
