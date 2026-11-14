@@ -1985,3 +1985,14 @@ The seccomp wrapper now denies `setsid` and `setpgid`, with synthetic client ass
 ## 2026-11-14 standalone setsid/setpgid seccomp primitive smoke
 
 An isolated C smoke program, not the repository wrapper, compiled and executed on Linux x86_64 / kernel `6.18.57` with GCC `14.2.0` and `-Wall -Wextra -Werror -O2`. Both the test-mode EACCES and production-mode EPERM filters denied `setsid` and `setpgid` in the parent and a fork child. This verifies the kernel BPF primitive and fork inheritance only; exact current repository C blobs and the latest integrated namespace harness remain unexecuted.
+
+## 2026-11-14 exact-source transfer attempt for combined linux/run.sh
+
+The execution container cannot reach GitHub by DNS or direct HTTPS connection (direct IP attempts to both `raw.githubusercontent.com` and `github.com` were refused). The GitHub connector returned the expected source metadata, and the following local reconstructed copies were checked using the Git Blob SHA-1 algorithm:
+
+- `linux/run.sh`: local Blob `83f55567bab49985083e6c5917467e89850de17e` — exact match.
+- `linux/cleanup-failure-integration.sh`: local Blob `bde76808b7dbf7af1dcf895fa207fe19e880d6e1` — exact match.
+- `linux/run-seccomp-integration.sh`: expected Blob `bcab9a1c8826f5a98cc2caf7a831044413d65da4`; a manually reconstructed 9,298-byte copy hashed to `0d4259f5d542f550cdbd1676030898853ac9ceb7` — mismatch. That file was not executed.
+- The compressed core probe `probe.py.gz` was not reconstructed into the current combined-run directory. Its earlier independently recorded exact-Blob replay remains separate evidence.
+
+Because one required integration input failed exact identity verification, the combined `linux/run.sh` entry point was not run. No locally reconstructed source with an unmatching Git Blob was executed. The current seccomp integration, including new `setsid` / `setpgid` denials, remains execution pending.
