@@ -18,7 +18,7 @@ The Context is test-harness input. It is not an SCP Packet, project state source
 
 - Context pins Packet path/blob SHA, Packet Schema path/blob SHA and the source repository revision.
 - Capability Profiles are immutable external JSON artifacts, referenced by `profile_id`, `profile_version` and Git blob SHA.
-- Setup Drivers are allow-listed references pinned by `driver_id`, `driver_contract_version` and SHA-256 of the exact driver bundle bytes.
+- Setup Drivers are allow-listed references pinned by `driver_id`, `driver_contract_version` and `driver_descriptor_sha256` (SHA-256 of the exact descriptor bytes only). A future runnable Driver must have a separate executable-bundle SHA-256 resolved by an immutable Harness Registry snapshot; the current descriptors are `contract_only` and must not execute.
 - The current Driver files are `contract_only` descriptors. Their SHA pins the descriptor bytes, not an executable implementation. A future Harness Registry must reject them for execution until an allow-listed runnable bundle is separately published and pinned.
 - Context contains typed stimulus and companion observations, plus expected claim-level states and operation-scoped recovery results.
 - Context contains no arbitrary command/script, user credential, actual run result or authority to mutate a user repository.
