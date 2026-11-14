@@ -100,7 +100,20 @@ def wait_for_process_group_exit(pgid, timeout_seconds):
 
 def terminate_process_group_members(pgid):
     """Reap the execution boundary even when its original leader already exited."""
-    if not process_group_has_live_members(pgid):
+    try:
+        has_live_members = process_group_has_live_members(pgid)
+    except Exception as exc:
+        # An unreadable process table is not proof that the owned group is empty.
+        # Send SIGKILL before propagating the failure so fail-closed inspection
+        # cannot leave supervised descendants running.
+        try:
+            os.killpg(pgid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        except OSError as kill_exc:
+            raise RuntimeError("process-group inspection failed and SIGKILL could not be delivered") from kill_exc
+        raise RuntimeError("process-group inspection failed; SIGKILL sent but teardown cannot be verified") from exc
+    if not has_live_members:
         return
     try:
         os.killpg(pgid, signal.SIGTERM)
@@ -224,6 +237,19 @@ def self_test_bounded_capture(tmp):
         if leader.poll() is None:
             leader.kill()
             leader.wait(timeout=2)
+
+    with patch(__name__ + ".process_group_has_live_members", side_effect=PermissionError("synthetic proc inspection failure")):
+        with patch("os.killpg") as kill_group:
+            try:
+                terminate_process_group_members(4242)
+            except RuntimeError as exc:
+                if "SIGKILL sent" not in str(exc):
+                    raise
+            else:
+                raise RuntimeError("process-group inspection failure was not propagated")
+            kill_group.assert_called_once_with(4242, signal.SIGKILL)
+    print("PASS process-group-inspection-failure-forces-kill-before-failing")
+
     rc, stdout, stderr = run_bounded(
         [sys.executable, "-c", "import sys; sys.stdout.buffer.write(b'x' * 65536)"],
         env=env, timeout_seconds=5, max_output_bytes=65536,
