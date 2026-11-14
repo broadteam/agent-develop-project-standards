@@ -256,11 +256,11 @@ static int check(void) {
  puts("ALLOWED getpid");
  errno = 0;
  if (fcntl(9, F_GETFD) != -1 || errno != EBADF) {
-  fprintf(stderr, "FAIL inherited host fd 9 is reachable errno=%d\\n", errno); bad++;
+  fprintf(stderr, "FAIL inherited host fd 9 is reachable errno=%d\n", errno); bad++;
  } else { puts("DENIED inherited-host-fd-9"); }
  errno = 0;
  if (fcntl(100, F_GETFD) != -1 || errno != EBADF) {
-  fprintf(stderr, "FAIL inherited host fd 100 above lowered RLIMIT_NOFILE is reachable errno=%d\\n", errno); bad++;
+  fprintf(stderr, "FAIL inherited host fd 100 above lowered RLIMIT_NOFILE is reachable errno=%d\n", errno); bad++;
  } else { puts("DENIED inherited-host-fd-100-above-soft-limit"); }
  errno = 0;
  int cwd_canary_fd = open("host-cwd-canary", O_RDONLY | O_CLOEXEC);
