@@ -2,7 +2,7 @@
 
 **Snapshot:** 2026-11-14  
 **Scope:** Synthetic Linux x86_64 security prototype only  
-**Decision:** Limited Linux prototype evidence is recorded; production sandbox acceptance and Stage 3 authorization remain closed. The close_range and standard-I/O harness corrections have been executed three consecutive times; production sandbox acceptance and Stage 3 authorization remain closed.
+**Decision:** Limited Linux x86_64 prototype evidence is recorded for the controls listed below. Production Sandbox acceptance and Stage 3 authorization remain closed. The close_range and standard-I/O harness corrections passed three consecutive executions.
 
 ## Acceptance status
 

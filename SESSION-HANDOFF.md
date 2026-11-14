@@ -1828,9 +1828,9 @@ The filter remains an x86_64 denylist with default ALLOW. No production syscall 
 - This bounds scratch file storage and removes the host writable bind mount from the client. It does not replace cgroup CPU/memory/PID controls; those remain unavailable in this runtime.
 
 
-### 2026-11-14 inherited FD and scratch inode controls
+### 2026-11-14 inherited FD and scratch inode controls (initial implementation; superseded)
 
-- Seccomp wrapper closes FD 3+ with close_range or an RLIMIT_NOFILE-bounded fallback before exec.
+- Initial seccomp wrapper closed FD 3+ with close_range or an RLIMIT_NOFILE-bounded fallback before exec. The fallback was later removed because it could miss a descriptor opened above a subsequently lowered RLIMIT_NOFILE; see the later close_range fail-closed record.
 - Runner opens a host-only canary as FD 9; both the initial client and fork+exec child must observe EBADF.
 - Scratch uses private tmpfs: size=32m, nr_inodes=4096, nosuid,nodev,noexec.
 - Client verifies TMPFS_MAGIC, NOEXEC/NOSUID/NODEV, byte and inode ceilings, allowed scratch writes and readonly-root write denial.

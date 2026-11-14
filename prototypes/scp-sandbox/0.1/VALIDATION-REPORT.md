@@ -193,9 +193,9 @@ Exact local-execution source Git Blob SHAs:
 This confines client scratch writes to a bounded ephemeral filesystem inside the mount namespace rather than a host bind mount. It does not provide aggregate CPU/memory/PID accounting; cgroup delegation remains unavailable and per-process prlimit remains the only resource limit outside the tmpfs byte ceiling.
 
 
-## 2026-11-14 inherited descriptor closure and inode-bounded scratch
+## 2026-11-14 inherited descriptor closure and inode-bounded scratch (initial implementation; superseded)
 
-The seccomp launcher now closes file descriptors 3 and above before execing the synthetic client. It uses close_range where available and falls back to an RLIMIT_NOFILE-bounded close loop. The regression runner deliberately opens a host-only canary as FD 9 before entering the user/mount/network/PID namespace chain. The client must observe EBADF for FD 9; both the initial process and fork+exec child pass this assertion.
+The initial seccomp launcher closed file descriptors 3 and above before execing the synthetic client. It used close_range where available and fell back to an RLIMIT_NOFILE-bounded close loop. That fallback was later found incomplete when a descriptor above the current soft limit had been opened before the limit was lowered; it was removed in the subsequent fail-closed hardening recorded at the end of this report. The regression runner deliberately opens a host-only canary as FD 9 before entering the user/mount/network/PID namespace chain. The client must observe EBADF for FD 9; both the initial process and fork+exec child pass this assertion.
 
 The scratch tmpfs now has both a 32 MiB byte ceiling and an explicit 4096-inode ceiling, in addition to nosuid,nodev,noexec. The client checks TMPFS_MAGIC, mount flags, f_blocks/f_frsize capacity, f_files inode count, and actual write behavior. Both parent and fork+exec child pass.
 
