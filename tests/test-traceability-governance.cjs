@@ -159,12 +159,12 @@ try {
   assertParity('invalid evidence commit', ['验证证据 V001 缺少完整 40 位 Commit SHA', '需求 R001 标记 verified，但没有有效 pass 证据']);
   write('.spec/verification/INDEX.md', fs.readFileSync(path.join(root, '.spec/verification/INDEX.md'), 'utf8').replace('Commit：short-sha', 'Commit：' + sha));
 
-  write('.spec/verification/INDEX.md', fs.readFileSync(path.join(root, '.spec/verification/INDEX.md'), 'utf8').replace('结果：pass', '结果：partial'));
+  write('.spec/verification/INDEX.md', fs.readFileSync(path.join(root, '.spec/verification/INDEX.md'), 'utf8').replace('结果：pass', '结果：partial').replace('| V001 | R001 | CI | pass |', '| V001 | R001 | CI | partial |'));
   assertParity('partial cannot verify', ['需求 R001 的验证指针无效或未覆盖该需求', '需求 R001 标记 verified，但没有有效 pass 证据']);
-  write('.spec/verification/INDEX.md', fs.readFileSync(path.join(root, '.spec/verification/INDEX.md'), 'utf8').replace('结果：partial', '结果：pass'));
+  write('.spec/verification/INDEX.md', fs.readFileSync(path.join(root, '.spec/verification/INDEX.md'), 'utf8').replace('结果：partial', '结果：pass').replace('| V001 | R001 | CI | partial |', '| V001 | R001 | CI | pass |'));
 
   write('.spec/requirements/INDEX.md', fs.readFileSync(path.join(root, '.spec/requirements/INDEX.md'), 'utf8').replace('verified | user_explicit', 'accepted | user_explicit'));
-  write('.spec/verification/INDEX.md', fs.readFileSync(path.join(root, '.spec/verification/INDEX.md'), 'utf8').replace('结果：pass', '结果：partial'));
+  write('.spec/verification/INDEX.md', fs.readFileSync(path.join(root, '.spec/verification/INDEX.md'), 'utf8').replace('结果：pass', '结果：partial').replace('| V001 | R001 | CI | pass |', '| V001 | R001 | CI | partial |'));
   write('.spec/tasks/T1/card.md', fs.readFileSync(path.join(root, '.spec/tasks/T1/card.md'), 'utf8').replace('R001', '—'));
   assertParity('accepted requirement needs work item or evidence', ['活跃需求 R001 没有任务或通过的验证证据']);
   assertParity('task-tracking-off does not require template task cards', [], { taskTracking: false, roadmap: false });
