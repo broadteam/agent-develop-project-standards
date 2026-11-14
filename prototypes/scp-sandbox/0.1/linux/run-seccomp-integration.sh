@@ -269,18 +269,26 @@ def self_test_bounded_capture(tmp):
     # closes all standard streams, and would leave a delayed marker if alive.
     def assert_real_descendant_killed(failure_point):
         marker = os.path.join(tmp, "forced-kill-" + failure_point + "-survivor")
-        if os.path.exists(marker):
-            os.unlink(marker)
+        ready = os.path.join(tmp, "forced-kill-" + failure_point + "-ready")
+        for path in (marker, ready):
+            if os.path.exists(path):
+                os.unlink(path)
         child_code = (
             "import pathlib,signal,sys,time; "
             "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+            "pathlib.Path(sys.argv[2]).write_text('ready'); "
             "time.sleep(0.9); "
             "pathlib.Path(sys.argv[1]).write_text('survived')"
         )
         leader_code = (
-            "import subprocess,sys; "
-            "subprocess.Popen([sys.executable, '-c', " + repr(child_code) + ", " + repr(marker) + "], "
-            "stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)"
+            "import pathlib,subprocess,sys,time; "
+            "subprocess.Popen([sys.executable, '-c', " + repr(child_code) + ", " + repr(marker) + ", " + repr(ready) + "], "
+            "stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); "
+            "deadline=time.monotonic()+3; "
+            "p=pathlib.Path(" + repr(ready) + "); "
+            "while not p.exists(): "
+            "  if time.monotonic()>=deadline: raise SystemExit('child readiness timeout'); "
+            "  time.sleep(0.01)"
         )
         leader_proc = subprocess.Popen(
             [sys.executable, "-c", leader_code],
