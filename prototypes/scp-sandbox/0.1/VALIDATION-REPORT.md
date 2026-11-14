@@ -331,3 +331,18 @@ The earlier cleanup helper emitted a reuse-guard PASS after inspecting only the 
 The `active` state is separately required to admit the original owned resource. The exact committed helper Blob is `bde76808b7dbf7af1dcf895fa207fe19e880d6e1`; the local `git hash-object` result matched it before execution. Three consecutive executions on Linux x86_64 / kernel 6.18.57 passed. Every run observed the real mounted-tmpfs `EBUSY`, rejected the three non-active admission attempts, preserved the quarantined mount, and completed explicit unmount/recovery.
 
 Scope: this is an explicit state-based admission check implemented inside the synthetic test helper. It still does not test a production resource manager, symlink/race/partial-creation handling, or crash recovery across process restart. Production cleanup-manager acceptance remains closed.
+
+
+## 2026-11-14 close_range fail-closed hardening (execution pending)
+
+A follow-up code review identified a descriptor-leak edge case in the previous numeric fallback: `RLIMIT_NOFILE` may be lowered after a higher-numbered descriptor has already been opened, so a loop bounded by the current soft limit can miss an inherited host descriptor. The launcher was changed to require `close_range(3, UINT_MAX, 0)`; it no longer falls back to a numeric close loop. Any failure (including unavailable syscall or an outer policy denying it) returns launcher exit status 69 before `execvp`.
+
+The current exact source identities are:
+- `seccomp-exec.c`: `c59d673e0094d6e604649d9ddca85624f812f620`.
+- `seccomp-child-test.c`: `b32467d0a0527f843e4179428348e6e556bdbd6c`.
+- `run-seccomp-integration.sh`: `826fbb31b475514235ad70e9abb25f15941ab607`.
+- `cleanup-failure-integration.sh`: `bde76808b7dbf7af1dcf895fa207fe19e880d6e1`.
+
+The updated regression opens both FD 9 and FD 100 before lowering `RLIMIT_NOFILE` to 64, then requires the synthetic client to observe `EBADF` for both. A separately compiled `SCP_TEST_FORCE_CLOSE_RANGE_UNAVAILABLE` launcher must return 69 without creating the client marker. The latest commit `5f54a3243abc5e39a16760b103532681c1cec102` only fixes diagnostic newlines in the FD assertions. **These new FD-100 and forced-unavailable cases have been inspected but have not yet been executed against the exact current source in this validation pass.** The latest Standards CI run does not invoke this Sandbox harness and is not evidence for these probes.
+
+The wrapper deliberately preserves standard descriptors 0, 1 and 2. For any future production Runner, stdin/stdout/stderr must be explicitly attached to supervisor-controlled channels (with bounded output capture and a defined stdin policy); arbitrary inherited host files, terminals or sockets must not be treated as safe. This particular stdio binding is not verified by the current prototype. The existing exact FD 9 result applies to the earlier implementation/revision only; the current revision's stronger closure behavior remains awaiting its own run.

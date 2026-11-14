@@ -1946,3 +1946,17 @@ Static review found that the previous cleanup helper reported `QUARANTINE_REUSE_
 The synthetic `acquire_resource()` path now admits only the `active` record with the original owned root. The test explicitly attempts acquisition and requires denial for `quarantining`, `quarantined` and `cleaned`. Three consecutive executions against local bytes whose Git Blob SHA matched the committed Blob passed on Linux x86_64 / kernel 6.18.57. Every run observed real tmpfs `EBUSY`, explicit state-based denial, quarantine preservation and recovery.
 
 This closes the narrow test-assertion gap only. The admission path lives in the test helper, not a production resource manager; race/symlink/partial-creation handling and crash recovery remain unaccepted. The full `linux/run.sh` combined invocation also remains unexecuted because the current execution environment cannot reach GitHub to retrieve the complete source set. Production Sandbox acceptance and Gate C remain closed.
+
+
+## 2026-11-14 close_range hardening and stdio boundary
+
+A review found that the earlier RLIMIT-bounded numeric fallback could miss descriptors opened above a soft `RLIMIT_NOFILE` value lowered later. The launcher now requires `close_range(3, UINT_MAX, 0)` and exits 69 before executing the child if the syscall is absent or denied. It deliberately has no incomplete fallback.
+
+Latest blobs at PR Head `5f54a3243abc5e39a16760b103532681c1cec102`:
+- `seccomp-exec.c`: `c59d673e0094d6e604649d9ddca85624f812f620`.
+- `seccomp-child-test.c`: `b32467d0a0527f843e4179428348e6e556bdbd6c`.
+- `run-seccomp-integration.sh`: `826fbb31b475514235ad70e9abb25f15941ab607`.
+
+The revised harness opens FD 9 and FD 100 before reducing `RLIMIT_NOFILE` to 64 and checks both are absent in the child. It also compiles a forced-unavailable variant and checks that the launcher fails with 69 without running the client marker. These new cases have been statically inspected but are **not yet executed** against this current exact source. The 16/16 Standards CI does not run this sandbox harness.
+
+FDs 0–2 intentionally remain open for standard I/O. A real Runner must bind these to supervisor-owned bounded channels and define stdin behavior; this has not been established by the current synthetic probe. Production Sandbox readiness, Gate C and generalized cleanup-manager acceptance remain closed.
