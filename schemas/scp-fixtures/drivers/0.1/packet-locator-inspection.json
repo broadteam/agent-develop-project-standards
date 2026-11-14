@@ -1,0 +1,15 @@
+{
+  "bundle_contract": "scp-fixture-driver-bundle",
+  "driver_id": "packet.locator.inspection",
+  "driver_contract_version": "0.1.0",
+  "bundle_version": "0.1.0",
+  "implementation_status": "contract_only",
+  "allowed_profiles": [
+    "packet_only"
+  ],
+  "input_kinds": [
+    "packet_artifact"
+  ],
+  "mutation_scope": "none",
+  "description": "Declarative driver contract for inspecting locator-bearing Packet fields; no executable runner is included."
+}

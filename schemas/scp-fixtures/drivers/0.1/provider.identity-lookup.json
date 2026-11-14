@@ -1,0 +1,16 @@
+{
+  "bundle_contract": "scp-fixture-driver-bundle",
+  "driver_id": "provider.identity.lookup",
+  "driver_contract_version": "0.1.0",
+  "bundle_version": "0.1.0",
+  "implementation_status": "contract_only",
+  "allowed_profiles": [
+    "provider_stub"
+  ],
+  "input_kinds": [
+    "packet_artifact",
+    "provider_lookup"
+  ],
+  "mutation_scope": "none",
+  "description": "Declarative driver contract for resolving synthetic provider identity observations; no executable runner is included."
+}

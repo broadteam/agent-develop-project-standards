@@ -1,0 +1,80 @@
+# SCP 0.1 Schema and Compatibility Policy (D1 Draft)
+
+**Status:** Draft for review. This document and the schema are not yet an implementation gate.
+
+## Authority and representation
+
+- `schemas/scp/0.1/continuity-packet.schema.json` is the sole machine-readable contract for SCP 0.1.
+- JSON instances are validated against JSON Schema Draft 2020-12.
+- Markdown summaries, if introduced, are generated views. They must never be independently edited as a second copy of packet facts.
+- YAML may be used in explanatory prose only; it is not a normative representation.
+
+## Versioning
+
+- `protocol` identifies the protocol family (`scp`); `schema_version` identifies the exact packet contract.
+- A published schema version is immutable. Any change to the core contract requires a new schema version, including adding an optional core field: strict consumers reject unknown core fields. Changes to field meaning, requiredness, accepted values, or validation behavior are also versioned changes.
+- During the 0.x design phase, any incompatible contract change increments the minor version (for example, 0.1.0 to 0.2.0); a patch revision may correct wording or schema metadata only when instance validity and semantics are unchanged.
+- A future 1.x policy may adopt conventional major/minor/patch compatibility guarantees only after D1 review.
+- Producers must emit the exact schema version they target. Consumers must not silently reinterpret an unknown version.
+
+## Unknown fields and extensions
+
+- Unknown fields in core objects are rejected (`additionalProperties: false`) to catch misspellings and accidental semantic drift.
+- Forward-compatible producer-specific data belongs under top-level `extensions`, namespaced by reverse-DNS-like keys (for example, `com.example.client`).
+- Extensions are advisory only. Consumers may ignore an unknown extension namespace; extensions must not redefine core SCP fields or carry duplicate task/requirement/intent/verification state.
+- A consumer that cannot safely process an unknown protocol/schema version must stop protocol-driven writes and fall back to read-only/manual recovery.
+
+## State and authority boundaries
+
+- References point to existing authoritative files/records; packets do not replace them.
+- `coordination` is optional. Include it when real concurrent writing or explicit ownership boundaries matter; ordinary single-agent work must not be forced to create coordination metadata.
+- Missing optional capabilities are represented by omission, not by fabricated paths or placeholder records.
+- Dynamic Git/PR/CI state must be refreshed at consumption time. `code` and `checkpoint` capture the producer's observed state at packet generation; on later consumption they are only last-known state. `provenance.source_revisions` binds source revisions and freshness. The consumer's live Bootstrap observations are compared with, not silently substituted for, those last-known values.
+- `head_sha: null` is permitted only when the revision cannot be observed; the producer must pair it with an honest `worktree_state` and must not claim revision-bound verification.
+- `observed_clean` and `observed_dirty` describe only tool-observable filesystem/Git state, never unsaved editor buffers. The canonical worktree observation is `code.worktree_state`; it must not be duplicated in checkpoint fields.
+- A packet claiming `verification_state: passed`, `failed`, or `stale`, or `review_state: reviewed`, `changes_requested`, or `stale`, must include at least one `evidence_refs` entry. Stale states retain the historical evidence reference that was judged stale.
+- Code/worktree observations and every provenance source revision must include an RFC 3339 `observed_at` timestamp; `source_revisions` must identify at least one source. A `running` verification must include `verification_run.actor`, `verification_run.run_id`, and `verification_run.started_at`; `verification_run` must be omitted for every non-running state.
+- A blocked checkpoint must include `blocked_reason`. An observed-dirty worktree must enumerate `uncommitted_paths`; an observed-clean worktree must not list any. If `head_sha` is unavailable, `worktree_state` must be `unknown`. Consumers MUST enable JSON Schema Draft 2020-12 format assertion (not annotation-only handling) for `date-time`, and reject values that are not valid RFC 3339 timestamps.
+- Agent interpretations belong in the top-level `inferences` array with explicit basis references and confidence; they must not be written into observed-state or authoritative-reference fields.
+- Decisions are represented individually under `checkpoint.decisions`. `pending` decisions must not have `decided_at`; `confirmed`, `rejected`, and `deferred` decisions must have it. Each decision is scoped to its own `decision_id` and source; confirmation is not blanket authorization for other actions.
+- `evidence_refs` point to authoritative evidence records, not bare claims. A review evidence record must identify the reviewed revision, review scope, reviewer, result, and observation time. Verification evidence must identify the tested revision, command or procedure, result, executor, and observation time. The Packet references these records without copying their full contents.
+
+## Validation scope
+
+D1 defines the data contract only. Validator implementation, fixture runners, CLI adapters, and mandatory gates are separate deliverables and require their own review and evidence.
+
+
+## D1 semantic validation boundaries (test contract; implementation deferred)
+
+JSON Schema validates packet shape and declared conditional constraints. A conforming validator must additionally enforce the following portable semantic checks:
+
+- `checkpoint.decisions[].decision_id` must be unique within one packet. JSON Schema `uniqueItems` compares whole objects and does not guarantee uniqueness of one property.
+- A `decision_id` must identify one decision in the referenced authoritative decision source; packet-local uniqueness does not replace source lookup.
+- Every `evidence_refs` entry must resolve to an authoritative evidence record whose subject, revision, scope, actor, result, and observed time satisfy the evidence rules above. For review evidence, actor is the reviewer; for verification evidence, actor is the executor.
+- A consumer must compare packet source revisions with live Bootstrap results before treating any observation as current. Schema validity alone never proves freshness.
+
+The following cases define the minimum positive/negative fixture boundary. They are test expectations, not a validator implementation:
+
+| Case | Expected |
+|---|---|
+| Minimal checkpoint packet; no handoff and no coordination | Valid |
+| Handoff packet with a complete handoff object | Valid |
+| Optional namespaced extension, without core-field override | Valid |
+| Inference with non-empty basis references and explicit confidence | Valid |
+| Unknown top-level or nested core field | Invalid |
+| Unknown `schema_version` | Reject / read-only fallback |
+| Handoff packet without `handoff` | Invalid |
+| Passed/failed/stale verification without evidence reference | Invalid |
+| Reviewed/changes_requested/stale review without evidence reference | Invalid |
+| Running verification without actor, run ID, or start time | Invalid |
+| Non-running verification with an active `verification_run` | Invalid |
+| Blocked work without a non-empty reason | Invalid |
+| Dirty worktree without uncommitted paths | Invalid |
+| Clean worktree with uncommitted paths | Invalid |
+| Null HEAD paired with a non-unknown worktree state | Invalid |
+| Known isolation mode without a non-empty owner and write scope | Invalid |
+| Pending decision with `decided_at`, or resolved decision without it | Invalid |
+| Duplicate `decision_id` values in one packet | Invalid (semantic validator) |
+| Invalid RFC 3339 date-time despite a `date-time` annotation | Invalid (format assertion) |
+
+This boundary is part of D1 review. It does not authorize implementing the validator, fixture runner, or CI gate in this PR.

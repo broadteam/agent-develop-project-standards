@@ -1,0 +1,2135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/broadteam/agent-develop-project-standards/blob/main/schemas/scp/0.2/continuity-packet.schema.json",
+  "title": "Session Continuity Packet 0.2",
+  "description": "Draft 0.2.0 machine contract for SCP checkpoints and handoffs. Domain records remain authoritative; identity and worktree fingerprints are observations, not authorization.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol",
+    "schema_version",
+    "packet_id",
+    "packet_kind",
+    "generated_at",
+    "project",
+    "session",
+    "work",
+    "code",
+    "checkpoint",
+    "provenance"
+  ],
+  "properties": {
+    "protocol": {
+      "const": "scp"
+    },
+    "schema_version": {
+      "const": "0.2.0"
+    },
+    "packet_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "packet_kind": {
+      "enum": [
+        "checkpoint",
+        "handoff"
+      ]
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "project": {
+      "$ref": "#/$defs/project"
+    },
+    "session": {
+      "$ref": "#/$defs/session"
+    },
+    "intent": {
+      "$ref": "#/$defs/intent"
+    },
+    "work": {
+      "$ref": "#/$defs/work"
+    },
+    "code": {
+      "$ref": "#/$defs/code"
+    },
+    "checkpoint": {
+      "$ref": "#/$defs/checkpoint"
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/reference"
+      },
+      "uniqueItems": true
+    },
+    "handoff": {
+      "$ref": "#/$defs/handoff"
+    },
+    "coordination": {
+      "$ref": "#/$defs/coordination"
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    },
+    "extensions": {
+      "type": "object",
+      "description": "Namespaced, non-authoritative adapter or project extensions. Core SCP semantics must not be redefined here.",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)+$"
+      },
+      "additionalProperties": {
+        "type": [
+          "object",
+          "array",
+          "string",
+          "number",
+          "integer",
+          "boolean",
+          "null"
+        ]
+      }
+    },
+    "inferences": {
+      "type": "array",
+      "description": "Agent-generated interpretations, explicitly separated from observed state and authoritative records.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "summary",
+          "basis_refs",
+          "confidence"
+        ],
+        "properties": {
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "subject_ref": {
+            "$ref": "#/$defs/reference"
+          },
+          "basis_refs": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/$defs/reference"
+            },
+            "uniqueItems": true
+          },
+          "confidence": {
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "unknown"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "reference": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048,
+      "description": "Stable path, ID, or URL into an existing authoritative source; not a copied domain record."
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "description": "Human-readable repository locator only; it is not a stable repository identity."
+        },
+        "root": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "project_id": {
+          "type": "string",
+          "format": "uri",
+          "minLength": 1,
+          "maxLength": 512,
+          "description": "Optional stable namespaced URI for the logical project, not a provider repository ID.",
+          "pattern": "^[A-Za-z][A-Za-z0-9+.-]*:"
+        },
+        "repository_identity": {
+          "$ref": "#/$defs/repository_identity",
+          "description": "Last-known repository identity observation. Consumers must re-resolve against current configuration and permitted provider data."
+        }
+      }
+    },
+    "session": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "actor"
+      ],
+      "properties": {
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "actor": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "client": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "intent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "baseline_ref": {
+          "$ref": "#/$defs/reference"
+        },
+        "accepted_change_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/reference"
+          },
+          "uniqueItems": true
+        },
+        "pending_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/reference"
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "work": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "topic"
+      ],
+      "properties": {
+        "topic": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "task_ref": {
+          "$ref": "#/$defs/reference"
+        },
+        "milestone_ref": {
+          "$ref": "#/$defs/reference"
+        },
+        "requirement_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/reference"
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "code": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "head_sha",
+        "worktree_state",
+        "observed_at"
+      ],
+      "properties": {
+        "branch": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256,
+          "minLength": 1
+        },
+        "head_sha": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$"
+        },
+        "worktree_state": {
+          "enum": [
+            "observed_clean",
+            "observed_dirty",
+            "unknown"
+          ]
+        },
+        "uncommitted_paths": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/git_path"
+          },
+          "uniqueItems": true
+        },
+        "observed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "source_ref": {
+          "$ref": "#/$defs/reference"
+        },
+        "worktree_fingerprint": {
+          "$ref": "#/$defs/worktree_fingerprint"
+        },
+        "branch_tracking": {
+          "$ref": "#/$defs/branch_tracking"
+        }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decision_id",
+        "status",
+        "decision_maker",
+        "source_ref"
+      ],
+      "properties": {
+        "decision_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "confirmed",
+            "rejected",
+            "deferred"
+          ]
+        },
+        "decision_maker": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "source_ref": {
+          "$ref": "#/$defs/reference"
+        },
+        "decided_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "summary": {
+          "type": "string",
+          "maxLength": 1000
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "enum": [
+                  "confirmed",
+                  "rejected",
+                  "deferred"
+                ]
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "required": [
+              "decided_at"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "pending"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "not": {
+              "required": [
+                "decided_at"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "checkpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "work_state",
+        "verification_state",
+        "review_state",
+        "decisions"
+      ],
+      "properties": {
+        "work_state": {
+          "enum": [
+            "not_started",
+            "in_progress",
+            "blocked",
+            "locally_complete"
+          ]
+        },
+        "verification_state": {
+          "enum": [
+            "not_run",
+            "running",
+            "passed",
+            "failed",
+            "stale",
+            "unknown"
+          ]
+        },
+        "review_state": {
+          "enum": [
+            "not_reviewed",
+            "reviewed",
+            "changes_requested",
+            "stale",
+            "unknown"
+          ]
+        },
+        "decisions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/decision"
+          },
+          "uniqueItems": true
+        },
+        "next_action": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "blocked_reason": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "verification_run": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "actor",
+            "run_id",
+            "started_at"
+          ],
+          "properties": {
+            "actor": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "run_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "command": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "started_at": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        }
+      }
+    },
+    "handoff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "completed",
+        "in_progress",
+        "blocked",
+        "next_action",
+        "forbidden_actions"
+      ],
+      "properties": {
+        "from": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "to": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "completed": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        },
+        "in_progress": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        },
+        "blocked": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        },
+        "next_action": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "forbidden_actions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        }
+      }
+    },
+    "coordination": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "owner",
+        "write_scope",
+        "isolation"
+      ],
+      "properties": {
+        "owner": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        },
+        "write_scope": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "uniqueItems": true
+        },
+        "isolation": {
+          "enum": [
+            "branch_worktree",
+            "single_writer",
+            "shared_coordinated",
+            "unknown"
+          ]
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 1000
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "generated_by",
+        "source_revisions"
+      ],
+      "properties": {
+        "generated_by": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "source_revisions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "source_ref",
+              "revision",
+              "freshness",
+              "observed_at"
+            ],
+            "properties": {
+              "source_ref": {
+                "$ref": "#/$defs/reference"
+              },
+              "revision": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "freshness": {
+                "enum": [
+                  "current",
+                  "stale",
+                  "conflict",
+                  "unknown"
+                ]
+              },
+              "observed_at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          },
+          "minItems": 1
+        }
+      }
+    },
+    "git_path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*//)(?!.*\\/$)(?!.*(?:^|/)\\.(?:/|$))(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)(?!.*[\\u0000-\\u001F]).+$",
+      "description": "UTF-8 path relative to Git worktree root using POSIX separators. Semantic validation checks path encoding and platform collisions."
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha-256:[0-9a-f]{64}$",
+      "description": "SHA-256 of raw file bytes or raw symlink-target bytes; not a Git object ID."
+    },
+    "git_oid": {
+      "type": "string",
+      "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$"
+    },
+    "identity_target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "namespace",
+        "basis"
+      ],
+      "properties": {
+        "namespace": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "pattern": "^[A-Za-z][A-Za-z0-9+.-]*:"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "locator": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048,
+          "description": "Sanitized navigation locator; credentials are forbidden by semantic validation."
+        },
+        "basis": {
+          "enum": [
+            "provider_native_id",
+            "project_config",
+            "normalized_locator_only"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "basis": {
+                "const": "normalized_locator_only"
+              }
+            },
+            "required": [
+              "basis"
+            ]
+          },
+          "then": {
+            "required": [
+              "locator"
+            ],
+            "not": {
+              "required": [
+                "id"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "basis": {
+                "enum": [
+                  "provider_native_id",
+                  "project_config"
+                ]
+              }
+            },
+            "required": [
+              "basis"
+            ]
+          },
+          "then": {
+            "required": [
+              "id"
+            ]
+          }
+        }
+      ]
+    },
+    "remote_mapping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "remote_name",
+        "fetch_state",
+        "push_state",
+        "relation_to_canonical"
+      ],
+      "properties": {
+        "remote_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "fetch_state": {
+          "enum": [
+            "resolved",
+            "not_configured",
+            "ambiguous",
+            "unknown"
+          ],
+          "description": "Whether the effective Git fetch target was selected unambiguously; target identity confidence is represented separately by identity_target.basis."
+        },
+        "fetch_target": {
+          "$ref": "#/$defs/identity_target"
+        },
+        "push_state": {
+          "enum": [
+            "resolved",
+            "not_configured",
+            "ambiguous",
+            "unknown"
+          ],
+          "description": "Whether the effective Git push target set was selected unambiguously; target identity confidence is represented separately by identity_target.basis."
+        },
+        "push_targets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/identity_target"
+          },
+          "uniqueItems": true
+        },
+        "relation_to_canonical": {
+          "enum": [
+            "canonical",
+            "fork_of_canonical",
+            "mirror_of_canonical",
+            "unrelated",
+            "unknown"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "fetch_state": {
+                "const": "resolved"
+              }
+            },
+            "required": [
+              "fetch_state"
+            ]
+          },
+          "then": {
+            "required": [
+              "fetch_target"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "fetch_target"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "push_state": {
+                "const": "resolved"
+              }
+            },
+            "required": [
+              "push_state"
+            ]
+          },
+          "then": {
+            "required": [
+              "push_targets"
+            ],
+            "properties": {
+              "push_targets": {
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "push_state": {
+                "const": "not_configured"
+              }
+            },
+            "required": [
+              "push_state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "push_targets": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      ]
+    },
+    "repository_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "observed_at",
+        "checkout",
+        "source_refs"
+      ],
+      "properties": {
+        "observed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "checkout": {
+          "$ref": "#/$defs/identity_target"
+        },
+        "canonical": {
+          "$ref": "#/$defs/identity_target"
+        },
+        "remote_mappings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/remote_mapping"
+          },
+          "uniqueItems": true
+        },
+        "source_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/reference"
+          }
+        }
+      }
+    },
+    "branch_tracking": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "observed_at",
+        "branch_state",
+        "upstream",
+        "push"
+      ],
+      "properties": {
+        "observed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "branch_state": {
+          "enum": [
+            "attached",
+            "detached",
+            "unknown"
+          ]
+        },
+        "upstream": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state"
+          ],
+          "properties": {
+            "state": {
+              "enum": [
+                "configured",
+                "not_configured",
+                "not_applicable",
+                "unknown"
+              ]
+            },
+            "remote_name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "merge_ref": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512,
+              "description": "Configured upstream merge ref, typically refs/heads/<branch>."
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "state": {
+                    "const": "configured"
+                  }
+                },
+                "required": [
+                  "state"
+                ]
+              },
+              "then": {
+                "required": [
+                  "remote_name",
+                  "merge_ref"
+                ]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "state": {
+                    "enum": [
+                      "not_configured",
+                      "not_applicable",
+                      "unknown"
+                    ]
+                  }
+                },
+                "required": [
+                  "state"
+                ]
+              },
+              "then": {
+                "not": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "remote_name"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "merge_ref"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "push": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state"
+          ],
+          "properties": {
+            "state": {
+              "enum": [
+                "resolved",
+                "not_configured",
+                "not_applicable",
+                "ambiguous",
+                "unknown"
+              ]
+            },
+            "remote_name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "resolution_basis": {
+              "enum": [
+                "branch_push_remote",
+                "remote_push_default",
+                "branch_upstream",
+                "default_remote"
+              ],
+              "description": "Observed Git configuration precedence source that selected the default push remote; does not encode refspec or authorize a push."
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "state": {
+                    "const": "resolved"
+                  }
+                },
+                "required": [
+                  "state"
+                ]
+              },
+              "then": {
+                "required": [
+                  "remote_name",
+                  "resolution_basis"
+                ]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "state": {
+                    "enum": [
+                      "not_configured",
+                      "not_applicable",
+                      "ambiguous",
+                      "unknown"
+                    ]
+                  }
+                },
+                "required": [
+                  "state"
+                ]
+              },
+              "then": {
+                "not": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "remote_name"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "resolution_basis"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "branch_state": {
+                "const": "detached"
+              }
+            },
+            "required": [
+              "branch_state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "upstream": {
+                "properties": {
+                  "state": {
+                    "const": "not_applicable"
+                  }
+                },
+                "required": [
+                  "state"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "branch_state": {
+                "const": "attached"
+              }
+            },
+            "required": [
+              "branch_state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "upstream": {
+                "properties": {
+                  "state": {
+                    "enum": [
+                      "configured",
+                      "not_configured",
+                      "unknown"
+                    ]
+                  }
+                },
+                "required": [
+                  "state"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "index_entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stage",
+        "mode"
+      ],
+      "properties": {
+        "stage": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "mode": {
+          "enum": [
+            "100644",
+            "100755",
+            "120000",
+            "160000"
+          ]
+        },
+        "digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "gitlink_commit": {
+          "$ref": "#/$defs/git_oid"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "160000"
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          },
+          "then": {
+            "required": [
+              "gitlink_commit"
+            ],
+            "not": {
+              "required": [
+                "digest"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "enum": [
+                  "100644",
+                  "100755",
+                  "120000"
+                ]
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          },
+          "then": {
+            "required": [
+              "digest"
+            ],
+            "not": {
+              "required": [
+                "gitlink_commit"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "worktree_entry_state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state"
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "present",
+            "absent",
+            "unreadable"
+          ]
+        },
+        "kind": {
+          "enum": [
+            "regular_file",
+            "symlink",
+            "gitlink",
+            "unsupported"
+          ]
+        },
+        "mode": {
+          "enum": [
+            "100644",
+            "100755",
+            "120000",
+            "160000",
+            "unknown"
+          ]
+        },
+        "digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "gitlink_commit": {
+          "$ref": "#/$defs/git_oid"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "present"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "required": [
+              "kind",
+              "mode"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "present"
+              },
+              "kind": {
+                "const": "regular_file"
+              }
+            },
+            "required": [
+              "state",
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "mode": {
+                "enum": [
+                  "100644",
+                  "100755"
+                ]
+              }
+            },
+            "required": [
+              "digest"
+            ],
+            "not": {
+              "required": [
+                "gitlink_commit"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "present"
+              },
+              "kind": {
+                "const": "symlink"
+              }
+            },
+            "required": [
+              "state",
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "mode": {
+                "const": "120000"
+              }
+            },
+            "required": [
+              "digest"
+            ],
+            "not": {
+              "required": [
+                "gitlink_commit"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "present"
+              },
+              "kind": {
+                "const": "gitlink"
+              }
+            },
+            "required": [
+              "state",
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "mode": {
+                "const": "160000"
+              },
+              "digest": false
+            },
+            "required": [
+              "gitlink_commit"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "present"
+              },
+              "kind": {
+                "const": "unsupported"
+              }
+            },
+            "required": [
+              "state",
+              "kind"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "digest"
+                  ]
+                },
+                {
+                  "required": [
+                    "gitlink_commit"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "absent"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "kind"
+                  ]
+                },
+                {
+                  "required": [
+                    "mode"
+                  ]
+                },
+                {
+                  "required": [
+                    "digest"
+                  ]
+                },
+                {
+                  "required": [
+                    "gitlink_commit"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "unreadable"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "digest"
+                  ]
+                },
+                {
+                  "required": [
+                    "gitlink_commit"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "worktree_fingerprint_entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "index_entries",
+        "worktree"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/git_path"
+        },
+        "index_entries": {
+          "type": "array",
+          "maxItems": 4,
+          "items": {
+            "$ref": "#/$defs/index_entry"
+          }
+        },
+        "worktree": {
+          "$ref": "#/$defs/worktree_entry_state"
+        }
+      }
+    },
+    "worktree_fingerprint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "scope",
+        "digest_algorithm",
+        "path_encoding",
+        "started_at",
+        "completed_at",
+        "coverage",
+        "observation",
+        "entries"
+      ],
+      "properties": {
+        "format": {
+          "const": "scp-worktree-fingerprint/1"
+        },
+        "scope": {
+          "const": "git-status-paths"
+        },
+        "digest_algorithm": {
+          "const": "sha-256"
+        },
+        "path_encoding": {
+          "const": "utf-8"
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "completed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "coverage": {
+          "enum": [
+            "complete",
+            "partial",
+            "unknown"
+          ]
+        },
+        "observation": {
+          "enum": [
+            "per_path_stable",
+            "changed_during_capture",
+            "unknown"
+          ]
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/worktree_fingerprint_entry"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "coverage": {
+                "const": "complete"
+              }
+            },
+            "required": [
+              "coverage"
+            ]
+          },
+          "then": {
+            "properties": {
+              "observation": {
+                "const": "per_path_stable"
+              },
+              "entries": {
+                "items": {
+                  "properties": {
+                    "worktree": {
+                      "anyOf": [
+                        {
+                          "properties": {
+                            "state": {
+                              "const": "absent"
+                            }
+                          },
+                          "required": [
+                            "state"
+                          ]
+                        },
+                        {
+                          "properties": {
+                            "state": {
+                              "const": "present"
+                            },
+                            "kind": {
+                              "enum": [
+                                "regular_file",
+                                "symlink",
+                                "gitlink"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "state",
+                            "kind"
+                          ]
+                        }
+                      ]
+                    },
+                    "index_entries": {
+                      "items": {
+                        "properties": {
+                          "mode": {
+                            "enum": [
+                              "100644",
+                              "100755",
+                              "120000",
+                              "160000"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "mode"
+                        ]
+                      }
+                    }
+                  },
+                  "allOf": [
+                    {
+                      "if": {
+                        "properties": {
+                          "index_entries": {
+                            "contains": {
+                              "properties": {
+                                "mode": {
+                                  "const": "160000"
+                                }
+                              },
+                              "required": [
+                                "mode"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "index_entries"
+                        ]
+                      },
+                      "then": {
+                        "properties": {
+                          "worktree": {
+                            "properties": {
+                              "state": {
+                                "const": "present"
+                              },
+                              "kind": {
+                                "const": "gitlink"
+                              },
+                              "mode": {
+                                "const": "160000"
+                              }
+                            },
+                            "required": [
+                              "state",
+                              "kind",
+                              "mode",
+                              "gitlink_commit"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "worktree"
+                        ]
+                      }
+                    },
+                    {
+                      "if": {
+                        "properties": {
+                          "worktree": {
+                            "properties": {
+                              "kind": {
+                                "const": "gitlink"
+                              }
+                            },
+                            "required": [
+                              "kind"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "worktree"
+                        ]
+                      },
+                      "then": {
+                        "properties": {
+                          "index_entries": {
+                            "contains": {
+                              "properties": {
+                                "mode": {
+                                  "const": "160000"
+                                }
+                              },
+                              "required": [
+                                "mode"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "index_entries"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "observation": {
+                "const": "changed_during_capture"
+              }
+            },
+            "required": [
+              "observation"
+            ]
+          },
+          "then": {
+            "properties": {
+              "coverage": {
+                "enum": [
+                  "partial",
+                  "unknown"
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "description": "Per-path snapshot of Git-status-visible non-ignored changes. Gitlink entries record only the submodule commit pointer; complete coverage requires a live observation that each submodule is initialized and clean. This is neither a backup nor a globally atomic worktree snapshot."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "packet_kind": {
+            "const": "handoff"
+          }
+        },
+        "required": [
+          "packet_kind"
+        ]
+      },
+      "then": {
+        "required": [
+          "handoff"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "checkpoint": {
+            "properties": {
+              "verification_state": {
+                "enum": [
+                  "passed",
+                  "failed",
+                  "stale"
+                ]
+              }
+            },
+            "required": [
+              "verification_state"
+            ]
+          }
+        },
+        "required": [
+          "checkpoint"
+        ]
+      },
+      "then": {
+        "properties": {
+          "evidence_refs": {
+            "minItems": 1
+          }
+        },
+        "required": [
+          "evidence_refs"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "checkpoint": {
+            "properties": {
+              "review_state": {
+                "enum": [
+                  "reviewed",
+                  "changes_requested",
+                  "stale"
+                ]
+              }
+            },
+            "required": [
+              "review_state"
+            ]
+          }
+        },
+        "required": [
+          "checkpoint"
+        ]
+      },
+      "then": {
+        "properties": {
+          "evidence_refs": {
+            "minItems": 1
+          }
+        },
+        "required": [
+          "evidence_refs"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "checkpoint": {
+            "properties": {
+              "verification_state": {
+                "const": "running"
+              }
+            },
+            "required": [
+              "verification_state"
+            ]
+          }
+        },
+        "required": [
+          "checkpoint"
+        ]
+      },
+      "then": {
+        "properties": {
+          "checkpoint": {
+            "required": [
+              "verification_run"
+            ],
+            "properties": {
+              "verification_run": {
+                "$ref": "#/$defs/checkpoint/properties/verification_run"
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "checkpoint": {
+            "not": {
+              "required": [
+                "verification_run"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "checkpoint": {
+            "properties": {
+              "work_state": {
+                "const": "blocked"
+              }
+            },
+            "required": [
+              "work_state"
+            ]
+          }
+        },
+        "required": [
+          "checkpoint"
+        ]
+      },
+      "then": {
+        "properties": {
+          "checkpoint": {
+            "properties": {
+              "blocked_reason": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "blocked_reason"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "properties": {
+              "worktree_state": {
+                "const": "observed_dirty"
+              }
+            },
+            "required": [
+              "worktree_state"
+            ]
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "code": {
+            "properties": {
+              "uncommitted_paths": {
+                "minItems": 1
+              }
+            },
+            "required": [
+              "uncommitted_paths"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "properties": {
+              "worktree_state": {
+                "const": "observed_clean"
+              }
+            },
+            "required": [
+              "worktree_state"
+            ]
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "code": {
+            "properties": {
+              "uncommitted_paths": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "properties": {
+              "head_sha": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "head_sha"
+            ]
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "code": {
+            "properties": {
+              "worktree_state": {
+                "const": "unknown"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "coordination": {
+            "properties": {
+              "isolation": {
+                "enum": [
+                  "branch_worktree",
+                  "single_writer",
+                  "shared_coordinated"
+                ]
+              }
+            },
+            "required": [
+              "isolation"
+            ]
+          }
+        },
+        "required": [
+          "coordination"
+        ]
+      },
+      "then": {
+        "properties": {
+          "coordination": {
+            "properties": {
+              "owner": {
+                "type": "string",
+                "minLength": 1
+              },
+              "write_scope": {
+                "minItems": 1
+              }
+            },
+            "required": [
+              "owner",
+              "write_scope"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "properties": {
+              "worktree_fingerprint": {
+                "properties": {
+                  "coverage": {
+                    "const": "complete"
+                  }
+                },
+                "required": [
+                  "coverage"
+                ]
+              }
+            },
+            "required": [
+              "worktree_fingerprint"
+            ]
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "code": {
+            "properties": {
+              "head_sha": {
+                "type": "string"
+              },
+              "worktree_state": {
+                "enum": [
+                  "observed_clean",
+                  "observed_dirty"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "properties": {
+              "branch_tracking": {
+                "properties": {
+                  "branch_state": {
+                    "const": "attached"
+                  }
+                },
+                "required": [
+                  "branch_state"
+                ]
+              }
+            },
+            "required": [
+              "branch_tracking"
+            ]
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "code": {
+            "properties": {
+              "branch": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "branch"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "properties": {
+              "branch_tracking": {
+                "properties": {
+                  "branch_state": {
+                    "const": "detached"
+                  }
+                },
+                "required": [
+                  "branch_state"
+                ]
+              }
+            },
+            "required": [
+              "branch_tracking"
+            ]
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "code": {
+            "properties": {
+              "branch": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "branch"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

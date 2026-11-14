@@ -1,0 +1,2457 @@
+# Session Continuity Protocol（SCP）— 设计提案
+
+> 状态：D0 语义已按用户确认冻结；D1 Schema 设计进行中  
+> 适用范围：跨会话、跨 Agent 客户端、跨模型的项目工作连续性  
+> 本文定义协议语义与分阶段交付边界。D0 决策已确认；D1 的具体字段/schema 仍需独立审查，尚不启用强制门禁、不要求现有项目迁移。
+
+## 1. 问题定义
+
+当前的 `SESSION-HANDOFF.md` 能提供人工交接入口，但单独依赖它无法可靠解决：
+
+- 新会话不知道哪些记录仍然有效，哪些已被新提交、PR、任务状态或用户决定取代。
+- 不同 Agent 对“已完成”“已保存”“已提交”“已验证”“已获用户确认”的理解可能不同。
+- Agent 可能只继承摘要，遗漏原始目标、已接受变更、约束或尚未裁定的冲突。
+- 多 Agent 在不同分支、worktree 或同一文件上并行工作时，缺少共享的所有权与冲突协议。
+- 交接内容可能把推断写成事实，或把未运行的测试写成通过。
+- 客户端私有记忆和聊天历史不具备统一、可审计、可移植的项目权威性。
+
+SCP 的目标不是再造任务系统或记忆系统，而是定义一套**恢复、校验、记录、交接和并发协作的共同协议**，让不同客户端可以按相同语义读取和更新项目已有的权威状态。
+
+## 2. 核心设计原则
+
+1. **权威来源不迁移**：目标/变更、需求、任务、路线图、ADR、验证证据和 Git 状态继续由现有领域文件与版本控制系统负责。SCP 只保存引用、快照元数据和交接断点。
+2. **摘要不是事实源**：handoff、客户端记忆、会话摘要均为导航或缓存；与权威记录冲突时，必须回到权威来源核验。
+3. **先恢复，后行动**：未完成 Bootstrap 与 Freshness 检查前，不执行高影响写操作、合并、发布或破坏性迁移。
+4. **事实、推断、待确认分离**：每项状态声明必须能标识来源和确认状态；Agent 推断不能自动变成 accepted 项目事实。
+5. **证据绑定对象版本**：测试、审查和 CI 证据必须绑定具体 commit 或工作树快照；代码变化后不得沿用旧验证结论。
+6. **断点描述真实状态**：未提交、未验证、未决策、被阻塞必须明确呈现，不能以“基本完成”掩盖。
+7. **并发默认隔离**：优先使用独立分支/worktree；共享文件写入必须有明确所有权或协调结果。
+8. **渐进采用**：先以文档协议和只读检查起步，再引入 schema、validator 和客户端适配；不一次性增加复杂后台服务。
+9. **最小持久化**：只记录影响恢复正确性的增量；不复制聊天全文、完整 diff、任务清单或领域文件正文。
+
+## 3. 协议对象与术语
+
+### 3.1 Project Continuity Context
+
+一个项目在某一时刻可恢复的上下文，由以下信息组成。它是恢复视图，不是需要整体复制或持续双写的独立记录：
+
+- 项目身份：仓库、协议版本、工作区位置。
+- 意图锚点：原始目标及当前适用的 accepted changes。
+- 工作锚点：任务/里程碑 ID；若轻量任务无任务卡，记录简短工作主题。
+- 代码锚点：branch、HEAD SHA、worktree 状态、未提交变更摘要。
+- 证据锚点：最近一次验证所绑定的 commit/tree、命令、结果和环境。
+- 协作锚点：活动 Agent、工作范围、租约或人工协调状态。
+- 断点：已完成、正在做、未完成、阻塞、待用户决定、下一步。
+- 来源状态：每项信息的来源、版本和 freshness 判定。
+
+### 3.2 Continuity Packet
+
+一次会话恢复或交接所需的最小数据包。它可以由权威文件与 Git/CI 现场状态动态组装，不要求每次都生成并提交新文件。
+
+Packet 必须在语义上区分：
+
+- **权威来源引用**：由 `intent`、`work`、`evidence_refs` 等字段指向既有权威记录；可选能力关闭或记录不存在时，不得虚构路径。
+- **生成时观察状态**：由 `code`、`checkpoint` 等字段记录生产者实际观察到的状态，并通过 `provenance.source_revisions` 绑定来源版本、观察时间和 freshness。
+- **last-known 状态**：Packet 被后续会话消费时，生成时的观察值自然降为 last-known；接收方必须现场 Bootstrap 并比较，不能将 Packet 值冒充当前事实，也不复制一份重复的 last-known 数据。
+- **Agent 推断**：单独放在 `inferences[]`，包含推断摘要、依据引用和置信度；不得写入观察状态或权威记录字段。
+- **待确认事项**：放在 `checkpoint.decisions[]`，每项独立记录 ID、状态、裁定主体和来源；单项确认不构成泛化授权。
+
+Packet 中的领域状态原则上只保存引用和恢复所需的最小摘要；除非权威来源本身就是该断点文件，否则不得复制完整需求、任务卡、意图变更或验证记录。
+
+### 3.3 Checkpoint 与 Handoff
+
+- **Checkpoint**：记录当前工作在特定代码/状态版本上的可恢复断点。
+- **Handoff**：把工作责任从一个 Agent/会话转交给另一个 Agent/会话，必须说明交接范围、未完成事项和操作边界。
+- **Evidence**：证明某个对象在某个版本上经过某种验证的可追溯记录。
+- **Lease**：对文件、目录、任务或资源的有时限写入协调声明；租约不是权限系统，也不等于 Git 锁。
+
+## 4. 七个协议域
+
+### 4.1 Bootstrap — 启动与恢复
+
+**目标**：任何兼容客户端都能从仓库恢复正确的项目背景和当前工作，而不依赖旧聊天。
+
+恢复顺序：
+
+1. 识别仓库根目录、项目身份和协议版本。
+2. 读取 `AGENTS.md` 规则入口；若存在 `SESSION-HANDOFF.md`，将其作为导航/交接材料读取，不将其视为所有项目都必须创建的文件。若不存在，按 `AGENTS.md` 指向的 `.memory/MEMORY.md §0` 或项目既有断点入口恢复。
+3. 从可用断点/交接材料定位领域权威来源：意图基线/变更、相关需求、任务/里程碑、ADR、验证证据；可选能力关闭或文件不存在时按项目配置处理，不强制补建。
+4. 现场核对 Git：当前分支、HEAD、upstream、worktree dirty 状态、未跟踪文件、相关 PR/CI。
+5. 对照上次 checkpoint，标注差异和过期信息。
+6. 汇总当前目标、任务、约束、未决事项和唯一下一步；必要时向用户提出一个最关键的澄清问题。
+
+**输出**：恢复摘要 + 已核验来源清单 + freshness 差异 + 可执行下一步。
+
+**禁止**：仅凭 handoff 摘要推断 PR 已合并、测试已通过、用户已批准或本地工作树干净。
+
+### 4.2 Context Freshness — 上下文新鲜度
+
+**目标**：识别陈旧、失效、互相矛盾或无法重新验证的上下文。
+
+每项状态至少记录或推导：
+
+- 来源标识（文件路径/记录 ID/URL）。
+- 来源版本（Git commit SHA、文件哈希、PR head SHA 或 CI run SHA）。
+- 最近观察时间（用于审计，不单独作为有效性证明）。
+- 期望状态与本次观察状态。
+- freshness：`current`、`stale`、`conflict`、`unknown`。
+
+规则：
+
+- Git/PR/CI 的动态状态必须现场查询；handoff 中的旧状态只是 last-known。
+- 引用的文件、任务 ID、需求 ID、commit 和 CI run 必须存在且匹配。
+- 来源版本发生变化时，重新读取受影响内容；不能仅因时间较近就认定新鲜。
+- 无法访问远端时标记 `unknown`，不得降级为成功或沿用旧状态。
+- 冲突不能由 Agent 静默选择“看起来更新”的一方；按领域权威来源和明确的用户决策规则处理。
+
+### 4.3 Intent Continuity — 意图连续性
+
+**目标**：跨会话保留用户原始目标、已确认变化、临时插单和未解决冲突之间的关系。
+
+规则：
+
+- 原始目标仍由 intent baseline 维护；后续变化追加到 change ledger。
+- 仅明确用户决定可成为 accepted；Agent 建议保持 proposed/pending。
+- 每次恢复任务时，核对当前工作与 baseline、适用 accepted changes、需求验收和约束。
+- 临时插单必须保留原任务恢复点；不能隐式替换长期目标或优先级。
+- 发现实际工作偏离时，标记 drift 并暂停受影响决策；不把“已写代码”当作用户批准。
+- 轻量任务可不建卡，但仍不得违背明确目标和操作授权。
+
+**输出**：当前有效意图引用、相关变化、待确认项、偏离风险。
+
+### 4.4 Checkpoint — 执行断点
+
+**目标**：准确表达工作处于哪个持久化和验证阶段，保证中断后可以安全续做。
+
+Checkpoint 不采用单一“完成度”字段，而应分别描述以下维度。以下状态只描述执行断点，不覆盖任务索引、需求索引、验证索引或里程碑中的领域状态：
+
+| 维度 | 状态示例 | 含义 |
+|---|---|---|
+| 工作内容 | not_started / in_progress / blocked / locally_complete | 工作本身进度；`locally_complete` 仅表示当前执行者认为本轮实现已完成，不等同任务 `done`、需求 `verified` 或里程碑完成 |
+| 工作区可观察状态 | unknown / observed_clean / observed_dirty | 由 `code.worktree_state` 唯一承载，基于当前工具可见的文件系统与 Git 状态；不得推断编辑器内未落盘缓冲区状态 |
+| 验证 | not_run / running / passed / failed / stale / unknown | 本次工作区/提交上的验证状态；`passed` 必须关联 Evidence，旧证据对新版本为 `stale`（保留旧 Evidence 引用以说明失效依据），无法读取证据为 `unknown` |
+| 审查 | not_reviewed / reviewed / changes_requested / stale / unknown | 审查结论必须绑定被审查 revision、审查范围和审查者；revision 变化后重新判断是否 stale |
+| 决策 | 以 `decisions[]` 表达多个独立事项 | 不用一个全局枚举代表多个决策；每项必须关联具体决策 ID、裁定主体和来源，不能作为泛化的用户授权标记 |
+
+D1 Schema 将多个独立裁定项统一表示为 `decisions[]`；每项包含 decision ID、状态、裁定主体与来源，单项确认不构成对 Packet 或其他操作的泛化授权。
+
+Checkpoint 最小字段：
+
+- checkpoint ID、时间、协议版本。
+- 当前 branch、HEAD SHA、worktree 状态。
+- 未提交变更的文件列表与摘要；必要时记录 diff/tree hash，但不默认复制完整 diff。
+- 当前工作主题与 G/R/T/M 引用（适用时）。
+- 已完成、未完成、阻塞、待决策。
+- 验证命令、结果、绑定 revision 和 Evidence 引用；没有运行必须写 `not_run`。`running` 还需记录执行者、运行标识和开始时间，无法确认状态时写 `unknown`。
+- 待裁定事项列表及其权威来源引用；多个决策不能压缩成单一 decision 状态。
+- 下一步和禁止操作。
+
+规则：
+
+- 文件系统中可观察到的改动不等于已提交；提交不等于验证；验证通过不等于用户验收。
+- 通用 Agent 通常无法观察 IDE/编辑器内尚未写入文件系统的缓冲区；除非客户端提供可验证的编辑器状态接口，否则该部分必须标为不可观察/unknown，不得声称已保存或未保存。
+- 若工作树 dirty，必须明确交接可观察到的未提交变更路径、归属与处理方式；D1 Schema 要求 `observed_dirty` 至少列出一个 `uncommitted_paths`。若无法观察 HEAD，则 worktree 状态必须为 `unknown`。
+- 不自动 stash、commit、reset 或清理未跟踪文件。
+- 新 commit 或相关文件变更会使旧验证/审查证据重新评估 freshness，相关 subject 已变化时标为 stale，除非证据明确覆盖新版本。
+
+### 4.5 Concurrency Control — 并发控制
+
+**目标**：避免多个 Agent/会话同时修改相同状态源或互相覆盖工作。
+
+优先策略：
+
+1. 发生真实并行写入时，每个 Agent 优先使用独立 branch/worktree；没有并行写入时不要求引入协调文件或 lease。
+2. 任务或文件范围明确分配 owner；同一权威文件默认单写者。该约束沿用项目已有 `multi_agent` 能力规则，不因 SCP 自动启用该能力。
+3. 首版不定义或要求 Lease；只有后续出现可复现且无法通过分支/worktree 隔离解决的共享写冲突时，才单独评估协调存储。
+4. 写入前比较 base SHA 与当前 SHA；发生变化必须重新读取、重放或人工解决，不允许盲目覆盖。
+5. 过期 lease 只表示协调声明失效，不代表可以删除其他 Agent 的工作；先检查工作树、分支和未提交改动。
+6. 同一任务的状态变更与证据更新必须串行化，避免 done 状态先于验证结果写入。
+
+**安全边界**：
+
+- Git 分支/worktree 隔离是默认执行手段；lease 是协调层，不提供安全隔离或分布式事务。
+- 首版只记录 owner、write-scope 和 branch/worktree 隔离声明；不引入 Lease 服务、外部锁或仓库内锁协议。后续若评估协调存储，必须另行设计原子性、过期恢复和故障边界。
+- 无法确认资源 owner 或发现重叠写入时，暂停冲突范围，不暂停无关任务。
+
+### 4.6 Handoff — 交接
+
+**目标**：交接的是可验证的工作状态和责任边界，不是聊天摘要。
+
+标准交接必须包含：
+
+- from / to（Agent、客户端或责任人；未知可标 unknown）。
+- 工作主题、目标/需求/任务引用。
+- 完成项及其证据。
+- 正在进行的事项和准确断点。
+- 未提交文件、分支、HEAD SHA、worktree 状态。
+- 未运行/失败/过期的验证。
+- 未解决问题、待用户决定、Agent 推断。
+- 当前 PR/CI 状态及其绑定 SHA。
+- 下一步（单一首选动作）与明确禁止操作。
+- 交接时间和生成者。
+
+接收方必须执行 Bootstrap/Freshness 核验，不能直接信任交接方写下的动态状态。
+
+### 4.7 Evidence Provenance — 证据来源与可信度
+
+**目标**：让每个“通过”“完成”“已审查”都能回答：谁验证、验证了什么、在哪个版本、用什么方式、结果如何？
+
+证据至少包含：
+
+- evidence ID 或稳定引用。
+- subject：被验证的需求、任务、文件或发布对象。
+- type：test / lint / build / CI / manual_review / user_acceptance / static_analysis。
+- source：命令、CI run URL、审查记录或用户确认来源。
+- subject revision：优先使用 commit SHA；未提交工作区必须描述 HEAD SHA、dirty 状态及被纳入验证的文件/差异范围。若使用文件摘要清单，需明确纳入的 tracked/untracked 路径和摘要算法；单独一个 Git tree SHA 不包含未跟踪文件，不能被误称为完整工作区快照。
+- environment：OS、runtime、关键版本（适用时）。
+- result：pass / fail / inconclusive / not_run。
+- observed_at、actor、scope/limitations。
+
+可信度规则：
+
+- CI 证据必须绑定实际 workflow run 的 head SHA；仅有绿色徽标或旧 run 不够。
+- 本地测试必须记录执行命令、退出码和代码版本；没有 commit 时需说明工作树状态。
+- 人工审查必须说明审查对象和范围，不能泛写“已检查”；reviewer 必须可识别，结果与 observed_at 必须明确，提交变化后按 revision 判断 stale。
+- 用户确认必须能追溯到明确用户表达；Agent 自己总结不能代替。
+- 证据只对其 subject、revision 和 scope 有效；代码变化后需要重新判断是否仍有效。
+- 证据缺失时明确标记 unknown/not_run，不允许补造。
+
+## 5. 最小 Continuity Packet 草案
+
+以下 YAML 仅保留为历史语义示意，不是机器契约。D0 已确定 JSON Schema 为唯一机器权威源；D1 的正式候选契约位于 `schemas/scp/0.1/continuity-packet.schema.json`，字段与兼容规则在 D1 审查通过前仍可调整。
+
+```yaml
+protocol: scp/0.1
+project:
+  repository: owner/repository
+  root: .
+session:
+  id: optional-stable-id
+  actor: agent-or-client
+  started_at: 2026-11-12T00:00:00Z
+intent:
+  baseline_ref: .spec/intent/BASELINE.md
+  accepted_change_refs: []
+  pending_refs: []
+work:
+  topic: "简短工作主题"
+  task_ref: null
+  milestone_ref: null
+code:
+  branch: feature/example
+  head_sha: "<full-commit-sha>"
+  worktree_state: observed_dirty
+  uncommitted_paths: []
+checkpoint:
+  work_state: in_progress
+  verification_state: not_run
+  review_state: not_reviewed
+  decisions: []
+evidence_refs: []
+coordination:
+  owner: agent-a
+  write_scope: [schemas/scp/0.1/]
+  isolation: branch_worktree
+handoff:
+  completed: []
+  in_progress: []
+  blocked: []
+  next_action: "单一下一步"
+  forbidden_actions: []
+provenance:
+  generated_by: client-adapter
+  generated_at: 2026-11-12T00:00:00Z
+  source_revisions: []
+```
+
+重要约束：
+
+- Packet 是可重建的恢复视图，不是任务、需求或意图的新权威数据库。
+- 不要求每次普通对话都生成文件；跨会话暂停、Agent 交接、长任务 checkpoint、阶段收口时才考虑持久化。轻量任务继续遵循项目现有轻量流程，不因 SCP 自动升级为跟踪任务。
+- `task_ref`、`milestone_ref` 等引用按项目能力和实际场景选填；SCP 0.1 不定义 `lease_ref`，能力关闭或场景不适用时不得为了填满字段而创建治理记录。
+- 任何动态字段都必须能标记 last-known 与 observed；不能把旧快照中的 branch/PR/CI 状态冒充实时状态。
+- YAML 示例中的时间、分支和 SHA 仅作字段示意，实际实现必须从运行环境/权威来源读取，不能使用占位值伪造运行状态。
+
+## 6. 会话生命周期
+
+```text
+START
+  -> Bootstrap
+  -> Freshness Check
+  -> Intent Alignment
+  -> Scope / Ownership Check
+  -> Execute
+  -> Checkpoint (as needed)
+  -> Evidence Capture (when acceptance / review / closeout requires it)
+  -> Handoff or Closeout
+  -> END
+```
+
+异常路径：
+
+- 上下文缺失：标 unknown，读取权威来源或询问用户，不猜测。
+- 来源冲突：暂停冲突范围，记录冲突两侧证据。
+- 工作树 dirty：保护现有改动，先识别归属，不 reset/stash。
+- 租约/所有权冲突：停止重叠写入，保留不冲突工作。
+- 验证失败：记录失败证据和下一步，不得标记验证通过。
+- 用户决策待确认：保持 pending，不由 Agent 代替用户决定。
+
+## 7. 初版范围与明确 Non-goals
+
+### 初版建议纳入
+
+- 协议术语、生命周期、权威来源和状态语义。
+- Continuity Packet 的最小 schema。
+- Bootstrap/Freshness 的只读恢复流程。
+- Checkpoint/Handoff 的字段契约。
+- Evidence 与 commit/CI SHA 绑定规则。
+- Node/Python schema validator 的一致性测试（如最终决定采用双实现）。
+- 至少两个独立客户端按同一 Packet 完成恢复的可重复 fixture；真实客户端端到端支持需单独标注客户端版本和证据。fixture 验证协议互操作，不等于证明真实客户端加载规则或工具权限行为一致。
+
+### 初版不做
+
+- 不创建第二套任务、需求、目标或路线图系统。
+- 不把完整聊天历史同步到仓库。
+- 不要求每轮对话更新记忆或生成 checkpoint。
+- 不实现中心化 Agent 编排平台、远程锁服务或分布式事务。
+- 不自动 stash/commit/merge/reset，不自动替用户确认意图。
+- 不把客户端私有记忆当作项目事实源。
+- 不把所有 Agent 的内部推理、token 或私有上下文写入仓库。
+- 不把 PR/CI 状态硬编码进长期静态文件。
+
+## 8. 分阶段落地建议
+
+| 阶段 | 交付 | 验收重点 |
+|---|---|---|
+| D0 语义冻结 | 协议术语、权威来源、状态模型、失败策略 | 无第二事实源；七域边界无重叠 |
+| D1 Packet Schema | 版本化 schema、示例、兼容策略 | 必填字段可校验；未知字段与升级策略明确 |
+| D2 Read-only Bootstrap | 恢复器/诊断报告，只读读取 Git 与项目权威文件 | 不写项目文件；过期和冲突可定位 |
+| D3 Checkpoint/Handoff | 生成/校验断点与交接 packet | dirty tree、未验证、待确认均不会丢失 |
+| D4 Evidence/Freshness | 证据绑定 commit、CI run 与失效规则 | 旧 SHA 证据不能覆盖新代码 |
+| D5 Concurrency | 支持 branch/worktree 隔离与 owner/write-scope 声明；只有真实冲突证据出现后才重新评估协调存储 | 冲突写入可检测；首版不引入 Lease 服务或外部锁 |
+| D6 Client Adapters | 至少两个客户端消费相同 packet | 规则正文不分叉；恢复结果一致 |
+
+每个阶段独立评审和验收；只有 D0 语义冻结后才开始 schema/代码实现。阶段之间不要求版本号同步推进。
+
+## 9. 已裁定的设计决策
+
+本节保留 D0 裁定主题的导航；正式决策及其边界以 §11.3 为准。用户已同意按推荐方案推进：
+
+1. Packet 仅在跨会话暂停、真实交接、重要 checkpoint 或阶段收口时持久化。
+2. JSON Schema 是唯一机器权威契约；Markdown 只能由工具生成，不得人工双写。
+3. 先做至少两个独立客户端的 fixture 契约测试，再逐客户端增加真实 CLI E2E 证据。
+4. 首版只要求 branch/worktree 隔离与 owner/write-scope 声明，不引入 Lease 服务或外部锁。
+
+## 10. 当前状态
+
+- 本文是独立 SCP 设计与 D1 规格工作，不改变 PR #10 的 3.0 审查结论。
+- PR #10 保持 Open + Draft；本提案应在独立分支/独立 PR 评审，不能混入 PR #10。
+- D0 语义已获用户确认并冻结；D1 schema 仍处于候选审查状态，不启用强制门禁、不要求现有项目迁移。
+
+
+## 11. D0 内部一致性审查（2026-11-12）
+
+本节记录 D0 的内部审查依据；D0 的产品决策已由用户明确确认。字段名与机器 schema 由 D1 单独定义和审查。
+
+### 11.1 与现有规范的职责映射
+
+SCP 必须作为现有会话协议的跨客户端互操作层，而不是替换它。当前模板已经定义了按任务分级的开工/收口流程、六行内 MEMORY 断点、意图/需求/验证分域事实源、可选任务/路线图/ADR 能力，以及客户端私有记忆单向镜像。D0 应沿用这些约束：
+
+| 现有权威来源/机制 | 当前职责 | SCP 允许做什么 | SCP 不得做什么 |
+|---|---|---|---|
+| `AGENTS.md` | 唯一规则入口、任务分级、权限、按需读取、收口路由 | 定义跨客户端一致的恢复顺序与最低互操作语义 | 复制规则正文或强制所有任务走完整流程 |
+| `.memory/MEMORY.md §0` | 最小跨会话断点与稳定事实摘要 | 作为默认恢复入口；handoff/packet 可引用其断点 | 另建长期会话总账，或要求每轮对话写 packet |
+| `.spec/intent/BASELINE.md + CHANGES.md` | 原始目标与被接受/待确认的意图变化 | 引用有效 G/C，检测 drift | 在 packet 中维护第二份目标或变更账本 |
+| `.spec/requirements/INDEX.md` | 需求 ID 与状态 | 引用相关 R，恢复验收上下文 | 复制需求正文或自行改变需求状态 |
+| `.spec/verification/INDEX.md` | 验证证据事实及其 commit 绑定 | 引用 V，并核验其 revision/freshness | 另建与 V 并行的验证事实账本 |
+| `.spec/tasks/index.md`（仅 task_tracking 启用） | 任务状态唯一源 | 引用 T 与任务卡断点 | 在 packet 中覆盖任务状态或强制启用 task_tracking |
+| `.spec/roadmap/INDEX.md`（仅 roadmap 启用） | 里程碑状态唯一源 | 引用 M | 复制或替代里程碑状态 |
+| `.spec/adr/`（仅 adr 启用） | 架构决策记录 | 引用相关 ADR | 把临时会话判断提升为已采纳架构决策 |
+| `CLIENTS.md` | 客户端入口与已验证程度 | 定义 packet 的客户端中立语义，并记录 adapter 能力声明 | 将 fixture 通过等同真实客户端 E2E 通过 |
+| Git / CI | 代码版本、工作区和自动化运行事实 | 现场读取并绑定 SHA/run | 把旧 handoff 中的动态状态当作当前事实 |
+
+**冲突原则**：先按领域定位权威来源，再比较来源版本与现场状态；Packet 只能报告冲突，不能裁决领域事实。用户当次指令仍决定本次授权边界，SCP 不扩大操作权限。
+
+### 11.2 D0 语义修订建议
+
+内部审查发现，初稿有几处需要在进入 schema 前收紧：
+
+1. **轻量任务不能被协议升级**：Bootstrap 是恢复策略，不意味着每次会话都生成 Packet、Checkpoint 或任务卡。默认持久化仍只用于跨会话暂停、真实交接、长任务断点和阶段收口。
+2. **Checkpoint 状态不能冒充领域状态**：`locally_complete` 不是 task done；Checkpoint 的 verification 只能引用 Evidence，不能取代 V 索引；decision 状态必须绑定具体决策，不能被理解为通用授权。
+3. **可选能力必须可缺省**：T/M/ADR 等引用按项目能力启用和实际场景选填。关闭能力时不创建替代目录，也不把 `not_configured` 误报为错误。SCP 0.1 不定义 Lease 字段。
+4. **未提交工作区证据需要精确定义**：Git tree SHA 不覆盖 untracked 文件；未提交验证至少要记录 HEAD、dirty 状态、纳入范围及必要的文件摘要，避免伪称已绑定完整快照。
+5. **并发控制按需启用**：沿用现有 `multi_agent` 规则；单 Agent/无并发任务不引入 lease。Branch/worktree 隔离优先，lease 不是 MVP 前置条件。
+6. **客户端互操作分级**：fixture 只证明数据契约可交换；真实 CLI 加载、工具权限和行为差异必须单独验证，不能由 fixture 代替。
+
+### 11.3 D0 产品决策（用户已确认，2026-11-12）
+
+用户明确同意按推荐方案推进，D0 的四项产品决策冻结如下：
+
+1. **Packet 持久化**：只在跨会话暂停、真实 Agent 交接、重要 checkpoint、阶段收口等确有恢复价值的节点持久化。普通对话和轻量任务不强制生成 Packet；Packet 只保存权威来源引用、最小恢复摘要和断点，不复制领域事实账本。
+2. **表示格式**：JSON Schema 是唯一机器权威契约；Markdown 仅作为可选的人类可读视图，必须由工具从机器数据生成，禁止人工维护两份等价事实。旧 YAML 片段只作语义草图，不具有契约效力。
+3. **客户端互操作验收**：先以至少两个独立客户端 fixture 验证相同 Packet 的读写/恢复契约；随后逐个客户端补真实 CLI E2E，并按客户端版本和实际证据声明支持程度。Fixture 通过不得宣称真实客户端 E2E 已通过。
+4. **并发协调**：首版只要求真实并行写入时使用 branch/worktree 隔离并声明 owner/写入范围；不引入 Lease 服务或外部锁。只有后续出现可复现且无法通过隔离解决的共享写冲突，才重新评估协调存储。
+
+**D0 状态：Frozen。** 以上决定仅冻结协议语义和范围，不代表 D1 字段/schema 已冻结，也不授权自动 stash/commit/reset/merge、扩大写入权限或替用户作业务决策。
+
+### 11.4 第二轮边界检查
+
+进一步审查发现以下语义必须在 D0 进入冻结前明确：
+
+1. **编辑器缓冲区不可观测**：跨客户端通用协议不能假定能读取 IDE 尚未写入文件系统的内容。Checkpoint 只能声明工具实际观察到的文件系统/Git 状态；不可观察的编辑器缓冲区必须是 unknown，不能使用 saved / unsaved 做未经证实的承诺。
+2. **多个待决策事项不能压成一个枚举**：一个会话可能同时有多项独立待用户裁定事项。应使用带 ID 和来源的待决策列表；用户确认必须关联具体事项，不能将一个 confirmed 状态误读为对整个 Packet 或后续操作的授权。
+3. **审查证据也有版本有效性**：代码审查必须绑定被审查 revision、范围和审查者；提交变化后需重新判断审查是否 stale，不能只对测试证据执行 freshness。
+4. **断点入口必须适配项目现状**：SESSION-HANDOFF.md 是可选交接入口，不应成为所有项目的必需文件。没有该文件时，应沿用 AGENTS.md 指向的 MEMORY §0 或项目既有断点入口。
+5. **Evidence 记录按验收需求触发**：普通局部测试不应被强制转成 V 记录；只在需求验收、重要审查、里程碑/阶段收口或发布决策需要时登记，延续现有 verification 规则。
+6. **示例格式不得提前替代格式决策**：当前 YAML 只是语义示例。D0 决定协议语义，D1 才确定机器格式、schema 版本和兼容规则；不得在文档中一边称格式未定，一边让示例看起来像已冻结契约。
+
+以上边界修订构成 D0 语义冻结的审查依据；具体 schema 仍由 D1 单独审查。
+
+## 12. D1 Schema 设计启动（2026-11-12）
+
+D0 已冻结，D1 开始定义可跨语言消费的机器契约。当前策略：
+
+- 唯一机器权威源：JSON Schema Draft 2020-12；不维护手写 YAML/Markdown 平行契约。
+- Schema 文件：`schemas/scp/0.1/continuity-packet.schema.json`，当前 schema 标识为 `0.1.0`。
+- 示例文件：`schemas/scp/0.1/examples/handoff-minimal.json`，示例必须通过对应 schema 验证。
+- Packet 的持久化由工作节点/交接场景触发，不代表每个 session 必须创建文件。
+- schema 采用显式版本标识；已发布版本不可原地改变既有字段语义。兼容性策略见 `schemas/scp/0.1/COMPATIBILITY.md`，当前仍是 D1 草案。
+- Core object 拒绝未知字段；扩展数据必须放入 namespaced `extensions`，不得覆盖核心语义。
+- `code.worktree_state` 是工作区可观察状态的唯一字段，不在 checkpoint 中重复保存；声称验证/审查通过必须附带 `evidence_refs`。
+- 首轮只定义 Packet 数据契约，不实现 validator、不接入门禁、不生成自动写入器。
+- D1 同时明确最小正/负例契约；JSON Schema 无法单独保证 `decisions[].decision_id` 的属性级唯一性，因此该约束留给后续独立审查的 semantic validator。Schema/fixture 规范不等于本 PR 实现 validator 或 CI gate。
+- 首轮互操作验收先建立两个独立客户端 fixture 的共同输入/预期恢复结果；真实 CLI E2E 是后续按客户端单独声明的证据。
+- 首版并发字段只表达 owner、工作范围和隔离信息；不定义 Lease 服务或锁语义。
+
+D1 完成标准：schema 与示例结构稳定；必填/可选字段有明确语义；版本兼容与扩展策略明确；负例边界可测试；不产生第二套领域状态源。通过独立审查后，才进入 D2 只读 Bootstrap；validator/fixture 实现应作为后续可单独审查的交付，不与 schema 设计混为一体。
+
+## 13. D2 只读 Bootstrap 与 Context Freshness 设计提案（2026-11-12）
+
+> 状态：设计草案，待独立审查；D1 Schema 0.1.0 尚未获用户批准冻结。
+>
+> 本节先定义恢复算法、freshness 语义和安全边界。它不修改 D1 Schema，不要求实现 Validator、Packet Writer、CI Gate 或客户端适配器。下文的字段/引用映射仅为概念映射，最终必须与获批准的 Schema 版本逐项核对。
+
+### 13.1 D2 的目标与非目标
+
+D2 要回答的不是“如何把 Packet 读进来”，而是：一个新会话如何以只读方式恢复项目工作上下文，判断哪些旧信息仍可用、哪些已过期、哪些相互矛盾，以及在证据不足时如何安全降级。
+
+目标：
+
+- 从项目规则入口和现有权威来源恢复最小可执行上下文。
+- 对 Packet/handoff 中的引用逐项检查存在性、版本和适用范围。
+- 对 Git、PR、CI 等动态状态现场核验，不把旧快照当成当前事实。
+- 对每个来源给出可解释的 freshness 结果和证据。
+- 在 schema 不兼容、来源不可访问、状态冲突或权限不足时，采取明确的只读降级策略。
+- 输出可审计的恢复摘要，供 Agent 与用户决定下一步。
+
+非目标：
+
+- 不重建或复制任务、需求、意图、ADR、验证记录等领域状态。
+- 不自动修复引用、不自动更新 Packet、不写 MEMORY、不创建任务或决策记录。
+- 不执行 stash、commit、checkout、reset、merge、rebase、push、PR 修改或 CI dispatch。
+- 不把 Bootstrap 结果视为用户对后续写操作的授权。
+- 不要求所有普通会话都持久化 Bootstrap 报告。
+
+### 13.2 Read-only 的精确定义
+
+D2 的只读模式是对项目状态的严格无写入读取，不只是“尽量不改文件”。
+
+允许：
+
+- 读取规则、断点、领域索引、被引用记录和相关文件。
+- 读取 Git 状态、commit/tree/blob 元数据及 diff（仅用于理解，不应用）。
+- 查询远端分支、PR、CI run 和只读 API。
+- 计算本地文件哈希、比较 revision、生成内存中的恢复摘要。
+- 向用户报告缺失、过期、冲突、未知和需要授权的事项。
+
+禁止：
+
+- 修改工作区文件、索引、配置、权限或 Git 元数据。
+- 创建、覆盖或删除 Packet、handoff、MEMORY、任务卡、证据记录或临时项目文件。
+- 执行会改变仓库状态的 Git 命令或远端写 API。
+- 自动安装依赖、运行会产生项目文件/缓存/数据库迁移的命令，或触发具有副作用的构建/测试脚本。
+- 因发现不一致而擅自“修正”权威来源。
+
+D2 Bootstrap 不主动生成项目文件、测试报告、锁文件或构建产物。工具运行时自动维护的标准依赖缓存和系统临时数据，只有在项目 AGENTS/宪法明确允许时才属于例外；不得借此写入项目目录或改变用户环境。若某个检查工具会触发项目文件生成、自动格式化、数据库迁移或其他项目状态副作用，该检查不属于 D2 Bootstrap 的只读操作；应跳过并标记未验证，或在取得明确授权后另行执行。
+
+### 13.3 Bootstrap 的恢复顺序
+
+Bootstrap 采用有序、按需读取的流程；前序步骤无法确认时，不得假装后续结论完整。
+
+| 阶段 | 读取与检查 | 产出 |
+|---|---|---|
+| B0 项目识别 | 仓库根目录、remote/repository identity、当前工作目录；若存在 Packet/协议元数据则读取协议标识 | project identity；不匹配时停止套用该 Packet；没有 Packet 或协议元数据不阻断旧项目恢复 |
+| B1 规则入口 | 读取 AGENTS.md 及其明确要求的宪法/规则入口；识别适用能力开关和权限边界 | 当前适用规则集与读取范围 |
+| B2 断点定位 | 优先读取项目指定的 MEMORY §0 或既有恢复入口；若存在 SESSION-HANDOFF.md/Packet，则作为导航和 last-known 线索 | 恢复锚点，不把摘要提升为权威事实 |
+| B3 意图与范围 | 按当前工作读取 intent baseline、适用 accepted changes、相关 requirements；可选任务/roadmap/ADR 仅在能力启用且引用存在时读取 | 当前目标、约束、验收锚点、待确认项 |
+| B4 代码现场 | 只读检查 branch、HEAD、upstream、tracked/untracked/dirty 状态及相关提交关系 | 现场代码状态；不可观察内容标 unknown |
+| B5 证据现场 | 对本次任务相关的 verification/review evidence、PR/CI 引用做存在性和 revision 核验 | 证据有效性与 freshness 结果 |
+| B6 冲突与新鲜度 | 比较 Packet last-known、权威来源当前版本和现场观察结果 | per-source freshness、冲突清单、限制 |
+| B7 恢复摘要 | 汇总目标、当前断点、已确认事实、Agent 推断、待用户决定和单一建议下一步 | 可供用户审阅的只读恢复报告 |
+
+读取应遵循最小必要原则：先根据断点定位相关 G/R/T/M/V/ADR，再读取对应记录；不得因为协议存在就全量加载所有历史变更、任务卡或证据正文。
+
+### 13.4 来源权威性与冲突处理
+
+Bootstrap 不使用“最新文件优先”这种简单规则。不同事实由不同来源负责，先识别事实类型，再识别权威来源：
+
+| 信息类别 | 权威来源 | Packet/handoff 的地位 |
+|---|---|---|
+| 原始目标、已接受意图变化 | intent baseline + accepted change ledger | 导航引用与 last-known 摘要 |
+| 需求与验收状态 | requirements index / requirement record | 引用，不得覆盖 |
+| 任务状态 | 启用 task_tracking 时的 task index/card | 引用；未启用时不得推造任务状态 |
+| 里程碑状态 | 启用 roadmap 时的 roadmap index/record | 引用；未启用时不得推造里程碑 |
+| 架构决策 | 启用 ADR 时的 ADR；否则按项目既定决策落点 | 引用或待确认说明 |
+| 验证/审查证据 | verification index 与对应 Evidence 记录；PR review/CI 原始记录按其领域适用 | 证据引用和上次观察结果 |
+| 当前代码状态 | 当前工作区与 Git 对象/状态 | 生成时快照，不代表消费时事实 |
+| PR/CI 当前状态 | 现场查询到的远端 PR/CI 资源 | last-known，仅供定位 |
+| 用户授权/本次操作范围 | 当前会话中用户明确表达及项目权限规则 | 不得从历史 Packet 推导新授权 |
+
+冲突处理规则：
+
+1. **权威来源与 Packet 不一致**：权威来源优先；Packet 标记 stale，并记录差异。不得静默改写权威来源。
+2. **同一领域存在多个权威候选且无法确定优先级**：标记 conflict，停止依赖该事实的高影响操作，向用户报告冲突来源。
+3. **用户当前指令与历史意图记录不一致**：当前指令可构成待记录的意图变化，但在需要持久化或影响长期目标时，按现有 Intent Continuity 规则确认并记录；Bootstrap 不自行写入。
+4. **Git 现场与远端状态不一致**：分别报告本地与远端事实；不将远端分支或 PR 状态覆盖成本地工作区状态。
+5. **证据与被验证 revision 不一致**：证据保留为历史证据，但对当前 revision 标 stale；不得将旧通过结果沿用到新代码。
+6. **Packet 与 Packet 冲突**：Packet 本身不是权威来源。回到其引用的权威来源；若仍无法确定，标 conflict，不按时间戳自动选一个 Packet。
+
+### 13.5 Context Freshness 分类
+
+Freshness 是逐个来源/声明计算的属性，不是给整个项目贴一个全局“新鲜/过期”标签。协议兼容性是独立检查轴：未知或不兼容的 Schema 版本应标记 unsupported/incompatible，而不是伪装成 freshness=unknown；两项结果必须分别报告。
+
+| 状态 | 定义 | 允许的使用方式 |
+|---|---|---|
+| current | 已成功读取对应权威来源或现场资源，身份/版本/范围匹配，且没有发现相关变更 | 可用于本次恢复摘要；仍受操作授权约束 |
+| stale | 来源存在，但 revision、内容、状态或适用范围已变化，旧声明不能直接代表当前事实 | 仅作为历史线索；需重新读取/验证 |
+| conflict | 两个或多个适用来源对同一事实给出不可同时成立的结论，且权威规则不能消解 | 不得选边；暂停依赖该事实的高影响操作 |
+| unknown | 来源无法访问、引用不可解析、版本不可观察或证据不足 | 不得按成功/当前处理；明确列出未验证原因 |
+
+状态判定补充：
+
+- current 需要可验证的身份和版本匹配；仅时间戳较新不构成 current。
+- 来源内容变化不一定影响所有声明。应按声明依赖的范围判断；无关文件变化不应让整个 Packet 全部 stale。
+- stale 不代表原记录错误或应删除，只表示它不再证明当前状态。
+- conflict 不等同 unknown：前者有互相矛盾的可观察证据，后者缺少足够证据。
+- unknown 不能被降级成 current、passed、clean 或“无变更”。
+- Schema 不支持的协议版本/核心字段语义不得解释成 unknown 后继续使用；应进入不兼容降级路径（见 §13.7）。
+
+### 13.6 Revision 与 Freshness 判定规则
+
+判定应基于来源类型，不应强求所有来源使用同一种哈希：
+
+- Git commit：比较完整 commit SHA，并在需要时检查祖先关系；分支名只是可变引用，不能代替 SHA。
+- Git tracked file：先区分 HEAD 中的 blob 与工作区实际文件。工作区 clean 时可比较 HEAD blob SHA；相关 tracked path 在工作区被修改时，该来源至少标 stale，不能因为 HEAD blob 未变就宣称工作区内容 current。若 Packet 声称覆盖 dirty 文件，必须有可核验的文件内容摘要和路径范围；否则标 unknown/stale，不把 Git tree SHA 当作完整工作区快照。
+- Untracked/dirty worktree：不能只依赖 Git tree SHA。若 Packet 没有覆盖相关未提交路径及其摘要，只能确认 HEAD，不能宣称 dirty worktree 与生成时一致。对被引用的 untracked path，若没有可核验的路径身份和内容摘要，不得判 current。
+- PR：重新读取 PR 当前 head/base、状态和必要的 review 状态；PR 编号不代表 head 未变。
+- CI：核验 workflow run 的 head SHA、run 身份、结论和完成状态；排队/运行中不是通过，旧 run 不能覆盖新 head。
+- Evidence：核验 evidence ID 是否可解析、subject/revision/scope 是否覆盖当前工作；无法读取 Evidence 正文或权威记录时标 unknown。
+- 文档/领域记录：优先使用 Git blob/commit revision；若来源位于外部系统，则使用该系统提供的稳定 revision/etag/update token。只有时间戳而无可靠版本标识时，不得宣称严格 current。
+- 用户决策：回到可追溯的明确用户表达或项目决策记录；Agent 摘要不是决策证据。
+
+Freshness 计算应记录“比较对象”和“比较范围”，例如：Packet 在 commit A 观察到 requirements/R001；当前工作树在 commit B 中该文件 blob 未变化，因此该引用可判 current。若只能证明 commit A 与 B 的关系，却未检查相关路径，不足以证明所有来源 current。
+
+### 13.7 失败路径与安全降级
+
+Bootstrap 必须定义可继续、受限继续和停止三种结果，不用一个布尔值掩盖风险：
+
+| 场景 | 恢复结果 | 行为边界 |
+|---|---|---|
+| Packet 缺失 | 从规则入口和既有断点恢复 | 可继续只读恢复；不要求创建 Packet |
+| Packet JSON 无法解析 | 忽略其机器数据，保留文件作为待修复线索 | 不猜字段含义；回到权威来源恢复 |
+| Schema 版本未知/不兼容 | 标记 unsupported/incompatible | 不消费未知核心语义；仅可读取明确安全的项目规则和权威来源 |
+| 可选引用目标不存在 | 对该引用标 unknown 或 stale（依具体原因） | 不自动创建缺失任务/需求/ADR |
+| 远端 API 不可用 | 远端动态状态标 unknown | 可在明确标注限制后继续本地只读工作；禁止宣称 PR/CI 当前状态 |
+| Git HEAD 不可读取 | code revision/worktree freshness 为 unknown | 不执行依赖当前 revision 的写操作 |
+| 工作区 dirty 且归属不明 | 报告 dirty paths 和 owner unknown | 不覆盖、不清理、不 stash；冲突路径暂停写入 |
+| 证据缺失或 revision 不匹配 | evidence unknown/stale | 不宣称验证通过；可重新设计验证计划，但执行需遵循权限规则 |
+| 权威来源相互矛盾 | conflict | 暂停依赖冲突事实的高影响动作，向用户提出最小澄清 |
+| 只读权限不足 | 对受影响来源标 unknown | 不尝试绕过权限或切换凭据 |
+
+**受限继续**仅适用于不依赖未知/冲突事实的低风险只读分析；任何写入、发布、合并、迁移、删除或权限变更均需要重新检查相应事实并满足用户授权。Bootstrap 本身不授予此类操作权限。
+
+### 13.8 Bootstrap 输出契约（概念层）
+
+D2 输出不是新的持久化账本。默认只在当前会话中形成恢复摘要；只有 D0 已定义的持久化节点才考虑将断点写入 Packet。
+
+恢复摘要至少区分：
+
+- **Verified facts**：现场读取并带来源/版本的事实。
+- **Last-known facts**：来自 Packet/handoff，但尚未现场验证的旧观察。
+- **Inferences**：Agent 基于证据作出的推断，明确标记置信度与依据。
+- **Unknowns**：无法访问或缺少证据的项目。
+- **Conflicts**：不能由权威来源规则解决的冲突。
+- **User decisions needed**：需要用户裁定的具体事项，不得伪装成已授权。
+- **Next safe action**：在当前证据和权限边界内最安全、最小的一步。
+- **Forbidden/unauthorized actions**：当前没有授权或明确禁止的动作。
+
+每项 Verified fact 至少能追溯到 source reference、observed revision/identity、observed_at 和本次检查结果。摘要不得复制大段领域记录；只保留足以让用户理解结论的最小内容。
+
+### 13.9 D2 验收标准（设计阶段）
+
+D2 设计通过审查前，至少需要以下可审查产物；此处仅定义验收，不代表现在实现：
+
+1. Bootstrap 状态流程图或等价状态转移说明，覆盖正常、缺失、不可访问、冲突和不兼容路径。
+2. 一份来源权威性矩阵，覆盖 intent、requirements、tasks、roadmap、ADR、verification、Git、PR、CI 和用户授权。
+3. 每种来源的 revision/freshness 判定方法与无法判定时的 unknown 规则。
+4. 至少 10 个正/负场景案例，覆盖 Packet 缺失、过期、远端不可用、dirty worktree、未跟踪文件、PR head 变化、CI queued、Evidence revision mismatch、未知 Schema 版本和权威来源冲突。
+5. 对只读边界进行逐项审查，确保恢复过程不会隐式写文件、改变 Git 状态、触发远端写 API 或运行有副作用的命令。
+6. 与 D1 Schema 的字段映射表；在 D1 冻结前，该映射只能标为 provisional，不得据此修改 0.1.0 Schema。
+
+D2 不以“能读出 Packet”作为验收。关键验收是：在来源过期、不可访问或互相矛盾时，客户端能否拒绝错误恢复，并给出一致、可解释的降级结果。
+
+### 13.10 D2 与后续阶段的边界
+
+- D1 Schema 0.1.0：当前仍待用户批准冻结；D2 不得把它描述为已冻结。
+- D2：本节只完成设计草案；待审查通过后，才可提出只读 Bootstrap/Freshness 的独立实现范围。
+- Validator / Fixture Runner：仍是单独交付提案；不能因 D2 定义了测试场景就提前实现或接入门禁。
+- D3 之后：具体阶段编号与顺序须在 D2 设计审查后复核；不得默认把概念设计直接转成实现承诺。
+- PR #10、main、项目版本和 tags 均不属于 D2 工作范围。
+
+
+
+### 13.11 第二轮内部审查：状态轴与工作区边界
+
+第二轮审查聚焦 D2 的可判定性，补充以下约束：
+
+1. **无 Packet 不等于无协议恢复能力**：B0 仅在 Packet/协议元数据存在时检查其协议标识；没有 Packet 的旧项目仍从 AGENTS.md 与项目既有断点入口恢复，不因尚未采用 SCP 而失败。
+2. **协议兼容性与 freshness 分轴**：Schema 不兼容属于 unsupported/incompatible，不是 freshness=unknown。客户端不得把未知核心字段“忽略后继续”，也不得把协议不兼容伪装成普通过期。
+3. **HEAD 与工作区内容分开判定**：HEAD 中 tracked blob 未变，不代表工作区文件未变。相关 tracked path dirty 时必须标 stale；若 Packet 声称覆盖 dirty 内容，则必须有可核验的文件路径范围与内容摘要，否则只能确认 HEAD，不能确认工作区快照。
+4. **Untracked 路径的证据边界**：路径存在不等于内容与 Packet 生成时一致；没有可核验内容摘要时，不得将其 freshness 判为 current。
+5. **恢复兼容旧项目**：项目没有 SCP Packet、协议元数据或可选治理能力时，Bootstrap 继续沿用既有入口和能力开关，不创建替代记录，不把缺省误判为损坏。
+
+当前仍保留为后续实现前置设计细节的项目：
+- Packet 对 dirty/untracked 文件摘要的具体编码，必须与最终获批准的 D1 Schema 对齐；在 D1 未冻结前不新增字段或修改 0.1.0。
+- 外部系统若无稳定 revision/etag，只能给出 unknown；不得用时间戳单独推导 current。
+- 多 remote/fork 场景需以仓库平台的稳定 repository identity 或显式 upstream 映射区分 canonical repository 与工作 fork；仅凭 remote 名称不能认定项目身份。
+
+**第二轮审查结论：** 上述修订后，D2 的状态轴、旧项目兼容性和工作区 freshness 边界更加明确；未发现需要改变 D0 语义或 D1 Schema 的问题。dirty/untracked 摘要编码与多 remote identity 保留为 D2 实施前需与客户端能力一起验证的边界，不在本轮擅自扩展机器契约。
+
+
+### 13.12 D2 场景契约矩阵（跨客户端一致性基准）
+
+本矩阵定义的是设计验收用例，不是已实现的 Fixture，也不授权在本 PR 中实现测试运行器。每个客户端对同一输入、同一权威来源快照和同一权限配置，应得到相同的规范化状态与允许/禁止行为。客户端可以使用不同 UI 文案，但不能改变下列语义。
+
+#### 13.12.1 场景矩阵
+
+| ID | 输入与现场观察 | 预期判定 | 允许的行为 | 禁止的行为 |
+|---|---|---|---|---|
+| S01 Packet 缺失 | 仓库身份可确认；无 SCP Packet；AGENTS.md 与 MEMORY §0 可读 | Packet=absent；不是错误；既有来源按需恢复 | 按项目规则入口进行只读 Bootstrap；报告没有 Packet | 因缺少 Packet 停止全部恢复；自动创建 Packet 或 MEMORY |
+| S02 最小有效 Packet | Packet 可解析、Schema 受支持；引用的权威来源身份/revision 与现场一致；相关工作区 clean | 协议=compatible；相关来源=current | 使用已核验来源生成恢复摘要 | 将未检查的其他来源一并标 current；把 Bootstrap 当作写操作授权 |
+| S03 权威记录更新 | Packet 引用 requirements/R-17 的旧 revision；当前权威记录已更新，且变更与当前任务相关 | 该引用=stale；当前需求状态以权威记录为准 | 重新读取当前需求并报告差异 | 沿用 Packet 中旧验收标准；静默修改 Packet 或需求记录 |
+| S04 无关文件变化 | 仓库 commit 已变化，但本次恢复涉及的权威文件 blob、目标和证据范围均可证明未变化 | 仅被影响的 revision 声明 stale；未受影响声明可保持 current | 按声明依赖范围分别判定 | 仅因 HEAD SHA 变化就把所有来源无差别标 stale；未检查范围却声称全部 current |
+| S05 远端 API 不可用 | 本地仓库和规则可读；PR/CI 服务不可访问 | 本地来源按证据判定；PR/CI=unknown | 在明确限制下继续不依赖远端状态的只读分析 | 声称 PR 仍 open、CI 通过或远端分支未变；因 API 失败改用旧快照冒充实时状态 |
+| S06 tracked 文件 dirty | Packet 记录 HEAD=A；现场 HEAD=A，但被引用的 tracked 文件在工作区有未提交修改 | HEAD revision 可确认；工作区声明默认 stale；只有 Packet 对该路径/内容范围提供可核验摘要且现场摘要完全匹配时，才可判该范围 current | 报告 dirty path；只读检查差异和可验证摘要 | 仅凭 HEAD blob 相同就宣称工作区文件 current；覆盖或清理该修改 |
+| S07 untracked 文件 | Packet 声称包含某 untracked 文件，但没有可核验的内容摘要/路径范围；现场存在同名路径 | 该文件内容 freshness=unknown；路径存在不能证明内容相同 | 报告路径存在与摘要缺失；继续不依赖该文件的只读分析 | 把文件名相同当作内容一致；将 Git tree SHA 作为完整 worktree 快照 |
+| S08 dirty owner 不明 | 工作区有未提交路径，无法识别归属或是否属于其他 Agent | worktree=observed_dirty；owner=unknown；重叠写范围受阻 | 只读检查并列出路径；在不触及冲突路径时分析其他内容 | stash、reset、checkout、删除文件或在冲突路径写入 |
+| S09 PR head 变化 | Packet 记录 PR #N head=A；现场 PR head=B | 旧 PR 快照=stale；当前 PR head=B | 重新读取 PR 目标分支、状态和必要 review 信息 | 将 A 上的 review/CI 结果移植到 B；按 PR 编号不变推断内容不变 |
+| S10 CI queued | CI run 绑定当前 head，但状态为 queued 或 in_progress | verification=running/not_completed；不是 passed | 报告尚未完成；可等待用户要求或既定流程 | 将 queued/in_progress 解释为成功；生成 passed Evidence |
+| S11 CI 成功但 SHA 不匹配 | CI run conclusion=success，但 run head=A；当前待验收 head=B | 对 B 的验证证据=stale/not_applicable；A 的历史证据仍保留 | 报告证据仅适用于 A；提出对 B 重新验证的建议 | 因 workflow 绿色或 PR 编号相同就判 B 通过 |
+| S12 Evidence revision mismatch | Evidence ID 可解析，但 subject revision/scope 不覆盖当前需求或代码 revision | Evidence 对当前 subject=stale 或 not_applicable | 保留历史 Evidence 引用；明确不覆盖当前验收 | 删除旧证据；把历史 pass 复用为当前 pass |
+| S13 未知 Schema 版本 | Packet 的 schema_version 不在客户端明确支持范围，或核心语义不兼容 | protocol=unsupported/incompatible；与 freshness 分轴 | 拒绝消费未知核心语义；从项目规则和权威来源走安全恢复路径 | 忽略未知核心字段后继续；把不兼容伪装成普通 unknown 或自动迁移 Packet |
+| S14 权威来源冲突 | 两个适用的权威记录对同一需求状态给出互斥结果，且现有规则无法确定优先级 | 该声明=conflict | 暂停依赖该状态的高影响动作；列出双方来源并请求最小澄清 | 按更新时间、文件名或 Agent 偏好擅自选边；静默修复其中一份 |
+| S15 可选能力关闭 | task_tracking/roadmap/adr 未启用；Packet 没有相关引用 | 对应能力=not_configured / not_applicable，不是缺失错误 | 忽略不适用域，按已启用来源恢复 | 创建替代 task/roadmap/ADR 目录；推造任务或里程碑状态 |
+| S16 检查工具有副作用 | 某个测试/诊断命令会生成项目文件、项目目录内缓存/报告/锁文件、修改数据库或触发迁移 | 该命令不属于只读 Bootstrap；相关验证=not_run/unknown | 跳过该命令并说明限制；标准依赖缓存/系统临时数据仅在项目规则明确允许时例外 | 以“只是检查”为由运行会改变项目状态或用户环境的命令 |
+| S17 历史意图与当前指令不同 | Packet/intent ledger 记录旧目标；当前用户明确提出不同目标，但是否长期替代尚未确认 | 当前指令是本轮最新输入；长期意图变更状态按现有 Intent Continuity 规则判 pending/needs confirmation | 先按当前指令做允许范围内的分析；说明是否需要持久化确认 | 把旧 Packet 当作否决当前指令；或擅自把一次性指令写成长期 accepted change |
+| S18 只读权限不足 | 某个权威来源因权限不足无法读取，其他来源可读 | 受影响来源=unknown；整体恢复受限 | 在清晰标注限制后继续独立的低风险只读分析 | 绕过权限、切换未授权凭据，或把不可读解释为不存在/无变更 |
+
+#### 13.12.2 规范化结果与客户端一致性
+
+跨客户端比较时，至少比较以下规范化字段，而不是比较自然语言摘要：
+
+- repository_identity：resolved / provisional / ambiguous / conflict / unknown；分别给出 project identity（若配置）、checkout repository、canonical repository、remote mappings 与来源 revision。它是身份判定轴，不混入 source_freshness。
+- branch_tracking：当前分支 tracking remote/merge ref 与默认 push remote 的可观察配置；若 detached HEAD、未配置或无法读取，分别标 detached / not_configured / unknown，不按 remote alias 推断。
+- protocol_compatibility：compatible / unsupported / incompatible / unknown。
+- source_freshness[]：每个 source reference 的 current / stale / conflict / unknown，并包含判定范围和理由；not_applicable / not_configured 属于能力适用性状态，应单独表达，不混入 freshness。
+- applicability[]：task_tracking、roadmap、ADR 等可选能力及相关来源的 applicable / not_applicable / not_configured 状态。
+- observed_state：可观察的 repository identity、HEAD、branch、worktree 状态；不可观察字段必须为 unknown。
+- evidence_applicability[]：evidence 对 subject/revision/scope 的 applicable / stale / not_applicable / unknown 结论。
+- recovery_mode：normal / restricted / blocked。
+- permitted_actions[] 与 prohibited_actions[]：按本协议与项目权限规则归一化。
+- user_decisions_needed[]：具体待确认事项及其来源，不合并为一个全局确认状态。
+
+一致性判定规则：
+
+1. 同一 fixture 输入、同一权威来源快照和同一权限配置，两个独立客户端必须给出相同的规范化状态；允许 UI/措辞不同。
+2. 任一客户端不得把 unknown、stale、conflict、queued、in_progress 或 unsupported 提升为 current/passed/authorized。
+3. 客户端可以给出更保守的限制，但不得扩大允许行为或放宽禁止行为。
+4. 不能观察到的字段必须一致地保留 unknown；不得用客户端本地缓存或隐式记忆补成事实。
+5. Fixture 契约测试只能证明规范化输入/输出一致；真实 CLI 对文件读取、权限和副作用的行为仍需单独 E2E 验证。
+
+#### 13.12.3 恢复模式决策表
+
+| 条件 | recovery_mode | 说明 |
+|---|---|---|
+| 项目身份可确认；所需规则/权威来源可读取；无影响当前工作的 stale/conflict/unknown | normal | 可形成完整的只读恢复摘要 |
+| 存在 unknown/stale，但当前分析可明确隔离且不依赖这些声明 | restricted | 必须列出限制；仅允许不依赖受影响事实的低风险只读分析 |
+| 项目身份无法确认/与 Packet 不匹配、协议不兼容导致 Packet 核心语义不可解释、关键权威来源冲突，或 dirty 写入范围无法安全隔离且下一步需要触及该范围 | blocked（限受影响范围） | 停止依赖该事实/范围的动作；请求最小澄清或授权；不妨碍不依赖该范围的安全只读恢复 |
+| Repository Identity=provisional，且本次操作仅需有限导航/只读信息，不涉及仓库间映射 | restricted | 明确标注 locator-only 的弱身份；不得跨 fork/迁移推断，也不得执行依赖稳定身份的写操作 |
+| Repository Identity=ambiguous/conflict/unknown，且本次动作依赖 checkout/canonical/push 目标身份 | blocked（限依赖该身份的范围） | 停止依赖该身份的写入、推送或 Packet 跨仓库消费；允许不依赖该身份的安全只读分析 |
+
+补充约束：
+
+- blocked 可以是局部范围阻断，不应无理由阻断整个仓库；不受影响的独立只读分析仍可继续。
+- restricted 不是“默认允许写入”。任何写入/发布/合并/迁移/删除仍需重新核验对应来源并满足项目授权规则。
+- normal 只表示恢复上下文达到本协议的可用条件，不代表测试通过、任务完成或获得额外权限。
+- 多项来源状态并存时，按本次具体操作依赖的来源集合计算恢复模式；不得用一个全局状态掩盖局部冲突。
+
+#### 13.12.4 D2 场景验收方式（仍属设计要求）
+
+D2 设计评审通过后，后续独立实现提案应将上述场景转成机器可读 fixtures，并为每个 fixture 明确：
+- 输入 Packet、权威来源快照、Git/PR/CI 观察结果和权限配置；
+- 预期规范化状态与恢复模式；
+- 必须允许和必须禁止的行为；
+- 客户端无法观察到输入时的 unknown 预期；
+- 场景所验证的协议规则与对应设计章节。
+
+本轮不创建 fixture 文件、不实现 runner、不接入 CI。场景矩阵是下一阶段实现提案的验收依据，不是已经执行的测试结果。
+
+
+### 13.13 Bootstrap 状态转移与判定顺序（规范化伪流程）
+
+本节把 B0–B7 和 §13.12 的场景契约合并为可供实现提案引用的状态转移说明。它是设计级算法，不规定具体语言、CLI、数据结构或实现框架。
+
+1. **Identify project**：读取当前仓库身份和根目录。若无法确认身份，标记 identity=unknown；若与 Packet 声明身份不匹配，不消费该 Packet。仍可按当前项目规则入口进行独立恢复。
+2. **Load mandatory rules**：读取 AGENTS.md 和项目规定的最小恢复入口；按任务分级和能力开关决定是否继续读取 Constitution、intent、requirements、verification、tasks、roadmap、ADR。读取失败的来源单独标 unknown。
+3. **Locate continuity hints**：读取可用的 MEMORY §0、handoff 和 Packet。Packet 缺失时继续；handoff/Packet 只用于定位权威来源和恢复 last-known 状态。
+4. **Check protocol compatibility**：解析 Packet 格式与 schema_version。无法解析则拒绝消费其机器字段；未知/不兼容版本标 unsupported/incompatible。此状态不能通过忽略字段、自动迁移或猜测默认值来消除。
+5. **Resolve authority**：对本次工作实际依赖的每个声明，读取其领域权威来源。先按领域规则确定权威来源，再比较内容；不得先按时间戳或文件新旧选边。
+6. **Observe live state**：按只读能力读取 Git/worktree、必要的 PR/CI 和 Evidence 现场信息。远端不可用、权限不足或无法观察的字段保留 unknown；不以缓存替代实时事实。
+7. **Evaluate each claim**：逐项比较来源身份、revision、范围和证据适用性，输出 current/stale/conflict/unknown/not_applicable。协议兼容性单独输出，不并入 freshness。
+8. **Calculate recovery mode for requested scope**：以本次拟进行的具体分析/操作所依赖的来源集合为范围，计算 normal/restricted/blocked。未知或冲突只阻断依赖它的范围；不得把局部问题扩大成全仓库阻断。
+9. **Apply permission gate**：恢复模式不等于操作授权。对任何后续写入或外部可见动作，仍须重新核验项目权限规则和当前用户授权；历史 Packet/决策摘要不能授予新权限。
+10. **Present recovery result**：分别输出 verified facts、last-known facts、inferences、unknowns、conflicts、user decisions needed、next safe action 和 forbidden/unauthorized actions。默认只在当前会话中呈现，不自动持久化。
+
+#### 状态判定顺序的约束
+
+- **身份检查先于 Packet 消费**：项目身份不匹配时，不能先读取 Packet 中的 task/intent/evidence 引用再决定是否可信。
+- **兼容性检查先于字段解释**：未知 Schema 核心语义不得进入普通字段 freshness 判定。
+- **权威来源识别先于新旧比较**：同一事实的多个来源若有明确权威优先级，按该优先级；若没有，标 conflict。
+- **范围匹配先于 revision 结论**：revision 一致但 evidence scope 不覆盖当前 subject，仍不能判 applicable/current。
+- **现场观察先于动态状态结论**：PR、CI、branch、worktree 等可变状态必须现场查询；现场无法查询则 unknown。
+- **授权检查独立于恢复状态**：即使所有来源 current 且 recovery_mode=normal，也不代表用户授权了写入、发布或不可逆动作。
+
+#### 失败分支的终止条件
+
+- Packet 不存在/损坏：停止消费 Packet；继续从项目权威入口恢复。
+- Packet 不兼容：停止消费 Packet 的未知核心语义；允许独立读取当前项目规则和权威来源。
+- 关键权威来源 conflict：停止依赖该声明的动作；保留冲突证据并请求澄清。
+- 来源 unknown：只允许与该来源无依赖关系的低风险只读分析；不得推断“没有变化”。
+- 只读检查本身需要副作用：停止该项检查并标记 not_run/unknown；不得为完成 Bootstrap 而绕过只读边界。
+- 项目身份无法确认：不得消费 Packet 或执行依赖项目身份的操作；仅可报告无法确认及所需信息。
+
+
+## 14. D3 Checkpoint 设计提案（概念阶段）
+
+> 状态：D3 概念设计草案；依赖 D2 的恢复语义，但不代表 D2 已冻结。  
+> 本节只定义 Checkpoint 的职责、生命周期、触发条件和安全边界；不修改 D1 Schema，不定义 Validator、Writer、CLI 或 CI Gate。
+
+### 14.1 目标与非目标
+
+D3 要回答：在什么时点、由谁、基于哪些已观察事实，生成一个足以恢复工作的断点；接收方如何判断该断点仍可用；多个断点如何并存、替代和追溯。
+
+目标：
+- 让中断后的接收方能定位工作主题、当前责任、代码锚点、未完成事项、验证状态和下一步。
+- 断点内容可重建、可审计，并明确区分事实、last-known、推断和待确认事项。
+- 避免把每轮对话变成记录维护工作；持久化只发生在 D0 已确认的重要节点。
+- 断点写入失败、来源不可读或工作区状态不明时，不制造“已保存”的假象。
+
+非目标：
+- 不建立第二套任务、需求、意图、里程碑或验证账本。
+- 不把 Checkpoint 当作完整聊天记录、代码备份、diff 存储或自动恢复快照。
+- 不自动 commit、stash、reset、clean、merge、checkout，不替用户决定未决事项。
+- 不承诺跨机器恢复编辑器缓冲区、进程内存、临时凭据或未持久化数据。
+- 不在本阶段实现 Packet Writer、Checkpoint CLI、后台服务或自动 CI 门禁。
+
+### 14.2 Checkpoint 的职责边界
+
+Checkpoint 是某一时点的**恢复索引与断点声明**，不是状态的权威来源。
+
+| 内容 | Checkpoint 应保存什么 | 权威事实仍由谁负责 |
+|---|---|---|
+| 工作目标 | 简短主题及 intent/requirement/task 引用 | intent、requirements、task 等既有来源 |
+| 代码状态 | branch、HEAD、可观察 worktree 状态、必要的未提交路径摘要 | Git 与现场工作区 |
+| 工作进度 | 已完成/进行中/阻塞的最小摘要 | 启用时的 task/roadmap；否则仅作本次断点描述 |
+| 验证/审查 | Evidence 引用、绑定 revision、last-known 结果 | verification index、Evidence、CI/PR 原始记录 |
+| 决策 | 待确认事项及权威决策引用 | 用户明确表达及项目决策记录 |
+| 下一步 | 一个首选恢复动作和禁止事项 | 当前用户指令与项目权限规则 |
+
+Checkpoint 不得复制领域记录正文来填充字段；引用目标缺失时应报告 unknown/stale，不得自动创建替代记录。
+
+### 14.3 持久化触发条件
+
+严格遵循 D0：仅在重要断点、跨会话暂停、责任交接或阶段收口时考虑持久化。建议按以下事件触发评估，而非按对话轮数或固定时间自动写入：
+
+1. **跨会话暂停**：用户明确结束当前阶段、准备稍后继续，且存在非显然的恢复上下文。
+2. **责任交接**：工作从一个 Agent/客户端/责任人转交给另一个执行者。
+3. **阶段收口**：一个可识别阶段完成，需要记录结果、证据和下一阶段入口。
+4. **高成本工作中断**：长时间分析/实现将被中断，且未提交状态、验证状态或待决策事项难以从权威来源直接恢复。
+5. **重要阻塞**：出现需要用户裁定或外部条件解除的阻塞，保存最小断点可避免重复调查。
+
+不触发：
+- 普通问答、短小的一次性任务、没有跨会话价值的临时推理。
+- 仅因代码有变更就自动写 Packet；Git 本身已记录提交历史。
+- 仅因时间间隔达到阈值就周期性写入。
+- 无新增恢复信息、无责任变化、无重要状态变化的重复快照。
+
+若用户明确要求不持久化，或项目权限/能力配置不允许写入，则只在当前会话提供断点摘要，不写文件。
+
+### 14.4 生成前置检查与写入安全
+
+Checkpoint 生成不是“把当前上下文序列化”。生成者必须先完成适用范围内的只读核验：
+
+1. 确认项目身份、当前分支和 HEAD；无法确认时不得伪造代码锚点。
+2. 观察 worktree，包括 tracked dirty 与 untracked paths；不可观察部分明确 unknown。
+3. 对本次工作依赖的 intent/requirement/task/evidence 引用进行最小核验；不要求全仓库扫描。
+4. 区分已提交、未提交、已验证、未验证、已审查、待审查、已确认、待确认。
+5. 检查是否已有更新的 Checkpoint，避免基于旧状态覆盖新断点。
+6. 生成内容只包含恢复所需摘要、引用、revision、时间和明确的下一步。
+
+写入边界：
+- 写入目标必须由项目规则或用户明确指定；不得擅自创建新的状态目录或替换既有断点入口。
+- 写入前检查目标文件当前版本；若自读取后发生变化，停止覆盖并重新读取/协调。
+- 写入应采用可验证的完整文件替换或项目既定原子写入方式；不得留下半截 JSON 并声称成功。
+- 写入成功以工具返回的持久化结果为准；失败时报告未保存，并保留可复制的会话内摘要。
+- 不因生成 Packet 自动提交 Git；是否 commit 仍遵循项目规则和用户授权。
+- 写入动作不得夹带清理、格式化、迁移或其他无关副作用。
+
+### 14.5 生命周期与状态语义
+
+反例审查后，不建议为 Checkpoint 引入独立的持久化生命周期枚举。created / superseded / invalid / archived 看似直观，但 D1 Schema 0.1.0 没有这些字段；若由不同客户端各自维护，又会形成第二套状态源。
+
+采用更小的规则：
+
+- **已持久化**：由文件/存储工具的成功结果证明，不写入 Packet 自证。
+- **可解析/可消费**：由当前消费者按支持的 Schema 与项目身份检查得出；失败即停止消费机器字段。
+- **当前恢复入口**：由项目既有规则入口或明确配置的 Packet 引用指定，不通过扫描文件后按时间戳猜测。
+- **已被替代**：只有既有权威导航入口明确指向新的恢复入口，旧 Packet 才不再作为默认入口；旧文件仍可作为历史线索。
+- **归档**：仅按项目既有归档规则或明确归档位置识别，不在 Packet 内增加状态字段。
+
+无论是否仍是默认入口，Packet 中的生成时观察都只是 last-known；接收方仍须执行 D2 Bootstrap/Freshness。时间流逝本身不使 Packet 结构 invalid，来源是否过期由 freshness 单独判定。历史 Packet 的 Evidence 适用性仍按 subject/revision/scope 判断。
+
+### 14.6 多 Checkpoint、重复写入与并发
+
+- 同一工作流可以存在多个历史 Checkpoint；默认恢复入口必须来自项目既有规则入口、明确配置或被其引用的 handoff/Packet，不允许客户端扫描目录后按文件名、修改时间或生成时间自行挑选。
+- 若项目没有配置 Packet 入口，则沿用 AGENTS.md、MEMORY §0 或 SESSION-HANDOFF.md 等既有恢复入口；不因 SCP 而新建索引文件。
+- 同一断点重复生成时，应优先识别是否有实质状态变化；无变化则避免产生无意义的新记录。
+- 两个 Agent 同时准备写同一断点时，遵循 D0 的 branch/worktree 隔离与 owner/write-scope 声明；无协调依据时不得互相覆盖。
+- 基于旧 HEAD 或旧权威来源生成的 Checkpoint，在写入前发现基线变化，应重新 Bootstrap 并重建，不允许静默 rebase 断点内容。
+- 历史 Checkpoint 不得被自动删除；清理策略属于独立的数据保留/治理决策。
+
+### 14.7 接收方恢复与信任模型
+
+接收方必须把 Checkpoint 当作不可信的 last-known 输入，并按 D2 顺序执行：
+1. 先确认项目身份，再决定是否消费该 Packet。
+2. 检查协议兼容性；不兼容时拒绝解释未知核心语义。
+3. 按任务范围解析权威来源，不将 Checkpoint 摘要提升为事实。
+4. 现场观察 Git/worktree/PR/CI 等动态状态。
+5. 逐项计算 freshness 与 Evidence applicability。
+6. 计算本次操作范围的 recovery_mode，并独立执行权限检查。
+
+恢复时必须区分：
+- Checkpoint 中记录的生成时观察；
+- 本次重新核验的 verified facts；
+- 尚未重新核验的 last-known facts；
+- Agent inferences；
+- unknown/conflict；
+- 需要用户决定的事项。
+
+Checkpoint 不授予写权限、不证明任务完成、不证明测试通过，也不构成用户对未来操作的持续授权。
+
+### 14.8 失败与降级
+
+| 失败情况 | 预期处理 |
+|---|---|
+| Checkpoint 写入失败 | 明确报告未持久化；可输出会话内摘要，不声称已保存 |
+| 目标文件被并发修改 | 停止覆盖，重新读取并协调 owner/write-scope |
+| 生成时 HEAD 不可观察 | code revision/worktree 保留 unknown；若 Schema 不允许该组合，不能绕过 Schema 约束伪造值 |
+| dirty/untracked 内容无法可靠摘要 | 记录可观察路径和限制；相关工作区内容 freshness 不得判 current |
+| 权威来源不可访问 | 对应声明标 unknown；不复制旧摘要冒充权威状态 |
+| 没有持久化权限或用户拒绝 | 不写入；保留当前会话的恢复说明 |
+| Packet 损坏或版本不兼容 | 停止消费其机器语义；从项目既有规则入口恢复 |
+| 两个 Checkpoint 对同一断点互相冲突 | 回到权威来源与现场状态；无法消解则 conflict，不按时间戳选边 |
+
+### 14.9 D3 概念验收标准
+
+D3 设计进入冻结审查前，至少应满足：
+1. 明确 Checkpoint 与任务/意图/需求/验证权威来源的边界。
+2. 持久化触发条件与 D0 一致，不引入每轮写入或定时快照。
+3. 生成前置核验、写入目标、并发冲突和失败反馈有明确规则。
+4. 生命周期状态不会与 D2 freshness、D1 verification/work state 混为一谈。
+5. 接收方恢复严格复用 D2 Bootstrap，不建立第二套恢复算法。
+6. 覆盖写入失败、并发修改、dirty/untracked、权限不足、损坏/不兼容等负向场景。
+7. 不需要新增 Schema 字段即可解释的内容，不应提前进入 D1 Schema。
+8. 设计评审结论明确区分“语义审查通过”与“实现/互操作测试通过”。
+
+### 14.10 与后续阶段的边界
+
+- D3 当前仅为概念设计；D2 未获用户冻结前，不将其标为依赖已冻结协议的正式设计。
+- D1 Schema 0.1.0 仍是独立待确认事项；本节不授权修改 Schema。
+- Packet Writer、Validator、Fixture Runner、CLI/E2E、CI Gate 均不在本节范围。
+- D3 后续若需要扩展 Schema，必须先给出字段必要性、兼容策略和迁移影响，再由用户审查；不得为实现方便先加字段。
+- 本节不改变 PR #10、main、项目版本、tags 或 PR 合并状态。
+
+
+### 14.11 D3 第一轮反例审查与收敛
+
+对 §14.1–§14.10 做独立反例审查，重点检查是否引入 D1 Schema 之外的隐式状态源，以及多个 Packet 的选择是否可跨客户端一致判定。
+
+发现并收敛两处风险：
+
+1. **Checkpoint 生命周期枚举可能制造第二套状态源**：created / superseded / invalid / archived 若要求写入或由客户端各自维护，会与 D1 Schema、项目导航入口形成重复状态。现改为不持久化生命周期枚举；持久化成功由工具结果证明，可消费性由 Schema/身份检查判定，当前入口由项目既有规则入口或明确引用决定，归档沿用项目既有规则。
+2. **多个 Packet 的“最新”选择不具备稳定语义**：文件时间戳、目录扫描顺序和客户端缓存都不能作为默认入口权威。现明确禁止客户端自行按时间/文件名挑选；优先沿用 AGENTS.md、MEMORY §0、SESSION-HANDOFF.md 或项目明确配置的入口。没有配置时不新建索引文件。
+
+其余边界复核：
+- 持久化触发条件未扩张为每轮/定时写入，与 D0 一致。
+- Checkpoint 仍是恢复索引，不替代领域权威来源；接收方复用 D2 Bootstrap/Freshness。
+- 写入失败、并发修改和权限不足均要求明确失败，不允许声称已保存。
+- 不自动 commit/stash/reset/clean/merge，也不把 Packet 当作未来操作授权。
+- 当前 D1 Schema 的 packet_kind、packet_id、checkpoint、provenance 等字段可承载现有概念；本轮没有发现必须通过新增 Schema 字段才能表达的阻断需求。dirty/untracked 内容摘要的编码和 repository identity 仍属于 D1/D2 的独立待解决边界，不能在 D3 中绕过。
+
+**审查结论：** 收敛上述两处风险后，D3 概念设计在当前抽象层面未发现新的阻断问题；但尚未完成跨客户端 Fixture 或真实 Writer 行为验证。该结论不是 D3 冻结，也不代表 D1/D2 已冻结或实现。
+
+
+### 14.12 D3 场景契约矩阵（Checkpoint 生成与消费）
+
+本节把 §14.1–§14.11 转成可供后续跨客户端 Fixture 使用的行为契约。当前仍是设计文档中的场景定义，不是机器 Fixture、Writer 实现或测试执行结果。
+
+#### 14.12.1 规范化判定结果
+
+Checkpoint 操作的客户端结果至少应能归一化为以下独立维度；不得用一个笼统的 `success` 或 `status` 覆盖不同含义：
+
+| 维度 | 建议值 | 含义 |
+|---|---|---|
+| `persistence_need` | `not_needed` / `needed` / `optional` | 本次断点是否具有跨会话恢复价值；不表示已获写入授权 |
+| `write_authorization` | `permitted` / `not_permitted` / `unknown` / `not_required` | 当前项目规则、用户指令和能力配置是否允许写入 |
+| `target_resolution` | `resolved` / `missing` / `ambiguous` / `not_configured` | 是否能从权威入口唯一确定写入目标 |
+| `preflight_state` | `ready` / `stale` / `conflict` / `unknown` / `not_run` | 项目身份、基线、引用和工作区前置核验结果 |
+| `write_result` | `written` / `not_written` / `failed` / `conflict` / `unknown` / `not_attempted` | 持久化动作的实际结果；`failed` 表示已确认未成功，`unknown` 表示无法确认是否已落盘，`conflict` 表示写入时检测到目标版本竞态 |
+| `packet_usability` | `usable_as_last_known` / `unusable` / `unknown` | 结构和身份检查后是否可作为恢复线索；不代表 freshness current |
+| `recovery_freshness` | 复用 D2 的逐来源 `current/stale/conflict/unknown` | 接收方现场核验后的来源状态，不由写入者自我声明 |
+
+这些是客户端对操作结果的规范化表达，不是新增 Packet 字段或第二套持久化状态账本。客户端可以提供更详细的诊断，但不得把 `persistence_need=needed` 说成已获授权、把 `write_authorization=permitted` 说成已写入、把 `written` 说成 `current`，或把 `usable_as_last_known` 说成已恢复完成。
+
+#### 14.12.2 场景矩阵
+
+| ID | 输入/前置条件 | 规范化预期 | 允许行为 | 禁止行为 |
+|---|---|---|---|---|
+| C01 | 普通问答或短任务，无跨会话恢复价值 | `not_needed`；`not_attempted` | 直接结束当前任务 | 为满足流程而创建 Packet |
+| C02 | 重要阶段收口，目标入口唯一，权限允许，基线可核验 | need `needed`；authorization `permitted`；preflight `ready`；写入后才可为 `written` | 生成最小 Packet 并验证完整持久化 | 在写入前宣称已保存 |
+| C03 | 用户明确拒绝持久化 | need 可为 `needed`；authorization `not_permitted`；write `not_attempted` | 提供会话内可复制摘要 | 以“系统默认”或自动化为由写入 |
+| C04 | 项目未配置 Packet 入口，但存在既有 handoff/AGENTS/MEMORY 入口 | Packet 目标为 `not_configured`；不执行 Packet 写入 | 沿用既有恢复入口；仅当项目明确规定 Markdown 是由工具从 Packet 生成的派生视图时，才更新该视图，否则仅输出会话内摘要 | 把 Markdown 手工维护成第二机器契约，或擅自创建新目录/索引文件 |
+| C05 | 多个候选目标，项目规则未指定唯一目标 | target `ambiguous`；不写入 | 请求用户/项目规则明确目标，或仅输出摘要 | 按文件名、时间戳、目录顺序选一个 |
+| C06 | 项目身份与当前仓库不匹配 | preflight `conflict`；write `not_attempted` | 停止 Packet 写入，从当前项目规则重新识别 | 将旧项目 Packet 改写为当前项目断点 |
+| C07 | Packet 生成后、写入前 HEAD 或相关权威来源发生变化 | preflight `stale`；重新 Bootstrap | 重建断点，再执行新一轮前置检查 | 静默沿用旧基线或自动 rebase 内容 |
+| C08 | 目标文件在读取后被其他 Agent 修改 | write `conflict`；不得覆盖 | 停止写入，重新读取并协调 owner/write-scope | last-write-wins 或强制覆盖 |
+| C09 | 两个 Agent 在隔离 worktree 中写入不同目标 | 各自按 owner/write-scope 独立核验 | 在明确隔离且目标唯一时分别写入 | 将一个 Agent 的状态覆盖到另一个 Agent 的工作区 |
+| C10 | 两个 Agent 声明共享目标，但无协调/owner 依据 | preflight `conflict` 或 `unknown`；不写入 | 停止共享目标写入并请求协调 | 假定先到先得或隐式租约 |
+| C11 | tracked 文件 dirty，内容摘要不可验证 | 记录观察到的 dirty 路径与限制；相关 freshness 不得判 current | 仅保存 Schema 可表达且准确的 last-known 信息 | 用 HEAD blob 或 Git tree SHA 代表工作区内容 |
+| C12 | 存在 untracked 文件，路径/内容摘要不可可靠确认 | 相关工作区声明为 `unknown` 或 `stale` | 明确指出未纳入可核验断点范围 | 宣称工作区 clean 或可完整恢复 |
+| C13 | HEAD 或必要权威来源不可读取 | preflight `unknown`；依赖该来源的写入不执行，或严格按 Schema 可表达范围降级 | 保留 unknown 并输出限制 | 编造 revision、时间或权威状态 |
+| C14 | Packet 写入工具报错或无法确认完整落盘 | write `failed` 或 `unknown`，不得是 `written` | 报告未确认持久化，提供会话内摘要 | 根据“请求已发送”推断写入成功 |
+| C15 | 写入过程中发生中断，文件可能部分写入 | write `failed/unknown`；接收方将文件视为不可用，除非完整解析与校验成功 | 重新读取、完整性检查；必要时由授权方重试 | 把截断 JSON 当作有效 Packet，或自动删除/覆盖未知文件 |
+| C16 | 已存在内容完全相同且基线未变化的 Packet | `not_needed` 或 no-op；不得产生无意义版本 | 报告已有断点仍可作为 last-known 线索 | 为制造新时间戳而重复写入 |
+| C17 | Packet 可解析，但其中 revision/evidence 已过期 | `usable_as_last_known`；D2 freshness/evidence applicability 为 stale | 用作导航线索并现场刷新来源 | 将结构有效等同于当前事实有效 |
+| C18 | Packet Schema 未知/不兼容，或项目身份无法建立 | `unusable`；从既有入口恢复 | 停止解释未知机器字段 | 忽略未知核心字段后继续自动写入/执行 |
+| C19 | 项目规则要求特定原子写入能力，但当前工具不支持 | write `not_attempted` 或 `failed` | 报告能力缺失，提供会话内摘要 | 降级为可能留下半文件的非原子写入并宣称成功 |
+| C20 | 写入成功后，接收方在另一个会话/客户端消费 Packet | packet `usable_as_last_known`；必须重新 Bootstrap | 核验身份、兼容性、权威来源、现场状态与权限 | 继承生成者的权限、freshness 或“已完成”判断 |
+| C21 | 写入请求超时/连接中断，调用方未收到确认，但目标可能已完整落盘 | write `unknown`；不得直接重试或宣称失败/成功 | 先按原目标和预期内容回读并校验；确认完整匹配后才报告 written，确认不存在/不完整后再按授权重试 | 将无确认等同失败并盲目重试，造成重复/覆盖；或将请求已发送等同 written |
+
+#### 14.12.3 跨客户端一致性要求
+
+对于相同的输入 Packet、项目权威入口快照、Git/worktree 观察结果、权限配置和目标文件版本，两个独立客户端应对上述场景产生相同的规范化结果。
+
+- 两个客户端必须一致识别是否需要持久化、目标是否唯一、是否允许尝试写入，以及写入是否得到可验证的成功结果。
+- 对于无法观察的工具能力或状态，双方都必须保留 `unknown/not_run`；不得由一方通过猜测提升为 ready/written/current。
+- 对于目标文件版本变化、共享写入范围冲突等并发情形，双方都不得静默覆盖；客户端可以更保守，但不能扩大写入权限。
+- 不同存储后端可以采用不同的原子写入机制，但必须满足相同的可观察契约：完整内容可读取、结构可解析、写入结果可确认；无法满足时必须明确失败。
+- Fixture 应分别验证“生成决策”“写入结果”和“接收方恢复”，不能把三个阶段合并成一个端到端 success 标志。
+
+#### 14.12.4 场景契约的证明边界
+
+- 该矩阵定义预期行为，不证明任一现有客户端已经遵守。
+- 后续 Fixture Contract Test 只能证明给定输入/输出契约的一致性；不能证明真实文件系统、Git worktree、远端 PR/CI 或权限系统的全部行为。
+- 真实 Writer E2E 需在两个独立客户端分别验证目标解析、并发修改检测、失败/中断后的文件完整性、成功回读和接收端重新 Bootstrap。
+- 不得因 Fixture 通过而跳过真实 E2E，也不得把单一客户端测试结果称为跨客户端互操作通过。
+- 本节不授权实现 Writer、Validator、Fixture Runner、CLI、后台服务或 CI Gate；这些属于后续独立决策。
+
+
+### 14.13 D3 第二轮一致性审查与语义修订
+
+对 §14.1–§14.12 做第二轮审查，检查规范化状态是否存在语义重叠、Markdown/JSON 契约边界是否一致，以及场景是否隐式要求修改 D1 Schema。
+
+发现并修订两处问题：
+
+1. **持久化必要性与写入授权原先被合并**：原 `persistence_decision` 同时表达“值得保存”和“是否允许写入”。用户拒绝时，断点可能确有恢复价值，但仍不得写入。现拆分为 `persistence_need` 与 `write_authorization` 两个独立维度；写入结果只表达实际持久化结果。
+2. **未配置 Packet 入口时的 Markdown 处理可能越过 D0 格式约束**：现明确不因存在 SESSION-HANDOFF/AGENTS/MEMORY 就把它们自动当成 Packet 写入目标。JSON Schema 仍是唯一机器契约；Markdown 只能在项目明确规定为工具生成的派生视图时更新，否则沿用既有入口或只输出会话内摘要。
+
+其他一致性结论：
+- `target_resolution` 表达目标能否唯一定位；`preflight_state` 表达项目身份/基线/来源/工作区核验；二者不是同一状态轴。
+- `write_result=conflict` 专指写入竞态/目标版本变化；写入前发现基线过期应表达为 preflight stale 并重新 Bootstrap。
+- `packet_usability` 只回答结构/身份是否可消费；`recovery_freshness` 复用 D2 逐来源判定，不能由前者推导。
+- C01–C20 覆盖了 D3 当前定义的主要生成、写入、失败和消费路径；未发现必须增加 D1 Schema 字段才能表达的场景。
+- 仍有两项既有边界未解决：dirty/untracked 内容摘要的稳定编码，以及多 remote/fork 的 repository identity/upstream 映射。它们是 D1/D2 的独立设计问题，不在 D3 中擅自补字段。
+
+**审查结论：** 修订后，D3 的规范化结果轴与场景契约在当前设计抽象层面保持可区分；没有发现需要修改 D0 或 D1 Schema 的新阻断项。该结论仍属于文档审查，不是机器 Fixture、Writer E2E 或跨客户端互操作测试结果。D3 尚未冻结。
+
+### 14.14 D3 第三轮故障语义审查
+
+对 §14.12 的规范化结果和 C01–C21 做故障语义复核，重点检查写入调用的失败确认与结果不确定是否被混淆。
+
+发现并修订一处契约缺口：
+
+- 原 `write_result` 枚举没有 `unknown`，但 C14/C15 已要求在工具报错、连接中断或可能部分落盘且无法确认结果时表达 `unknown`。这会使场景预期无法由规范化结果直接表示。现将 `unknown` 纳入 `write_result`，并区分：`failed` 是已确认未成功；`unknown` 是无法确认是否已持久化；`not_attempted` 是没有执行写入。
+- 新增 C21：写入请求超时或确认丢失时，必须先回读原目标并核验预期内容，不能把无确认等同失败后盲目重试，也不能把请求已发送等同写入成功。
+- C14/C15 的 `failed/unknown` 现在均可由规范化枚举表达；接收方仍须按 D2 Bootstrap 检查结构、身份和 freshness。
+
+其余复核：
+- `persistence_need`、`write_authorization`、`target_resolution`、`preflight_state`、`write_result`、`packet_usability`、`recovery_freshness` 仍是不同阶段/状态轴，不应合并。
+- 写入结果不确定时，不能通过生成新时间戳或更换 Packet ID 绕过回读核验；也不能自动删除、覆盖或清理目标。
+- 本轮仍未发现必须修改 D1 Schema 的新需求；新增的是客户端操作结果语义和场景，不是 Packet 持久化字段。
+- 本轮属于文档一致性审查，不是 Writer 实现、故障注入、机器 Fixture 或跨客户端 E2E。
+
+**审查结论：** 修订后，写入已确认失败与写入结果未知可以被独立表达；C01–C21 覆盖当前设计定义的主要生成、竞态、异常和消费路径。D3 仍未冻结。
+
+## 15. D1–D3 冻结依赖矩阵与跨阶段契约审查
+
+本节用于判断各阶段能否独立冻结，以及哪些语义必须先形成共同契约。它不自动冻结任何阶段，也不授权修改已冻结的 D0 决策。
+
+### 15.1 阶段依赖矩阵
+
+| 上游/下游 | D1 Schema 0.1.0 | D2 Bootstrap / Freshness | D3 Checkpoint |
+|---|---|---|---|
+| 项目身份 | 当前仅有 `project.repository`（必填字符串）、`project.project_id`（可选）；未定义 canonical/upstream/fork 语义 | B0 要求区分仓库身份、工作目录及 upstream；多 remote/fork 仍未解决 | 写入前必须确认 Packet 属于当前项目，不能仅凭 remote 名称 |
+| Git 基线 | `code.head_sha`、`branch` 可表达 HEAD 和分支；没有 upstream/ref identity | 必须区分 HEAD、tracked worktree 与 untracked 内容 | preflight 必须核验写入基线，不能把 HEAD 等同完整工作区快照 |
+| Dirty / untracked 内容 | `worktree_state` 与 `uncommitted_paths` 只表达状态和路径，不表达内容摘要或摘要覆盖范围 | S06/S07 要求只有路径身份和内容摘要可验证时，相关范围才可能判 current | C11/C12 要求不得把未覆盖内容声称为可恢复快照 |
+| Freshness | `provenance.source_revisions[]` 能记录来源 revision、freshness、观察时间 | 定义逐来源 freshness、范围依赖和现场重新核验 | packet usability 与 recovery freshness 分离，接收方重新 Bootstrap |
+| 写入/并发 | coordination 可表达 owner、write_scope、isolation；不提供锁或原子写入保证 | 只读 Bootstrap 不授予写权限 | D3 规范化写入结果属于客户端操作结果，不是 Packet 字段 |
+| Evidence | 只有引用数组；解析和 revision/scope/actor/result 核验留给 semantic validator | 消费时重新核验 evidence applicability | 写入者不得把旧 evidence 或旧验证状态升级为当前通过 |
+
+### 15.2 当前可表达与不可表达的边界
+
+**现有 Schema 已足够表达（在语义验证配合下）：**
+
+- Packet 类型、版本、生成者、项目基本标识、会话和工作主题。
+- HEAD SHA、分支、观察到的 clean/dirty/unknown，以及未提交路径列表。
+- 工作进度、验证/审查状态、待决策项、阻塞原因和下一步。
+- owner、write_scope、隔离模式，以及权威来源 revision/freshness 的最小引用。
+- handoff 的完成项、进行中、阻塞项、下一步和禁止动作。
+
+**现有 Schema 尚不足以完整表达：**
+
+1. **Dirty/untracked 内容的可验证摘要。** 当前只有路径列表，没有摘要算法、摘要值、条目类型/模式、覆盖范围或摘要观察时间。D2 不能仅凭路径存在将内容判为 current；D3 也不能把这种 Packet 描述为包含完整可恢复工作区。
+2. **稳定 repository identity 与 upstream 映射。** 当前 `project.repository` 是自由字符串，`project.project_id` 没有定义稳定身份的命名空间/来源；没有字段或明确编码约定区分当前 fork、canonical repository 和多个 remote。remote 名称本身不是稳定身份。
+3. **部分可观察状态。** 当前 `code.worktree_state` 是整个工作区的单一状态，不能表达“HEAD 可确认，但某些 tracked/untracked 路径内容未纳入摘要”的细粒度覆盖。D2 可保守降级为 stale/unknown，但不能凭该字段证明局部快照完整。
+
+### 15.3 D1 冻结前必须裁定的两个契约
+
+#### A. Worktree content fingerprint
+
+建议先定义最小、可扩展的可验证条目模型，再决定是否纳入 0.1.0：
+
+- 摘要作用域必须明确到相对项目根目录的路径；不能只提供一个未说明覆盖范围的总 hash。
+- 每个条目至少区分 tracked/untracked、文件类型（普通文件/符号链接；其他类型明确拒绝或标 unknown）、内容摘要算法和摘要值。
+- 普通文件摘要基于原始字节；符号链接摘要基于链接目标的原始表示。若可执行位/文件模式影响项目语义，应纳入条目元数据，不能默默忽略。
+- 路径必须采用跨平台稳定表示：相对项目根目录、统一分隔符、拒绝绝对路径和 `..` 越界；路径编码及大小写冲突策略必须明确。
+- 摘要应使用明确命名的算法标识（例如 SHA-256），不能依赖客户端默认算法。
+- 摘要清单必须声明覆盖范围和观察时间；未列入清单的 dirty/untracked 路径仍是未覆盖，不得推断为 clean。
+- 多文件逐项读取不是原子文件系统快照。若读取期间文件可能变化，客户端必须复核前后元数据/摘要；无法证明观察一致性时标 unknown，而不是声称获得原子快照。
+
+**待裁定的范围选择：**
+
+- 最小方案：只允许逐路径摘要；不定义全工作区树摘要。
+- 扩展方案：在逐路径摘要之上定义确定性 manifest digest，作为清单完整性校验；它仍不能证明读取期间存在原子快照。
+
+本提案倾向先定义逐路径摘要，并把 manifest digest 作为可选校验，不把“完整 worktree snapshot”作为首版承诺。
+
+#### B. Repository identity 与 upstream mapping
+
+建议区分三个概念，禁止用一个 remote URL 混为一谈：
+
+- **repository identity**：远端托管平台提供的稳定仓库身份；若平台没有稳定 ID，则使用项目显式配置的 canonical identity。
+- **checkout identity**：当前本地 checkout/worktree 所属仓库及其路径。路径只用于定位，不是跨机器稳定身份。
+- **upstream mapping**：当前 checkout 的一个或多个 remote/ref 与 canonical repository identity 的显式映射；fork 与 upstream 必须分别标识。
+
+判定规则：
+
+- remote 名称（origin/upstream）是本地可变别名，不是身份。
+- URL 规范化只能作为辅助标识；URL 变更、迁移、镜像或多个协议 URL 可能指向同一仓库，也可能产生歧义。
+- 平台稳定 ID 必须同时带平台/host 命名空间，不能裸用数字 ID。
+- 多 remote 指向不同仓库时，不得自动选 origin；需要显式 canonical/upstream 映射，否则 identity resolution 为 ambiguous/unknown。
+- 离线或自托管环境无法读取平台 ID 时，使用项目明确配置的稳定 identity；不能由 Agent 根据目录名或 remote 顺序猜测。
+
+本提案倾向在 Schema 中为稳定身份与 upstream 映射提供明确结构，而不是把 JSON 对象塞进现有自由字符串字段或依赖私有 extension。
+
+### 15.4 D1/D2/D3 冻结顺序建议
+
+| 阶段 | 冻结前置条件 | 当前判断 |
+|---|---|---|
+| D1 Schema 0.1.0 | 裁定 worktree fingerprint 表示；裁定 repository identity/upstream 表示；完成 Schema/示例/兼容性和语义边界一致性复核 | **暂不具备冻结条件**：两项机器契约仍缺失 |
+| D2 | D1 字段映射明确；B0 identity resolution 和 B4 worktree observation 有可执行且保守的判定规则；18 个场景不依赖 Schema 无法表达的事实 | 设计主体已完成；需解决上述依赖后再作冻结候选复核 |
+| D3 | D2 Bootstrap/Freshness 契约稳定；C01–C21 与最终 Schema 字段边界一致；写入结果不确定、并发冲突和失败回读边界明确 | 概念与场景审查已完成；依赖 D1/D2 的两项身份/摘要问题仍阻止整体冻结 |
+
+依赖关系是有向的：D3 消费 D2 的恢复与 freshness 判定；D2 消费 D1 的 Packet 结构；D1 不应反向依赖 D2/D3 的实现细节。D3 的 `write_result` 是操作执行结果，不应为了复用它而写进 Packet Schema。
+
+### 15.5 冻结前禁止的错误推论
+
+- Schema 校验通过，不等于 repository identity 正确、worktree 内容完整或 freshness current。
+- HEAD SHA 可确认，不等于 tracked working copy 或 untracked files 已被指纹覆盖。
+- Packet 中存在 `uncommitted_paths`，不等于这些路径内容可恢复。
+- `project.repository` 字符串相同，不足以证明 fork、镜像和 canonical repository 是同一身份。
+- D3 文档审查通过，不等于 Writer 能原子写入或两个客户端已实现一致行为。
+- Fixture 契约测试通过，不替代真实文件系统故障注入和两个独立客户端的 Writer E2E。
+
+**本节结论：** D1 0.1.0 当前不能宣称完整支撑 D2/D3 对 dirty/untracked 内容和多 remote/fork 身份的严格判定。先完成两个机器契约的语义裁定，再决定是否调整尚未冻结的 Schema 0.1.0；在此之前 D1、D2、D3 均不冻结。本节是依赖审查与设计建议，不是用户对字段方案的批准。
+
+### 15.6 Worktree Fingerprint 的目标与非目标
+
+本设计只解决“Packet 声称观察到的未提交路径内容，接收方能否逐项核验”的问题，不把 Checkpoint 扩张为代码备份或可重建文件系统镜像。
+
+目标：
+- 对 Git 可观察到的未提交路径，保存可跨客户端复算的内容摘要。
+- 明确区分 HEAD、Git index（staging area）和工作区文件系统三个状态层。
+- 在 tracked 文件 staged + unstaged、删除、未跟踪文件、符号链接等常见状态下，能够准确比较。
+- 未覆盖、不可读取、文件变化中、平台无法解释的条目必须明确降级，不得提升为 current。
+- 不保存文件正文，不自动修改 index/worktree，不触发 stash/commit/clean。
+
+非目标：
+- 不提供文件恢复、diff 备份、Git index 恢复或进程/编辑器缓冲区恢复。
+- 不声称多文件读取是原子快照。
+- 首版不递归指纹化 submodule 内部工作树，不跟随符号链接读取目标，不摘要 ignored 文件。
+- 不为“看起来完整”而读取或摘要项目规则标记为敏感的凭据/密钥文件。
+
+### 15.7 建议的数据模型（候选，不是 Schema）
+
+建议在 Packet 的 code 下增加一个可选的 worktree_fingerprint 对象。以下仅展示语义，不作为 0.1.0 字段契约：
+
+~~~json
+{
+  "worktree_fingerprint": {
+    "format": "scp-worktree-fingerprint/1",
+    "scope": "git-status-paths",
+    "digest_algorithm": "sha-256",
+    "path_encoding": "utf-8",
+    "started_at": "2026-11-12T00:00:00Z",
+    "completed_at": "2026-11-12T00:00:01Z",
+    "coverage": "complete",
+    "observation": "per_path_stable",
+    "entries": [
+      {
+        "path": "src/module/file.ts",
+        "index_entries": [
+          {
+            "stage": 0,
+            "mode": "100644",
+            "digest": "sha-256:<64-lowercase-hex>"
+          }
+        ],
+        "worktree": {
+          "state": "present",
+          "kind": "regular_file",
+          "mode": "100644",
+          "digest": "sha-256:<64-lowercase-hex>"
+        }
+      }
+    ]
+  }
+}
+~~~
+
+字段语义：
+- format：指纹条目编码/语义版本；它与顶层 schema_version 分开。任何会改变路径解释、摘要字节输入或条目状态语义的变化都必须升级 fingerprint format。
+- scope：首版固定为 Git status 可见的 staged、unstaged、deleted、untracked（non-ignored）路径；不是整个工作区文件清单。
+- digest_algorithm：首版固定 SHA-256，使用小写十六进制并带算法前缀；禁止依赖 Git 仓库自身的 SHA-1/SHA-256 object format 或客户端默认算法。
+- path_encoding：首版固定 UTF-8；不能无损表示的路径必须作为 unsupported/unknown 处理，不能替换字符后参与比较。
+- started_at/completed_at：描述整个扫描观察窗口，不暗示所有文件在同一瞬间读取。
+- coverage：complete 表示扫描范围内每个目标路径都已表达且可摘要；partial 表示存在被排除/不支持/不可读取条目；unknown 表示无法可靠枚举或识别范围。
+- observation：per_path_stable / changed_during_capture / unknown。它只描述逐条目采集是否通过一致性检查，不表示全工作区原子快照。
+- entries：按规范化路径的 UTF-8 字节序排序；每个路径只出现一次。重命名不作为单一特殊条目，按源路径删除和目标路径新增分别表达。
+
+每个 entry 把 index 与 worktree 分开：
+- index_entries 表示 Git index 中该路径的条目。普通条目通常只有 stage 0；冲突条目可能有 stage 1/2/3。每一 stage 的摘要按其 blob 原始内容计算，不直接复用 Git object ID。
+- worktree.state 为 present、absent 或 unreadable。删除路径应为 absent，不伪造空文件摘要。
+- worktree.kind 为 regular_file、symlink、gitlink 或 unsupported。
+- mode 使用 Git tree/index mode 语义（例如 regular 100644/100755、symlink 120000、gitlink 160000），不记录 owner/group、mtime 等不属于 Git 内容身份的元数据。
+- regular file 的摘要输入为文件原始字节；不做文本解码、换行转换、BOM 去除或 JSON/XML 规范化。
+- symlink 的摘要输入为链接目标原始字节；不跟随链接，不摘要目标文件。无法无损取得链接目标字节时标 unknown。
+- gitlink 不对 submodule 内部工作树递归；如果 submodule 本身 dirty，当前 fingerprint coverage 不能标 complete，相关范围 freshness 为 unknown/stale。
+
+不建议首版加入全局 manifest_digest。逐条目摘要足以对具体路径进行比较；manifest digest 只有在定义严格的规范序列化、排序和升级策略后才有意义，而且不能证明文件读取是原子的，也不能提供签名或来源真实性。若未来需要清单完整性校验，应另行定义确定性编码，不使用普通 JSON.stringify 结果。
+
+### 15.8 路径与文件系统规范
+
+路径规范必须优先保证“不把不同路径误认成同一路径”，而不是尽可能兼容所有特殊路径：
+
+1. 路径相对于当前 Git worktree root（repository root），使用 / 分隔符；不写绝对路径、盘符、UNC 前缀或 URL 编码路径。project.root 是仓库内项目位置，不改变 Git 路径的统一基准。
+2. 拒绝 NUL、空路径、空组件、. 和 .. 组件；任何路径不得逃出 project root。
+3. JSON 字符串按 UTF-8 编码；保留原始 Unicode 码点序列，不执行 NFC/NFD 归一化、不大小写折叠、不 percent-decode。跨平台消费者必须按精确路径匹配。
+4. POSIX 文件名含反斜杠、非法 UTF-8 字节或目标平台无法无歧义映射的路径，标记 unsupported；不将反斜杠悄悄改成斜杠。
+5. 若目标平台文件系统大小写不敏感或存在 Unicode 归一化别名，消费者必须检测路径碰撞；发生碰撞时相关条目 unknown/conflict，不允许任选一个。
+6. 不因目录存在就生成目录摘要；Git status 的每个文件条目分别表示。目录重命名由其包含的路径集合变化体现。
+7. Git ignored 文件不属于首版固定 scope。若项目显式要求对某 ignored 文件进行连续性核验，应通过明确路径声明的后续扩展处理，不能暗中扩大默认扫描范围。
+
+**敏感数据保护：** 哈希不是脱敏保证。低熵密钥、token、证书内容可能通过猜测验证摘要。项目规则标记为 secret/private 的文件不得自动计算或写入内容摘要；若其属于本次工作所需路径，则 coverage 必须为 partial，该路径相关 freshness 为 unknown，直到有安全的专门机制。不得把文件内容、密钥值或可恢复的编码写入 Packet。
+
+### 15.9 摘要计算与采集算法
+
+对每个支持的普通文件：
+- 打开文件时避免跟随符号链接（平台支持时使用 no-follow）；读取文件原始字节并流式计算 SHA-256，不要求将整个文件载入内存。
+- 同时记录文件类型、Git 语义 mode、文件对象身份及必要元数据。
+- 读取完成后对同一文件句柄执行 fstat，并重新 lstat 路径，确认文件对象未被替换、类型/大小未发生变化；平台或工具无法可靠验证时该 entry 为 unknown。
+- mode 只纳入 Git 可表达的文件类型及 executable bit；不把 mtime、owner、group、ACL 或普通读写权限位当作跨平台内容身份。若可执行位无法可靠观察，mode=unknown，不能将涉及可执行语义的条目判为完整 current。
+- symlink 使用 lstat/readlink，不跟随目标；链接类型与目标字节分别表达。
+- index 中的 stage blob 通过 Git index/object 读取后，对 blob 原始内容重新计算 SHA-256；Git 自身 object ID 只用于定位，不进入跨仓库摘要值。
+- stage 1/2/3 冲突条目必须分别列出；若客户端无法读取所有 stage，则 entry unknown，不能将冲突压平为单个 stage 0。
+
+建议的只读采集顺序：
+1. 识别 Git worktree root、project.root 与 HEAD；status 和 Fingerprint 路径均以 Git worktree root 为基准，project.root 仅表示仓库内项目子目录，不截断整个工作树的 Git 状态范围。
+2. 读取 HEAD SHA、Git index 状态与 git status --porcelain=v2 -z --untracked-files=all 等价的机器接口；以 NUL 分隔解析路径，不解析面向人类显示的 quoting 输出。
+3. 构建 staged/unstaged/deleted/untracked 路径集合；rename 以 source/destination 两条路径纳入。
+4. 读取对应 index stage entries 和工作区对象，按路径生成摘要条目；ignored、secret-policy-excluded、特殊文件和 submodule 内部状态按前述规则处理。
+5. 再次读取 HEAD、index 与 Git status；如果扫描期间任一发生变化，整个 fingerprint 的 observation 不得是 per_path_stable，必须重试一次或降级 unknown/partial。
+6. 成功后按规范路径顺序输出 entries，并核对其路径集合与 code.uncommitted_paths 一致；不一致说明采集范围不完整，不能声明 coverage=complete。
+
+此算法不保证多路径的全局原子性：A 文件可能先于 B 文件读取，读取 A 后它也可能在读取 B 之前再次变化。即使前后 Git status 相同，也不能证明所有文件在同一时刻处于该组合状态。因此协议只能承诺“逐路径观察到的字节摘要 + 扫描窗口 + 变化检测”，不能称作 atomic worktree snapshot。消费者只对具体条目重新摘要并比较；需要全局一致快照的操作必须另用文件系统快照/隔离 worktree 等独立能力，不能由本 Packet 推导。
+
+### 15.10 Freshness 判定与权限边界
+
+- coverage=complete 且 observation=per_path_stable 是声明完整 dirty-path fingerprint 的最低条件；它仍不是原子快照证明。
+- coverage=partial 或 unknown 时，只能对可独立定位且摘要有效的条目做局部比较；整体 dirty worktree 不得判 current。
+- 对单个 entry，必须比较路径、HEAD 基线、index stage/mode/digest、worktree state/kind/mode/digest。只比较 worktree 文件内容而忽略 index stage，会漏掉 staged/unstaged 边界变化。
+- 当前路径已消失、变成不同 kind、mode 不同、摘要不匹配或出现冲突 stage，均标 stale/conflict；无法读取或路径映射有歧义为 unknown。
+- 未出现在 fingerprint 的 dirty/untracked 路径不得推断 current。即使现存 entry 全匹配，只要扫描 coverage 不完整，本次工作区范围也只能判 partial。
+- fingerprint 只证明被观察路径的内容/索引摘要匹配，不证明未列出的 ignored 文件、编辑器缓冲区、运行进程、外部依赖、数据库或环境变量相同。
+- Packet 中的 fingerprint 不能授予写权限，不能作为自动 restore/stash/checkout 的输入命令；它仅用于恢复判断和差异提示。
+
+### 15.11 Worktree Fingerprint 场景契约
+
+| ID | 场景 | 规范化预期 | 禁止推论/行为 |
+|---|---|---|---|
+| WF01 | tracked 文件仅有 unstaged 修改 | index digest 与 HEAD 对应内容相同；worktree digest 记录修改后字节 | 将 index digest 当成当前文件内容 |
+| WF02 | tracked 文件已 staged，worktree 与 index 一致 | index/worktree 两层均记录；二者摘要一致 | 只记录 HEAD，漏掉 staged 内容 |
+| WF03 | 文件 staged 后再次编辑 | index digest 与 worktree digest 可不同 | 把两者压成一个“文件摘要” |
+| WF04 | staged delete 或 unstaged delete | index/worktree 的 present/absent 状态分别表达 | 用空文件摘要表示删除 |
+| WF05 | untracked 普通文件 | 无 index entry；worktree present + raw-byte digest | 因 HEAD 无该路径而忽略 untracked 内容 |
+| WF06 | rename | source 与 destination 分别作为路径条目；状态可从 HEAD/index/worktree 对照 | 依赖 Git 对 rename 的启发式检测结果作为身份 |
+| WF07 | symlink | 摘要原始链接目标，不跟随链接 | 摘要链接指向的文件内容 |
+| WF08 | 文件在扫描期间被替换/修改 | 对应 entry unknown；扫描窗口不声明稳定，按规则重试或降级 | 将读取前后不一致的内容判 current |
+| WF09 | 读取期间 HEAD/index/status 改变 | fingerprint 不得标 per_path_stable/complete | 把不同基线下的路径集合拼成一个完整快照 |
+| WF10 | secret-policy-excluded 文件出现在 dirty paths | coverage partial；不存该文件摘要，受影响声明 unknown | 以哈希形式保存低熵秘密并称为已脱敏 |
+| WF11 | submodule 内部 dirty 或特殊文件无法表示 | coverage partial/unknown；保留路径和原因范围，不递归执行修改 | 把 gitlink commit 当成 submodule 完整工作树摘要 |
+| WF12 | 文件名无法 UTF-8 无损表达或目标平台路径碰撞 | entry unsupported/unknown，相关路径 freshness 不可 current | 替换字符、大小写折叠或 Unicode 归一化后静默匹配 |
+
+### 15.12 方案取舍与建议结论
+
+本轮推荐方案：
+- 采用逐路径指纹；同时分别保存 index 与 worktree 内容状态，避免 staged/unstaged 误判。
+- 固定 SHA-256 原始字节摘要；首版不做文本规范化、不用 Git object ID 代替文件摘要。
+- 路径采用 UTF-8 + POSIX / 相对路径，精确保留码点；特殊/歧义路径降级 unknown。
+- scope 限定为 Git status 可见的非 ignored 路径；敏感路径不摘要，导致 coverage partial。
+- 不引入全工作区 manifest digest，不承诺原子快照；先通过逐路径核验满足恢复用途。
+- fingerprint 为可选字段；clean worktree 不需要为了凑齐字段生成空指纹。无法完整采集时允许部分记录，但不得声称整体 current。
+
+需要在用户批准数据模型方向后，才将其映射为 D1 Schema 字段并确定 0.x schema version 的变更策略。该方案尚未验证不同 Git 版本、操作系统、文件系统和客户端库的真实表现；进入实现前仍需独立 Fixture 与 CLI E2E 方案审查。
+
+### 15.13 与现有 Schema 0.1.0 的兼容性结论
+
+这不是对现有 0.1.0 的可选字段补丁：
+
+- 当前 code 子对象使用 additionalProperties=false，0.1.0 不认识 worktree_fingerprint，严格消费者必须拒绝该字段。
+- COMPATIBILITY.md 已明确：0.x 阶段新增核心字段（即使 optional）也必须进入新的 minor schema version。因此若该提案获批准，应评估新的 0.2.0，而不是原地修改 0.1.0。
+- 不建议把它塞进 extensions。Fingerprint 影响 D2 freshness 与 D3 恢复可信度，是核心语义；若放在消费者可忽略的 extension 中，不同客户端就可能对同一 dirty path 得出不同结论。
+- worktree_fingerprint 应保持 optional：clean worktree 不需要生成空清单；老版本 Packet 仍可按 0.1.0 规则消费，但没有 fingerprint 的 dirty path 只能确认路径/HEAD，不得声称该路径内容 current。
+- 新字段需要与 code.uncommitted_paths 建立 semantic validation：当 fingerprint 声称覆盖完整 Git-status scope 时，entry path 集合必须与本次观察到的未提交路径集合相同；漏项、多项、重复或路径编码无法无损映射均不得标 coverage=complete。
+- 对 index_entries 的 stage 0/1/2/3、mode 和 digest 还需要 semantic validation；JSON Schema 只能校验形状，不能证明 digest 确实来自对应 Git index blob。
+- D2 S06/S07 可据此细化：S06 只有在相关 tracked path 的 HEAD/index/worktree 三层均可核验且目标范围匹配时，才允许将该路径内容声明为 current；S07 只有在 untracked 路径存在且其 worktree 摘要精确匹配时，才允许该路径声明 current。整体 coverage partial 仍不能被提升为整体 worktree current。
+- D3 C11/C12 继续复用 D2 的逐声明判定；Checkpoint Writer 不能把 fingerprint 的存在等同于完整/可信。
+
+### 15.14 Worktree Fingerprint 反例审查与暂定结论
+
+对 §15.6–§15.13 进行独立反例检查，结论如下：
+
+1. **staged 与 unstaged 不可合并**：只摘要当前文件内容会遗漏 Git index 中已 stage、但随后又编辑过的版本。候选模型因此同时保存 index stages 和 worktree 当前状态。
+2. **HEAD 不能替代 index**：HEAD SHA 只标识提交；staged 状态必须从 index stage blob 读取并独立摘要。
+3. **删除不是空内容**：必须分别表达 index/worktree 的 present/absent；空文件摘要只代表真实零字节文件。
+4. **rename 识别不能作为路径身份基础**：Git rename 是基于相似度的检测结果；协议将其拆成旧路径和新路径的独立状态条目。
+5. **symlink 必须不跟随**：否则目标内容变化会被误当成链接本身变化，且可能越出 project root 或形成循环。
+6. **路径字符串不能静默规范化**：NFC/NFD、大小写折叠和替换字符都可能把不同文件映射为同一键；无法无损/无歧义映射时降级 unknown。
+7. **hash 不等于脱敏**：敏感文件可能是低熵秘密，必须允许按项目规则排除并将 coverage 降为 partial。
+8. **逐路径稳定不等于全局原子**：扫描期间多文件状态可能先后变化；候选模型只证明单条目观察及扫描窗口，不承诺跨文件原子一致。
+9. **manifest digest 不解决原子性/真实性**：首版不引入全局 manifest hash；若未来增加，必须另定义规范序列化，且不能把它包装成签名或可信来源证明。
+10. **平台能力不可假定**：文件模式、symlink、特殊文件和路径字节在不同平台可能不可完全观察；不支持时按条目或整体 scope 降级，不得通过猜测填值。
+
+**暂定结论：** 逐路径 fingerprint 是满足 D2/D3 当前需求的最小可行候选方向；但它仍需与 Repository Identity/Upstream Mapping 合并做一次整体 D1 0.2.0 候选审查。当前没有用户对字段模型的批准，因此不修改 Schema 0.1.0，不生成正式 0.2.0 文件，也不冻结 D1/D2/D3。
+
+
+
+### 15.15 Fingerprint 路径基准与覆盖范围澄清
+
+- Worktree Fingerprint entries.path 与 code.uncommitted_paths 统一以 Git worktree root（repository root）为相对路径基准；不以当前进程工作目录或 project.root 子目录为基准。
+- project.root 仍表示 Packet 对应逻辑项目在仓库内的位置，例如 monorepo 的 backend/；它不截断 Git worktree 的 dirty-path 范围。这样两个客户端即使从不同子目录启动，也能对相同路径生成同一相对路径键。
+- 若某客户端只能扫描 project.root 子目录、不能枚举仓库其他路径，则 coverage 不能标 complete；只能对已扫描条目做局部比较并标 partial。
+- Git status 命令应从 Git worktree root 执行，并使用 §16.11 的 --no-optional-locks、porcelain v2、NUL-delimited 形式；状态中的目标路径和 rename 原路径都按原始字节解析后做严格 UTF-8 验证。
+
+
+## 16. Repository Identity 与 Upstream Mapping 候选模型
+
+本节与 §15.6–§15.14 的 Worktree Fingerprint 一起构成 D1 机器契约缺口的第二部分。目的不是“猜出 origin 是哪个仓库”，而是让不同客户端在 fork、多 remote、镜像、迁移和离线环境下对项目身份得出相同或同样保守的结果。
+
+### 16.1 必须分开的身份概念
+
+| 概念 | 含义 | 不能与什么混为一谈 |
+|---|---|---|
+| Project Identity | 跨仓库/多仓库仍可稳定标识的逻辑项目身份（若项目显式配置） | 单个 Git remote URL |
+| Checkout Repository Identity | 当前本地 Git checkout 实际对应的仓库身份 | canonical upstream |
+| Canonical Repository Identity | 项目规则指定的权威/规范仓库身份 | origin 或 remote 名称 |
+| Remote Target | 某 remote 的 fetch 或 push 实际指向的仓库 | 同名 remote 的另一方向 URL |
+| Checkout Location | 本地 worktree/project root 的文件系统位置 | 跨机器稳定项目身份 |
+
+示例：fork 工作流中，当前 checkout 可能属于个人 fork；origin 的 fetch/push 均指向 fork，upstream 的 fetch 指向 canonical repository。该 checkout 可以属于同一逻辑 Project，但 checkout repository 不等于 canonical repository。
+
+### 16.2 建议的数据模型（候选，不是 Schema）
+
+建议在 Packet 的 project 下增加可选 repository_identity 对象。当前 project.repository 保留为人类可读 locator，不再承担稳定身份判定；现有 project.project_id 若使用，应解释为项目级身份，而不是仓库身份。
+
+~~~json
+{
+  "project": {
+    "repository": "https://github.com/example/project-fork",
+    "root": ".",
+    "project_id": "https://registry.example/projects/project-x",
+    "repository_identity": {
+      "observed_at": "2026-11-12T00:00:00Z",
+      "checkout": {
+        "namespace": "https://github.com",
+        "id": "R_checkout",
+        "locator": "https://github.com/example/project-fork",
+        "basis": "provider_native_id"
+      },
+      "canonical": {
+        "namespace": "https://github.com",
+        "id": "R_canonical",
+        "locator": "https://github.com/org/project",
+        "basis": "provider_native_id"
+      },
+      "remote_mappings": [
+        {
+          "remote_name": "origin",
+          "fetch_target": {
+            "namespace": "https://github.com",
+            "id": "R_checkout",
+            "locator": "https://github.com/example/project-fork",
+            "basis": "provider_native_id"
+          },
+          "push_targets": [
+            {
+              "namespace": "https://github.com",
+              "id": "R_checkout",
+              "locator": "https://github.com/example/project-fork",
+              "basis": "provider_native_id"
+            }
+          ],
+          "relation_to_canonical": "fork_of_canonical"
+        },
+        {
+          "remote_name": "upstream",
+          "fetch_target": {
+            "namespace": "https://github.com",
+            "id": "R_canonical",
+            "locator": "https://github.com/org/project",
+            "basis": "provider_native_id"
+          },
+          "push_targets": [
+            {
+              "namespace": "https://github.com",
+              "id": "R_canonical",
+              "locator": "https://github.com/org/project",
+              "basis": "provider_native_id"
+            }
+          ],
+          "relation_to_canonical": "canonical"
+        }
+      ]
+    }
+  }
+}
+~~~
+
+Identity object fields:
+- namespace：身份 ID 的唯一命名空间，通常是 Git 服务实例 origin（包括必要的实例路径）；不能只用 provider 产品名称，例如 enterprise 与 public service 必须区分。
+- id：namespace 内稳定、不透明的仓库 ID；仅当平台文档/接口明确提供稳定 ID，或项目显式配置了稳定 ID 时使用。
+- locator：经脱敏和规范化后的导航 URL，仅用于显示、辅助解析和人工审查；不是稳定身份的首选比较依据。
+- basis：provider_native_id / project_config / normalized_locator_only。最后一种只能形成 provisional identity，不得与稳定 ID 等价。
+- checkout：当前 checkout 的仓库身份；canonical：项目配置指定的规范仓库身份。两者允许相同，也允许 fork 工作流下不同。
+- remote_mappings：每个 remote 作为一个配置实体记录，分别表示有效 fetch_target 与 push_targets；同一 remote 的 fetch/push URL 可以是不同传输地址，但应解析为同一仓库身份。若要从 upstream fetch、向 fork push，应使用两个 remote。
+- relation：canonical / fork_of_canonical / mirror_of_canonical / unrelated / unknown。除 canonical ID 完全匹配外，fork/mirror 关系必须有平台可验证关系或项目显式配置支持；不能根据 owner 名称、remote 名称或仓库命名相似度猜测。
+- remote_name 是当前 checkout 的本地配置别名，仅用于把观察到的 URL 关联回 Git 配置；跨机器比较以 target identity 为准。
+
+Project Identity 与 Repository Identity 必须分离：
+- project.project_id 若被使用，应是项目明确配置的稳定 URI/命名空间 ID，可跨 fork、镜像或多个仓库保持不变；不能把它当作 provider repository ID。
+- repository_identity.checkout/canonical 分别识别仓库实体。
+- 没有稳定 project_id 不代表仓库身份无效；只有 repository identity 足够可靠时，仍可识别当前 checkout 所属仓库。反之，只有 project_id 而无法确认 checkout repository 时，不得声称代码来源身份已核验。
+
+### 16.3 身份解析规则
+
+按以下顺序解析，禁止使用 remote 名称作为首要规则：
+
+1. **项目显式配置**：读取项目权威规则中配置的 project_id、canonical repository identity 和 remote relationship mapping。配置必须能追溯到具体来源版本。
+2. **平台稳定 ID**：对可访问且有权限的 Git 平台资源，读取 provider/instance 命名空间下的稳定 repository ID；不得绕过用户权限或改用未授权凭据。
+3. **显式映射**：在离线、自托管、镜像或平台 API 不可用时，使用项目已配置的 stable identity/mapping；记录其来源 revision。
+4. **规范化 locator**：只有前述方式不可用时，才把脱敏后的 URL 作为弱身份线索；只能 exact-match 同一规范化 locator，不能据此证明 URL 迁移、SSH/HTTPS 别名、fork/upstream 或镜像关系。
+5. **无法确认**：没有可用稳定 ID/配置且 locator 有歧义时，身份结果为 unknown 或 ambiguous；不挑 origin，不按 remote 列表顺序选一个。
+
+身份比较：
+- 稳定身份以 namespace + id 完全匹配为准；locator 变化不推翻稳定 ID，但应更新导航信息。
+- namespace 不同的相同 id 不相等；不同 provider 的数字 ID 不得直接比较。
+- 同一 namespace 内两个不同稳定 id 是不同仓库，即使 URL path 或名称相似。
+- 项目配置声明的 fork/mirror relation 与平台可验证关系冲突时，标 conflict，不由 Agent 选边。
+- 不同 remote 可以指向不同仓库；同一 remote 的 fetch_target 与 push_targets 应解析为同一 repository identity。若无法证明或多个有效 push_targets 指向不同仓库，标 conflict/unknown；本次操作要求确定 push destination 而配置不明确时，目标解析为 ambiguous。
+
+### 16.4 URL/Remote 规范化与凭据保护
+
+URL 只作辅助定位，不能覆盖稳定 ID：
+
+- 解析 HTTPS、SSH URL 与 Git scp-like syntax 时，采用已知 Git provider 的明确解析规则；未知 provider 不套用 GitHub/GitLab 的路径假设。
+- scheme/host 的规范化由 provider adapter 定义；默认端口、尾随 .git、路径大小写和 percent-encoding 不作跨 provider 的统一猜测。
+- 不做通用 path lowercase；repository path 在未知 provider 上按原样保留。
+- 去除 URL userinfo、access token、密码、签名 query、fragment 和其他凭据参数；绝不将带凭据的原始 remote URL 写入 Packet、日志或诊断摘要。
+- scp-like SSH 与 HTTPS URL 只有在稳定 provider ID 相同或 provider adapter 可证明等价时才映射为同一身份；仅凭 host/path 看似相同不自动合并。
+- file://、本地路径或无法解析的自定义 transport 不构成稳定远端身份；只有项目显式配置的 project identity 可补足。
+- URL 迁移、owner/repository 重命名、镜像切换：有稳定 ID 时保持身份连续；只有 locator-only basis 时必须重新人工/配置确认，不能自动推断迁移关系。
+
+### 16.5 D2 Bootstrap 的规范化身份结果
+
+D2 应将身份解析作为独立于 freshness 的前置轴，输出至少一种结果：
+- resolved：checkout identity 与项目配置/Packet 所声明身份有稳定 ID 或显式配置匹配；canonical 与 remote mappings 无冲突。
+- provisional：只能通过完全相同的规范化 locator 匹配；可以作为有限导航线索，不足以证明迁移/fork/mirror 等关系。
+- ambiguous：多个候选仓库或方向目标无法唯一判定；依赖仓库身份的写入、推送、交接目标选择停止。
+- conflict：Packet、项目配置、平台稳定 ID 对同一仓库/关系给出矛盾身份。
+- unknown：权限、离线、配置缺失或 URL 不可解析导致无法判断。
+
+身份结果不得折叠进 source_freshness：
+- identity=resolved 不代表 Packet 内容 current。
+- freshness=current 不代表 Packet 属于当前 checkout。
+- provisional/ambiguous/conflict/unknown 不得提升为 resolved。
+- identity 不确定只阻断依赖该 identity 的操作；不阻断与仓库来源无关的低风险只读分析。
+
+### 16.6 Repository Identity 场景契约
+
+| ID | 场景 | 规范化预期 | 禁止推论/行为 |
+|---|---|---|---|
+| RI01 | 单一 remote，平台稳定 ID 与 Packet 一致 | checkout identity resolved | 仅凭 remote 名称宣称身份一致 |
+| RI02 | origin 是 fork，upstream 是 canonical，映射明确 | checkout=fork；canonical=upstream；project identity 可保持一致 | 把 origin 自动认作 canonical |
+| RI03 | origin 的 fetch URL 与 push URL 使用不同传输地址，但稳定 identity 相同 | 两个 locator 分别观察，repository identity 相同；push 操作仍按当前配置重新解析 | 把不同 URL 字符串直接判为不同仓库；或将同一 remote 的 push 改指向另一个 repository identity |
+| RI04 | 多个 remote 指向不同仓库且无项目 mapping | ambiguous/unknown | 选择第一个 remote 或默认 origin |
+| RI05 | URL owner/repository 改名，但稳定 provider ID 相同 | identity resolved；locator 更新 | 仅因 URL 变化判成新项目 |
+| RI06 | HTTPS 与 SSH URL 指向同一仓库，但无法获取稳定 ID/adapter 不能证明等价 | provisional/ambiguous | 仅凭字符串相似合并身份 |
+| RI07 | 两个不同 namespace 下出现相同 native ID | 身份不同 | 忽略 namespace，仅比较 id |
+| RI08 | public host 与企业 Git 实例同名仓库 | 按 issuer/instance 区分 | 将不同 host 上相同 path 视为同仓库 |
+| RI09 | 平台 API 离线，但项目显式 identity mapping 可读取 | 按配置身份解析，并标注来源 revision | 用旧缓存的 API ID 覆盖当前显式配置冲突 |
+| RI10 | 没有稳定 ID、没有显式配置，只有 URL | provisional 或 unknown | 将 locator-only 认作不可变身份 |
+| RI11 | Packet canonical identity 与项目配置不一致 | conflict；依赖该身份的写操作停止 | 按更新时间或 Agent 偏好选择一方 |
+| RI12 | remote URL 含凭据/Token | 脱敏后再处理；凭据不进入 Packet | 保存原始 URL 或把 token 写入日志 |
+| RI13 | detached HEAD、无 branch，但 repository identity 明确 | 仓库身份可 resolved；branch 另标 unknown/detached | 将 branch 缺失解释为项目身份未知 |
+| RI14 | checkout 是多 worktree 的其中一个 | 仓库身份由 common Git repository/稳定映射识别；worktree 路径仅作本地定位 | 把绝对路径当作跨会话稳定 identity |
+| RI15 | self-hosted Git 无 provider ID | 使用项目显式配置的 namespaced stable identity；否则 provisional/unknown | 由目录名、 remote alias 或 URL 顺序伪造稳定 ID |
+
+### 16.7 与 Worktree Fingerprint 的组合规则
+
+- Repository Identity 先确认“这份 Packet 属于哪个逻辑项目/checkout repository”；Fingerprint 再确认“这个仓库基线下哪些路径的 index/worktree 内容与 last-known 匹配”。两者不能互相替代。
+- fingerprint 比较必须绑定同一 checkout repository identity 和对应 HEAD SHA；只在 canonical/upstream 相同但 checkout 是不同 fork 时，不得直接把另一个 fork 的 worktree fingerprint 当作本地文件状态。
+- 如果 fork 与 canonical 具有明确项目关系，允许复用意图/需求等项目级来源引用，但代码对象及 worktree fingerprint 仍绑定具体 checkout repository。
+- remote mapping 变化不必自动使文件内容 digest stale；但若当前 checkout repository identity 变化、HEAD 无法映射或 project root 变化，则相关 fingerprint 不得直接判 current。
+- Packet 不保存认证凭据；读取平台稳定 ID 是只读观察，不能自动触发远端配置变更或 push。
+
+### 16.8 Schema 兼容性与建议
+
+- 当前 0.1.0 的 project.additionalProperties=false，新的 repository_identity 对象不能原地加入 0.1.0。
+- 若用户批准该模型，建议与 §15 的 worktree_fingerprint 一起评估新的 0.2.0 Schema；不要分别生成多个互不兼容的小版本。
+- 不建议仅靠修改 project.repository 字符串编码身份，也不建议把结构化 remote mappings 存进自由字符串或可忽略 extensions。
+- repository_identity 对象应为 optional，以支持没有远端、离线、自托管旧项目及未启用 SCP 的恢复路径；但若 Packet 声称身份已核验，则必须提供足够稳定标识或明确配置来源。
+- project.project_id 继续作为可选的逻辑项目身份；建议只有项目正式配置稳定 namespaced URI 时才填入。未配置则省略，不能自动用 repository URL 或目录名填充。
+- 结构字段的语义验证需检查：同一 remote 的有效 fetch/push 目标解析、push_targets 的集合语义、canonical relation 与 canonical identity 的一致性、identity basis 所需字段、fetch/push 指向仓库身份的一致性、URL 凭据清除，以及多个 stable identity 冲突时的 fail-closed。
+
+### 16.9 暂定结论与待验证边界
+
+推荐方案是：以 provider/instance namespace + stable native repository ID 为强身份；无平台 ID 时使用项目显式配置；规范化 URL 仅作为弱定位线索。单独保存 checkout repository、canonical repository 和每个 remote 的有效 fetch/push mapping；同一 remote 的方向 URL 应映射到同一仓库，fork/mirror 关系必须显式或可验证。
+
+该方案不要求 SCP 自建身份注册中心，也不引入锁服务或后台协调服务。实际验证前仍需覆盖 GitHub/GitLab/self-hosted/local-only、SSH/HTTPS、多 remote、多 worktree、fork、pushurl、URL 迁移和权限不足场景。
+
+本节仍是候选设计，不代表用户批准，也不改变 D1 Schema 0.1.0。与 §15 的 Worktree Fingerprint 一起审查后，才形成完整 D1 0.2.0 候选。
+
+### 16.10 Git Remote 与 Branch Tracking 语义校准
+
+根据 Git 官方文档复核后，对 §16.2–§16.4 的 remote 映射语义作以下收紧：
+
+1. **Fetch 与 push URL 的差异不是默认的两个仓库关系。** 同一 remote 的 pushurl 可以与 url 不同，但 Git 文档要求它们仍指向同一仓库位置；若实际需要从 upstream fetch、向 fork push，应配置两个 remote，而不是让同一 remote 的 fetch/push 指向两个不同 repository identity。
+2. **多 URL 具有明确执行语义。** 对普通 remote 配置，fetch 使用第一个 url；若配置 pushurl，push 使用所有 pushurl；没有 pushurl 时，push 使用所有 url。多个有效 push targets 若解析到不同稳定 repository identity，应标 conflict，不能静默向多个不同仓库推送。
+3. **Remote URL 的读取应使用 Git 展开后的结果。** Git 提供 remote get-url 的 fetch/push 及 all 选项，并展开 insteadOf/pushInsteadOf 规则；但展开后的 URL 仍只是 locator，优先转换为稳定 provider identity。
+4. **Git branch upstream 与项目 canonical upstream 是两个概念。** branch.<name>.remote + branch.<name>.merge 描述当前分支的 tracking upstream；branch.<name>.pushRemote、remote.pushDefault 等可能改变默认 push remote。D2 必须分别恢复 branch tracking 与项目 canonical/fork 关系，不能把 branch upstream 直接等同 canonical repository。
+5. **Fetch/push 目标决策必须按操作重新解析。** 即便 Packet 中记录了 remote mapping，实际 fetch/push 前仍需读取当前仓库配置和 branch-specific defaults；Packet 不提供持续授权。
+
+建议 remote_mappings 在正式 Schema 中按“remote 配置实体”组织，而不是把同一个 remote 的 fetch/push 当作可任意指向不同身份的独立 remote：
+- remote_name：本地 alias。
+- fetch_target：该 remote 当前有效 fetch target（普通 remote 多个 url 时，fetch 默认使用第一个）。
+- push_targets：该 remote 当前有效 push target 集合（配置 pushurl 时取其全部，否则取全部 url）；多个目标应解析为同一 repository identity。
+- relation_to_canonical：根据稳定 identity/显式配置判定的关系。
+- 多 URL 的顺序和有效语义必须保留；若某条目标无法解析或 fetch/push identity 不一致，该 remote 的身份/操作可用性降级。
+
+另外建议增加可选 branch_tracking 观察对象，分开记录：
+- tracking_remote_name / merge_ref：当前分支的 upstream tracking 配置（若存在）。
+- push_remote_name / resolution_basis：当前分支默认 push remote 的配置来源（若能从本地 Git 配置确定）。
+- branch 未设置 upstream 或 detached HEAD 时如实省略/标 unknown；不要从 remote 名称猜测。
+
+这些是 Git 配置观察快照，消费时必须重新读取；它们不构成项目 canonical identity，也不决定实际 push 的 refspec 或授权。
+
+### 16.11 Worktree Fingerprint 只读采集命令校准
+
+Git 官方文档说明，git status 默认可能刷新并写回 index 的 stat cache；因此只读 Bootstrap/Fingerprint 不能把普通 git status 默认等同无副作用读取。
+
+§15.9 的 status 观察建议明确为：
+
+~~~sh
+git --no-optional-locks status --porcelain=v2 -z --untracked-files=all --ignore-submodules=none
+~~~
+
+要求：
+- 必须使用 porcelain v2 + NUL-delimited path，不解析面向人的 short/long 输出；rename/copy 的目标路径和原路径均按原始路径字节解析。
+- 明确 --untracked-files=all，不能依赖用户配置的 status.showUntrackedFiles；ignored 路径仍不纳入首版 scope。
+- 显式 --ignore-submodules=none，防止项目配置把 submodule dirty 状态隐藏后，Fingerprint 错称 coverage complete。
+- 使用 --no-optional-locks 避免 status 为性能优化写回 index；若客户端无法保证只读执行，则该检查不得归类为 read-only Bootstrap。
+- porcelain v2 提供 staged/unstaged XY、HEAD/index/worktree mode、HEAD/index object name、rename 原路径及 submodule 状态字段；实现仍须对 index blob 和 worktree 文件原始字节计算 SHA-256，不能把 Git object ID 当作本协议 digest。
+- 对 porcelain v2 未知扩展 header 按 Git 规范忽略；不能忽略未知或无法解析的必需路径记录。
+
+### 16.12 复核参考
+
+- Git status porcelain v2、NUL-delimited path 和 submodule 状态：<https://git-scm.com/docs/git-status>
+- Git fetch remote 的 URL / pushurl / 多 URL 行为、branch upstream 配置：<https://git-scm.com/docs/git-fetch>
+- Git remote get-url 的 --push / --all 及 URL 操作约束：<https://git-scm.com/docs/git-remote>
+
+**校准结论：** remote 身份模型必须表达 Git 的有效 fetch/push 配置语义，不能仅把 URL 集合当作无方向的 remote 别名；Fingerprint 采集必须显式避免 git status 的可选 index 写回，才能符合 SCP 的只读边界。
+
+### 16.13 Remote 解析补充场景
+
+| ID | 场景 | 规范化预期 | 禁止推论/行为 |
+|---|---|---|---|
+| RI16 | 同一 remote 的 fetch URL 与 pushurl 不同传输协议/地址，但稳定 repository ID 相同 | checkout identity 可 resolved；保留不同 locator，确认 repository identity 相同 | 因 URL 字符串不同就判两个仓库 |
+| RI17 | 同一 remote 的 fetch target 与 push target 解析为不同稳定 repository ID | remote mapping conflict；默认 push 操作停止，要求修正 remote 配置或拆成两个 remote | 将该配置静默解释为“fetch upstream、push fork”的正常语义 |
+| RI18 | 一个 remote 配置多个 url，无 pushurl | 按 Git 语义记录第一个 fetch target 与全部有效 push targets；push targets 必须解析为同一仓库身份 | 只保存第一个 URL 并忽略其余 push 行为 |
+| RI19 | 一个 remote 配置 pushurl 列表 | 记录全部有效 push targets；若身份无法证明一致，push target resolution 为 conflict/unknown | 只检查第一条 pushurl |
+| RI20 | 当前分支 tracking upstream 与项目 canonical repository 不同 | 分别记录 branch tracking remote/merge ref 与项目 canonical relation | 将 branch.<name>.remote 直接等同 canonical repository |
+| RI21 | branch.<name>.pushRemote 或 remote.pushDefault 改变默认推送 remote | 记录 push remote 的解析来源；推送前重新解析当前配置 | 仅按 tracking upstream 决定默认 push 目标 |
+| RI22 | git remote URL 使用 insteadOf/pushInsteadOf 重写 | 通过 Git 展开后的有效 URL 观察，并保留配置来源/方向；身份仍优先按稳定 ID 判定 | 对未展开的原始 alias URL 直接作身份结论 |
+
+## 17. D1 Schema 0.2.0 联合候选契约审查
+
+本节把 §15 Worktree Fingerprint 与 §16 Repository Identity 合并审查，判断是否可以进入 Schema 草案。这里仍是候选设计与审查结论，不创建 Schema 文件，不代表用户批准。
+
+### 17.1 建议的核心字段增量
+
+若用户批准两套模型，建议将以下三个对象作为一个版本批次纳入候选 Schema 0.2.0：
+
+| 位置 | 候选字段 | 必需性 | 目的 |
+|---|---|---|---|
+| project | repository_identity | optional | 识别 checkout repository、canonical repository 和 remote fetch/push mapping |
+| code | worktree_fingerprint | optional | 对 Git status 可见的 dirty paths 分别核验 index 与 worktree 内容 |
+| code | branch_tracking | optional | 区分当前分支的 tracking upstream 与默认 push remote |
+
+保留现有字段的边界：
+- project.repository 继续作为描述性 locator/项目仓库标签，不再承担稳定 identity 比较。
+- project.project_id 若被填写，定义为项目显式配置的稳定 namespaced URI；它标识逻辑项目，不是仓库 provider ID。未配置时省略，不能从 URL、remote alias 或目录名自动生成。
+- project.root 继续定位逻辑项目在仓库中的子目录；Git path 与 fingerprint path 始终相对于 Git worktree root。
+- code.head_sha、branch、worktree_state、uncommitted_paths 继续保留；fingerprint 是额外内容证据，不取代它们。
+- D3 的 persistence_need、write_authorization、target_resolution、preflight_state、write_result 等是客户端操作结果，不进入 Packet Schema。
+
+### 17.2 Fingerprint 字段约束候选
+
+worktree_fingerprint 可按 §15.7 的对象模型定义，语义校验至少包括：
+
+1. format、scope、digest_algorithm、path_encoding 必须是消费者明确支持的值；未知 fingerprint format 不得猜测解释。
+2. started_at、completed_at 使用 RFC 3339 date-time，且 completed_at 不早于 started_at。
+3. digest_algorithm 首版固定 sha-256；每个 digest 必须符合 sha-256:<64 lowercase hex>，输入为原始字节，不执行文本转换。
+4. path 相对于 Git worktree root，严格 UTF-8、POSIX slash、无绝对路径/盘符/UNC/空组件/dot/dot-dot；路径在 entries 中唯一并按 UTF-8 字节序排序。
+5. index_entries 按 stage 排序且 stage 不重复；普通非冲突路径只允许 stage 0，unmerged 路径只允许适用的 stage 1/2/3，不允许同时把 stage 0 与冲突 stages 当成同一正常状态。
+6. 每个 index stage 的 mode 与 digest 必须来自实际 index entry/blob；Git object ID 只用于定位，不作为 SHA-256 内容摘要。
+7. worktree.state=present 时，kind/mode 按可观察情况提供；普通文件/符号链接必须提供 digest；symlink digest 是链接目标原始字节。absent 不得有 digest；unreadable 不得伪造内容摘要。
+8. kind=gitlink 可以只记录 index/worktree 的 submodule commit pointer，不递归摘要内部文件；只有现场 Git status 证明该 submodule 已初始化、检出指针匹配且内部 clean 时，才可计入 complete coverage。dirty、缺失、未初始化或不可观察的 submodule 必须使 coverage=partial/unknown。unsupported、secret exclusion、路径无法表示、特殊文件不可摘要同样降级。
+9. coverage=complete 必须同时满足 observation=per_path_stable，且 entries.path 集合与 code.uncommitted_paths 集合严格相等；coverage=partial 时 entries 只能是该路径集合的子集；coverage=unknown 时不得声称任何整体完整性。
+10. observation=changed_during_capture 时 coverage 不得为 complete；扫描期间 HEAD/index/status 改变后必须重试或降级。
+11. 若 head_sha 为 null 或 worktree_state=unknown，不允许 coverage=complete。
+12. code.worktree_state=observed_dirty 但未提供 fingerprint 仍允许作为低保真 Packet；接收方只能确认 last-known HEAD/路径集合，不得将这些 dirty path 内容判 current。
+13. clean worktree 不要求生成空 fingerprint；若生产者选择保留空 fingerprint，entries 必须为空且与 uncommitted_paths 一致。
+
+需要注意：JSON Schema 可校验大部分字段形状、枚举、格式与条件，但路径安全规范、entry path 集合对应、Git stage 与真实对象、digest 来源、coverage 声明真实性必须由 semantic validator/现场 Bootstrap 检查，不能把 schema-valid 等同 verified。
+
+### 17.3 Repository Identity 字段约束候选
+
+repository_identity 可按 §16.2 定义，semantic validation 至少包括：
+
+1. namespace + id 才构成稳定身份；namespace 必须隔离不同 Git service instance；相同 id 不同 namespace 不相等。
+2. basis=provider_native_id 或 project_config 时必须有 namespace 和稳定 id；basis=normalized_locator_only 时只能形成 provisional identity，不得声称稳定 ID。
+3. checkout 与 canonical 可以相同或不同；若 canonical 未配置则省略，不能默认选择 origin。
+4. remote_mappings 每个 remote_name 作为一个本地配置实体唯一出现；remote_name 只是本地 alias，不作为身份。
+5. 每个 remote 的 fetch_target 表示有效 fetch 目标；push_targets 表示 Git 配置下有效 push 目标集合。fetch 与 push locator 可不同，但稳定 identity 应指向同一仓库；身份冲突时 remote mapping 为 conflict。
+6. 同一 remote 多 url 时 fetch 的有效目标按 Git 规则解析；push_targets 保留实际有效集合。多个 push_targets 若身份不一致，不得继续声称该 remote 指向单一仓库。
+7. relation_to_canonical=canonical 必须与 canonical identity 相同；fork_of_canonical/mirror_of_canonical 必须由平台关系或项目显式配置支持；其他关系不得推断。
+8. branch_tracking.upstream_remote_name / merge_ref 与项目 canonical identity 分离；push_remote_name 按当前 branch-specific 配置解析。引用不存在或映射不唯一时为 unknown/ambiguous。
+9. URL locator 必须先清除 userinfo、token、密码、签名 query 和 fragment；禁止把凭据写入 Packet 或日志。
+10. repository_identity 内的 observed_at 与来源配置 revision 必须可追溯；消费端重新读取当前 Git config/平台身份，不直接信任旧 remote mapping。
+11. 如果 Packet checkout identity、项目显式配置与平台稳定 ID 矛盾，身份状态为 conflict；不按时间戳或 remote 列表顺序选边。
+12. repository_identity 可选；本地-only、离线或未配置项目仍可通过既有规则入口恢复，但依赖仓库身份的高影响操作不得在 identity=unknown/ambiguous 时执行。
+
+### 17.4 D1 0.2.0 与 D2/D3 的跨阶段一致性矩阵
+
+| 断言 | Schema 0.2.0 提供的结构证据 | D2 现场核验 | D3 使用边界 |
+|---|---|---|---|
+| Packet 属于当前 checkout | repository_identity.checkout/canonical/remotes | 重新解析当前 checkout、remote、project config 和平台 ID | 写入前必须确认项目与 checkout identity；不从 Packet 授权 |
+| Fork 与 canonical 关系明确 | checkout/canonical/relation_to_canonical | 验证 explicit mapping/provider relation | 不把 canonical 相同误作 checkout fingerprint 可跨 fork 复用 |
+| 分支 tracking 与 push remote 明确 | branch_tracking | 读取当前 branch config 与 remote effective URLs | 每次 push 操作前重新解析，不沿用 Packet 目标 |
+| Dirty path 内容可比较 | worktree_fingerprint.entries | 对当前 index/worktree 对应路径重新计算并比较 | C11/C12 只消费 D2 的逐声明结果 |
+| Fingerprint 覆盖完整 | coverage + observation + entries | 对照 status 路径集合、HEAD/index/status 和逐文件结果 | 不将 partial/unknown 提升为完整恢复 |
+| Evidence 当前可用 | evidence_refs + provenance | 按 subject/revision/scope/actor/result 重新解析 | 不把历史 passed 作为当前验收 |
+| 是否允许持久化/写入 | 不由 Packet Schema 表达 | 检查本轮用户授权与项目规则 | 由 D3 操作流程独立决策；write_result 不写入 Packet |
+
+### 17.5 Schema Version 与旧 Packet 兼容
+
+按现有 COMPATIBILITY.md 的规则：
+- 0.1.0 的 core objects 使用 additionalProperties=false；0.1.0 消费者必须拒绝新增的 repository_identity、worktree_fingerprint、branch_tracking。
+- 即使三个对象都是 optional，它们仍是新增核心字段；不能原地修改 0.1.0。
+- 若用户批准，建议一次性创建 0.2.0，避免 fingerprint 与 repository identity 拆成多个相互不兼容的小版本。
+- 0.2.0 消费者可以继续支持 0.1.0；消费 0.1.0 时 identity/fingerprint 记为 not_provided/unknown，不得伪造稳定 identity 或 dirty-path current。
+- 0.1.0 消费者遇到 0.2.0 不得忽略新增核心字段后继续执行协议驱动写入；按现有规则进入只读/人工 fallback。
+- 0.2.0 不要求未采用 SCP 的旧项目迁移，也不自动创建 project identity 配置或 Packet 文件。
+- Schema version 与项目整体版本独立；本提案不要求 bump 项目 3.0/其他版本，不打 Tag。
+
+### 17.6 需要独立实现验证的事项
+
+以下不是设计文档本身能够证明的内容：
+- Linux/macOS/Windows 对 Unicode、路径大小写、符号链接、executable bit 和特殊文件的实际观察一致性。
+- Git status porcelain v2 不同受支持版本对 submodule、rename/copy、untracked 和 NUL path 的实际输出兼容性。
+- --no-optional-locks 在目标客户端封装下是否真正避免项目状态副作用。
+- LFS pointer 与 smudged worktree 内容、sparse checkout、多个 worktree、submodule、unmerged index stages 的实测。
+- GitHub/GitLab/self-hosted provider ID 的读取权限、ID 稳定性、镜像迁移及 SSH/HTTPS locator 等价关系。
+- 两个独立 Agent 客户端使用相同 fixture 与相同现场输入时，identity/fingerprint/recovery 规范化结果是否一致。
+- 失败/中断时 Writer 是否能按 D3 C14/C15/C21 回读、确认与安全降级。
+
+这些事项应进入后续 Fixture/CLI E2E 与真实故障注入计划，不应被写成“设计已通过”或“跨客户端已兼容”。
+
+### 17.7 联合审查结论与当前决策状态
+
+**当前可以进入 Schema 草案的设计方向：**
+- 逐路径 SHA-256 fingerprint，显式分离 HEAD/index/worktree，允许 partial/unknown；路径以 Git worktree root 为基准。
+- 结构化 repository identity，显式分离 checkout/canonical/remote mapping；branch tracking 单独建模。
+- 两者作为一个版本批次评估 0.2.0；旧 0.1.0 保持不可变。
+
+**用户已于 2026-11-12 明确批准的四项语义边界：**
+1. Dirty worktree 使用 index + worktree 双层摘要，而非只摘要当前文件系统内容。
+2. 首版不递归 fingerprint submodule 内部工作区；dirty/unobservable submodule 使 coverage 降为 partial/unknown。
+3. 仅有 normalized locator 的 repository identity 是 provisional，不能用于证明跨 fork/迁移关系或授权依赖稳定身份的写操作。
+4. Canonical repository 必须来自项目显式配置或可验证平台关系，不能按 origin/upstream remote 名称自动推断。
+
+**审查结论：** 用户已批准上述设计方向。本轮已创建 Schema 0.2.0 Draft、最小与完整示例、兼容性说明及正反例契约。该批准仅允许形成草案，不等于批准冻结，也不表示正式 JSON Schema 验证、semantic validator、跨平台 CLI E2E 或双客户端互操作已经通过。D1、D2、D3 仍保持未冻结。
+
+### 17.8 Schema 0.2.0 Draft 实体化记录
+
+根据用户于 2026-11-12 对四项语义边界的明确批准，已在 PR #11 新增以下草案文件：
+
+- `schemas/scp/0.2/continuity-packet.schema.json`
+- `schemas/scp/0.2/COMPATIBILITY.md`
+- `schemas/scp/0.2/examples/checkpoint-minimal.json`
+- `schemas/scp/0.2/examples/handoff-with-identity-and-fingerprint.json`
+- `schemas/scp/0.2/examples/handoff-partial-fingerprint.json`
+- `schemas/scp/0.2/examples/handoff-clean-gitlink-fingerprint.json`
+- `schemas/scp/0.2/fixtures/README.md`
+- `schemas/scp/0.2/fixtures/SEMANTIC-CONTEXT.md`
+- `schemas/scp/0.2/fixtures/invalid/schema/` 下 8 个 Schema 级负例。
+- `schemas/scp/0.2/fixtures/invalid/semantic/` 当前有 19 个 semantic-validator 级负例。
+
+Schema 0.2.0 核心对象的具体表达：
+- `project.repository_identity`：`observed_at`、`checkout`、可选 `canonical`、可选 `remote_mappings`、必需 `source_refs`。
+- Identity target：`namespace`、依据 `basis` 条件提供的稳定 `id` 或 locator；normalized-locator-only 禁止出现稳定 id。
+- Remote mapping：`remote_name`、`fetch_state/fetch_target`、`push_state/push_targets`、`relation_to_canonical`。状态表达 Git 配置目标是否可唯一解析；identity 强弱另由 target.basis 表达。
+- `code.branch_tracking`：`branch_state`、独立的 upstream 状态与 push 目标状态；configured/resolved 条件要求对应 remote/ref/resolution basis。
+- `code.worktree_fingerprint`：固定 fingerprint format/scope/算法/path encoding；保留扫描窗口、coverage、observation、逐路径 entries。
+- Index entry 保留 stage、Git mode 与 SHA-256 内容摘要；gitlink 仅保留 commit OID，不伪装成内容摘要。
+- Worktree entry 区分 present/absent/unreadable；普通文件与符号链接要求摘要；gitlink 只记录 commit pointer，complete coverage 需另由现场检查证明子模块已初始化且 clean；不可读/不支持条目不能出现在 complete coverage 的完整范围中。
+- Fingerprint paths 使用 Git worktree root 相对路径；基础 JSON Schema pattern 拒绝常见绝对路径、盘符、重复/尾随分隔符、dot/dot-dot 组件、反斜杠及 ASCII 控制字符。平台 Unicode/大小写碰撞仍由 semantic validator 处理。
+
+### 17.9 本轮草案审查结果与未验证事项
+
+已完成的本地结构检查：
+- Schema 文件可被 JSON parser 解析；本轮样例所走到的本地 `$ref` 路径均可解析。
+- Schema 中的正则表达式均可由 JavaScript RegExp 编译。
+- 四个正例（最小 checkpoint、complete fingerprint、partial fingerprint、clean gitlink pointer + unknown branch config）在本轮编写的结构/条件子集检查中无错误。
+- 八个 Schema 级负例分别触发预期约束：dirty 无路径、complete + changed capture、locator-only 携带 ID、路径越界/不规范。
+- 当时已有的 6 个 semantic 级负例均通过结构层检查，符合“JSON Schema 不能单独证明这些跨字段/现场关系”的预期。后续新增的 semantic fixture 数量与标准验证状态见 §17.15。
+
+重要限制：
+- 上述是本轮脚本做的 JSON 解析、引用/正则检查及有限结构/条件检查，不是正式 JSON Schema Draft 2020-12 验证器的合规性报告。
+- 尚未运行标准 Draft 2020-12 meta-schema/instance validator，也没有正式验证 date-time format assertion。
+- Semantic fixtures 仍是测试契约；重复 remote/path/stage、路径集合对应、canonical relation、凭据清洗、实际 digest 来源等没有 Validator 实现。
+- 完整示例使用 synthetic identity/摘要值，仅说明字段形状；没有与真实 Git provider API 或真实临时 worktree 内容绑定，不能作为真实性证据。
+- 尚未验证 Windows/macOS/Linux、Git LFS、sparse checkout、merge conflict、submodule、多 worktree、权限和扫描竞态。
+- CI 的 queued/in_progress 仍不得称通过。
+
+### 17.10 下一步审查顺序
+
+1. 完成 Schema 0.2.0 的正式 Draft 2020-12 meta-schema 和 positive/negative instance validation；确认 format assertion 的配置要求。
+2. 对照 §17.2/§17.3 逐字段检查所有语义是否存在表达缺口，重点检查 remote push multi-target、gitlink、partial fingerprint、detached branch 和 URI/locator 处理。
+3. 修订设计文档、Schema、examples、fixtures 和兼容性说明之间的任何不一致。
+4. 检查最新 PR Head 对应 CI；pending 只记录状态，不替代本地验证。
+5. 完成审查后仍保持 Draft，提交 D1 0.2.0 待批准版本；不实现 Validator/Writer/CI Gate，除非另行获得授权。
+
+### 17.11 第二轮一致性复核：Schema、示例与语义约束
+
+在第一轮结构检查后，又对 remote 状态、branch tracking、Fingerprint complete/partial 和示例排序作了收紧：
+
+- `fetch_state=resolved` / `push_state=resolved` 只表示 Git 有效配置目标已被无歧义选出；目标的稳定性仍由 `identity_target.basis` 区分。locator-only target 仍然是 provisional。
+- `branch_tracking.push.resolution_basis` 仅保留 Git 默认 remote 解析来源：`branch_push_remote`、`remote_push_default`、`branch_upstream`、`default_remote`。不把 project policy 混作 Git 默认推送规则，也不表示 refspec 或授权。
+- `worktree.state=unreadable` 可保留已观察到的 kind/mode，但不得提供 digest；该状态不能属于 `coverage=complete`。
+- `coverage=complete` 在 Schema 层限定为 per-path stable，并允许 regular file、symlink、明确 absent，以及具有 commit pointer 的 gitlink。gitlink 是否可计入 complete 由现场 Semantic Validator 检查子模块已初始化且 clean；unsupported/unreadable 必须降级。
+- `project.project_id` 增加 URI scheme pattern；完整 URI 语义仍由验证器/配置规范检查。
+- 正例 fingerprint entries 已按 UTF-8 路径排序；partial 正例使用 unreadable 条目展示稳定扫描但不完整覆盖。
+- Schema 级反例增加：complete + unreadable、complete + gitlink、错误 schema_version、未知 core field。该轮审查时共 8 个 Schema-invalid cases 和 7 个 semantic-invalid cases。
+
+复核结果：
+- 四个正例：最小 checkpoint、complete fingerprint handoff、partial fingerprint handoff、clean gitlink + unknown branch config，在本轮自编写的结构/条件子集检查中无错误。
+- 八个 Schema-invalid cases：均触发预期局部约束。
+- 当时的七个 semantic-invalid cases：均保持 Schema-valid；dirty-submodule case 需要 fixture 现场观察判定，不能仅凭 Packet 字段判断。后续扩展见 §17.15。
+- 所有 Schema pattern 均可由 JavaScript RegExp 编译；所检查样例使用到的本地 refs 均可解析。
+
+本轮第二轮记录为形式验证前的结构检查；后续正式 Draft 2020-12 验证结果见 §17.13。
+
+### 17.12 第三轮边界校准：branch tracking unknown 与 gitlink pointer
+
+正式 Draft 2020-12 验证前的语义复核发现两处过度约束并修订：
+
+1. 已知当前分支处于 attached，不代表一定能读取 branch.<name>.remote 配置。权限、配置读取失败时必须能表达 `branch_state=attached` + `upstream.state=unknown`，不能强迫客户端猜测 configured/not_configured。
+2. “不递归 fingerprint submodule 内部工作区”不等于“不能记录 gitlink”。Schema 现在允许 index/worktree 记录 mode 160000 与 gitlink commit pointer。只有现场 Git status 能证明 submodule 已初始化、指针匹配且内部 clean 时，gitlink 才能参与 complete coverage；dirty、缺失、未初始化或无法观察仍必须降为 partial/unknown。
+
+新增正例：`handoff-clean-gitlink-fingerprint.json`，同时覆盖 clean gitlink pointer 与 attached branch 的 unknown upstream/push 配置。原 `complete-with-gitlink-entry.json` 改为缺失 gitlink_commit 的结构负例，不再错误表达“gitlink 一律不能 complete”。
+
+### 17.13 正式 JSON Schema Draft 2020-12 验证结果
+
+本轮已使用 Python `jsonschema 4.26.0` 的标准 `Draft202012Validator` 执行验证；Validator 实例显式启用 `FormatChecker()`。
+
+验证步骤与结果：
+1. `Draft202012Validator.check_schema(schema)`：通过，Schema 结构符合 Draft 2020-12 meta-schema。
+2. 正例实例：4 个均通过，包括最小 checkpoint、完整普通文件 fingerprint handoff、partial/unreadable fingerprint handoff，以及 clean gitlink pointer + attached branch / upstream unknown handoff。
+3. Schema 级负例：8 个均被标准 Validator 拒绝，包括 dirty 无路径、complete + changed capture、locator-only identity 携带稳定 ID、越界路径、complete + unreadable、缺失 gitlink commit pointer、错误 schema_version、未知 core field。
+4. Semantic 级负例：7 个均通过 JSON Schema 结构验证，符合预期；它们必须由未来 Semantic Validator / 现场 Bootstrap 拒绝或降级，而不是误以为 JSON Schema 可以证明这些关系。
+5. Format assertion：通过 `FormatChecker()` 验证；合法 RFC 3339 date-time 被接受，`2026-13-40T30:70:70Z` 被拒绝。
+
+这次正式验证解决了 Schema 语法/局部条件/format assertion 层的问题，但不验证真实 Git digest、remote identity、路径集合、重复 remote/path/stage、secret locator、gitlink 是否 clean 等语义真实性。
+
+### 17.14 正式验证后的范围与冻结状态
+
+- Schema 0.2.0 当前 Draft 的 JSON Schema meta-schema 与正反例结构验证已通过；这不是 D1 整体冻结。
+- 7 个 semantic-invalid cases 仍需 Semantic Validator 契约与未来实现来判定；当前没有实现 Validator/Fixture Runner。
+- clean gitlink 示例的 Schema-valid 只说明 commit pointer 结构可表达；测试现场仍需证明 submodule 已初始化且 clean。
+- branch tracking 的 attached + upstream unknown 已纳入 Schema，避免把配置不可读伪装成 not_configured。
+- 未运行真实跨平台 Git CLI E2E、文件系统竞态测试或双 Agent 客户端 Fixture 互操作。
+- D0 保持已确认冻结；D1、D2、D3 继续保持未冻结。PR #11 仍保持 Open + Draft。
+
+### 17.15 Semantic-contract 完整性审查（2026-11-12）
+
+本节是目前的最新清单，用于取代 §17.8–§17.14 中较早阶段的 fixture 数量。较早记录保留其当时状态，不应再被解读为当前总量。
+
+#### A. 审查结论
+
+Schema 与 Semantic Validator 的职责边界目前清晰，无需为本轮发现的问题立即增加新的核心字段或修改 Schema 0.2.0 结构：
+
+- JSON Schema 负责类型、必填字段、封闭对象、枚举、局部条件、格式与容易表达的模式约束。
+- Semantic Validator 负责跨字段一致性、集合/排序/唯一性、远端与平台事实、Git index/worktree 事实、来源可解析性和现场状态。
+- Bootstrap 必须将现场观察绑定到当前 checkout identity、HEAD、index/status、权限和来源 revision；不能把 Packet 的 last-known snapshot 直接提升为 current/resolved。
+- 无法获得 companion context 或权限不足时，结果是 not_run/unknown；不能将“无法检查”判成“没有问题”。
+- 冲突保留完整观察，不按数组顺序、时间戳、remote alias 或 Agent 偏好择一。
+
+#### B. 当前 Fixture Inventory
+
+| 类型 | 数量 | 含义 |
+|---|---:|---|
+| Positive | 4 | 最小 checkpoint、普通文件 complete fingerprint、partial/unreadable fingerprint、clean gitlink + attached/unknown branch config |
+| JSON Schema-invalid | 9 | 应由标准 Draft 2020-12 Validator 在结构层拒绝 |
+| Semantic-invalid | 19 | JSON 结构保持有效，但必须由 semantic/context 层拒绝、降级或标记 unknown |
+
+19 个 semantic vectors 分组：
+- **Fingerprint identity/coverage**：duplicate path、complete path-set mismatch、partial path outside status set、unsorted entries。
+- **Git index**：duplicate stage、stage 0 与 unmerged stage 混用。
+- **Capture lifecycle**：时间窗倒置、扫描过程发生变化时不可声称 complete（后续现场 context 需要覆盖 re-enumeration race）。
+- **Submodule**：dirty submodule、index gitlink 与 checkout HEAD pointer 不一致。
+- **Repository identity / remote mapping**：duplicate remote alias、canonical relation mismatch、fetch/push repository identity mismatch、多个不同 push target。
+- **Locator security / evidence**：identity locator credentials、project.repository credentials、identity source reference unresolvable。
+- **Branch configuration**：upstream remote 不存在、push remote 不存在、branch_state 与 code.branch 冲突。
+
+每个 semantic fixture 的额外现场条件写入 `schemas/scp/0.2/fixtures/SEMANTIC-CONTEXT.md`。其中标明哪些输入仅靠 Packet JSON 无法表达，例如 provider API 资源是否存在、Git submodule 是否 dirty、Git index 与当前 checkout 是否一致。没有 companion context 时，不得声称 fixture pass。
+
+#### C. 本轮发现并已修正的问题
+
+1. **Clean gitlink 示例原有指针不一致。** index gitlink OID 与 submodule checkout HEAD OID 不相同，和“clean”语义矛盾。已统一为同一 synthetic OID；新增的 dirty-submodule semantic fixture 使用相同指针，但要求伴随的现场 worktree 状态为 dirty，以隔离“内容指针一致 ≠ 子模块 clean”这一点。
+2. **Semantic fixture 误放目录。** `branch-state-code-branch-mismatch.json` 曾暂时位于 `invalid/schema/`，已移动至 `invalid/semantic/`，Schema-invalid 数量仍为 8。
+3. **遗漏顶层 locator 凭据检查。** `project.repository` 与 `identity_target.locator` 都属于 locator，必须按相同规则排除 userinfo/password/token/signed query；新增 `credentialed-project-repository.json`。
+4. **Submodule 指针不一致。** 增加 index gitlink OID 与 checked-out submodule HEAD 不匹配的反例。
+5. **身份来源解析失败。** 增加 provider source reference authoritative not-found 的反例；不能使用旧缓存或 URL 相似性把 identity 提升为 resolved。
+6. **Push remote 引用缺失。** 除 upstream remote 外，新增 default push remote alias 不在 live/Packet remote mapping 的反例。
+
+#### D. Semantic Validator 最低判定清单
+
+实现前应按以下顺序形成独立的语义规范，不应把它们塞进单个全局布尔值：
+
+1. **Packet/protocol**：schema version 与 fingerprint format 是否受支持；unsupported 与 freshness unknown 分离。
+2. **Project/repository identity**：checkout identity、canonical identity、项目配置与 provider ID 是否一致；稳定身份使用 namespace + ID；locator-only 只能 provisional。
+3. **Remote resolution**：remote alias 精确唯一；fetch/push target 按 Git 有效配置读取；resolved remote 的 fetch target 与所有 push targets 必须指向同一 repository identity；不同 identity 的 push target 保留全部并降为 conflict/ambiguous。
+4. **Branch tracking**：attached/detached 与 code.branch 一致；configured upstream、resolved push remote 必须存在于 live Git config；存在 Packet remote mapping 时还要在映射中找到同名 alias。配置不可读维持 unknown。
+5. **Path identity**：路径严格 UTF-8、worktree-root 相对、无绝对/越界/空组件/点段；检测大小写与 Unicode normalization collisions；不做静默归一化。
+6. **Fingerprint set**：entry path 唯一且按 UTF-8 byte order 排序；complete 与 uncommitted_paths 集合完全相同；partial 只能是其子集；unknown 不得声称覆盖完整。
+7. **Index state**：stage 唯一并排序；stage 0 不与 stage 1/2/3 共存；mode 与 blob 真实对应；index digest 必须重算验证。
+8. **Worktree state**：present/absent/unreadable 语义正确；mode/kind 匹配；普通文件按 raw bytes、symlink 按 link target bytes；路径对象在读取前后未被替换。
+9. **Submodule**：complete 中的 gitlink 需要 index OID = checkout HEAD OID，submodule 已初始化、可读且内部 clean；不递归计算子模块内部文件 digest；否则 partial/unknown。
+10. **Capture consistency**：completed_at 不早于 started_at；扫描窗口内 HEAD/index/status 未变；完成后重新枚举 path set；逐路径稳定不等于全局原子。
+11. **Sensitive data**：project.repository、identity locator 和其他 locator 不包含凭据；敏感路径不摘要，coverage 降级。
+12. **Evidence/provenance**：identity source_refs 和 provenance 必须可追溯到实际权威来源与对应 revision；不可解析或权限不足为 unknown，authority conflict 不按 timestamp 解决。
+13. **Recovery output**：每个声明分别给 current/stale/conflict/unknown；identity resolved/provisional/ambiguous/conflict/unknown 独立于 freshness；允许行为按当前动作依赖的声明计算。
+
+#### E. 验证状态与剩余限制
+
+- Schema 0.2.0 未因本轮 semantic audit 修改结构；此前的 Draft 2020-12 meta-schema 与实例验证记录仍适用于当时验证的 Schema 与 4 个正例、8 个 Schema-invalid、7 个 semantic-invalid vectors。
+- 本轮新增的 12 个 semantic vectors 已用 Python jsonschema 4.26.0 的 Draft202012Validator + FormatChecker 重新验证；19/19 semantic Packet 均保持 Schema-valid。验证输入、Schema blob SHA 与当前 Fixture blob SHAs 记录在 `schemas/scp/0.2/fixtures/VALIDATION-REPORT.md`。
+- `SEMANTIC-CONTEXT.md` 是未来 Fixture Runner 的输入契约，不是已运行的 fixture 环境；provider API、submodule 状态和真实 Git index 内容仍未被实际创建/验证。
+- 尚未实现 Semantic Validator、Fixture Runner、真实 Git CLI E2E、跨平台文件系统测试、双客户端互操作或 CI Gate。
+- 这轮审查不冻结 D1、D2、D3。D1 0.2.0 继续是可审查 Draft；D0 保持已确认冻结。
+
+#### F. 下一步
+
+该阶段已通过 `SEMANTIC-EXECUTION-CONTRACT.md` 形成统一四阶段与环境 profile 草案。后续应优先评估 §17.19 提出的 re-enumeration race、文件对象替换、路径别名与 Provider 权限差异四类测试是否进入下一版 Fixture Inventory；未获额外授权前仍不实现 Semantic Validator、Fixture Runner、Writer 或 CI Gate。
+
+### 17.16 当前 Fixture 全量 Schema 验证完成（2026-11-12）
+
+已针对固定 Schema blob `0ab451634283385b5ffa7f028fa7f4a0e6b41cc8` 完成标准 Draft 2020-12 验证复核：
+
+- Python `jsonschema 4.26.0`，使用 `Draft202012Validator.check_schema` 验证 meta-schema：PASS。
+- `Draft202012Validator(schema, format_checker=FormatChecker())` 启用 date-time format assertion。
+- Positive：4/4 通过。
+- JSON Schema-invalid：8/8 被拒绝。
+- Semantic-invalid：19/19 保持 Schema-valid，等待 Semantic Validator / companion context 判定其预期语义失败或降级。
+- Format probe：合法 RFC 3339 时间接受，`2026-13-40T30:70:70Z` 拒绝。
+- 每个 fixture 的 blob SHA 与分组结果见 `schemas/scp/0.2/fixtures/VALIDATION-REPORT.md`。
+
+验证期间发现原 `branch-state-code-branch-mismatch.json` 的 Packet 自身声明 detached，却同时保留非空 branch；这已被 Schema 的根级条件直接拒绝，不适合作为 semantic-only case。现已改为 Packet 声称 attached，companion live Git observation 返回 detached HEAD，从而保留为真正依赖现场状态的 semantic case。
+
+CI 说明：PR Head 对应的 16 个 Standards CI checks 已完成且全部 success；但 `.github/workflows/standards-ci.yml` 只执行语法和回归测试，不运行 SCP Schema 验证。上面的 Draft 2020-12 结果来自独立标准 Validator 运行，不是由当前 CI 产生。
+
+本轮没有修改 Schema 0.2.0，仍使用 blob SHA `0ab451634283385b5ffa7f028fa7f4a0e6b41cc8`。该验证只证明 JSON Schema 结构与 format 层，不证明 semantic fixtures 的 live context 已执行，也不实现 Semantic Validator。
+
+D1 0.2.0 仍为 Draft，不冻结；D2、D3 不变；D0 继续保持已确认冻结。
+
+### 17.17 Semantic Fixture Execution Contract 草案
+
+新增 `schemas/scp/0.2/fixtures/SEMANTIC-EXECUTION-CONTRACT.md`，把 19 个 companion contexts 统一为未来可执行测试的设计边界：
+
+- 四阶段生命周期：Prepare isolated fixtures、Observe read-only state、Evaluate and normalize、Assert and clean up。
+- 环境 profiles：packet_only、local_git、local_git_submodule、provider_stub、filesystem_profile、fault_injection。
+- 所有可能写入的 Git 初始化/文件变更只允许发生在 Runner 自己创建的 disposable fixture root；被测 Observation 阶段必须保持只读。
+- 不使用真实用户凭据、不访问真实 provider/network；使用 local bare remotes 与 deterministic provider stub。
+- 固定时钟、文件原始字节、commit IDs、remote mapping 与权限响应；竞态通过确定性 hook 注入，不用 sleep。
+- 标准化输出仍是示意结构，不是新的 Packet Schema 或冻结 machine API；identity/freshness/recovery 等状态轴保持分离。
+- 两个独立客户端需在相同 Packet、companion context、clock、capabilities 和 permissions 下比较 normalized result；能力较弱者可以降级，但不能扩大允许行为。
+- 留出 5 个实现前设计问题：companion-context 是否机器可读、Git fixture bundles 分发、OS/filesystem profile 基线、fault-injection API、reason codes 是否进入协议。
+
+本节仅确认未来 Fixture Runner 的设计约束，不实现 Validator、Runner、CLI adapter 或 CI Gate。
+
+### 17.18 Gitlink 完整覆盖边界收紧与第二次全量 Schema 验证（2026-11-12）
+
+进一步语义复核发现：如果 index 中存在 mode `160000` gitlink，但 worktree submodule 路径已经缺失，原 Schema 仍可能让生产者声明 `coverage=complete`。这与“missing/uninitialized submodule 必须降级”的协议语义不一致。
+
+已在 `schemas/scp/0.2/continuity-packet.schema.json` 增加 complete-coverage 局部条件：
+- index_entries 中出现 gitlink mode 160000 时，worktree 必须是 present + kind=gitlink + mode=160000，并包含 gitlink_commit。
+- worktree 声明 kind=gitlink 时，index_entries 必须包含对应 gitlink mode 160000。
+- index 与 worktree commit pointer 是否相等、submodule 是否初始化/clean，仍由现场 Semantic Validator 检查；Schema 不承担对 Git 现场事实的证明。
+
+新增结构负例：
+- `schemas/scp/0.2/fixtures/invalid/schema/complete-with-missing-gitlink-worktree.json`
+
+当前 Fixture Inventory：
+- Positive：4。
+- JSON Schema-invalid：9。
+- Semantic-invalid：19。
+
+对新 Schema blob `a2f2097a17c08bf0a2ae733ab43a8f1919b48813` 重新执行 Python `jsonschema 4.26.0` 的 Draft 2020-12 meta-schema/instance 验证，显式启用 `FormatChecker()`：
+- `Draft202012Validator.check_schema`：PASS。
+- Positive：4/4 PASS。
+- Schema-invalid：9/9 REJECTED。
+- Semantic-invalid：19/19 Schema-valid。
+- Format assertion：合法 RFC 3339 通过；`2026-13-40T30:70:70Z` 被拒绝。
+- 文件级 Schema/Fixture blob SHA 固定在 `schemas/scp/0.2/fixtures/VALIDATION-REPORT.md`。
+
+同时新增 `SEMANTIC-EXECUTION-CONTRACT.md`，规范未来 Fixture Runner 的 Prepare / Observe / Evaluate / Assert-Cleanup 四阶段、环境 profiles、只读观察边界、确定性时钟与故障注入、双客户端规范化比较。该文件仍是设计契约，不代表 Runner 已实现。
+
+CI 说明：当前 Standards CI workflow 的全绿结果不包含 SCP Schema 验证；Draft 2020-12 结果来自独立 Validator 运行。此次 Schema 修订没有授权实现 Semantic Validator、Fixture Runner、Writer 或 CI Gate。
+
+冻结状态不变：D0 保持已确认冻结；D1 0.2.0 仍是 Draft；D2、D3 均未冻结。
+
+### 17.19 下一批语义测试缺口（提案，不计入当前 Fixture Inventory）
+
+对 `SEMANTIC-EXECUTION-CONTRACT.md` 的跨平台确定性和故障注入边界复核后，提出四个候选向量：
+
+1. **Fingerprint re-enumeration race**：初次 status 枚举后、最终重读前新增 untracked 路径或改变 index；必须识别 path set/index 快照变化，不允许 complete/current。
+2. **File object replacement during digest read**：文件流式摘要期间替换路径 inode/对象或修改内容；受影响 entry 变 unknown/changed-during-capture，不可把两个文件对象的字节拼为一个 digest。
+3. **Case/Unicode path alias collision**：在大小写不敏感或 Unicode normalization aliasing 的文件系统 profile 下，两个不同路径字节串实际映射到同一对象；不得静默折叠，相关声明降为 ambiguous/conflict，coverage partial/unknown。
+4. **Provider authorization vs not-found**：分别注入 403、429、timeout 与 authoritative 404；只有可确认的 authoritative not-found 才能表达该 source 在对应 revision 不存在，权限/限流/超时必须 unknown/not_run。
+
+这些候选项均可使用现有 Packet 字段与 D2/D1 状态轴，不要求新增 Schema 字段。建议先评估其 companion context 是否能确定性描述，再决定是否纳入 Fixture Inventory；本轮仍保持 4 positive / 9 Schema-invalid / 19 semantic-invalid，不提前计数，也不实现 Runner。
+
+### 17.20 四类候选故障场景与 D2 状态轴映射
+
+基于 §13.12 的规范化输出与恢复模式决策表，对 §17.19 四类候选场景作逐项校准。完整 setup/observation/event sequence 见 `schemas/scp/0.2/fixtures/SEMANTIC-EXECUTION-CONTRACT.md` §11–§14。
+
+#### A. Re-enumeration race
+
+- 测试在初次 HEAD/index/status 观察后、最终重读前，通过 deterministic barrier 修改 disposable repository。
+- 初次观察与 Packet 指纹一致，随后新增 untracked path 或变更 index。
+- **旧 Packet fingerprint freshness=stale**：最终观察已证明其 path/index claim 不再对应当前仓库状态。
+- **当前这次扫描 observation=unknown / changed_during_capture**：不可把两个时点的状态拼成新的 complete fingerprint；coverage 不得 complete。
+- 操作范围映射：不依赖该 dirty path set 的本地只读分析为 restricted；依赖该路径集合的写入/发布操作为 blocked（仅该依赖范围）。
+
+#### B. File object replaced during digest read
+
+- 确定性 hook 在摘要流读取期间替换路径所指向的对象，伴随 context 提供 handle identity 与 path identity 的前后观察。
+- 若 handle/path identity 分离，或平台不能可靠识别对象变化，受影响 entry=unknown，fingerprint coverage=partial/unknown。
+- 不应仅因读取结果不稳定就断言旧 Packet 一定 stale；只有之后存在一轮稳定观察且摘要不匹配时，旧 Packet claim 才能定为 stale。
+- 操作范围映射：不依赖该路径的本地只读分析为 restricted；依赖该路径精确内容/状态的操作为 blocked。
+
+重要限制：文件对象 identity token 不是内容不可变性证明。对同一 inode/file ID 的并发原地修改，若平台无法可靠观察，必须 unknown。不能把 inode 比较包装成跨平台原子读取保证。
+
+#### C. Case / Unicode path alias collision
+
+- 以精确 UTF-8 byte sequences 和显式 path-equivalence profile 注入两个不同 protocol path。
+- 若 profile 证明两个路径实际映射到同一 filesystem identity，则该路径声明=conflict/ambiguous；相关 coverage 降为 partial/unknown。若 profile 证明它们为不同对象，则保留两条精确路径，不制造冲突；若不能确定，则 unknown。
+- 不得 case-fold、Unicode normalize 或替换字符后静默合并路径。
+- 操作范围映射：触及冲突路径的操作 blocked；不依赖该路径的独立只读分析 restricted。
+
+确定性策略：跨客户端 Fixture Contract 使用 virtual path-identity adapter；真实大小写敏感度、Unicode normalization、挂载选项和网络文件系统表现属于按能力 profile 声明的 native E2E，不按 OS 名称推断。
+
+#### D. Provider authorization vs not-found
+
+- 通过 provider stub 分别注入认证 403、429、timeout、认证且权威的 404、以及未认证/可见性不确定的 404。
+- 403/429/timeout/ambiguous 404：source freshness=unknown，repository identity=unknown/unresolved。
+- 只有 provider 契约明确保证、请求主体已认证且资源/Revision 精确匹配的 authoritative 404，才能把对应 source freshness 标 stale；identity 仍为 unresolved，除非其他权威来源独立 corroborate。
+- 操作范围映射：不依赖远端身份的本地只读分析 restricted；依赖 checkout/canonical/push identity 的操作 blocked。
+- 原始 HTTP 404 本身不能证明资源不存在；provider 隐藏私有资源或权限不足时必须 unknown。
+
+#### 候选纳入下一版 Fixture Inventory 的判断
+
+| 候选 | 确定性契约层 | 原生平台依赖 | 下一版建议 |
+|---|---|---|---|
+| Re-enumeration race | disposable Git + barrier/event sequence，确定性强 | 仍需 Git CLI 跨平台 E2E | 纳入下一版 semantic fixture |
+| Provider response matrix | local provider stub + exact principal/resource/revision，确定性强 | provider adapter 的真实状态语义另做适配器 E2E | 纳入下一版 semantic fixture |
+| File object replacement | virtual observer hook 可稳定验证协议输出 | 真正文件身份/并发原地修改检测依赖平台文件 API | 拆成 observer-contract fixture + 按平台 native E2E |
+| Case/Unicode path alias | virtual path-equivalence adapter 可稳定验证规范化结果 | 原生 filesystem aliasing 依赖文件系统/mount capability | 拆成 profile-driven contract fixture + native filesystem E2E |
+
+这四类均不要求增加 Packet Schema 字段。前两类可作为确定性语义 Fixture 纳入下一版；后两类必须把协议行为测试与平台能力测试分层，避免将平台无法提供的能力误判为客户端语义错误，或反过来把未验证能力当作通过。
+
+当前 inventory 仍是 4 positive / 9 Schema-invalid / 19 semantic-invalid。上述仅为下一版候选纳入决策，不新增当前 Fixture、不启动 Validator/Runner，也不构成 D1 冻结批准。
+
+### 17.21 下一版 Semantic Fixture 候选 ID 与平台能力矩阵
+
+根据 §17.20 的纳入判断，进一步形成候选 case ID，不改变当前 Fixture Inventory。
+
+**建议纳入下一版的确定性 semantic cases：**
+
+- Re-enumeration race：
+  - `fingerprint-reenumeration-race-untracked-added`
+  - `fingerprint-reenumeration-race-index-changed`
+  - `fingerprint-reenumeration-race-head-changed`
+- Provider response matrix：
+  - `identity-source-forbidden`
+  - `identity-source-rate-limited`
+  - `identity-source-timeout`
+  - `identity-source-ambiguous-not-found`
+
+这 7 个 case 可以通过确定性的 observation snapshots / event sequence / local provider stub 执行，不需要真实 provider 或用户凭据。现有 `identity-source-reference-unresolvable` 继续代表 authenticated authoritative-not-found，不重复增加同义用例。
+
+**平台依赖场景拆分为虚拟契约与原生 E2E：**
+
+- File object：
+  - `fingerprint-file-object-replaced-contract`
+  - `fingerprint-file-mutated-in-place-contract`
+  - `fingerprint-file-identity-unavailable-contract`
+- Path identity：
+  - `fingerprint-path-case-alias-contract`
+  - `fingerprint-path-unicode-alias-contract`
+  - `fingerprint-path-distinct-control-contract`
+  - `fingerprint-path-equivalence-unavailable-contract`
+
+这些虚拟契约由 execution adapter 显式提供 handle/path identity 和 path-equivalence relation。原生 OS/filesystem E2E 另按实际挂载点测量 case sensitivity、Unicode behavior、文件对象 identity、in-place mutation detection、symlink 和 executable-bit 能力；不能只按 Windows/macOS/Linux 名称推断。
+
+**原生平台能力处理原则：**
+- 明确支持且应提供的能力，测试失败即失败。
+- profile 明确不支持的能力可标 not_applicable。
+- 预期支持但探测失败、能力结果不确定或观察不足，必须 unknown。
+- 不得将 not_applicable/unknown 当作 pass；也不得为使测试通过而静默修改路径、模式或内容。
+
+当前建议的下一版候选扩展共 14 个 contract cases（7 个确定性 semantic cases + 3 个文件对象 virtual cases + 4 个路径 identity virtual cases）；native E2E profile matrix 独立统计，不计作 Packet fixtures。
+
+当前状态继续保持 4 positive / 9 Schema-invalid / 19 semantic-invalid。Schema SHA `a2f2097a17c08bf0a2ae733ab43a8f1919b48813` 未变化。该候选列表仍需单独评审 companion-context machine representation、adapter API 与 reason codes；没有创建新 Packet fixture，也没有授权实现。
+
+### 17.22 候选 Adapter Contract 反例审查结论
+
+针对 §17.21 的 14 个候选 case，对测试机制本身进行反例审查，避免“测试框架的假设”被误当成协议事实。详细条件见 `SEMANTIC-EXECUTION-CONTRACT.md` §16。
+
+1. **Event barrier**
+   - 确定性 semantic test 必须使用显式初始/最终 observation snapshot ID 和有序 event log，至少区分 initial observation complete、mutation applied、final observation started/completed。
+   - 这可证明 Semantic Evaluator 如何处理两个不同观察；真实 CLI observer 是否在正确位置执行最终重读，仍需单独 observer E2E。禁止 sleep/polling timing tests。
+
+2. **File identity**
+   - 分离 open-handle identity、current path identity、content stability 三个观察。
+   - handle=A/path=A，替换后 handle=A/path=B，当前路径摘要必须 unknown；不能把 handle A 的 digest 当作 path B 的 digest。
+   - 同一 handle/path identity 仍可能发生原地内容变化；identity token、size 或粗粒度 mtime 都不是内容锁。无法可靠检测时必须 unknown。
+
+3. **Path equivalence**
+   - profile 不能只写 OS 名称；必须给精确 UTF-8 bytes/code points、case 与 Unicode capability、pairwise same_object/distinct_objects/cannot_determine 观察以及 profile revision。
+   - 不定义隐式、跨平台通用的 case-fold 或 Unicode normalize 算法。协议路径身份仍是原始 UTF-8 path；filesystem equivalence 是另一项观察。
+   - 无法确定关系时为 unknown，不能假定 distinct。
+
+4. **Provider authoritative 404**
+   - 至少需要 provider/API contract revision、精确 resource ID/revision/scope、已认证 principal、认证成功及 endpoint 不会对该 principal 隐藏资源的契约证据，并显式标记 authoritative_not_found。
+   - 缺少任何前提都应降为 ambiguous_not_found / unknown。不能凭 HTTP 404、响应文字或本地缓存缺失推断资源不存在。
+   - Fixture 不保存 token、cookie 或 authorization header。
+
+#### 审查决议
+
+- 四类机制在显式 companion input 下均能形成确定性语义契约。
+- 其中 event barrier + Provider Stub 可作为确定性 Semantic Fixture；File identity 和 Path equivalence 的虚拟契约可作为 client conformance fixture，但必须另做原生 OS/filesystem E2E。
+- 原生能力不支持且 profile 明确声明时为 not_applicable；预期能力无法测量时为 unknown；两者均不能当作 pass。
+- 上述方案不新增 Packet 字段，不修改 Schema 0.2.0，不改变当前 4 positive / 9 Schema-invalid / 19 semantic-invalid 数量。
+- 14 个候选 case 仍未纳入当前 Fixture Inventory；需要单独批准 companion-context 机器表示、adapter API 和 reason-code 边界后再扩充。
+
+### 17.23 独立 Semantic Fixture Context Contract 设计提案
+
+新增 `schemas/scp/0.2/fixtures/CONTEXT-CONTRACT-DESIGN.md`，作为当前 `SEMANTIC-CONTEXT.md`（人类说明）与未来机器 Fixture Runner 之间的设计层。
+
+提案要点：
+- 新建独立的 `scp-fixture-context` Contract，建议从 `schemas/scp-fixtures/0.1/fixture-context.schema.json` 开始，使用 Draft 2020-12；Context version 与 Packet `schema_version` 独立。
+- Context 仅固定 Packet/Schema blob SHA、environment profiles/capabilities、deterministic clock、allow-listed setup driver、stimulus/event sequence、companion observations 和 expected normalized D2 result。
+- 不保存项目任务/需求/ADR/decision/evidence，不复制项目权威状态，不包含真实凭据、不执行任意 shell，不允许指向用户真实仓库。
+- Setup driver ID 通过 harness registry 解析，测试环境变更只发生于 disposable root；观察阶段 read-only。
+- 输入 Context 与实际 run manifest 分离。Run manifest 记录 Context/Packet/Schema SHA、客户端/adapter 版本、实际 observation/event log、normalized actual result、断言与 cleanup 状态；不得回写 Context。
+- Reason codes 暂只作为 language-neutral Fixture Conformance vocabulary（建议 `scp.fixture.*`），不进入 Packet Schema 或 SCP runtime API。
+- Markdown 继续作为人类审查说明；只有在用户批准 Context Schema 后，JSON Schema 才成为它的机器契约。
+
+**权威边界判断：** Fixture Context 不形成第二套项目状态数据库：它只描述可重现的测试刺激和期望，不记录项目当前任务状态；实际观察和运行结果由独立 run manifest 保存，并以精确 SHA 绑定输入。项目权威状态仍归原有 intent/requirements/tasks/ADR/Evidence 来源。
+
+**该节的待决策清单（历史状态，已被 §17.24 / §17.25 更新）：**五项建议已由用户于 2026-11-12 批准；Context Schema 0.1.0 Draft 和 design-only Context instances 已创建。Runner/Adapter/CI Gate 仍未获授权。
+
+### 17.24 Fixture Context Contract 的最小治理决策建议
+
+对 §17.23 的 5 项开放边界进一步评估后形成以下推荐；用户已于 2026-11-12 明确批准：
+
+1. **独立 Contract/version namespace：接受。** 建议 `scp-fixture-context/0.1.0`，与 Packet 0.2.0 独立演进。
+2. **Typed declarative observations + allow-listed driver：接受。** Context 不允许任意 shell/脚本；driver ID 必须在 harness registry 允许列表内。
+3. **Run manifest 分离：接受。** 输入 Context immutable；每次客户端执行单独生成 run manifest，不写回 Context。
+4. **Reason codes 仅测试层：接受。** `scp.fixture.*` 只用于 Fixture Conformance，不加入 Packet 或 SCP runtime API。
+5. **Capability profile immutable ref + SHA：接受。** 首版不允许 fixture 级自由覆盖，能力差异通过另一个 immutable profile 表达。
+
+新增一个必要的完整性约束：setup driver 必须 pin `driver_id`、`driver_contract_version` 与 `driver_descriptor_sha256`，以标识确切的 Driver 描述文件；该摘要不是可执行包摘要。未来若允许 runnable Driver，Harness Registry 必须独立解析并校验 executable bundle 的 SHA-256，同时 pin 不可变 Registry snapshot，二者不能混用。Capability profile 同样 pin `profile_id`、`profile_version` 与 `profile_blob_sha`。Context 自身 SHA 由外部 Run Manifest pin，不能写入自身造成自引用。
+
+未来正式 Context Schema 的创建门槛见 `CONTEXT-CONTRACT-DESIGN.md` §14，包括所有引用不可变可解析、事件确定性、观察记录类型化、expected output 按 claim/scope 表达、无凭据/任意代码、缺输入 fail-closed、标准 Draft 2020-12 验证和两个独立 Harness adapter 对同一 Context 得到一致输入观察。
+
+该推荐已落实为 Context Schema 0.1.0 Draft 和少量 design-only Context instances。`SEMANTIC-CONTEXT.md` 继续作为人类 review catalog；机器 Context 只描述 test input/expected result，不形成第二套项目状态库。Packet Schema 0.2.0 与 4 / 9 / 19 Packet Fixture inventory 不变。
+
+### 17.25 Fixture Context 0.1.0 Draft 实体化与验证收敛
+
+用户已在 2026-11-12 明确批准 §17.24 的五项方案。本轮已将方案落实为独立的 Context 机器契约，而不是继续停留在提案状态：
+
+- `schemas/scp-fixtures/0.1/fixture-context.schema.json`：独立 Draft 2020-12 Schema；版本 `scp-fixture-context/0.1.0`，不扩展 Packet。
+- `schemas/scp-fixtures/0.1/COMPATIBILITY.md`：定义 Schema 无法表达的跨记录语义、Profile/Driver Registry 约束、事件序列、Provider authority、Expected result 规则。
+- `schemas/scp-fixtures/0.1/README.md`、`VALIDATION-REPORT.md`。
+- 三个不可变 Capability Profile、三个 Driver contract descriptor、一个合成 Provider not-found contract。
+- 三个 Context 正例和五个 Context Schema 负例，目标 Packet、Packet Schema、Capability Profile、Driver descriptor 和 Provider authority artifact 均采用 SHA pinning。
+
+Schema 设计要点：
+1. Context 与 Packet 独立版本化；Context 固定 Packet path/blob SHA、Packet Schema path/blob SHA 和 source repository commit。
+2. Profile 使用 `profile_id + profile_version + profile_blob_sha`。
+3. Driver 使用 `driver_id + driver_contract_version + driver_descriptor_sha256` pin 描述文件字节；当前 descriptor 状态全部为 `contract_only`，不是可执行 bundle。未来 Registry 必须将 executable bundle digest 与 descriptor digest 分开校验和记录。
+4. Context 不含 `execution_status`，不能自己声明 runnable；由未来 Harness Registry 解析精确 Driver/Profile 及可执行包。
+5. Provider authoritative 404 必须引用固定 SHA 的 provider contract evidence；路径等价观察必须绑定 profile revision。
+6. Context 不含项目状态源、真实凭据、任意脚本、实际 Run Result 或项目写入授权；Run Manifest 与输入分离且尚未定义为机器 Schema。
+
+当前 Context Schema blob SHA：`06db7a81e0f814d153c13db9df8b39986db9d4ac`。
+此前 Python `jsonschema 4.26.0` 的 Draft202012Validator + FormatChecker 结果针对旧 Schema blob `9348e22ac0ee450ce6689cec4fb87f0aa985104c`：meta-schema、3 正例、5 负例及 format/extension probes 通过。2026-11-14 确认当前 Schema blob `06db7a81e0f814d153c13db9df8b39986db9d4ac` 是旧 Schema 仅将 driver_bundle_sha256 改名为 driver_descriptor_sha256 后的精确内容；三个正例 Context 也仅做相同字段替换，五个负例 Blob 未变。当前 Schema JSON 解析、driver_ref 新字段结构及三个正例 Driver member-set 检查通过；完整 Draft202012Validator 未在本轮针对新 Blob 重新执行。验证报告位于 `schemas/scp-fixtures/0.1/VALIDATION-REPORT.md`。
+
+边界：上述验证只覆盖 Context JSON Schema 形状与格式，不证明 Profile/Driver Registry、provider stub、Git fixture、真实客户端观察或 Run Manifest 实际存在。Current driver descriptors 均是 `contract_only`，不能运行。
+
+Context Schema 0.1.0 仍为 Draft；§14 的两套独立 Harness Adapter 一致性标准仍是冻结/生产采用门槛。没有实现 Validator、Runner、Registry、Client Adapter、Run Manifest Writer 或 CI Gate。D0 保持已确认冻结；D1、D2、D3 未冻结。
+
+### 17.26 Run Manifest 最小模型与生命周期设计
+
+新增 `schemas/scp-fixtures/0.1/RUN-MANIFEST-DESIGN.md`，完成 Context 输入契约之后的执行证据模型设计，仍不创建机器 Schema 或 Writer。
+
+关键裁定：
+1. **一轮一份、不可变**：一个 Manifest 只描述一个 Client + Adapter + Harness attempt；同一 Context 的多个客户端/重试分别生成不同 Manifest，不覆盖旧结果。
+2. **输入输出分离**：Context 固定 Packet/Schema/Profile/Driver/Provider artifact 输入；Manifest 记录 Context 自身 Blob SHA、实际 event/observation、client/adapter/harness 版本、actual normalized output、assertion 与 cleanup。实际结果永不写回 Context。
+3. **双状态轴**：
+   - `conformance_outcome`：conformant / non_conformant / inconclusive / not_run，描述 Client 与预期的符合性。
+   - `harness_outcome`：healthy / failed / interrupted / not_started，描述测试基础设施运行状态。
+   清理失败时，语义断言即使通过也只能是 conformant + harness failed；整体运行不接受并隔离 disposable root。
+4. **生命周期状态轴分开**：setup、stimulus、observation、evaluation、cleanup 分别记录；不能用一个 success 布尔值吞掉部分成功/中断。
+5. **数据最小化**：默认不存文件原始内容、secret-bearing diff、token、cookie、authorization header 或用户工作区数据；优先引用经脱敏的不可变 observation artifact。
+6. **重试和中断**：重试新建 run_id/manifest；中断只可生成 terminal interrupted record，不能把部分执行补写成 completed。
+7. **信任边界**：Manifest 是一次测试的证据，不是项目 Evidence、任务状态或权限授予；Harness 对输入/Client 输出均按不可信数据处理。
+
+Manifest 自身 digest 由外部存储计算，不能在内容内自引用。Expected output 继续留在 Context，actual result 留在 Manifest；多客户端对照报告是第三种独立派生物，不回写任一 Manifest。
+
+本节未创建 `run-manifest.schema.json`、Writer、Store、Runner、Client Adapter 或 CI Gate。Context 0.1.0 仍为 Draft，D1/D2/D3 未冻结；需先评审双 outcome 语义、生命周期、重试和 cleanup/quarantine 后，才考虑形成机器 Schema。
+
+### 17.27 Run Manifest 状态分类反例审查
+
+对 Run Manifest §4–§8 作第二轮故障语义审查，补充 §11：
+
+- **Expected unknown ≠ missing observation**：若 Context 有意注入 403/429/timeout/ambiguous-404，并要求客户端 fail-closed 返回 unknown，匹配该结果应是 conformant；Harness 未能提供 Context 要求的观察输入才是 inconclusive/not_run。
+- **Client disagreement ≠ client crash**：有完整 normalized result 但与预期矛盾为 non_conformant；client crash/timeout/malformed output 导致没有完整结果为 inconclusive + failed/interrupted。
+- **Cleanup 与 Conformance 分离**：断言通过但 cleanup failed，conformance 可以保留 conformant，Harness outcome=failed，整体 run 不接受且 quarantine disposable root。
+- **Retry 与 interrupted**：每次 retry 必须新 run_id；interrupted manifest 是 terminal，不能重开补写成 completed。
+- **Registry preflight fail-closed**：Context invalid/unsupported、artifact SHA mismatch、Profile mismatch、Driver 未注册或 `contract_only`、executable digest mismatch，必须在 Client invocation 前拒绝，outcome=not_run。
+- **Multi-client comparison**：多个客户端各有独立 Run Manifest；跨客户端比较是第三种派生记录，不修改 Manifest，也不能将 inconclusive 升级为 conformant。
+
+这轮没有发现需要增加 Packet 或 Context Schema 字段的理由。Run Manifest 仍仅为设计文档，没有 Schema/Writer/Store/Runner/CI Gate。
+
+### 17.28 Run Manifest 第二轮故障与信任边界审查
+
+对 `RUN-MANIFEST-DESIGN.md` §1–§12 再作反例审查，补充 retry lineage、interrupted trust、cleanup ownership、artifact/Evidence separation 和 D2 permission boundary：
+
+1. **Retry identity**
+   - 每次 attempt 必须有全局唯一 `run_id`；`retry_group_id` 表示同一逻辑测试重试链；`attempt_number` 在该 group 内单调递增。
+   - 可选 `retry_of` 只能引用前一个 attempt 的 immutable manifest URI/digest。
+   - Duplicate run_id 是 storage conflict，绝不能覆盖/合并旧 Manifest；interrupted Manifest 是 terminal，retry 必须新建 run。
+
+2. **Interruption trust**
+   - 未完成所有 required assertions 时，即使已执行 assertion 全部 passed，也不能判 conformance=conformant。
+   - 若 client normalized result 和全部 assertion 已可靠持久化，但后续 cleanup/finalization 中断，可保留 semantic conformance outcome；Harness outcome=interrupted/failed，整体 run 仍不接受。
+   - 不存在完整 Manifest 时，外部 CI/Harness event ledger 只能证明 attempt started，不能替代 conformance evidence。
+   - 新 attempt 必须重建或重新验证 disposable state，不得继承半截 mutation。
+
+3. **Cleanup ownership**
+   - 只有 canonical path 位于 Harness-owned temporary parent、ownership marker 匹配 run_id、且无 symlink/reparse-point escape 时才能删除。
+   - 所有权无法证明时不删除，标 cleanup unknown/failed，隔离资源并请求外部 operator review。
+   - 清理失败不改变 client actual result；资源不得被 retry 复用。
+
+4. **Artifact/Evidence boundary**
+   - Run artifacts 归 Harness artifact namespace，不进入项目 `evidence_refs`、task/ADR 或用户仓库。
+   - 默认只保存 normalized state、event/snapshot IDs、OID/digest、脱敏诊断；raw artifact 必须来自 disposable root、先脱敏后持久化并有独立 access scope。
+   - token/cookie/authorization header/private key/credential URL 均禁止写入 Manifest。
+
+5. **D2 recovery/permission**
+   - actual `normal/restricted/blocked` 和 permitted/prohibited actions 是某 operation scope 下的测试观察，不是可执行命令或授权。
+   - restricted 不是写权限；blocked identity-dependent push 不必阻断独立 local read-only analysis。
+   - Harness 不调用 Client production write API；Context expected actions 与 Manifest actual actions 都是数据，不是命令。
+
+6. **Cross-client comparison**
+   - 仅对同一 Context/Packet/Schema/Driver/Profile/provider pins 及等价 capability/permission profile 作严格比较；环境不同则报告 mismatch，或只比较明确共同的 claim，不平均结果。
+
+本轮未发现需要向 Packet 或 Fixture Context 新增字段的理由。Run Manifest 仍仅为设计；未创建 Schema、Writer、Store、Runner、artifact service 或 CI Gate。
+
+### 17.29 Run Manifest 最小机器字段与 Context 跨记录契约审查（2026-11-12）
+
+本轮根据 §17.28 的后续任务，完成了 Run Manifest 最小字段候选、Context 0.1.0 字段映射、稳定断言身份和正反例审查。详细定义见：
+
+- `schemas/scp-fixtures/0.1/RUN-MANIFEST-DESIGN.md` §§13–16
+- `schemas/scp-fixtures/0.1/COMPATIBILITY.md` §10
+
+#### 本轮设计收敛
+
+1. Manifest 独立使用 `scp-fixture-run-manifest` 合同与独立版本空间；不进入 SCP Packet 或 Fixture Context。
+2. Manifest 的核心内容被收敛为：attempt identity/retry、wall-clock timestamps、exact input pins、implementation/normalizer pins、declared-vs-measured environment、phase lifecycle、actual normalized result、complete assertion outcomes、separate conformance/Harness outcomes、cleanup/quarantine、Harness-owned artifact refs。
+3. Context 的 expected 与 Manifest 的 actual 逐字段映射；claim/recovery 数组分别按 `claim_ref`/`operation_scope` 匹配，数组顺序不具语义。
+4. 原先泛化的 `assertion_id` 被结构化键取代：`(subject_kind, subject_ref, field)`。该键不依赖数组下标、自然语言描述或拼接用户自定义 ID，且要求 expected 的每个 normative leaf 恰有一个 assertion。
+5. Expected `unknown` 是明确的被测状态；客户端按预期返回 unknown 可以 conformant。Harness 未提供 required observation 则 inconclusive/not_run，不能把两者混淆。
+6. 重试、生命周期、输入 pin、能力、Evidence namespace 和 cleanup ownership 的跨记录约束已形成可审查的规则和 RM-P01–P04 / RM-N01–N10 场景集。
+
+#### Schema 决策
+
+**本轮不创建 Run Manifest JSON Schema。** 字段与示例已足以构成下一轮 Schema 设计输入，但现有 Schema gate 仍未满足：
+
+- 当前 Driver descriptors 均是 `contract_only`，没有可执行 Registry/Bundle。
+- 没有独立 Harness/Client Adapter，也没有稳定运行过的 normalized actual-result producer。
+- 没有 credential-redaction / artifact namespace 的可执行负例。
+- 没有两个独立 Harness 实现使用同一 Context 并产生可比较 Manifest 的互操作证据。
+- 没有 Manifest finalizer、外部内容寻址存储和 retry lineage semantic checker。
+
+现在创建机器 Schema 会把尚未经过独立实现验证的生命周期/归一化/Registry 假设过早固定。当前结论是 **design-complete candidate / schema-gate-not-met**，不是冻结，也不是否定 Run Manifest 方向。
+
+#### 影响范围与约束
+
+- 不新增 SCP Packet 0.2.0 字段。
+- 不新增 Fixture Context 0.1.0 字段；只补充其与未来 Manifest 的跨记录契约说明。
+- 不创建 Run Manifest Schema、Writer、Store、Runner、Harness Registry、Adapter、Semantic Validator 或 CI Gate。
+- 不冻结 D1、D2、D3 或 Context Contract 0.1.0。
+- D0 保持用户已确认冻结。
+- PR #11 继续 Open + Draft；不合并、不修改 PR #10/main、不 bump 项目版本、不打 Tag。
+
+### 17.30 Normalized Actual Result Contract 与跨客户端对照矩阵（2026-11-13）
+
+本轮将 Run Manifest 的 actual-result 概念从字段映射收敛为可独立实现的规范化投影契约。详细条款及三个现有 Context 投影示例见 `schemas/scp-fixtures/0.1/RUN-MANIFEST-DESIGN.md` §17；与 Context 0.1.0 的交叉规则见 `schemas/scp-fixtures/0.1/COMPATIBILITY.md` §11。
+
+#### 规范化输出收敛
+
+候选 contract identity：`scp-fixture-normalized-result/0.1.0`，仅作为设计候选，尚无 JSON Schema。
+
+1. Normalized Result 是 test-scoped projection，不是客户端完整内部状态快照。
+2. Context `expected` 提供本次测试的 claim_ref、operation_scope 和字段名；Normalizer 可使用这些键构造投影，但不能复制 expected values 或把其当作 actual observation。
+3. Claim 以精确 `claim_ref` 匹配；Recovery 以精确 `operation_scope` 匹配；数组顺序不具语义，重复 key 非法。
+4. 允许的字段值直接复用 Context 0.1.0 的枚举和集合语义；不新增 Packet/Context 字段。
+5. 字段缺失、显式 `unknown`、`null`、未知 enum/core field 分开处理：缺失=inconclusive/not_run；显式 unknown 是可比较值；null invalid；未知核心语义 unsupported/invalid，禁止降级成 unknown。
+6. actions、reason_codes、user_decisions_needed 是集合型数组：拒绝重复值，忽略顺序，空集合与字段缺失不同。
+7. 断言完整性由 expected property 树机械枚举；packet 两字段、claim 每个非 key 字段、recovery 每个非 key 字段各产生一个稳定 tuple `(subject_kind, subject_ref, field)`。集合字段作为一个原子断言。
+8. 归一化结果只包含本 Context 预期投影内的记录和字段；不使用数组索引、客户端自定义计数器或自由文本作为断言身份。
+
+#### 跨客户端比较矩阵
+
+派生比较报告采用：`equal`、`divergent`、`incomplete`、`incomparable`；无效输出另判 `invalid_result`。
+
+- 只有相同 Context/Schema/Packet/Packet Schema/source revision/Profile/Driver/Provider/Registry pins、相同 deterministic clock/event inputs、相同相关 measured capability/permission 观察以及相同 normalized-result contract version 才可精确比较。
+- Client/Adapter/Normalizer 的实现身份可以不同，且必须分别记录；这是互操作测试的被测差异，不是输入不等价。
+- Attempt IDs、墙钟时间、临时路径和本地 snapshot ID 不是 parity value；对 snapshot 比较 phase/role 与内容摘要。
+- Context 0.1.0 没有 per-assertion capability dependency map，相关 capability/permission 有实质差异时整体 incomparable，不推测共同子集。
+- `unknown` 只与 `unknown` 精确相等，不是 wildcard。
+- parity equal 不代表 conformance；两个客户端可能以相同方式违反 expected。每份 Manifest 仍独立对照 Context 判定。
+- parity divergent 也不自动证明哪一方正确；需分别核验 expected assertions。
+
+#### 验收向量与当前结论
+
+已新增 NR-P01–P03、NR-N01–N08 设计向量，覆盖数组顺序、unknown/absence、null、重复 key、opaque ID、缺少 assertion、环境不等价和 exact mismatch。针对现有三个 Context 示例，expected projection 断言数分别为：
+- credentialed-project-repository：12；
+- identity-source-reference-unresolvable：15；
+- fingerprint-path-set-mismatch：13。
+
+上述数量由各 Context 的 expected property 结构推导，未运行客户端、Adapter 或 Harness。
+
+**当前判断：Normalized Actual Result Contract 的设计候选达到可供独立实现评审的程度；Run Manifest Schema Gate 仍未满足。** 两个独立 Adapter 尚不存在，Driver 仍是 contract_only，redaction/cleanup 的可执行负例也不存在。本轮不创建 JSON Schema、Fixture Runner、Semantic Validator、Harness Registry、Writer、Store 或 CI Gate，不代表已经验证跨客户端互操作。
+
+下一项允许继续的工作是对 Normalized Result 候选做独立反例审查，并形成两种独立 Adapter 的接口/测试蓝图；实际 Adapter 原型实现应在用户明确授权后进行。
+
+### 17.31 Normalized Result Oracle 隔离与双 Adapter 蓝图（2026-11-13）
+
+本轮独立反例审查发现：单纯要求 Normalizer“不复制 expected”不足以防止 Oracle leakage；若完整 Context 挂载到被测 Agent 可访问的 worktree/tool scope，测试仍会泄露答案。已在 Run Manifest Design §18–§19 与 Context Compatibility §12 补齐。
+
+#### 信任区与输入边界
+
+- Harness Control Plane 持有完整 Context/expected 和 immutable pins。
+- Client Sandbox 仅接收 Packet/Packet Schema、实际 reconciled fixture observations、相关 measured capabilities/permissions、deterministic clock，以及只含 claim_ref / operation_scope / field names 的 values-stripped projection descriptor。
+- Oracle Evaluator 独立持有 expected values，只在 Client Under Test 返回后执行比较；expected、assertions、Manifest 和 oracle artifact 不能进入客户端可访问范围。
+- Harness preflight 只检查 Context/schema/artifact/Registry/fixture 输入，不能把 Harness 自己验证 Packet Schema 的结果伪装成 Client 的 `packet_schema_validation` 结果。
+- Context companion observations 是 fixture 预期输入；Harness 必须现场采集 actual observations 并对照，不能复制 Context 内容冒充现场证据。
+
+#### 双 Adapter 互操作拆分
+
+三个相互独立的验收结果：
+1. Harness-input parity：两个独立 Adapter 构造的 Packet/Schema/observations/capability/projection inputs 是否一致。
+2. Normalizer parity：两个独立 Normalizer 对同一组 raw-response synthetic vectors 是否给出相同的严格规范化结果。
+3. Client-output parity + per-client conformance：两个不同 Agent 客户端接收等价输入后的输出是否一致；每个客户端再分别对照同一 hidden expected oracle。
+
+独立实现不得仅靠不同名称/版本包装同一个共享 Normalizer。共享规范文档和 immutable fixtures 可以；共享被测归一化代码不可以。不同语言/runtime 是额外证据，但单凭语言差异不足以证明独立。
+
+#### 新增反例向量
+
+NR-N09–NR-N16 覆盖 expected 泄露、Harness 预检结果冒充 client output、Context observation 冒充现场采集、unknown core field 被静默丢弃、locale/Unicode 排序差异、共享 Normalizer 冒充独立实现、空集合与缺失字段混淆。
+
+#### 当前处置
+
+- Normalized Result 候选经上述修正后可进入独立实现审查。
+- Run Manifest Schema Gate 仍未满足；没有创建 Schema、Harness、Adapter、Registry、Runner、Writer、Store 或 CI Gate。
+- 两 Adapter 原型需要执行代码、依赖与隔离测试，尚未实现；本轮只建立实施蓝图。实际原型实施属于单独授权步骤。
+- D0 保持已确认冻结；D1/D2/D3/Context 0.1.0 仍未冻结。PR #11 保持 Open + Draft，不合并、不更改 PR #10/main、不 bump 版本、不打 Tag。
+
+### 17.32 双语言 Adapter/Normalizer/Oracle 原型实施记录（2026-11-13）
+
+用户已明确授权在三个既有 Context、合成测试数据和隔离临时目录范围内开始最小双实现原型。本轮已在 PR #11 新增：
+
+- `prototypes/scp-fixtures/0.1/node/`：独立 Node.js adapter/projection、strict JSON parser、Normalized Result normalizer、Oracle evaluator 和测试。
+- `prototypes/scp-fixtures/0.1/python/`：独立 Python 标准库实现，不导入、调用或 shell out 到 Node 版本。
+- `prototypes/scp-fixtures/0.1/fixtures/context/`：三个现有 Context 的精确副本；各文件 Git blob SHA 与源文件一致。
+- `fixtures/observations/` 与 `fixtures/client-output/`：独立维护的 synthetic observation package 和 synthetic client-response vectors。
+- `run-parity.sh`、README、VALIDATION-REPORT：运行入口、边界和验证来源说明。
+
+#### 实现能力
+
+1. strict UTF-8 JSON 解析、重复 object member 拒绝、非 Unicode scalar 字符串拒绝。
+2. Context expected 的 values-stripped projection descriptor；Client Evaluation Request 不包含完整 Context、expected 值、assertion outcome 或 Oracle 成员。
+3. Context/Packet/Packet Schema/Profile/Driver/Repository revision pins 的请求透传；三份 Context 的 Context Blob SHA 在测试加载时核验。
+4. 合成 observation 的 event sequence、companion observations、Profile pin 和 capability set reconciliation。
+5. Normalized Result 的字段/enum/set/key 校验、精确 claim/scope 匹配、数组顺序归一化、missing/unknown/null 分离。
+6. Oracle 对 Context expected projection 逐字段生成 assertion outcomes，并区分 conformant、non_conformant、inconclusive 和 not_run。
+
+#### 本地工作副本测试结果
+
+在 Linux x86_64、Node.js 22.16.0、Python 3.13.5 的隔离本地开发目录中运行了双实现测试：
+- 三份 Context；expected assertions 总数 40（12 + 15 + 13）。
+- Node 与 Python 各自测试套件通过。
+- 三组 Client Evaluation Request、Normalized Result、Oracle report 共 9 个文件逐字节一致。
+- 覆盖 duplicate JSON key、invalid UTF-8、unpaired surrogate、missing/unknown/null/empty set、duplicate key/member、unknown core field、event/observation/capability mismatch、Unicode NFC/NFD exact identity、value mismatch 和 pre-evaluation not_run。
+
+**验证来源限制：** 上述测试运行于本地开发工作副本；原型文件随后镜像提交到 PR 分支。当前 VALIDATION-REPORT 明确说明，它不是当前 PR Head 上 exact Git blobs 的运行报告。提交后的 GitHub Actions 检查也不执行这套原型。必须在 checkout PR 分支后运行 `sh prototypes/scp-fixtures/0.1/run-parity.sh`，才能取得提交内容自身的重跑证据。
+
+#### 明确未实现 / 未验证
+
+- 三份 Client Output 是合成向量；没有调用 ChatGPT、Claude、Codex 或其他 Agent。
+- 没有真实 Git worktree、文件系统能力探测、submodule 或 Provider observer。
+- 现有 Driver descriptor 仍为 `contract_only`；没有 Harness Registry / executable Driver。
+- 当前只透传依赖 artifact pins，没有完整下载并验证全部 transitive artifacts。
+- 没有 OS-level client sandbox，不能保证不受一个拥有 unrestricted host access 的 Agent 读取本地文件。
+- 没有通用 secret redaction、cleanup ownership/quarantine、retry persistence、immutable Manifest store/finalizer。
+- 未创建 Normalized Result / Run Manifest JSON Schema、Writer、Store、Runner 或 CI Gate。
+
+Synthetic Oracle 的 conformant 只表示固定的 synthetic response vector 匹配该 Context expected projection，不是任何 Agent 的 conformance 证据。
+
+#### 当前处置
+
+本轮证明了两条独立标准库实现的设计映射和本地开发工作副本的 parity；还没有证明真实 Agent 客户端互操作或安全隔离。下一道门不是 Run Manifest Schema，而是：
+1. checkout PR 分支后重跑 exact committed prototype files；
+2. 审查原型代码的安全与语义边界；
+3. 单独设计真实 Agent client invocation sandbox，先证明 oracle 不可见；
+4. 在真实 client 调用之前，补上可执行 synthetic Driver/Observation Adapter；实际生产 Provider 和用户仓库仍排除在外。
+
+D0 继续已确认冻结；D1/D2/D3、Context 0.1.0、Run Manifest 和 Normalized Result 均未冻结。PR #11 仍 Open + Draft；不合并、不修改 PR #10/main、不升级整体版本、不打 Tag。
+
+### 17.33 第二轮源码审查修正与执行状态（2026-11-13）
+
+在 §17.32 原型代码提交后，进一步源码审查发现并修正：
+
+- **空 actual row**：仅含 claim_ref / operation_scope 的行不产生实际字段，Normalizer 现在省略该行，Oracle 对相应 expected leaves 生成 inconclusive；Node/Python 行为统一。
+- **expected duplicate keys**：Projection Builder 对重复 claim_ref 或 operation_scope 立即拒绝，避免重复 Assertion Tuple。
+- **user_decisions_needed**：允许非空精确 Unicode/自然语言字符串（包括中文）；只有 permitted_actions / prohibited_actions 使用 action identifier 语法；reason_codes 使用专有命名空间。
+- 两套测试均加入对应回归用例：空行省略、expected 重复键拒绝、自然语言/中文决策字符串排序和空字符串拒绝。
+
+上述修改已经提交在 PR #11，但**没有在当前执行环境中运行**。本环境无法解析 github.com，checkout PR Head 失败。VALIDATION-REPORT 明确区分早期本地工作副本通过的 baseline 和本次新提交、尚待执行的回归测试。仓库已有 CI 不运行该原型脚本，不可将其绿灯解释为本原型通过。
+
+以上是提交第三轮修正时的历史执行状态。其后已通过 GitHub API 取回并核验源码/Fixture 的 Git Blob 身份，在隔离目录实际运行原型测试；最新执行、fixture identity 反例修正及阶段收口状态以 §17.34 和 VALIDATION-REPORT 为准。真实 Agent Sandbox、Agent invocation 和 interoperability 仍属于下一独立里程碑。
+
+
+### 17.34 Synthetic dual-implementation prototype closeout (2026-11-13)
+
+The Node.js/Python synthetic prototype has passed its in-scope test gate after the source and test corrections recorded in the validation report.
+
+- Three pinned Context fixtures were verified by Git Blob SHA.
+- Expected assertion leaves: 12 + 15 + 13 = 40.
+- Node.js suite passed; Python suite passed (2/2 tests).
+- Three Client Evaluation Requests, three Normalized Results and three Oracle reports were byte-identical across implementations (9/9).
+- Negative vectors include strict UTF-8/duplicate JSON handling, duplicate expected keys, empty-row omission, exact Unicode handling, invalid field values, observation/Profile/event/capability mismatches and explicit observation fixture_id mismatch.
+
+Source execution provenance: the environment could not resolve github.com for a normal Git clone. GitHub Contents API files were reconstructed in an isolated temporary directory and their Git Blob SHA identities were independently checked before the suite ran. This is an API-retrieved, blob-identity-verified execution, not a full Git checkout. The subsequent PR commit and existing Standards CI matrix are recorded separately in the validation report. Existing CI does not run the prototype-specific script.
+
+Stage 1 status: complete for the three pinned synthetic fixtures and the assertions/negative vectors listed above. This does not demonstrate live Agent behavior, real Provider/Git observations, OS-level isolation or production readiness.
+
+### 17.35 Next gate: OS-enforced Agent Sandbox and Oracle Isolation (design only)
+
+The next milestone is an independently testable OS trust boundary, not another extension of the Node/Python normalizer. The security design and adversarial acceptance matrix are in schemas/scp-fixtures/0.1/RUN-MANIFEST-DESIGN.md §21.
+
+The next implementation sequence is:
+1. Select one supported execution platform and define the measurable sandbox backend policy; do not claim cross-platform parity before separate backend evidence exists.
+2. Validate the backend with hostile synthetic child-process probes, without an Agent client, production credentials or external network.
+3. Run a synthetic adversarial client shim to test forbidden-path/socket access, network denial, process-tree termination, output bounds, pre-persistence redaction and cleanup quarantine.
+4. Only after the first two gates are independently evidenced should real Agent invocation be considered, under separate explicit authorization and least-privilege credential decision.
+
+No OS sandbox implementation, real Agent invocation, schema, Runner, Registry, Writer, Store or CI gate is created in this update. D0 remains the only user-confirmed frozen decision; D1/D2/D3 and all SCP fixture/Manifest/Normalized Result contracts remain Draft.
+
+
+### 17.36 Linux x86_64 Sandbox Gate A/B prototype evidence (2026-11-13)
+
+The first executable OS-isolation prototype is now recorded under \`prototypes/scp-sandbox/0.1/linux/\`.
+
+**Measured outcome:** three complete runs passed the Linux x86_64 Gate A/B core-probe matrix. The tested environment was Linux x86_64, kernel 6.18.57, inside an isolated Kata/container runtime with effective UID 0. A user namespace could be created first, allowing nested mount/network/PID namespaces even though direct namespace creation was denied by the outer runtime.
+
+The probe exercised:
+- read-only minimal rootfs and a separately writable scratch mount;
+- UID/GID 65534, no supplementary groups, dropped capability sets and \`no_new_privs\`;
+- host canary and symlink traversal denial; \`/proc\`, \`/sys\` and container runtime sockets were not exposed;
+- inability to reach a host loopback listener from the network namespace;
+- no inheritance of a host-only environment marker;
+- PID namespace descendant termination;
+- synthetic hostile shim denial of Oracle/Context/host-path reads and writes outside scratch;
+- 4096-byte combined output capture limit, overflow termination and no persistence of raw overflow output;
+- redaction of the exact synthetic test token before persisting the captured response;
+- owner-record containment, normal cleanup and injected cleanup-failure quarantine/non-reuse.
+
+The executable command is documented in the prototype README. The full output and source digests are in its VALIDATION-REPORT.
+
+**Scope boundary:** this is not a production Sandbox certification. It does not cover seccomp, Landlock, cgroup v2 delegation, LSM policy, kernel-escape testing, general secret scanning, actual filesystem cleanup failure, Windows/macOS, real Agent clients, Provider endpoints, production credentials or user repositories. The redactor recognizes only one synthetic marker. The environment must allow UID/GID mapping and namespace creation; otherwise the probe fails closed.
+
+Stage 2 status is now **Linux x86_64 Gate A/B core prototype passed; production backend and cross-platform acceptance remain incomplete**. Gate C (real Agent invocation) remains closed pending further security review and explicit authorization. D0 remains the only user-confirmed frozen decision; D1/D2/D3 and all SCP fixture/Manifest/Normalized Result contracts remain Draft.
+
+
+#### 17.36 supplementary security primitive findings
+
+A standalone C smoke test installed a minimal classic seccomp-BPF filter with `PR_SET_SECCOMP`, denied a harmless `getppid` syscall with `EPERM`, and passed in the current Linux runtime. This does not mean the main namespace/chroot probe installs or enforces a seccomp policy; the filter remains a separate capability check only.
+
+The cgroup v2 controller list is visible (`cpuset cpu io memory hugetlb pids`), but the cgroup hierarchy is not writable and does not permit creating a delegated child cgroup. The current sandbox probe therefore uses per-process `prlimit`, not cgroup resource accounting.
+
+The Landlock ABI query did not return within a bounded 2-second probe. Landlock support is unknown in this environment and is not claimed. These checks are recorded in the Sandbox validation report and are not upgrades to the Gate A/B acceptance result.
+
+
+### 17.37 Seccomp launch-chain integration test (2026-11-14)
+
+The Linux Sandbox launcher now runs a second integration harness after the namespace/chroot core probe. A C wrapper installs an x86_64 architecture-checked seccomp-BPF denylist after UID/capability drop and before execing a synthetic client. It denies a defined set of high-risk syscalls, rejects x32 ABI syscall-number tagging, and sets no_new_privs. The client verifies blocked operations, allowed PID/fixture/scratch operations, read-only-root write denial, and filter inheritance through fork+exec. The test passed locally with GCC -Wall -Wextra -Werror.
+
+The filter is a denylist with default ALLOW and must not be described as a production syscall allowlist. This does not prove kernel-escape resistance or replace cgroup/Landlock/LSM policy. Gate C remains closed.
+
+
+### 17.39 Modern mount/process-handle and chroot cwd bypass coverage (2026-11-14)
+
+The Linux sandbox regression suite was extended beyond legacy mount and namespace calls:
+- modern mount API: open_tree, move_mount, fsopen, fsconfig, fsmount, fspick and mount_setattr;
+- process handles: pidfd_getfd, pidfd_send_signal, process_madvise and kcmp;
+- chroot cwd: the host runner deliberately sets cwd to the parent temporary directory and places a world-readable canary there before chroot. The client must receive ENOENT when attempting to read the canary by relative path, proving that the chroot launch path moved cwd into the new root.
+
+All listed calls and cwd probes pass in both the main synthetic client and its fork+exec child. Ordinary fixture reads and dedicated scratch writes remain allowed; rootfs writes remain EROFS. The final source file Git Blob identities and execution command are in the validation report.
+
+This remains an x86_64 syscall denylist with default ALLOW, not a complete allowlist or production certification. cgroup delegation is unavailable in the tested environment; Landlock remains unverified; real Agent invocation remains closed.
+
+
+#### 17.40 Definitive Landlock/cgroup capability status
+
+A bounded C probe of landlock_create_ruleset returned ENOSYS in the tested Linux runtime; Landlock is unavailable there. cgroup v2 controllers are visible but the cgroup2 mount is read-only and cannot delegate child cgroups. The Linux prototype therefore uses per-process prlimit and does not claim aggregate cgroup resource enforcement. This supersedes earlier handoff language that described Landlock as merely unknown.
+
+
+### 17.41 Bounded tmpfs scratch and non-executable workspace (2026-11-14)
+
+The Linux seccomp integration replaced its host-directory scratch bind mount with a tmpfs mounted inside the private mount namespace. The mount is capped at 32 MiB and uses nosuid,nodev,noexec. The synthetic client checks TMPFS_MAGIC, ST_NOEXEC, ST_NOSUID, ST_NODEV, the reported size ceiling and successful marker creation in both the parent and fork+exec child. The host-only writable scratch directory is no longer mounted into the chroot.
+
+This bounds file-backed scratch capacity and prevents execution from the scratch mount. It is not aggregate cgroup resource accounting: cgroup v2 delegation is unavailable in the tested runtime, and process-level prlimit remains the only CPU/address-space/process resource bound.
+
+
+### 17.42 Inherited FD closure and bounded scratch filesystem (2026-11-14; initial implementation, superseded)
+
+The initial seccomp exec wrapper closed file descriptors 3+ before execing the synthetic client: close_range was used where available, with an RLIMIT_NOFILE-bounded close loop as fallback. The runner opened a host-only canary as FD 9; both client and fork+exec child had to observe EBADF. This numeric fallback was later removed after review found that it could miss descriptors opened above a subsequently lowered RLIMIT_NOFILE. The current fail-closed behavior and FD 9/100 regressions are recorded in the latest Stage 2 validation report. The scratch tmpfs now specifies size=32m,nr_inodes=4096,nosuid,nodev,noexec. Regression code checks tmpfs magic, all mount flags, byte and inode ceilings, and actual scratch write in both processes.
+
+This closes an inherited-FD access path and bounds both bytes and inode count in scratch. It does not prove aggregate cgroup accounting or a complete syscall allowlist; Gate C remains closed.
+
+
+### 17.43 Runtime privilege-state readback (2026-11-14)
+
+The Linux regression client now verifies actual runtime identity and privilege state after seccomp exec: real/effective UID/GID 65534; zero supplementary groups; PR_GET_NO_NEW_PRIVS=1; PR_GET_SECCOMP=SECCOMP_MODE_FILTER; capget effective/permitted/inheritable sets all zero; and PR_CAPBSET_READ reports an empty bounding set for every capability through CAP_LAST_CAP. Both parent and fork+exec child pass. This validates runtime state rather than simply trusting launcher flags.
+
+
+### 17.44 Seccomp denylist test-mode discrimination and rule coverage (2026-11-14)
+
+The Linux seccomp integration now compiles and runs both test-mode and production-mode wrapper/client pairs. Test mode maps a denylist hit to EACCES, while production mode retains EPERM. This distinct test result avoids confusing a seccomp match with the kernel's ordinary permission rejection for privileged syscalls. The test-only getppid sentinel is blocked only in test mode; production mode explicitly confirms getppid remains allowed.
+
+The synthetic client has 42 generic denial assertions and dedicated probes for kcmp, legacy clone namespace flags, clone3's ENOSYS fallback behavior and x32 syscall-number rejection (the x32 child must terminate with SIGSYS). It exercises the current denylist entries from mount/filesystem APIs through process-memory and pidfd operations, kernel/module/BPF/perf/keyring calls, handle APIs, namespace changes, io_uring and system-level operations. Both wrapper variants execute under the namespace/chroot/UID/capability setup; both parent and fork+exec child repeat the relevant checks.
+
+The two full integration-harness runs passed on Linux x86_64, kernel 6.18.57, GCC 14.2.0. This is still a targeted x86_64 denylist, not a production syscall allowlist, general Agent Runner certification or kernel-escape proof. Gate C remains closed.
+
+
+### 17.45 Real filesystem cleanup-failure quarantine probe (2026-11-14)
+
+A supplemental executable probe now exercises a genuine cleanup failure rather than relying only on the core Python probe's injected state-machine branch. Inside a private user + mount namespace, it mounts a disposable tmpfs below an owned resource directory. Calling `os.rmdir` on the mounted directory must return the kernel error `EBUSY`.
+
+Before moving the owned tree to quarantine, the test atomically persists a `quarantining` state. It then moves the tree to a separate quarantine path, persists `quarantined`, reads the owner record back and verifies that reuse is refused. The mounted canary remains readable at the quarantined path. Only explicit unmount and deletion of the owned paths allow the record to transition to `cleaned`.
+
+Three consecutive executions passed on Linux x86_64 / kernel 6.18.57. The script is `prototypes/scp-sandbox/0.1/linux/cleanup-failure-integration.sh`, invoked by the main `linux/run.sh` entry point. Its Git Blob SHA is `97aaea4f700ff15e91ab127774b21b5dce76521d`.
+
+Scope qualification: this validates one real mountpoint-busy cleanup failure and a focused persisted quarantine/reuse-guard/recovery flow. It supplements rather than replaces deterministic fault injection in the core probe, and it does not certify a general cleanup manager or all filesystem failure modes. Gate C remains closed.
+
+
+### 17.47 Cleanup owner-record ordering (2026-11-14)
+
+The cleanup failure helper now flushes and fsyncs the temporary owner-record file before atomic replacement, then fsyncs the containing directory. This ensures the test orders the persisted `quarantining` record before the owned-tree rename, persists `quarantined` after the rename, and only records `cleaned` after explicit unmount and owned-path removal.
+
+This is a targeted ordering and filesystem-level test on the current Linux runtime. It does not claim universal crash durability across all filesystem implementations, storage hardware or production resource managers.

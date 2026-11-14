@@ -1,0 +1,102 @@
+{
+  "contract": "scp-fixture-context",
+  "context_version": "0.1.0",
+  "fixture_id": "fingerprint-path-set-mismatch",
+  "target": {
+    "packet": {
+      "path": "schemas/scp/0.2/fixtures/invalid/semantic/fingerprint-path-set-mismatch.json",
+      "blob_sha": "e2a77fe916bc5188bf97d528f2e46c5af1a7a8dd"
+    },
+    "packet_schema": {
+      "path": "schemas/scp/0.2/continuity-packet.schema.json",
+      "blob_sha": "a2f2097a17c08bf0a2ae733ab43a8f1919b48813"
+    },
+    "repository_revision": "1670320ea980368ed74cd4edd11cba4297467bde"
+  },
+  "environment": {
+    "profiles": [
+      "local_git"
+    ],
+    "clock": "2026-11-12T00:00:00Z",
+    "capability_profile": {
+      "profile_id": "local-git-contract",
+      "profile_version": "0.1.0",
+      "profile_blob_sha": "b0fc0273870f4591e5a53a51db7d189c012c826c"
+    }
+  },
+  "setup": {
+    "driver": {
+      "driver_id": "git.path-set.mismatch",
+      "driver_contract_version": "0.1.0",
+      "driver_descriptor_sha256": "sha-256:27a0df17005a22f3da6901c45c768a8fbbdd9a34e8eea67b1d7c5493173e37e9"
+    },
+    "isolation": {
+      "root_scope": "harness_disposable",
+      "network_access": "local_stub_only",
+      "credential_mode": "synthetic_only"
+    }
+  },
+  "stimulus": {
+    "events": [
+      {
+        "sequence": 1,
+        "event": "observation_completed",
+        "phase": "final",
+        "snapshot_id": "git-snapshot-final-001"
+      }
+    ]
+  },
+  "companion_observations": [
+    {
+      "kind": "git_snapshot",
+      "snapshot_id": "git-snapshot-final-001",
+      "head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "index_snapshot_sha256": "sha-256:1111111111111111111111111111111111111111111111111111111111111111",
+      "status_paths": [
+        "notes/changed.md",
+        "src/agent.ts"
+      ],
+      "branch": "feature/scp-schema"
+    }
+  ],
+  "expected": {
+    "packet_schema_validation": "valid",
+    "protocol_compatibility": "compatible",
+    "claims": [
+      {
+        "claim_ref": "code.worktree_fingerprint",
+        "freshness": "conflict",
+        "applicability": "applicable",
+        "fingerprint_coverage": "unknown",
+        "observation_consistency": "stable",
+        "reason_codes": [
+          "scp.fixture.fingerprint.path_set_mismatch"
+        ]
+      }
+    ],
+    "recovery": [
+      {
+        "operation_scope": "read_unrelated_project_rules",
+        "recovery_mode": "restricted",
+        "permitted_actions": [
+          "read_project_rules"
+        ],
+        "prohibited_actions": [
+          "write"
+        ]
+      },
+      {
+        "operation_scope": "modify:notes/changed.md",
+        "recovery_mode": "blocked",
+        "permitted_actions": [
+          "read_project_rules"
+        ],
+        "prohibited_actions": [
+          "modify_affected_path",
+          "push"
+        ]
+      }
+    ]
+  },
+  "notes": "Design-only vector. Companion Git snapshot is synthetic and intentionally has a path set that differs from the complete Fingerprint entries in the target Packet. The referenced driver bundle is a declarative contract only."
+}
