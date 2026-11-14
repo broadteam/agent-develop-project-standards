@@ -130,6 +130,20 @@ def terminate_process_group(proc):
         raise RuntimeError("child process leader did not exit after group teardown") from exc
 
 
+def wait_for_process_exit_without_reaping(proc, deadline):
+    """Observe leader exit while retaining its PID/PGID until group teardown."""
+    while True:
+        result = os.waitid(os.P_PID, proc.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+        if result is not None:
+            if result.si_pid != proc.pid:
+                raise RuntimeError("waitid returned an unexpected child PID")
+            return result
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise CaptureDeadlineExceeded("seccomp integration process did not exit before its deadline")
+        time.sleep(min(0.025, remaining))
+
+
 def run_bounded(command, *, env, timeout_seconds, max_output_bytes, pass_fds=()):
     proc = subprocess.Popen(
         command,
@@ -169,14 +183,14 @@ def run_bounded(command, *, env, timeout_seconds, max_output_bytes, pass_fds=())
                     )
                 captured[key.data].extend(chunk)
                 captured_total += len(chunk)
-        remaining_time = deadline - time.monotonic()
-        try:
-            return_code = proc.wait(timeout=max(0.01, remaining_time))
-        except subprocess.TimeoutExpired as exc:
-            raise CaptureDeadlineExceeded("seccomp integration process did not exit before its deadline") from exc
+        # Do not reap the leader before checking its process group. A reaped PID
+        # could be recycled, making a later killpg() target an unrelated group.
+        # WNOWAIT observes exit while the zombie leader still pins its PGID.
+        wait_for_process_exit_without_reaping(proc, deadline)
         # The leader can exit while descendants have redirected/closed both output pipes.
         # They must still be terminated before a successful return from the runner.
         terminate_process_group_members(proc.pid)
+        return_code = proc.wait(timeout=2.0)
         return return_code, bytes(captured["stdout"]), bytes(captured["stderr"])
     except (OutputLimitExceeded, CaptureDeadlineExceeded):
         selector.close()
@@ -192,6 +206,24 @@ def run_bounded(command, *, env, timeout_seconds, max_output_bytes, pass_fds=())
 
 def self_test_bounded_capture(tmp):
     env = os.environ.copy()
+    # WNOWAIT must leave the leader waitable while teardown inspects its PGID.
+    leader = subprocess.Popen(
+        [sys.executable, "-c", "pass"],
+        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    try:
+        first_wait = wait_for_process_exit_without_reaping(leader, time.monotonic() + 5)
+        second_wait = os.waitid(os.P_PID, leader.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+        if second_wait is None or second_wait.si_pid != leader.pid or first_wait.si_pid != second_wait.si_pid:
+            raise RuntimeError("WNOWAIT did not preserve the exited leader identity")
+        if leader.wait(timeout=2) != 0:
+            raise RuntimeError("WNOWAIT self-test leader exited unsuccessfully")
+        print("PASS process-group-leader-pid-retained-until-teardown")
+    finally:
+        if leader.poll() is None:
+            leader.kill()
+            leader.wait(timeout=2)
     rc, stdout, stderr = run_bounded(
         [sys.executable, "-c", "import sys; sys.stdout.buffer.write(b'x' * 65536)"],
         env=env, timeout_seconds=5, max_output_bytes=65536,
