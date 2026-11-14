@@ -268,6 +268,50 @@ def self_test_bounded_capture(tmp):
         else:
             raise RuntimeError("process-group inspection incorrectly accepted invalid proc input: " + case_name)
 
+    # Exercise successful parser paths independently of the live process group
+    # used by this harness. The command name may itself contain ')'.
+    proc_behavior_cases = [
+        ("live-member", "4242 (worker ) with parens) S 1 42 1", True),
+        ("different-process-group", "4242 (worker) S 1 43 1", False),
+        ("zombie-member", "4242 (worker) Z 1 42 1", False),
+    ]
+    for case_name, stat_content, expected_live in proc_behavior_cases:
+        fake_proc_root = os.path.join(tmp, "fake-proc-behavior-" + case_name)
+        fake_stat_dir = os.path.join(fake_proc_root, "4242")
+        os.makedirs(fake_stat_dir, exist_ok=True)
+        with open(os.path.join(fake_stat_dir, "stat"), "w", encoding="ascii") as stream:
+            stream.write(stat_content)
+        actual_live = process_group_has_live_members(42, proc_root=fake_proc_root)
+        if actual_live is not expected_live:
+            raise RuntimeError("process-group inspection returned the wrong result: " + case_name)
+        print("PASS process-group-inspection-" + case_name)
+
+    # A PID can disappear after scandir() but before its stat file is opened.
+    # Both ENOENT and ESRCH representations of that race must be benign.
+    for race_name, race_error in (
+        ("file-not-found", FileNotFoundError),
+        ("process-lookup", ProcessLookupError),
+    ):
+        fake_proc_root = os.path.join(tmp, "fake-proc-race-" + race_name)
+        os.makedirs(os.path.join(fake_proc_root, "4242"), exist_ok=True)
+        with patch("builtins.open", side_effect=race_error("synthetic PID disappearance")):
+            actual_live = process_group_has_live_members(42, proc_root=fake_proc_root)
+        if actual_live:
+            raise RuntimeError("disappeared PID was incorrectly reported as live: " + race_name)
+        print("PASS process-group-inspection-tolerates-pid-race-" + race_name)
+
+    # Failure to enumerate /proc is distinct from a PID disappearing and must
+    # never be interpreted as an empty process group.
+    with patch("os.scandir", side_effect=PermissionError("synthetic /proc scan denial")):
+        try:
+            process_group_has_live_members(42, proc_root=os.path.join(tmp, "unreadable-proc"))
+        except RuntimeError as exc:
+            if "cannot inspect /proc" not in str(exc):
+                raise
+            print("PASS process-group-inspection-fails-closed-scan-permission-error")
+        else:
+            raise RuntimeError("process-group inspection accepted an unreadable /proc root")
+
 
 fd_source, rootfs, tmp = sys.argv[1:]
 source_fd = os.open(fd_source, os.O_RDONLY)
