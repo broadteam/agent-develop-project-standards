@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Changed
+- Clarify the mainline scope as repository-based AI governance: AI advances work and maintains authoritative records, scripts/CI enforce mechanically testable rules, and users retain intent decisions and high-risk authorization. The Linux Sandbox remains optional execution-isolation research, not a core 2.0 deliverable or release gate.
+- Strengthen the optional multi-agent protocol with Coordinator/Worker responsibilities, isolated worktrees, explicit base revisions and write sets, single-writer governance state, structured handoff, post-integration verification and sequential fallback on conflicts.
+
 ### Added
 - Add task-level intent alignment review: tracked work records its baseline/accepted-change anchors before implementation and compares actual diffs, commits and verification evidence before closeout. Unresolved drift cannot be marked done.
 - Add separate Node/Python `intent-alignment-check` modules, invoked by the existing traceability gates; enforce task kickoff/closeout anchors, accepted change references, task evidence coverage/commit matching, and completed-milestone closure gates. Legacy tasks/milestones without explicit opt-in remain compatible.
