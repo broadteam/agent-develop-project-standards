@@ -363,10 +363,18 @@ The compressed core probe and real-filesystem cleanup helper retain their separa
 
 ## 2026-11-14 bounded output-capture correction (latest integration execution pending)
 
-The latest `run-seccomp-integration.sh` Git Blob is `cfd709e8a668c578228bc34946c099730584dc3f`. It replaces `Popen.communicate()` and the after-collection size check with selector-driven incremental reads from stdout and stderr. The combined retained output is limited to 65,536 bytes, with one 4,096-byte transient read buffer. Crossing the limit raises `OutputLimitExceeded`, closes the read ends and terminates the child process group with SIGTERM followed by SIGKILL escalation. The parent also enforces a 65-second deadline and applies the same process-group termination on timeout.
+The bounded-capture implementation was first added in script Blob `cfd709e8a668c578228bc34946c099730584dc3f`. It replaced `Popen.communicate()` with selector-driven incremental reads and a 64 KiB combined retention limit. The initial wrapper still invoked GNU `timeout` as an intermediate process, and its flood fixture was double-escaped; the follow-up below removes both weaknesses.
 
 The script now runs three helper self-tests before invoking the namespace chain: exact 65,536-byte output is accepted; a continuous writer is terminated on overflow; a silent process is terminated on the parent deadline. A separate local harness using the same selector/process-group strategy passed these three cases (3/3). This was helper-level validation; the exact latest script Blob `cfd709e8...` has **not** yet been executed through the full seccomp integration.
 
 The earlier three POSIX-sh seccomp runs and their exact script Blob `14c7bb8504b2da6ed637501bf6f8a29085d6be5f` remain valid for the FD 9/100, close_range-unavailable, standard-I/O, seccomp and RLIMIT assertions at that revision. They do not count as an integration rerun of the updated bounded-capture parent. The latest current script revision must pass the harness self-tests and the complete test/production launch chain before this update can be marked execution-verified.
 
 The complete `linux/run.sh` combined invocation also remains unexecuted. The current container cannot resolve or connect to GitHub; a manually reconstructed compressed probe copy did not match its expected Git Blob and was discarded without execution. No corrupted or unpinned source was used.
+
+## 2026-11-14 direct process-group ownership and flood-fixture correction
+
+The current `run-seccomp-integration.sh` removes the nested GNU `timeout` process. Python launches `unshare` directly with `start_new_session=True`; the `Popen` child is therefore the process-group leader. The same parent owns the 60-second deadline and terminates that process group on output overflow or timeout using SIGTERM followed by SIGKILL escalation.
+
+The continuous-output self-test had a double-escaped newline in its `python -c` source, so it could fail with a syntax error instead of exercising a sustained writer. The test source now contains a single escaped newline, which becomes a real line break in the child Python source. The bounded-capture algorithm was independently exercised locally: exact 65,536-byte output accepted; a continuous writer rejected at the cap with process-group termination; silent child terminated at the deadline (3/3).
+
+These local tests reproduce the helper algorithm, but the exact current integrated script Blob has not yet been executed through the seccomp namespace chain. The previous three-run FD / close_range / stdio evidence remains tied to script Blob `14c7bb8504b2da6ed637501bf6f8a29085d6be5f`. The integrated current script and the combined `linux/run.sh` remain pending.

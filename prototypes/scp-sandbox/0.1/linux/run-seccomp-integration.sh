@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-for c in gcc ldd unshare mount chroot setpriv prlimit busybox awk timeout python3; do command -v "$c" >/dev/null 2>&1 || { echo "missing $c" >&2; exit 127; }; done
+for c in gcc ldd unshare mount chroot setpriv prlimit busybox awk python3; do command -v "$c" >/dev/null 2>&1 || { echo "missing $c" >&2; exit 127; }; done
 TMP=$(mktemp -d /tmp/scp-seccomp-integration.XXXXXX);cleanup(){ rm -rf "$TMP"; };trap cleanup EXIT HUP INT TERM
 R="$TMP/rootfs";mkdir -p "$R/bin" "$R/usr/bin" "$R/work"
 copy_to(){ src=$1;dst="$R$2";mkdir -p "$(dirname "$dst")";cp -L "$src" "$dst";chmod 0555 "$dst";ldd "$src"|awk '{for(i=1;i<=NF;i++)if($i~/^\//)print $i}'|while read -r lib;do [ -e "$lib" ]||continue;out="$R$lib";mkdir -p "$(dirname "$out")";cp -L "$lib" "$out";chmod 0555 "$out";done; }
@@ -144,7 +144,7 @@ def self_test_bounded_capture():
     print("PASS bounded-capture-exact-limit")
     try:
         run_bounded(
-            [sys.executable, "-c", "import os; b=b'x'*8192\\nwhile True: os.write(1,b)"],
+            [sys.executable, "-c", "import os; b=b'x'*8192\nwhile True: os.write(1,b)"],
             env=env, timeout_seconds=5, max_output_bytes=65536,
         )
     except OutputLimitExceeded:
@@ -171,7 +171,6 @@ finally:
         os.close(source_fd)
 
 command = [
-    "timeout", "--signal=TERM", "--kill-after=3s", "60s",
     "unshare", "--user", "--map-users", f"0:{os.getuid()}:1",
     "--map-users", "1:1:65535", "--map-groups", f"0:{os.getgid()}:1",
     "--map-groups", "1:1:65535", "--mount", "--net", "--pid", "--fork",
@@ -182,7 +181,7 @@ env["HOST_SECRET_CANARY"] = "must-not-enter-client"
 self_test_bounded_capture()
 try:
     return_code, stdout, stderr = run_bounded(
-        command, env=env, timeout_seconds=65, max_output_bytes=65536, pass_fds=(9, 100),
+        command, env=env, timeout_seconds=60, max_output_bytes=65536, pass_fds=(9, 100),
     )
 except OutputLimitExceeded as exc:
     raise SystemExit("FAIL " + str(exc))
