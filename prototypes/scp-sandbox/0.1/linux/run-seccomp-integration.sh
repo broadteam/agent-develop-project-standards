@@ -144,7 +144,7 @@ def self_test_bounded_capture():
     print("PASS bounded-capture-exact-limit")
     try:
         run_bounded(
-            [sys.executable, "-c", "import os; b=b'x'*8192\\nwhile True: os.write(1,b)"],
+            [sys.executable, "-c", "import os; b=b'x'*8192\nwhile True: os.write(1,b)"],
             env=env, timeout_seconds=5, max_output_bytes=65536,
         )
     except OutputLimitExceeded:
