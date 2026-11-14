@@ -333,16 +333,30 @@ The `active` state is separately required to admit the original owned resource. 
 Scope: this is an explicit state-based admission check implemented inside the synthetic test helper. It still does not test a production resource manager, symlink/race/partial-creation handling, or crash recovery across process restart. Production cleanup-manager acceptance remains closed.
 
 
-## 2026-11-14 close_range fail-closed hardening (execution pending)
+## 2026-11-14 close_range regression and standard-I/O harness execution
 
-A follow-up code review identified a descriptor-leak edge case in the previous numeric fallback: `RLIMIT_NOFILE` may be lowered after a higher-numbered descriptor has already been opened, so a loop bounded by the current soft limit can miss an inherited host descriptor. The launcher was changed to require `close_range(3, UINT_MAX, 0)`; it no longer falls back to a numeric close loop. Any failure (including unavailable syscall or an outer policy denying it) returns launcher exit status 69 before `execvp`.
+This section supersedes the prior execution-pending note. The first attempt to run the helper through the documented POSIX sh entry exposed a test-harness portability defect: the exec 100<file construct was parsed as an attempted command by the container's /bin/sh (dash). The helper was corrected to open and duplicate FD 9 and FD 100 through Python, then pass only those descriptors to the namespace chain. The launcher and its fail-closed close_range behavior were not weakened.
 
-The current exact source identities are:
-- `seccomp-exec.c`: `c59d673e0094d6e604649d9ddca85624f812f620`.
-- `seccomp-child-test.c`: `b32467d0a0527f843e4179428348e6e556bdbd6c`.
-- `run-seccomp-integration.sh`: `826fbb31b475514235ad70e9abb25f15941ab607`.
-- `cleanup-failure-integration.sh`: `bde76808b7dbf7af1dcf895fa207fe19e880d6e1`.
+The client test also verifies the standard-I/O boundary in the synthetic runner harness:
+- stdin is explicitly /dev/null (character device major 1, minor 3);
+- stdout and stderr are supervisor-created pipes;
+- the client checks all three descriptors in both the initial process and fork+exec child, in test and production seccomp variants;
+- the harness captures output and fails above 64 KiB after process completion. This is a test assertion only, not a production streaming/back-pressure limit.
 
-The updated regression opens both FD 9 and FD 100 before lowering `RLIMIT_NOFILE` to 64, then requires the synthetic client to observe `EBADF` for both. A separately compiled `SCP_TEST_FORCE_CLOSE_RANGE_UNAVAILABLE` launcher must return 69 without creating the client marker. The latest commit `5f54a3243abc5e39a16760b103532681c1cec102` only fixes diagnostic newlines in the FD assertions. **These new FD-100 and forced-unavailable cases have been inspected but have not yet been executed against the exact current source in this validation pass.** The latest Standards CI run does not invoke this Sandbox harness and is not evidence for these probes.
+Exact source identities at the replay:
+- seccomp-exec.c: c59d673e0094d6e604649d9ddca85624f812f620 (unchanged exact remote Blob).
+- seccomp-child-test.c: 14d4f6b32c23de5f39889a2da5a2967b51102d95.
+- run-seccomp-integration.sh: 14c7bb8504b2da6ed637501bf6f8a29085d6be5f.
+- cleanup-failure-integration.sh: bde76808b7dbf7af1dcf895fa207fe19e880d6e1 (unchanged).
 
-The wrapper deliberately preserves standard descriptors 0, 1 and 2. For any future production Runner, stdin/stdout/stderr must be explicitly attached to supervisor-controlled channels (with bounded output capture and a defined stdin policy); arbitrary inherited host files, terminals or sockets must not be treated as safe. This particular stdio binding is not verified by the current prototype. The existing exact FD 9 result applies to the earlier implementation/revision only; the current revision's stronger closure behavior remains awaiting its own run.
+Environment: Linux x86_64, kernel 6.18.57, effective UID 0, GCC 14.2.0, Python 3.13.5. The modified helper was invoked explicitly with sh, compiled with -Wall -Wextra -Werror, and passed three consecutive runs.
+
+Each run verified:
+- forced close_range unavailability returns launcher exit 69 and does not create the client marker;
+- FD 9 and FD 100 are EBADF in the test and production clients, including fork+exec children, after the process limit is reduced to 64;
+- the six soft/hard RLIMIT ceilings, UID/GID 65534, empty supplementary groups/capabilities, no_new_privs, seccomp state, syscall-deny probes, namespace-clone checks, x32 rejection, read-only root, bounded tmpfs and fork+exec filter inheritance;
+- controlled standard I/O in four client contexts per run (test/production x initial process/fork+exec).
+
+This remains a synthetic Linux x86_64 launch-chain test, not a production Runner. It does not establish a production stdin policy, online output back-pressure, aggregate resource control, complete syscall allowlist, LSM policy, general secret scanning, or cross-platform support.
+
+The compressed core probe and real-filesystem cleanup helper retain their separately recorded exact-Blob evidence. The complete linux/run.sh combined invocation has not been run in one invocation in this pass. Existing Standards CI does not execute this Sandbox harness.

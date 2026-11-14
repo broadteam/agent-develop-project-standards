@@ -7,6 +7,8 @@
 #include <sys/statvfs.h>
 #include <sys/vfs.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
+#include <sys/sysmacros.h>
 #include <sys/resource.h>
 #include <sys/prctl.h>
 #include <grp.h>
@@ -64,6 +66,23 @@ static int check_resource_limits(void) {
  }
  return bad;
 }
+static int check_standard_io_binding(void) {
+ struct stat in, out, err;
+ if (fstat(STDIN_FILENO, &in) != 0 || fstat(STDOUT_FILENO, &out) != 0 || fstat(STDERR_FILENO, &err) != 0) {
+  perror("fstat standard I/O");
+  return 1;
+ }
+ if (!S_ISCHR(in.st_mode) || major(in.st_rdev) != 1 || minor(in.st_rdev) != 3) {
+  fprintf(stderr, "FAIL stdin is not supervisor-bound /dev/null\n");
+  return 1;
+ }
+ if (!S_ISFIFO(out.st_mode) || !S_ISFIFO(err.st_mode)) {
+  fprintf(stderr, "FAIL stdout/stderr are not supervisor capture pipes\n");
+  return 1;
+ }
+ puts("PASS controlled-stdio-stdin-devnull-stdout-stderr-pipes");
+ return 0;
+}
 static int check_runtime_identity(void) {
  int bad = 0;
  if (getuid() != 65534 || geteuid() != 65534 || getgid() != 65534 || getegid() != 65534) {
@@ -91,6 +110,7 @@ static int check_runtime_identity(void) {
 }
 static int check(void) {
  int bad = check_runtime_identity();
+ bad += check_standard_io_binding();
  bad += check_resource_limits();
 #ifdef SCP_SECCOMP_TEST_MODE
  bad += blocked(SYS_getppid, "test-sentinel");

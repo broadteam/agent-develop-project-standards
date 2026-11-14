@@ -2,7 +2,7 @@
 
 **Snapshot:** 2026-11-14  
 **Scope:** Synthetic Linux x86_64 security prototype only  
-**Decision:** Limited Linux prototype evidence is recorded; production sandbox acceptance and Stage 3 authorization remain closed. The latest close_range hardening adds regression coverage, but those new cases are pending execution.
+**Decision:** Limited Linux prototype evidence is recorded; production sandbox acceptance and Stage 3 authorization remain closed. The close_range and standard-I/O harness corrections have been executed three consecutive times; production sandbox acceptance and Stage 3 authorization remain closed.
 
 ## Acceptance status
 
@@ -14,8 +14,8 @@
 | Seccomp architecture check, x32 rejection, clone/clone3 namespace bypass | PASS (targeted x86_64) | Denylist only; test-mode EACCES distinguishes rule match; production mode retains EPERM. |
 | Seccomp syscall regression list | PASS (listed syscalls only) | Not a complete allowlist; unlisted syscalls default ALLOW. |
 | Bounded scratch | PASS (tested runtime) | 32 MiB / 4096 inode tmpfs with nosuid,nodev,noexec. |
-| Inherited host FD closure | PARTIAL (latest hardening execution pending) | Earlier exact run proved FD 9 unavailable. Current revision requires close_range and adds FD 100-above-soft-limit plus forced-unavailable/fail-closed regressions; these new cases have not yet been executed. FD 0–2 are preserved and require controlled Runner streams. |
-| Standard I/O descriptors 0–2 | NOT VERIFIED | Preserved by the launcher; production Runner must supply controlled stdin/stdout/stderr channels and prove bounded capture. |
+| Inherited host FD closure | PASS (three POSIX-sh harness runs) | close_range(3, UINT_MAX, 0) closes FD 9 and FD 100 even after RLIMIT_NOFILE is lowered to 64; forced-unavailable build exits 69 before client exec and leaves the marker absent. Parent and fork+exec clients both verify EBADF. |
+| Standard I/O descriptors 0–2 | PASS (synthetic boundary probe only) | Harness binds stdin to /dev/null and stdout/stderr to pipes; the client verifies FD 0–2 in parent and fork+exec paths. This does not certify a production Runner or its output/back-pressure policy. |
 | Resource ceilings | PASS (per-process / per-UID limits only) | Readback: CORE 0, CPU 10s, FSIZE 1 MiB, NOFILE 64, NPROC 64 per UID, AS 256 MiB. Not aggregate CPU or memory accounting. |
 | Wall-clock hang containment | PASS (runner configuration) | Core 90s, seccomp 60s, cleanup 15s. |
 | Real cleanup failure / quarantine | PASS (one failure class) | Mounted tmpfs removal returns EBUSY. The synthetic admission path admits only `active` and explicitly rejects `quarantining`, `quarantined` and `cleaned`; explicit unmount and cleanup recover. Owner record is fsync'd before/after atomic state replacement. This is not a production resource manager. |

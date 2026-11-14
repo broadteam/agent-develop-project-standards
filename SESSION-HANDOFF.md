@@ -1957,6 +1957,23 @@ Latest blobs at PR Head `5f54a3243abc5e39a16760b103532681c1cec102`:
 - `seccomp-child-test.c`: `b32467d0a0527f843e4179428348e6e556bdbd6c`.
 - `run-seccomp-integration.sh`: `826fbb31b475514235ad70e9abb25f15941ab607`.
 
-The revised harness opens FD 9 and FD 100 before reducing `RLIMIT_NOFILE` to 64 and checks both are absent in the child. It also compiles a forced-unavailable variant and checks that the launcher fails with 69 without running the client marker. These new cases have been statically inspected but are **not yet executed** against this current exact source. The 16/16 Standards CI does not run this sandbox harness.
+Historical note: at the time of this entry, the FD-100 and forced-unavailable cases were pending. The execution results and POSIX-shell correction are superseded by the later 2026-11-14 record below.
 
-FDs 0–2 intentionally remain open for standard I/O. A real Runner must bind these to supervisor-owned bounded channels and define stdin behavior; this has not been established by the current synthetic probe. Production Sandbox readiness, Gate C and generalized cleanup-manager acceptance remain closed.
+FDs 0–2 were still pending a controlled harness assertion at that earlier revision.
+
+
+## 2026-11-14 close_range and controlled-stdio harness execution
+
+The latest seccomp integration helper was corrected after the original exec 100<file construct failed under POSIX /bin/sh (dash). The replacement opens FD 9 and FD 100 with Python os.open / os.dup2, and passes exactly those two descriptors through the namespace launcher. The test now runs under the documented sh entry rather than relying on Bash-only redirection syntax.
+
+Exact source blobs:
+- seccomp-exec.c: c59d673e0094d6e604649d9ddca85624f812f620.
+- seccomp-child-test.c: 14d4f6b32c23de5f39889a2da5a2967b51102d95.
+- run-seccomp-integration.sh: 14c7bb8504b2da6ed637501bf6f8a29085d6be5f.
+- cleanup-failure-integration.sh: bde76808b7dbf7af1dcf895fa207fe19e880d6e1.
+
+Linux x86_64 / kernel 6.18.57, GCC 14.2.0, Python 3.13.5: three consecutive POSIX-sh executions passed. Each run verifies forced close_range unavailability -> exit 69 with no client marker; FD 9 and FD 100 -> EBADF in parent and fork+exec clients; test/production seccomp variants; and the six existing RLIMIT ceilings.
+
+The harness explicitly supplies stdin as /dev/null and stdout/stderr as pipes, and the client verifies these descriptor types in both parent and fork+exec paths (four checks per run). The harness rejects output exceeding 64 KiB after collection; this is not a production streaming/back-pressure implementation. No production Runner is certified.
+
+The compressed Python core probe and real-filesystem cleanup helper still have separate exact-Blob execution evidence. The combined linux/run.sh entry point remains unexecuted as one invocation. Production Sandbox, generalized cleanup manager, aggregate cgroup limits, complete syscall allowlist, LSM review, cross-platform support and Gate C remain unaccepted or closed.
