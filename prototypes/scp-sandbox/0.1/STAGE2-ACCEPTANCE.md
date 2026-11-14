@@ -14,12 +14,12 @@
 | Seccomp architecture check, x32 rejection, clone/clone3 namespace bypass | PASS (targeted x86_64) | Denylist only; test-mode EACCES distinguishes rule match; production mode retains EPERM. |
 | Seccomp syscall regression list | PASS (listed syscalls only) | Not a complete allowlist; unlisted syscalls default ALLOW. |
 | Bounded scratch | PASS (tested runtime) | 32 MiB / 4096 inode tmpfs with nosuid,nodev,noexec. |
-| Inherited host FD closure | PASS (three POSIX-sh harness runs) | close_range(3, UINT_MAX, 0) closes FD 9 and FD 100 even after RLIMIT_NOFILE is lowered to 64; forced-unavailable build exits 69 before client exec and leaves the marker absent. Parent and fork+exec clients both verify EBADF. |
-| Standard I/O descriptors 0–2 | PASS (synthetic boundary probe only) | Harness binds stdin to /dev/null and stdout/stderr to pipes; the client verifies FD 0–2 in parent and fork+exec paths. This does not certify a production Runner or its output/back-pressure policy. |
+| Inherited host FD closure | PASS (prior exact harness revision) | The three POSIX-sh runs used `run-seccomp-integration.sh` Blob `14c7bb8504b2da6ed637501bf6f8a29085d6be5f`: close_range closes FD 9/100, and forced-unavailable exits 69 before client exec. The latest parent-wrapper revision has not yet been re-run end-to-end. |
+| Standard I/O descriptors 0–2 | PASS (prior exact harness revision) | The prior `14c7bb...` revision bound stdin to /dev/null and stdout/stderr to pipes; the client verified FD 0–2 in parent and fork+exec paths. This does not certify a production Runner. |
 | Resource ceilings | PASS (per-process / per-UID limits only) | Readback: CORE 0, CPU 10s, FSIZE 1 MiB, NOFILE 64, NPROC 64 per UID, AS 256 MiB. Not aggregate CPU or memory accounting. |
 | Wall-clock hang containment | PASS (runner configuration) | Core 90s, seccomp 60s, cleanup 15s. |
 | Real cleanup failure / quarantine | PASS (one failure class) | Mounted tmpfs removal returns EBUSY. The synthetic admission path admits only `active` and explicitly rejects `quarantining`, `quarantined` and `cleaned`; explicit unmount and cleanup recover. Owner record is fsync'd before/after atomic state replacement. This is not a production resource manager. |
-| Output bounds / synthetic marker redaction | PASS (narrow fixture scope) | Core probe capture is capped at 4096 bytes and redacts one exact synthetic marker only. Seccomp test harness separately caps combined stdout/stderr at 64 KiB while draining; not a general secret scanner or production Runner. |
+| Output bounds / synthetic marker redaction | PASS (core probe) / PARTIAL (latest seccomp parent) | Core probe capture is capped at 4096 bytes and redacts one exact synthetic marker only. Latest seccomp parent Blob `cfd709e8...` implements a 64 KiB combined streaming capture cap; exact/overflow/timeout helper tests passed 3/3 in a separate local harness, but the integrated latest script remains pending execution. Not a general secret scanner or production Runner. |
 | cgroup v2 delegated resource control | BLOCKED | Controllers visible, cgroup2 hierarchy read-only; cannot create delegated child cgroups. |
 | Landlock | UNAVAILABLE in tested runtime | landlock_create_ruleset returned ENOSYS; no Landlock policy installed. |
 | LSM policy / kernel-escape resistance | NOT VERIFIED | No AppArmor/SELinux policy audit or kernel-escape certification. |
@@ -51,3 +51,6 @@ The post-commit source audit established exact Git Blob matches for seccomp-exec
 ## Repository governance
 
 PR #11 remains Open + Draft. D0 is the only user-confirmed frozen decision. D1/D2/D3 and SCP fixture, Normalized Result and Run Manifest contracts remain Draft. This register records evidence and outstanding gates; it does not freeze a schema, enable CI gating, authorize production use or merge the PR.
+### Latest seccomp parent revision
+
+The current `run-seccomp-integration.sh` Blob is `cfd709e8a668c578228bc34946c099730584dc3f`. Its bounded-capture helper tests passed 3/3 locally; the full latest seccomp launch-chain has not yet been re-run. The previous three-run evidence is for Blob `14c7bb8504b2da6ed637501bf6f8a29085d6be5f`, before the parent output-capture correction.

@@ -333,7 +333,7 @@ The `active` state is separately required to admit the original owned resource. 
 Scope: this is an explicit state-based admission check implemented inside the synthetic test helper. It still does not test a production resource manager, symlink/race/partial-creation handling, or crash recovery across process restart. Production cleanup-manager acceptance remains closed.
 
 
-## 2026-11-14 close_range regression and standard-I/O harness execution
+## 2026-11-14 close_range regression and standard-I/O harness execution (pre-bounded-capture revision)
 
 This section supersedes the prior execution-pending note. The first attempt to run the helper through the documented POSIX sh entry exposed a test-harness portability defect: the exec 100<file construct was parsed as an attempted command by the container's /bin/sh (dash). The helper was corrected to open and duplicate FD 9 and FD 100 through Python, then pass only those descriptors to the namespace chain. The launcher and its fail-closed close_range behavior were not weakened.
 
@@ -341,7 +341,7 @@ The client test also verifies the standard-I/O boundary in the synthetic runner 
 - stdin is explicitly /dev/null (character device major 1, minor 3);
 - stdout and stderr are supervisor-created pipes;
 - the client checks all three descriptors in both the initial process and fork+exec child, in test and production seccomp variants;
-- the harness incrementally drains stdout/stderr with selectors and retains at most 64 KiB combined (plus one 4 KiB read buffer). It terminates the child process group on overflow or the 65-second parent deadline. Standalone helper tests cover exact-limit acceptance, overflow termination and silent-timeout termination (3/3 local pass). This remains test-harness capture, not production Runner or online back-pressure certification.
+- the harness revision tested in this replay used the pre-bounded-capture parent collector. Its prior after-collection 64 KiB check was not a memory bound. The current streaming correction is recorded in the separate section below.
 
 Exact source identities at the replay:
 - seccomp-exec.c: c59d673e0094d6e604649d9ddca85624f812f620 (unchanged exact remote Blob).
@@ -349,7 +349,7 @@ Exact source identities at the replay:
 - run-seccomp-integration.sh: 14c7bb8504b2da6ed637501bf6f8a29085d6be5f.
 - cleanup-failure-integration.sh: bde76808b7dbf7af1dcf895fa207fe19e880d6e1 (unchanged).
 
-Environment: Linux x86_64, kernel 6.18.57, effective UID 0, GCC 14.2.0, Python 3.13.5. The modified helper was invoked explicitly with sh, compiled with -Wall -Wextra -Werror, and passed three consecutive runs.
+Environment: Linux x86_64, kernel 6.18.57, effective UID 0, GCC 14.2.0, Python 3.13.5. At that replay, the helper Blob `14c7bb8504b2da6ed637501bf6f8a29085d6be5f` was invoked explicitly with sh, compiled with -Wall -Wextra -Werror, and passed three consecutive runs. This execution predates the bounded-output-capture update documented below.
 
 Each run verified:
 - forced close_range unavailability returns launcher exit 69 and does not create the client marker;
@@ -360,3 +360,13 @@ Each run verified:
 This remains a synthetic Linux x86_64 launch-chain test, not a production Runner. It does not establish a production stdin policy, online output back-pressure, aggregate resource control, complete syscall allowlist, LSM policy, general secret scanning, or cross-platform support.
 
 The compressed core probe and real-filesystem cleanup helper retain their separately recorded exact-Blob evidence. The complete linux/run.sh combined invocation has not been run in one invocation in this pass. Existing Standards CI does not execute this Sandbox harness. The bounded-capture self-test is local helper evidence, not a rerun of the integrated seccomp harness.
+
+## 2026-11-14 bounded output-capture correction (latest integration execution pending)
+
+The latest `run-seccomp-integration.sh` Git Blob is `cfd709e8a668c578228bc34946c099730584dc3f`. It replaces `Popen.communicate()` and the after-collection size check with selector-driven incremental reads from stdout and stderr. The combined retained output is limited to 65,536 bytes, with one 4,096-byte transient read buffer. Crossing the limit raises `OutputLimitExceeded`, closes the read ends and terminates the child process group with SIGTERM followed by SIGKILL escalation. The parent also enforces a 65-second deadline and applies the same process-group termination on timeout.
+
+The script now runs three helper self-tests before invoking the namespace chain: exact 65,536-byte output is accepted; a continuous writer is terminated on overflow; a silent process is terminated on the parent deadline. A separate local harness using the same selector/process-group strategy passed these three cases (3/3). This was helper-level validation; the exact latest script Blob `cfd709e8...` has **not** yet been executed through the full seccomp integration.
+
+The earlier three POSIX-sh seccomp runs and their exact script Blob `14c7bb8504b2da6ed637501bf6f8a29085d6be5f` remain valid for the FD 9/100, close_range-unavailable, standard-I/O, seccomp and RLIMIT assertions at that revision. They do not count as an integration rerun of the updated bounded-capture parent. The latest current script revision must pass the harness self-tests and the complete test/production launch chain before this update can be marked execution-verified.
+
+The complete `linux/run.sh` combined invocation also remains unexecuted. The current container cannot resolve or connect to GitHub; a manually reconstructed compressed probe copy did not match its expected Git Blob and was discarded without execution. No corrupted or unpinned source was used.
