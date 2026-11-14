@@ -40,8 +40,126 @@ env -i HOME=/tmp PATH=/bin:/usr/bin /usr/bin/prlimit --core=0 --cpu=10 --fsize=1
 NAMESPACE_TEST
 python3 - "$TMP/host-fd-canary" "$R" "$TMP" <<'PY'
 import os
+import selectors
+import signal
 import subprocess
 import sys
+import time
+
+class OutputLimitExceeded(RuntimeError):
+    pass
+
+class CaptureDeadlineExceeded(TimeoutError):
+    pass
+
+def terminate_process_group(proc):
+    for stream in (proc.stdout, proc.stderr):
+        if stream is not None:
+            try:
+                stream.close()
+            except OSError:
+                pass
+    try:
+        os.killpg(proc.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    try:
+        proc.wait(timeout=1.0)
+    except subprocess.TimeoutExpired:
+        pass
+    try:
+        os.killpg(proc.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    try:
+        proc.wait(timeout=2.0)
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("child process group did not terminate after SIGKILL") from exc
+
+def run_bounded(command, *, env, timeout_seconds, max_output_bytes, pass_fds=()):
+    proc = subprocess.Popen(
+        command,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        pass_fds=tuple(pass_fds),
+        env=env,
+        start_new_session=True,
+        bufsize=0,
+    )
+    selector = selectors.DefaultSelector()
+    captured = {"stdout": bytearray(), "stderr": bytearray()}
+    captured_total = 0
+    deadline = time.monotonic() + timeout_seconds
+    selector.register(proc.stdout, selectors.EVENT_READ, "stdout")
+    selector.register(proc.stderr, selectors.EVENT_READ, "stderr")
+    try:
+        while selector.get_map():
+            remaining_time = deadline - time.monotonic()
+            if remaining_time <= 0:
+                raise CaptureDeadlineExceeded("seccomp integration exceeded the parent deadline")
+            events = selector.select(min(0.25, remaining_time))
+            for key, _ in events:
+                chunk = os.read(key.fd, 4096)
+                if not chunk:
+                    selector.unregister(key.fileobj)
+                    key.fileobj.close()
+                    continue
+                remaining_bytes = max_output_bytes - captured_total
+                if len(chunk) > remaining_bytes:
+                    if remaining_bytes > 0:
+                        captured[key.data].extend(chunk[:remaining_bytes])
+                        captured_total += remaining_bytes
+                    raise OutputLimitExceeded(
+                        f"seccomp integration exceeded the {max_output_bytes}-byte combined output limit"
+                    )
+                captured[key.data].extend(chunk)
+                captured_total += len(chunk)
+        remaining_time = deadline - time.monotonic()
+        try:
+            return_code = proc.wait(timeout=max(0.01, remaining_time))
+        except subprocess.TimeoutExpired as exc:
+            raise CaptureDeadlineExceeded("seccomp integration process did not exit before its deadline") from exc
+        return return_code, bytes(captured["stdout"]), bytes(captured["stderr"])
+    except (OutputLimitExceeded, CaptureDeadlineExceeded):
+        selector.close()
+        terminate_process_group(proc)
+        raise
+    finally:
+        selector.close()
+        for stream in (proc.stdout, proc.stderr):
+            if stream is not None and not stream.closed:
+                stream.close()
+        if proc.poll() is None:
+            terminate_process_group(proc)
+
+def self_test_bounded_capture():
+    env = os.environ.copy()
+    rc, stdout, stderr = run_bounded(
+        [sys.executable, "-c", "import sys; sys.stdout.buffer.write(b'x' * 65536)"],
+        env=env, timeout_seconds=5, max_output_bytes=65536,
+    )
+    if rc != 0 or len(stdout) != 65536 or stderr:
+        raise RuntimeError("bounded capture exact-limit self-test failed")
+    print("PASS bounded-capture-exact-limit")
+    try:
+        run_bounded(
+            [sys.executable, "-c", "import os; b=b'x'*8192\\nwhile True: os.write(1,b)"],
+            env=env, timeout_seconds=5, max_output_bytes=65536,
+        )
+    except OutputLimitExceeded:
+        print("PASS bounded-capture-overflow-kills-process-group")
+    else:
+        raise RuntimeError("bounded capture did not reject output overflow")
+    try:
+        run_bounded(
+            [sys.executable, "-c", "import time; time.sleep(30)"],
+            env=env, timeout_seconds=0.25, max_output_bytes=65536,
+        )
+    except CaptureDeadlineExceeded:
+        print("PASS bounded-capture-timeout-kills-process-group")
+    else:
+        raise RuntimeError("bounded capture did not enforce the parent deadline")
 
 fd_source, rootfs, tmp = sys.argv[1:]
 source_fd = os.open(fd_source, os.O_RDONLY)
@@ -61,23 +179,16 @@ command = [
 ]
 env = os.environ.copy()
 env["HOST_SECRET_CANARY"] = "must-not-enter-client"
-proc = subprocess.Popen(
-    command,
-    stdin=subprocess.DEVNULL,
-    stdout=subprocess.PIPE,
-    stderr=subprocess.PIPE,
-    pass_fds=(9, 100),
-    env=env,
-)
+self_test_bounded_capture()
 try:
-    stdout, stderr = proc.communicate(timeout=65)
-except subprocess.TimeoutExpired:
-    proc.kill()
-    stdout, stderr = proc.communicate()
-    raise SystemExit("FAIL seccomp integration timed out")
-if len(stdout) + len(stderr) > 65536:
-    raise SystemExit("FAIL seccomp integration exceeded 64 KiB captured output")
+    return_code, stdout, stderr = run_bounded(
+        command, env=env, timeout_seconds=65, max_output_bytes=65536, pass_fds=(9, 100),
+    )
+except OutputLimitExceeded as exc:
+    raise SystemExit("FAIL " + str(exc))
+except CaptureDeadlineExceeded as exc:
+    raise SystemExit("FAIL " + str(exc))
 sys.stdout.buffer.write(stdout)
 sys.stderr.buffer.write(stderr)
-raise SystemExit(proc.returncode)
+raise SystemExit(return_code)
 PY

@@ -19,7 +19,7 @@
 | Resource ceilings | PASS (per-process / per-UID limits only) | Readback: CORE 0, CPU 10s, FSIZE 1 MiB, NOFILE 64, NPROC 64 per UID, AS 256 MiB. Not aggregate CPU or memory accounting. |
 | Wall-clock hang containment | PASS (runner configuration) | Core 90s, seccomp 60s, cleanup 15s. |
 | Real cleanup failure / quarantine | PASS (one failure class) | Mounted tmpfs removal returns EBUSY. The synthetic admission path admits only `active` and explicitly rejects `quarantining`, `quarantined` and `cleaned`; explicit unmount and cleanup recover. Owner record is fsync'd before/after atomic state replacement. This is not a production resource manager. |
-| Output bounds / synthetic marker redaction | PASS (narrow fixture scope) | 4096-byte capture and exact synthetic marker only; not a general secret scanner. |
+| Output bounds / synthetic marker redaction | PASS (narrow fixture scope) | Core probe capture is capped at 4096 bytes and redacts one exact synthetic marker only. Seccomp test harness separately caps combined stdout/stderr at 64 KiB while draining; not a general secret scanner or production Runner. |
 | cgroup v2 delegated resource control | BLOCKED | Controllers visible, cgroup2 hierarchy read-only; cannot create delegated child cgroups. |
 | Landlock | UNAVAILABLE in tested runtime | landlock_create_ruleset returned ENOSYS; no Landlock policy installed. |
 | LSM policy / kernel-escape resistance | NOT VERIFIED | No AppArmor/SELinux policy audit or kernel-escape certification. |

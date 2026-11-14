@@ -341,7 +341,7 @@ The client test also verifies the standard-I/O boundary in the synthetic runner 
 - stdin is explicitly /dev/null (character device major 1, minor 3);
 - stdout and stderr are supervisor-created pipes;
 - the client checks all three descriptors in both the initial process and fork+exec child, in test and production seccomp variants;
-- the harness captures output and fails above 64 KiB after process completion. This is a test assertion only, not a production streaming/back-pressure limit.
+- the harness incrementally drains stdout/stderr with selectors and retains at most 64 KiB combined (plus one 4 KiB read buffer). It terminates the child process group on overflow or the 65-second parent deadline. Standalone helper tests cover exact-limit acceptance, overflow termination and silent-timeout termination (3/3 local pass). This remains test-harness capture, not production Runner or online back-pressure certification.
 
 Exact source identities at the replay:
 - seccomp-exec.c: c59d673e0094d6e604649d9ddca85624f812f620 (unchanged exact remote Blob).
@@ -359,4 +359,4 @@ Each run verified:
 
 This remains a synthetic Linux x86_64 launch-chain test, not a production Runner. It does not establish a production stdin policy, online output back-pressure, aggregate resource control, complete syscall allowlist, LSM policy, general secret scanning, or cross-platform support.
 
-The compressed core probe and real-filesystem cleanup helper retain their separately recorded exact-Blob evidence. The complete linux/run.sh combined invocation has not been run in one invocation in this pass. Existing Standards CI does not execute this Sandbox harness.
+The compressed core probe and real-filesystem cleanup helper retain their separately recorded exact-Blob evidence. The complete linux/run.sh combined invocation has not been run in one invocation in this pass. Existing Standards CI does not execute this Sandbox harness. The bounded-capture self-test is local helper evidence, not a rerun of the integrated seccomp harness.
