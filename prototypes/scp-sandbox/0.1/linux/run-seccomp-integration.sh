@@ -281,13 +281,12 @@ def self_test_bounded_capture(tmp):
             "pathlib.Path(sys.argv[1]).write_text('survived')"
         )
         leader_code = (
-            "import pathlib,subprocess,sys,time; "
+            "import pathlib,subprocess,sys,time\\n"
             "subprocess.Popen([sys.executable, '-c', " + repr(child_code) + ", " + repr(marker) + ", " + repr(ready) + "], "
-            "stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); "
-            "deadline=time.monotonic()+3; "
-            "p=pathlib.Path(" + repr(ready) + "); "
-            "while not p.exists(): "
-            "  if time.monotonic()>=deadline: raise SystemExit('child readiness timeout'); "
+            "stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)\\n"
+            "deadline=time.monotonic()+3; p=pathlib.Path(" + repr(ready) + ")\\n"
+            "while not p.exists():\\n"
+            "  if time.monotonic()>=deadline: raise SystemExit('child readiness timeout')\\n"
             "  time.sleep(0.01)"
         )
         leader_proc = subprocess.Popen(
