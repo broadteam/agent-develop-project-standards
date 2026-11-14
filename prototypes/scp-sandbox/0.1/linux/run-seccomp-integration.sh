@@ -264,6 +264,62 @@ def self_test_bounded_capture(tmp):
                 raise RuntimeError("wait-stage inspection failure did not escalate SIGTERM to SIGKILL")
     print("PASS process-group-teardown-wait-scan-failure-forces-kill")
 
+    # Validate that the fallback kills a real same-PGID descendant rather than
+    # merely calling killpg in a mocked assertion. The child ignores TERM,
+    # closes all standard streams, and would leave a delayed marker if alive.
+    def assert_real_descendant_killed(failure_point):
+        marker = os.path.join(tmp, "forced-kill-" + failure_point + "-survivor")
+        if os.path.exists(marker):
+            os.unlink(marker)
+        child_code = (
+            "import pathlib,signal,sys,time; "
+            "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+            "time.sleep(0.9); "
+            "pathlib.Path(sys.argv[1]).write_text('survived')"
+        )
+        leader_code = (
+            "import subprocess,sys; "
+            "subprocess.Popen([sys.executable, '-c', " + repr(child_code) + ", " + repr(marker) + "], "
+            "stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)"
+        )
+        leader_proc = subprocess.Popen(
+            [sys.executable, "-c", leader_code],
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        try:
+            wait_for_process_exit_without_reaping(leader_proc, time.monotonic() + 5)
+            if failure_point == "initial-scan":
+                injected_errors = [PermissionError("synthetic initial proc scan failure")]
+            elif failure_point == "term-wait-scan":
+                injected_errors = [True, PermissionError("synthetic TERM wait proc scan failure")]
+            else:
+                raise RuntimeError("unknown process-group failure point")
+            with patch(__name__ + ".process_group_has_live_members", side_effect=injected_errors):
+                try:
+                    terminate_process_group_members(leader_proc.pid)
+                except RuntimeError as exc:
+                    if "SIGKILL sent" not in str(exc):
+                        raise
+                else:
+                    raise RuntimeError("real descendant teardown failure was not propagated")
+            if leader_proc.wait(timeout=2) != 0:
+                raise RuntimeError("real descendant fixture leader exited unsuccessfully")
+            time.sleep(1.2)
+            if os.path.exists(marker):
+                raise RuntimeError("SIGKILL fallback did not terminate the real descendant: " + failure_point)
+            print("PASS process-group-force-kill-terminates-real-descendant-" + failure_point)
+        finally:
+            try:
+                os.killpg(leader_proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            if leader_proc.poll() is None:
+                leader_proc.wait(timeout=2)
+
+    assert_real_descendant_killed("initial-scan")
+    assert_real_descendant_killed("term-wait-scan")
+
     rc, stdout, stderr = run_bounded(
         [sys.executable, "-c", "import sys; sys.stdout.buffer.write(b'x' * 65536)"],
         env=env, timeout_seconds=5, max_output_bytes=65536,
