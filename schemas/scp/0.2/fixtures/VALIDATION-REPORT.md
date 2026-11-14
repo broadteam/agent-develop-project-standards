@@ -83,3 +83,16 @@ The date-time probe accepted a valid RFC 3339 timestamp and rejected `2026-13-40
 | `invalid/semantic/partial-fingerprint-outside-path-set.json` | `eb08bf9c078c7d0001e2871c3ac5855b5d0e8640` |
 | `invalid/semantic/remote-fetch-push-identity-mismatch.json` | `730c50ab5626826f650bad0d6a34c91e2a1b51c0` |
 | `invalid/semantic/unsorted-fingerprint-entries.json` | `d909e035c38a75a3e5f69585c7d90be6f1468088` |
+
+
+## 2026-11-14 current-Head fixture pin audit
+
+At PR Head `529b13caaffa782b25cd5da366edfd5f6d78c65d`, the current Git tree `438f127e9fa8e37c04f32ff87852c0d5d079f679` was queried recursively (the response was not truncated). All fixture paths and Blob IDs listed in this report were compared to that exact tree:
+
+- Positive examples: 4/4 Blob IDs match.
+- JSON Schema-invalid fixtures: 9/9 Blob IDs match.
+- Semantic-invalid fixtures: 19/19 Blob IDs match.
+- Total: 32/32 exact path-to-Blob matches; no missing paths or mismatched Blob IDs.
+- Schema `schemas/scp/0.2/continuity-packet.schema.json`: current Blob remains `a2f2097a17c08bf0a2ae733ab43a8f1919b48813`, matching the validation target above.
+
+This is a Git object identity/provenance audit only. It does not rerun Draft 2020-12 validation, semantic assertions, or any Agent/Provider execution, and it does not freeze D1.
