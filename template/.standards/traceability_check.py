@@ -96,7 +96,8 @@ def validate_traceability(root: Path, *, task_tracking: bool = True, roadmap: bo
         def field(name: str) -> str:
             found = re.search(r"^- " + re.escape(name) + r"：(.+)$", block, re.M)
             return found.group(1).strip() if found else ""
-        covers, result, commit, evidence = re.findall(r"R\d+", field("覆盖需求")), field("结果"), field("Commit"), field("证据")
+        covers, evidence_type = re.findall(r"R\d+", field("覆盖需求")), field("验证类型")
+        result, commit, evidence = field("结果"), field("Commit"), field("证据")
         if match.group(1) in evidence_records:
             errors.append(f"追踪关系：验证证据 ID {match.group(1)} 重复")
         evidence_records[match.group(1)] = {"covers": covers, "type": evidence_type, "result": result, "commit": commit, "evidence": evidence}
