@@ -1937,3 +1937,12 @@ The Draft Context field was renamed from `driver_bundle_sha256` to `driver_descr
 At PR Head cfd237dbb53ae10aba0de6a914839904fb598d3b, the updated Node.js/Python Stage 1 suite was rerun after the Draft Context field rename to driver_descriptor_sha256. All 15 relevant source/fixture files matched their exact Git Blob SHA-1 values before execution. Environment: Linux x86_64 / kernel 6.18.57, Node.js 22.16.0, Python 3.13.5. Node suite passed (3 Contexts, 40 expected leaves); Python suite passed 2/2 tests (same three Contexts and 40 leaves); nine generated Request/Normalized Result/Oracle artifacts matched byte-for-byte (9/9). Exact source identities and negative-vector scope are in prototypes/scp-fixtures/0.1/VALIDATION-REPORT.md.
 
 This closes the previously pending rerun for the renamed Context pins. Source was reconstructed from exact GitHub Blob responses because a full Git checkout was not available; this is exact-Blob execution, not full clone provenance. The work remains synthetic-only: no executable Driver/Registry, real Git observer, live Provider, Agent client, production credential, user repository or OS-level client sandbox was exercised. Existing Standards CI is separate and does not execute the Stage 1 suite.
+
+
+## 2026-11-14 Stage 2 quarantine admission-test correction
+
+Static review found that the previous cleanup helper reported `QUARANTINE_REUSE_GUARD=PASS` after reading the persisted state, without invoking a resource admission path. This did not fully support the stated rejection claim. The helper was corrected in commit `7034c2315131b85092753e66f5ce46dc7361c14f`; its exact Git Blob is `bde76808b7dbf7af1dcf895fa207fe19e880d6e1`.
+
+The synthetic `acquire_resource()` path now admits only the `active` record with the original owned root. The test explicitly attempts acquisition and requires denial for `quarantining`, `quarantined` and `cleaned`. Three consecutive executions against local bytes whose Git Blob SHA matched the committed Blob passed on Linux x86_64 / kernel 6.18.57. Every run observed real tmpfs `EBUSY`, explicit state-based denial, quarantine preservation and recovery.
+
+This closes the narrow test-assertion gap only. The admission path lives in the test helper, not a production resource manager; race/symlink/partial-creation handling and crash recovery remain unaccepted. The full `linux/run.sh` combined invocation also remains unexecuted because the current execution environment cannot reach GitHub to retrieve the complete source set. Production Sandbox acceptance and Gate C remain closed.

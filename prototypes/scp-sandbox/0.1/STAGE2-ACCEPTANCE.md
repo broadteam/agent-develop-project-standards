@@ -17,7 +17,7 @@
 | Inherited host FD closure | PASS (tested runtime) | FD 9 canary unavailable to parent/child client. |
 | Resource ceilings | PASS (per-process / per-UID limits only) | Readback: CORE 0, CPU 10s, FSIZE 1 MiB, NOFILE 64, NPROC 64 per UID, AS 256 MiB. Not aggregate CPU or memory accounting. |
 | Wall-clock hang containment | PASS (runner configuration) | Core 90s, seccomp 60s, cleanup 15s. |
-| Real cleanup failure / quarantine | PASS (one failure class) | Mounted tmpfs removal returns EBUSY; persisted quarantine state prevents reuse; explicit unmount and cleanup recover. Owner record is fsync'd before/after atomic state replacement in the current test. |
+| Real cleanup failure / quarantine | PASS (one failure class) | Mounted tmpfs removal returns EBUSY. The synthetic admission path admits only `active` and explicitly rejects `quarantining`, `quarantined` and `cleaned`; explicit unmount and cleanup recover. Owner record is fsync'd before/after atomic state replacement. This is not a production resource manager. |
 | Output bounds / synthetic marker redaction | PASS (narrow fixture scope) | 4096-byte capture and exact synthetic marker only; not a general secret scanner. |
 | cgroup v2 delegated resource control | BLOCKED | Controllers visible, cgroup2 hierarchy read-only; cannot create delegated child cgroups. |
 | Landlock | UNAVAILABLE in tested runtime | landlock_create_ruleset returned ENOSYS; no Landlock policy installed. |
@@ -45,7 +45,7 @@
 
 ## Validation provenance
 
-The post-commit source audit established exact Git Blob matches for seccomp-exec.c, seccomp-child-test.c, run-seccomp-integration.sh and cleanup-failure-integration.sh. The exact-Blob seccomp harness passed twice, including all six RLIMIT readbacks in parent and fork+exec child; the exact cleanup helper passed three times. On 2026-11-14, the exact committed compressed Python core probe also passed gzip validation and execution after compressed/decompressed Git Blob SHA verification. The combined linux/run.sh wrapper was not executed end-to-end in one invocation; component evidence is recorded separately in VALIDATION-REPORT.md.
+The post-commit source audit established exact Git Blob matches for seccomp-exec.c, seccomp-child-test.c, run-seccomp-integration.sh and cleanup-failure-integration.sh. The exact-Blob seccomp harness passed twice, including all six RLIMIT readbacks in parent and fork+exec child. The cleanup helper was then corrected to exercise its test-only resource admission path and rerun three times from exact Blob `bde76808b7dbf7af1dcf895fa207fe19e880d6e1`; each run verified real EBUSY, active-only admission, explicit denial in `quarantining` / `quarantined` / `cleaned`, quarantine preservation and recovery. On 2026-11-14, the exact committed compressed Python core probe also passed gzip validation and execution after compressed/decompressed Git Blob SHA verification. The combined linux/run.sh wrapper was not executed end-to-end in one invocation; component evidence is recorded separately in VALIDATION-REPORT.md.
 
 ## Repository governance
 

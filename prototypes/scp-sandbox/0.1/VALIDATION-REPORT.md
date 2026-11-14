@@ -318,3 +318,16 @@ Result: `RESULT=GATE_A_AND_B_CORE_PROBES_PASS; NOT A PRODUCTION SANDBOX CERTIFIC
 The exact committed core probe passed its user/mount/network/PID namespace setup, UID/GID drop to 65534, no_new_privs and capability drop, read-only rootfs, host path and symlink containment, hidden proc/sys, dedicated scratch write, host loopback isolation, PID descendant teardown, host environment non-inheritance, synthetic shim access-denial probes, 4096-byte output cap with exact synthetic-marker redaction, cleanup ownership/quarantine and normal cleanup.
 
 This closes the previously outstanding exact-Blob **core-probe** replay. It does not claim that the complete `linux/run.sh` wrapper was executed end-to-end in one invocation: the exact-Blob seccomp integration and cleanup-failure helpers were exercised separately in their previously documented runs. Existing Standards CI is also separate and does not run these SCP-specific probes.
+
+
+## 2026-11-14 explicit quarantine admission check (exact-Blob rerun)
+
+The earlier cleanup helper emitted a reuse-guard PASS after inspecting only the persisted state value; it did not attempt the harness admission path. That assertion was too weak. The helper was corrected so its test-only `acquire_resource()` path admits a resource only when the persisted record is `active` and still names the original owned root. The test now attempts acquisition and requires denial in each non-active state:
+
+- `quarantining`: rejected before the owned tree is renamed;
+- `quarantined`: rejected after the quarantine path and state are persisted;
+- `cleaned`: rejected after explicit unmount and owned-path removal, until the owner record is removed.
+
+The `active` state is separately required to admit the original owned resource. The exact committed helper Blob is `bde76808b7dbf7af1dcf895fa207fe19e880d6e1`; the local `git hash-object` result matched it before execution. Three consecutive executions on Linux x86_64 / kernel 6.18.57 passed. Every run observed the real mounted-tmpfs `EBUSY`, rejected the three non-active admission attempts, preserved the quarantined mount, and completed explicit unmount/recovery.
+
+Scope: this is an explicit state-based admission check implemented inside the synthetic test helper. It still does not test a production resource manager, symlink/race/partial-creation handling, or crash recovery across process restart. Production cleanup-manager acceptance remains closed.
