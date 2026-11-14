@@ -88,30 +88,11 @@
 <!--cap:multi_agent-->
 ### 多 Agent 协作（仅启用时）
 
-**角色固定为一个协调者（Coordinator）+ 若干执行者（Worker）**，不要求引入外部调度服务：
-
-- **Coordinator** 负责理解用户意图、拆分任务、分配范围、维护共享治理状态、整合改动、执行最终验证和收口。Coordinator 不能代替用户确认目标/优先级变化，也不因此获得生产、发布、远端写入等额外权限。
-- **Worker** 只执行明确分配的子任务；可提出需求/架构调整建议，但不得自行把建议写成 accepted 决策，不得扩大分配范围，也不得替 Coordinator 修改共享状态或宣告整个任务完成。
-
-**并行开工前必须完成：**
-
-1. 先判断子任务是否真正独立。共享同一文件、依赖同一未完成接口或必须连续修改同一状态时，改为串行，不为并行而拆分。
-2. 每个 Worker 使用独立 Git worktree/分支；无法隔离工作区时，同一时间只允许一个 Agent 写入该工作区。
-3. Coordinator 为每个 Worker 明确交付单：任务 ID（启用 `task_tracking` 时使用 T ID，否则使用会话内临时标签）、起始完整 Base Commit SHA、允许写入的路径、禁止修改的共享路径、验收条件和需要执行的验证命令。
-4. 一个文件同一时间只有一个写入者。以下共享治理状态始终由 Coordinator 单写者维护：意图基线/变更账本、需求索引、验证索引、跨会话 MEMORY；启用 `task_tracking` 时再包括任务索引/卡片/Board，启用 `roadmap` 时包括里程碑索引，启用 `adr` 时 ADR 也采用单写者；规则入口、宪法和治理配置仍遵循用户确认权限。
-
-**Worker 执行与交接：**
-
-- Worker 只修改交付单允许的路径。发现必须修改范围外文件、共享状态或既有目标/验收时，先停止相关写入并向 Coordinator 提交变更建议，不得顺手扩展。
-- Worker 返回结果至少包含：起始 Base SHA、工作分支/worktree、变更路径清单、Commit SHA（或未提交补丁说明）、实现摘要、实际执行的验证命令及结果、未执行/失败项、风险与待裁定事项。
-- Worker 不写入项目级需求/验证/任务总状态，不更新 MEMORY，不改 Board 派生视图；这些统一由 Coordinator 在整合时处理。
-
-**整合与冲突处理：**
-
-- Coordinator 整合前刷新目标分支和相关文件，核对 Worker 的 Base SHA、当前 HEAD、实际 diff 和允许路径；基线已变化时重新审查，不直接套用旧结论。
-- 整合后由 Coordinator 对最终合并结果重新运行相关测试与治理检查，并将证据绑定到最终 Commit SHA。Worker 分支上的测试通过不等于整项任务通过，也不自动使任务变为 done。
-- 同路径冲突、过期基线、未解释的额外改动或语义分歧，一律暂停该部分并串行处理；不能安全隔离时退回单 Agent 顺序执行。
-- Worker/Coordinator 均不得未经授权强推、合并受保护分支、发布、部署或触碰生产数据。
+- **Coordinator/Worker**：一个 Coordinator 负责意图理解、分派、共享状态与最终整合；Worker 只执行分配的子任务。目标/范围/优先级变化仅用户确认后生效。
+- **隔离并行**：仅并行独立且写入路径不重叠的工作；每个 Worker 用独立 Git worktree/分支，否则串行。分派须注明任务 ID（启用 `task_tracking` 时）、Base SHA、允许路径、验收与验证命令。
+- **单写者**：Coordinator 独占维护 intent/requirements/verification/MEMORY；启用 `task_tracking`、`roadmap`、`adr` 时，对应任务、里程碑和 ADR 状态也由 Coordinator 单写。Worker 不改共享状态、不标记整体任务 done。
+- **交接/整合**：Worker 返回 Base SHA、分支、变更路径、Commit/补丁、测试结果/未验证项/阻塞。Coordinator 核对基线与 diff，整合后按最终 Commit 重新运行治理和相关测试，再更新证据/状态；过期基线、冲突或分歧串行处理。
+- 不经授权不强推、合并、发布、部署或触碰生产数据。
 <!--/cap-->
 
 **收口要求**：
