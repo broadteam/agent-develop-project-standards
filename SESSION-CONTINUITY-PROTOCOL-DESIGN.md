@@ -2353,33 +2353,6 @@ The next implementation sequence is:
 No OS sandbox implementation, real Agent invocation, schema, Runner, Registry, Writer, Store or CI gate is created in this update. D0 remains the only user-confirmed frozen decision; D1/D2/D3 and all SCP fixture/Manifest/Normalized Result contracts remain Draft.
 
 
-### 17.34 Synthetic dual-implementation prototype closeout (2026-11-13)
-
-The Node.js/Python synthetic prototype has passed its in-scope test gate after the source and test corrections recorded in the validation report.
-
-- Three pinned Context fixtures were verified by Git Blob SHA.
-- Expected assertion leaves: 12 + 15 + 13 = 40.
-- Node.js suite passed; Python suite passed (2/2 tests).
-- Three Client Evaluation Requests, three Normalized Results and three Oracle reports were byte-identical across implementations (9/9).
-- Negative vectors include strict UTF-8/duplicate JSON handling, duplicate expected keys, empty-row omission, exact Unicode handling, invalid field values, observation/Profile/event/capability mismatches and explicit observation fixture_id mismatch.
-
-Source execution provenance: the environment could not resolve github.com for a normal Git clone. GitHub Contents API files were reconstructed in an isolated temporary directory and their Git Blob SHA identities were independently checked before the suite ran. This is an API-retrieved, blob-identity-verified execution, not a full Git checkout. The subsequent PR commit and existing Standards CI matrix are recorded separately in the validation report. Existing CI does not run the prototype-specific script.
-
-Stage 1 status: complete for the three pinned synthetic fixtures and the assertions/negative vectors listed above. This does not demonstrate live Agent behavior, real Provider/Git observations, OS-level isolation or production readiness.
-
-### 17.35 Next gate: OS-enforced Agent Sandbox and Oracle Isolation (design only)
-
-The next milestone is an independently testable OS trust boundary, not another extension of the Node/Python normalizer. The security design and adversarial acceptance matrix are in schemas/scp-fixtures/0.1/RUN-MANIFEST-DESIGN.md §21.
-
-The next implementation sequence is:
-1. Select one supported execution platform and define the measurable sandbox backend policy; do not claim cross-platform parity before separate backend evidence exists.
-2. Validate the backend with hostile synthetic child-process probes, without an Agent client, production credentials or external network.
-3. Run a synthetic adversarial client shim to test forbidden-path/socket access, network denial, process-tree termination, output bounds, pre-persistence redaction and cleanup quarantine.
-4. Only after the first two gates are independently evidenced should real Agent invocation be considered, under separate explicit authorization and least-privilege credential decision.
-
-No OS sandbox implementation, real Agent invocation, schema, Runner, Registry, Writer, Store or CI gate is created in this update. D0 remains the only user-confirmed frozen decision; D1/D2/D3 and all SCP fixture/Manifest/Normalized Result contracts remain Draft.
-
-
 ### 17.36 Linux x86_64 Sandbox Gate A/B prototype evidence (2026-11-13)
 
 The first executable OS-isolation prototype is now recorded under \`prototypes/scp-sandbox/0.1/linux/\`.
