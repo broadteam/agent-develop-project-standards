@@ -1996,3 +1996,20 @@ The execution container cannot reach GitHub by DNS or direct HTTPS connection (d
 - The compressed core probe `probe.py.gz` was not reconstructed into the current combined-run directory. Its earlier independently recorded exact-Blob replay remains separate evidence.
 
 Because one required integration input failed exact identity verification, the combined `linux/run.sh` entry point was not run. No locally reconstructed source with an unmatching Git Blob was executed. The current seccomp integration, including new `setsid` / `setpgid` denials, remains execution pending.
+
+## 2026-11-14 complete exact-Blob linux/run.sh replay
+
+The earlier exact-source transfer blocker is superseded. The compressed probe and current seccomp script were reconstructed from the GitHub connector in the shared temporary directory; all six required files matched their current PR Git Blob SHA-1 before execution:
+
+- run.sh `83f55567bab49985083e6c5917467e89850de17e`
+- probe.py.gz `ae64fb2f651018e53705990c2f715ea25fa465b9` (decompressed source `88e08595b3f74fc7c5c59fb13c9473f94dbb5503`)
+- run-seccomp-integration.sh `bcab9a1c8826f5a98cc2caf7a831044413d65da4`
+- cleanup-failure-integration.sh `bde76808b7dbf7af1dcf895fa207fe19e880d6e1`
+- seccomp-exec.c `d72380003e49e1850ce8c59990a92f18f6841ba0`
+- seccomp-child-test.c `8b947836d1048543bf756347e829ea98147983b4`
+
+Environment: Linux x86_64 / kernel `6.18.57`, root in the disposable execution container, GCC `14.2.0`, Python `3.13.5`. `timeout --signal=TERM --kill-after=5s 180s sh ./run.sh` completed three consecutive times with exit code 0; every run contained all required PASS markers and no line beginning `FAIL`.
+
+Each full execution covered Gate A namespace/chroot/core probes, Gate B synthetic shim/output controls, latest test/production seccomp builds, forced close_range-unavailable exit 69/no client marker, FD 9 and FD 100 closure in parent/fork+exec, controlled stdio, all six RLIMIT readbacks, listed syscall denials including `setsid` / `setpgid`, bounded tmpfs, exact-limit/overflow/timeout capture probes, and real tmpfs EBUSY quarantine denial/preservation/recovery.
+
+This closes the combined exact-source Linux prototype entry-point execution gap for this tested runtime. It does not change the production Sandbox decision: aggregate cgroup limits, full syscall allowlist, LSM/kernel-escape review, general secret scanner, general cleanup manager, platform scope, and Gate C authorization remain outstanding. No real Agent, Provider or production credential was invoked.

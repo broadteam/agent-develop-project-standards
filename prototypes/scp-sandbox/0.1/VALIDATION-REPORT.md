@@ -361,15 +361,15 @@ This remains a synthetic Linux x86_64 launch-chain test, not a production Runner
 
 The compressed core probe and real-filesystem cleanup helper retain their separately recorded exact-Blob evidence. The complete linux/run.sh combined invocation has not been run in one invocation in this pass. Existing Standards CI does not execute this Sandbox harness. The bounded-capture self-test is local helper evidence, not a rerun of the integrated seccomp harness.
 
-## 2026-11-14 bounded output-capture correction (latest integration execution pending)
+## 2026-11-14 bounded output-capture correction (interim status; superseded by complete replay)
 
 The bounded-capture implementation was first added in script Blob `cfd709e8a668c578228bc34946c099730584dc3f`. It replaced `Popen.communicate()` with selector-driven incremental reads and a 64 KiB combined retention limit. The initial wrapper still invoked GNU `timeout` as an intermediate process, and its flood fixture was double-escaped; the follow-up below removes both weaknesses.
 
-The script now runs three helper self-tests before invoking the namespace chain: exact 65,536-byte output is accepted; a continuous writer is terminated on overflow; a silent process is terminated on the parent deadline. A separate local harness using the same selector/process-group strategy passed these three cases (3/3). This was helper-level validation; the exact latest script Blob `cfd709e8...` has **not** yet been executed through the full seccomp integration.
+The script now runs three helper self-tests before invoking the namespace chain: exact 65,536-byte output is accepted; a continuous writer is terminated on overflow; a silent process is terminated on the parent deadline. A separate local harness using the same selector/process-group strategy passed these three cases (3/3). At that interim point the bounded-capture helper had only been tested separately. The later exact-Blob replay below executes the latest integrated script and the complete `linux/run.sh` entry point three times.
 
-The earlier three POSIX-sh seccomp runs and their exact script Blob `14c7bb8504b2da6ed637501bf6f8a29085d6be5f` remain valid for the FD 9/100, close_range-unavailable, standard-I/O, seccomp and RLIMIT assertions at that revision. They do not count as an integration rerun of the updated bounded-capture parent. The latest current script revision must pass the harness self-tests and the complete test/production launch chain before this update can be marked execution-verified.
+The three POSIX-sh runs recorded here were for the earlier script Blob `14c7bb8504b2da6ed637501bf6f8a29085d6be5f`. They are historical evidence only. The later three exact-Blob full-entry runs recorded below cover the current bounded-capture parent, direct process-group timeout ownership, `setsid` / `setpgid` denials, FD 9/100, standard I/O, and both test/production seccomp launch chains.
 
-The complete `linux/run.sh` combined invocation also remains unexecuted. The current container cannot resolve or connect to GitHub; a manually reconstructed compressed probe copy did not match its expected Git Blob and was discarded without execution. No corrupted or unpinned source was used.
+At that interim point the complete `linux/run.sh` invocation remained unexecuted because exact source transfer was blocked. This limitation was subsequently resolved by reconstructing every required file from the connector output and verifying all six Git Blob SHA-1 identities before execution; see the final replay section below.
 
 ## 2026-11-14 direct process-group ownership and flood-fixture correction
 
@@ -377,13 +377,13 @@ The current `run-seccomp-integration.sh` removes the nested GNU `timeout` proces
 
 The continuous-output self-test had a double-escaped newline in its `python -c` source, so it could fail with a syntax error instead of exercising a sustained writer. The test source now contains a single escaped newline, which becomes a real line break in the child Python source. The bounded-capture algorithm was independently exercised locally: exact 65,536-byte output accepted; a continuous writer rejected at the cap with process-group termination; silent child terminated at the deadline (3/3).
 
-These local tests reproduce the helper algorithm, but the exact current integrated script Blob has not yet been executed through the seccomp namespace chain. The previous three-run FD / close_range / stdio evidence remains tied to script Blob `14c7bb8504b2da6ed637501bf6f8a29085d6be5f`. The integrated current script and the combined `linux/run.sh` remain pending.
+The process-group and corrected flood-fixture changes were subsequently exercised through the exact current seccomp script and the complete `linux/run.sh` entry point in the three full replays recorded below. The prior Blob `14c7bb...` replay remains historical and is not used as evidence for the latest implementation.
 
-## 2026-11-14 process-group escape denial (new regression; execution pending)
+## 2026-11-14 process-group escape denial (integrated execution passed)
 
 The seccomp denylist now explicitly denies `setsid` and `setpgid`, and the synthetic client probes both denials in test mode (EACCES) and production mode (EPERM). The reason is operational: the updated parent launches `unshare` directly in a dedicated session and relies on process-group TERM/KILL to enforce bounded cleanup. A client must not be allowed to move itself into a new session or process group to escape that teardown boundary.
 
-These two new syscall denials and their client assertions are present in the latest source, but the current exact C blobs have not yet been compiled/executed as part of the seccomp integration. This remains a denylist defense-in-depth profile, not a complete syscall allowlist. The exact latest integrated seccomp harness still requires execution; the complete `linux/run.sh` entry point also remains pending.
+The exact current `seccomp-exec.c` and `seccomp-child-test.c` Blobs were compiled together in test and production variants by the exact latest seccomp integration harness. `setsid` and `setpgid` were denied in both variants, and the corresponding client probes passed in the initial and fork+exec child processes. This is still a denylist defense-in-depth profile, not a complete syscall allowlist.
 
 ## 2026-11-14 standalone process-group syscall filter smoke test
 
@@ -407,3 +407,30 @@ The execution container cannot reach GitHub by DNS or direct HTTPS connection (d
 - The compressed core probe `probe.py.gz` was not reconstructed into the current combined-run directory. Its earlier independently recorded exact-Blob replay remains separate evidence.
 
 Because one required integration input failed exact identity verification, the combined `linux/run.sh` entry point was not run. No locally reconstructed source with an unmatching Git Blob was executed. The current seccomp integration, including new `setsid` / `setpgid` denials, remains execution pending.
+
+## 2026-11-14 exact-Blob full linux/run.sh replay (supersedes prior pending notes)
+
+All six required inputs were reconstructed in an isolated temporary directory and verified using the Git Blob SHA-1 algorithm before execution:
+
+- `linux/run.sh`: `83f55567bab49985083e6c5917467e89850de17e` — exact match.
+- `linux/probe.py.gz`: `ae64fb2f651018e53705990c2f715ea25fa465b9` — exact match; `gzip -t` passed; decompressed source Blob `88e08595b3f74fc7c5c59fb13c9473f94dbb5503` — exact match.
+- `linux/run-seccomp-integration.sh`: `bcab9a1c8826f5a98cc2caf7a831044413d65da4` — exact match.
+- `linux/cleanup-failure-integration.sh`: `bde76808b7dbf7af1dcf895fa207fe19e880d6e1` — exact match.
+- `linux/seccomp-exec.c`: `d72380003e49e1850ce8c59990a92f18f6841ba0` — exact match.
+- `linux/seccomp-child-test.c`: `8b947836d1048543bf756347e829ea98147983b4` — exact match.
+
+Environment: Linux x86_64, kernel `6.18.57`, effective UID 0, GCC `14.2.0`, Python `3.13.5`. Command: `timeout --signal=TERM --kill-after=5s 180s sh ./run.sh` from the exact `linux/` directory. The complete entry point ran three consecutive times; all three returned exit code 0. No line beginning with `FAIL` appeared in stdout or stderr.
+
+Each complete run exercised:
+
+- Gate A core probes: user/mount/network/PID namespaces, UID/GID drop, no_new_privs/capability drop, read-only rootfs, host path/symlink/cwd containment, hidden proc/sys, dedicated writable scratch, host-loopback isolation, descendant teardown and non-inherited host environment.
+- Gate B synthetic-shim probes: host canary denial, synthetic output redaction, and 4,096-byte core output cap. The redactor still recognizes only its exact synthetic marker.
+- Seccomp test and production builds compiled with `-Wall -Wextra -Werror`. The forced-unavailable `close_range` variant returned 69 and did not run its client marker; the expected diagnostic `Function not implemented` was emitted once per run.
+- FD 9 and FD 100 were unavailable (`EBADF`) in both test and production clients, including fork+exec children, after `RLIMIT_NOFILE` was lowered to 64.
+- Standard I/O contract passed in all client contexts: stdin `/dev/null`, stdout/stderr pipes.
+- Six soft/hard RLIMIT ceilings were read back in parent and fork+exec child: CORE 0, CPU 10s, FSIZE 1 MiB, NOFILE 64, NPROC 64 per UID, AS 256 MiB.
+- Listed syscall deny probes passed, including `setsid` and `setpgid`; clone/clone3 namespace paths, x32 SIGSYS, mount/process-handle/kernel-control denials, read-only root and bounded 32 MiB / 4096-inode tmpfs checks passed.
+- Bounded capture self-tests passed within each complete run: exact 65,536-byte output accepted; continuous writer rejected at the cap with process-group termination; silent process terminated at the 60-second parent deadline. `unshare` ran directly in the parent-owned process group; SIGTERM then SIGKILL escalation controlled teardown.
+- Real-filesystem cleanup regression returned kernel `EBUSY` for the mounted tmpfs root, persisted `quarantining` / `quarantined`, rejected reuse in `quarantining`, `quarantined` and `cleaned`, preserved the quarantined mount, and completed explicit unmount/recovery.
+
+Interpretation: this closes the outstanding **combined Linux x86_64 synthetic prototype entry-point execution** gap for the exact listed Blobs on this one runtime. It does not certify production isolation, aggregate process-tree CPU/memory/PID limits, a complete syscall allowlist, LSM/kernel-escape resistance, generalized secret scanning, a production resource manager, or Windows/macOS equivalence. Existing Standards CI remains a separate workflow and is not the source of these Sandbox results. Gate C remains closed.
