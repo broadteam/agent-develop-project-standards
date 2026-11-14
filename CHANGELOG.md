@@ -1,6 +1,9 @@
 ## Unreleased
 
 ### Changed
+- Define one repository-based AI governance work loop linking intent intake, task/risk classification, context loading, scoped execution, commit-bound verification, authoritative-state reconciliation and minimal handoff. Clarify the boundary between script/CI enforcement, AI semantic work and user decisions; preserve lightweight-task exemptions.
+
+### Changed
 - Clarify the mainline scope as repository-based AI governance: AI advances work and maintains authoritative records, scripts/CI enforce mechanically testable rules, and users retain intent decisions and high-risk authorization. The Linux Sandbox remains optional execution-isolation research, not a core 2.0 deliverable or release gate.
 - Strengthen the optional multi-agent protocol with Coordinator/Worker responsibilities, isolated worktrees, explicit base revisions and write sets, single-writer governance state, structured handoff, post-integration verification and sequential fallback on conflicts.
 

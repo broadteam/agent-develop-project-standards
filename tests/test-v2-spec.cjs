@@ -26,6 +26,14 @@ assert.match(readme, /MIGRATION-v2\.0\.md/);
 assert.match(changelog, /2\.0\.0-rc\.1/);
 assert.match(migration, /--dry-run/);
 assert.match(spec, /横向机制：母模板与项目适配/);
+
+assert.match(spec, /横向机制：AI 治理工作闭环（不是新增方向）/);
+assert.match(spec, /理解用户意图 → 选择治理强度 → 加载必要上下文/);
+assert.match(spec, /Coordinator 管理共享状态；Worker 不得扩大范围/);
+assert.match(spec, /未执行\/未覆盖必须标记 `unverified`/);
+assert.match(spec, /脚本\/CI 自动把关/);
+assert.match(spec, /用户保留最终权力/);
+assert.match(spec, /轻量任务可跳过任务卡、路线图和正式 V 记录/);
 assert.match(adaptation, /core/);
 assert.match(adaptation, /needs_review/);
 assert.match(adaptation, /Task Context Resolver/);
