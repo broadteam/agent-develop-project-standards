@@ -553,3 +553,23 @@ Environment: Linux x86_64 / kernel `6.18.57`, effective UID 0 in the disposable 
 One earlier execution of an intermediate readiness-fixture revision failed because its generated Python `-c` source used invalid compound-statement syntax; it is excluded. The syntax was corrected, the child readiness handshake was verified, and the three counted runs used only the exact current Blob recorded above.
 
 This is stronger evidence that the prototype's SIGKILL fallback terminates real same-PGID descendants under the two tested `/proc` inspection-failure points on one Linux runtime. It still does not prove behavior when the kernel refuses SIGKILL, when tasks remain uninterruptible, or under hostile kernel/LSM conditions; those remain outside production certification.
+
+## 2026-11-15 Linux host preflight contract and executable probe
+
+A standalone host preflight was added at `prototypes/scp-sandbox/0.1/linux/host-preflight.py.gz`. The script is invoked by streaming the gzip source to Python; it is intentionally not wired into `run.sh`, so prototype regression execution remains separate from production host admission.
+
+Exact source identity:
+- Compressed source SHA-256: `a55e3bf55285f1b90ac169750283c8d6333fbd20623d8a6f3a51d6c76bf35f8d`.
+- Decompressed Python source SHA-256: `da7f92e3be976f6e3a1a5caa27d9907d47b9a11d9b91a7637572be1b3830a6e1`.
+- The Git Blob SHA is recorded in the commit and PR description after publication.
+
+Validation performed on Linux x86_64 / kernel `6.18.57`, Python `3.13.5`, effective UID 0:
+- Built-in parser and fail-closed gate tests: 6/6 PASS.
+- Live prototype preflight: exit 0; platform, root, required utility inventory, `/proc` inspection, user/mount/network/PID namespaces, UID/GID maps, private mount propagation, tmpfs mount/unmount and seccomp BPF filter installation all PASS.
+- The namespace probe observed only loopback and no non-loopback default route in the disposable network namespace.
+- Live production preflight: BLOCKED; cgroup v2 is mounted read-only and no `cpu`/`memory`/`pids` controllers are delegated in `cgroup.subtree_control`. Strict production mode returned exit 3.
+- Landlock availability probe returned `ENOSYS`; LSM policy audit, host socket/egress policy, a complete client syscall allowlist and general secret handling remain NOT VERIFIED.
+
+The optional `--cgroup-root` path performs a bounded active test only when explicitly supplied: create an empty child under an already delegated cgroup v2 directory, write/read back `cpu.max`, `memory.max` and `pids.max`, then remove that child. It does not move processes or modify parent controller delegation. This option was not run in the tested runtime because the discovered cgroup mount is read-only.
+
+This closes only the host capability discovery/documentation gap. The current environment is suitable for the existing synthetic prototype checks but is **not** production-host ready. No LSM policy, host firewall, host socket, Agent, Provider or credential configuration was changed. Gate C remains CLOSED.

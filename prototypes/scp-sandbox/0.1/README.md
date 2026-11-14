@@ -2,6 +2,18 @@
 
 **Status:** Linux x86_64 security-probe prototype. Gate A and Gate B core probes passed in the recorded execution environment. This is not a production sandbox certification.
 
+## Host preflight
+
+Before using the synthetic Linux harness on a new host, run the standalone host-capability check:
+
+```sh
+gzip -dc prototypes/scp-sandbox/0.1/linux/host-preflight.py.gz | sudo python3 - --json
+```
+
+The script has a separate `--strict-production` mode and an explicit `--cgroup-root` option for testing a pre-delegated cgroup v2 directory. The latter creates and removes a temporary empty child cgroup and must only be used against a dedicated delegated subtree. See [HOST-PREFLIGHT.md](./HOST-PREFLIGHT.md) for the contract, side effects, statuses and current tested-runtime result.
+
+A prototype-runtime PASS is not production readiness. The host preflight is deliberately not wired into `run.sh`; existing synthetic prototype tests remain runnable in environments where aggregate cgroup delegation is unavailable, while production host controls remain blocked.
+
 ## Run
 
 From the repository root, in a disposable Linux x86_64 VM/container that allows user, mount, network and PID namespaces:
