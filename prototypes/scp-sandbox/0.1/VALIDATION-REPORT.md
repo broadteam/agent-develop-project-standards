@@ -434,3 +434,23 @@ Each complete run exercised:
 - Real-filesystem cleanup regression returned kernel `EBUSY` for the mounted tmpfs root, persisted `quarantining` / `quarantined`, rejected reuse in `quarantining`, `quarantined` and `cleaned`, preserved the quarantined mount, and completed explicit unmount/recovery.
 
 Interpretation: this closes the outstanding **combined Linux x86_64 synthetic prototype entry-point execution** gap for the exact listed Blobs on this one runtime. It does not certify production isolation, aggregate process-tree CPU/memory/PID limits, a complete syscall allowlist, LSM/kernel-escape resistance, generalized secret scanning, a production resource manager, or Windows/macOS equivalence. Existing Standards CI remains a separate workflow and is not the source of these Sandbox results. Gate C remains closed.
+
+## 2026-11-14 latest process-group teardown replay (orphaned descendants after normal leader exit)
+
+The capture wrapper had one further teardown edge case: after the process-group leader exited normally, a same-PGID descendant could remain if it had already redirected/closed stdout and stderr. Pipe EOF by itself was not proof that the process group was empty.
+
+The latest `run-seccomp-integration.sh` Blob `a6536e3fd10d8aa9ef043ac350a3f6e544127178` fixes this. After normal leader exit, the parent scans `/proc/*/stat` for live non-zombie members of its owned PGID and terminates any remaining members with SIGTERM followed by SIGKILL. The overflow/timeout cleanup uses the same group-member check.
+
+A new self-test starts a descendant which redirects all standard streams to `/dev/null`, ignores SIGTERM and would write a delayed marker. The leader exits normally. The parent must kill the descendant before returning, and the marker must remain absent. The test emits `PASS bounded-capture-kills-orphaned-descendant-after-leader-exit`.
+
+All six exact Git Blob identities were checked before the three latest complete entry runs:
+- `run.sh`: `83f55567bab49985083e6c5917467e89850de17e`.
+- `probe.py.gz`: `ae64fb2f651018e53705990c2f715ea25fa465b9` (decompressed source: `88e08595b3f74fc7c5c59fb13c9473f94dbb5503`).
+- `run-seccomp-integration.sh`: `a6536e3fd10d8aa9ef043ac350a3f6e544127178`.
+- `cleanup-failure-integration.sh`: `bde76808b7dbf7af1dcf895fa207fe19e880d6e1`.
+- `seccomp-exec.c`: `d72380003e49e1850ce8c59990a92f18f6841ba0`.
+- `seccomp-child-test.c`: `8b947836d1048543bf756347e829ea98147983b4`.
+
+Environment: Linux x86_64 / kernel `6.18.57`, effective UID 0 in the disposable container, GCC `14.2.0`, Python `3.13.5`. Three completed `sh ./run.sh` executions returned exit code 0. Each log included the orphan-descendant PASS marker, exact-output-limit / sustained-overflow / silent-timeout PASS markers, close_range fail-closed and FD 9/100 assertions, stdio checks, RLIMIT readbacks, setsid/setpgid denials, and real tmpfs EBUSY quarantine recovery. No line beginning `FAIL` appeared in the three completed logs. One additional tool call timed out and is not included in the count.
+
+This is Linux x86_64 synthetic prototype evidence in one tested runtime. It does not certify production process supervision, aggregate cgroup CPU/memory/PID limits, a complete client-specific syscall allowlist, LSM/kernel-escape resistance, generalized secret scanning, or a general resource manager. Gate C remains closed.

@@ -2013,3 +2013,15 @@ Environment: Linux x86_64 / kernel `6.18.57`, root in the disposable execution c
 Each full execution covered Gate A namespace/chroot/core probes, Gate B synthetic shim/output controls, latest test/production seccomp builds, forced close_range-unavailable exit 69/no client marker, FD 9 and FD 100 closure in parent/fork+exec, controlled stdio, all six RLIMIT readbacks, listed syscall denials including `setsid` / `setpgid`, bounded tmpfs, exact-limit/overflow/timeout capture probes, and real tmpfs EBUSY quarantine denial/preservation/recovery.
 
 This closes the combined exact-source Linux prototype entry-point execution gap for this tested runtime. It does not change the production Sandbox decision: aggregate cgroup limits, full syscall allowlist, LSM/kernel-escape review, general secret scanner, general cleanup manager, platform scope, and Gate C authorization remain outstanding. No real Agent, Provider or production credential was invoked.
+
+## 2026-11-14 latest exact-Blob replay: normal-exit orphaned-descendant cleanup
+
+A process-group audit found that a same-PGID child could survive after the leader exited normally if the descendant had closed/redirected stdout/stderr. The capture parent now scans `/proc/*/stat` after leader exit for live non-zombie members of the owned PGID and performs TERM/KILL escalation. This extends cleanup from overflow/timeout paths to normal leader exit as well.
+
+The exact current `run-seccomp-integration.sh` Blob is `a6536e3fd10d8aa9ef043ac350a3f6e544127178`. A regression spawns a child which redirects all stdio to `/dev/null`, ignores SIGTERM, and would write a delayed marker; the marker must remain absent after the capture wrapper returns.
+
+All six current source Blobs were verified before execution: run.sh `83f55567bab49985083e6c5917467e89850de17e`; probe.py.gz `ae64fb2f651018e53705990c2f715ea25fa465b9` (decompressed `88e08595b3f74fc7c5c59fb13c9473f94dbb5503`); run-seccomp-integration.sh `a6536e3fd10d8aa9ef043ac350a3f6e544127178`; cleanup-failure-integration.sh `bde76808b7dbf7af1dcf895fa207fe19e880d6e1`; seccomp-exec.c `d72380003e49e1850ce8c59990a92f18f6841ba0`; seccomp-child-test.c `8b947836d1048543bf756347e829ea98147983b4`.
+
+Three completed full `sh ./run.sh` runs on Linux x86_64 / kernel `6.18.57` returned exit code 0. Each included the orphaned-descendant-after-normal-exit PASS marker, exact-limit/overflow/timeout capture probes, close_range fail-closed, FD 9/100, stdio, RLIMIT, setsid/setpgid and real tmpfs EBUSY quarantine probes. No `FAIL` marker appeared. One additional tool invocation timed out and is not counted.
+
+This is synthetic Linux x86_64 prototype evidence only. Production acceptance still requires aggregate cgroup resources, a complete client-specific syscall allowlist, LSM/kernel-escape review, general secret handling and cleanup manager, platform scope decision and independent security review. Gate C remains closed.
