@@ -1981,3 +1981,7 @@ The compressed Python core probe and real-filesystem cleanup helper still have s
 ## 2026-11-14 process-group escape denial added (execution pending)
 
 The seccomp wrapper now denies `setsid` and `setpgid`, with synthetic client assertions for test-mode EACCES and production-mode EPERM. This closes the intentional process-group escape route for a client running under the parent-owned `unshare` session teardown design. The new exact C blobs have not yet been executed in the integrated harness; the syscall policy remains denylist/default ALLOW and is not production allowlist evidence.
+
+## 2026-11-14 standalone setsid/setpgid seccomp primitive smoke
+
+An isolated C smoke program, not the repository wrapper, compiled and executed on Linux x86_64 / kernel `6.18.57` with GCC `14.2.0` and `-Wall -Wextra -Werror -O2`. Both the test-mode EACCES and production-mode EPERM filters denied `setsid` and `setpgid` in the parent and a fork child. This verifies the kernel BPF primitive and fork inheritance only; exact current repository C blobs and the latest integrated namespace harness remain unexecuted.

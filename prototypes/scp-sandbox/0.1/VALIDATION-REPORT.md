@@ -384,3 +384,15 @@ These local tests reproduce the helper algorithm, but the exact current integrat
 The seccomp denylist now explicitly denies `setsid` and `setpgid`, and the synthetic client probes both denials in test mode (EACCES) and production mode (EPERM). The reason is operational: the updated parent launches `unshare` directly in a dedicated session and relies on process-group TERM/KILL to enforce bounded cleanup. A client must not be allowed to move itself into a new session or process group to escape that teardown boundary.
 
 These two new syscall denials and their client assertions are present in the latest source, but the current exact C blobs have not yet been compiled/executed as part of the seccomp integration. This remains a denylist defense-in-depth profile, not a complete syscall allowlist. The exact latest integrated seccomp harness still requires execution; the complete `linux/run.sh` entry point also remains pending.
+
+## 2026-11-14 standalone process-group syscall filter smoke test
+
+A standalone C smoke program (not a reconstructed copy of the repository's seccomp wrapper) installed a minimal classic-BPF filter under `PR_SET_NO_NEW_PRIVS` and `PR_SET_SECCOMP`, denying `setsid` and `setpgid`.
+
+Environment: Linux x86_64, kernel `6.18.57`, GCC `14.2.0`, `-Wall -Wextra -Werror -O2`.
+
+- Production-mode filter: both syscalls returned `EPERM` in the parent and a fork child.
+- Test-mode filter: both syscalls returned `EACCES` in the parent and a fork child.
+- Both builds compiled and passed all assertions.
+
+This is a kernel primitive smoke test only. It verifies that the two requested seccomp return actions and fork inheritance work in this runtime; it does not prove that the exact current `seccomp-exec.c` and `seccomp-child-test.c` blobs compile together, nor that the newest namespace integration passes. The integrated current source remains pending exact-Blob execution.
