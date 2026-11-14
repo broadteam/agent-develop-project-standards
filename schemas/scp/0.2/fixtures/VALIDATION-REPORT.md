@@ -19,7 +19,7 @@
 |---|---:|---|---|
 | Schema meta-schema | 1 | `Draft202012Validator.check_schema` succeeds | PASS |
 | Positive instances | 4 | Every example validates | 4/4 PASS |
-| JSON Schema-invalid fixtures | 8 | Every fixture is rejected | 9/9 REJECTED |
+| JSON Schema-invalid fixtures | 9 | Every fixture is rejected | 9/9 REJECTED |
 | Semantic-invalid fixture packets | 19 | Every Packet remains JSON Schema-valid; semantic/context layer must reject or downgrade the claim | 19/19 SCHEMA-VALID |
 | Date-time format assertion | 2 probes | Valid RFC 3339 accepted; invalid date-time rejected | PASS |
 

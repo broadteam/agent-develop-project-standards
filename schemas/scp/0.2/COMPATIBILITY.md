@@ -76,7 +76,7 @@ These are semantic requirements, not an implemented validator in this PR.
 
 ## Semantic fixture coverage and execution context
 
-The current fixture inventory contains 4 positive instances, 8 JSON Schema-invalid instances and 19 semantic-invalid vectors. The semantic vectors cover:
+The current fixture inventory contains 4 positive instances, 9 JSON Schema-invalid instances and 19 semantic-invalid vectors. The semantic vectors cover:
 
 - Fingerprint path identity and coverage: complete path-set equality, partial subset relation, duplicate paths, canonical ordering, UTF-8/path-safety collisions.
 - Git index consistency: duplicate stages, stage-0/unmerged-stage mixing, index/worktree mode and digest provenance.
