@@ -476,3 +476,24 @@ Latest `run-seccomp-integration.sh` Git Blob: `091c9a64c5573d4158c2fe92b73b921bc
 The other five source Blobs remain unchanged: run.sh `83f55567bab49985083e6c5917467e89850de17e`; probe.py.gz `ae64fb2f651018e53705990c2f715ea25fa465b9` (decompressed source `88e08595b3f74fc7c5c59fb13c9473f94dbb5503`); cleanup-failure-integration.sh `bde76808b7dbf7af1dcf895fa207fe19e880d6e1`; seccomp-exec.c `d72380003e49e1850ce8c59990a92f18f6841ba0`; seccomp-child-test.c `8b947836d1048543bf756347e829ea98147983b4`.
 
 This is still Linux x86_64 synthetic teardown evidence for one runtime, not production process supervision, aggregate cgroup resource enforcement or a general sandbox security certification.
+## 2026-11-14 exact-Blob replay: process-group parser semantics and PID-disappearance races
+
+The process-group inspector regression suite now covers both parser outcomes and the distinct failure/race boundaries:
+
+- A live process-group member is detected, including a `/proc/<pid>/stat` command name containing an embedded `)`; parsing uses the final closing delimiter.
+- A record for another PGID is excluded, and a same-PGID zombie is not treated as a live descendant.
+- `FileNotFoundError` and `ProcessLookupError` between `scandir()` and opening `stat` are treated as benign PID-disappearance races.
+- Permission denial while enumerating the `/proc` root fails closed, separately from permission denial while opening an individual `/proc/<pid>/stat`.
+- The existing malformed-record, incomplete-field and invalid-PGID cases still fail closed.
+
+The exact current seccomp integration script Blob is `96a2d046fffc4fe6ab8e793c16f5dfedd7846f64`. The other five `linux/run.sh` inputs remained unchanged and were checked against their current Git Blobs before execution:
+
+- `run.sh`: `83f55567bab49985083e6c5917467e89850de17e`.
+- `probe.py.gz`: `ae64fb2f651018e53705990c2f715ea25fa465b9` (decompressed source: `88e08595b3f74fc7c5c59fb13c9473f94dbb5503`).
+- `cleanup-failure-integration.sh`: `bde76808b7dbf7af1dcf895fa207fe19e880d6e1`.
+- `seccomp-exec.c`: `d72380003e49e1850ce8c59990a92f18f6841ba0`.
+- `seccomp-child-test.c`: `8b947836d1048543bf756347e829ea98147983b4`.
+
+Environment: Linux x86_64 / kernel `6.18.57`, effective UID 0 in the disposable test container, GCC `14.2.0`, Python `3.13.5`. Three completed executions of the exact current `sh ./run.sh` entry returned exit code 0. Every run included the new parser, race and scan-permission PASS markers, all four stat-file fail-closed markers, normal-exit orphan teardown, exact-limit/overflow/timeout output checks, close_range/FD/stdio/RLIMIT/seccomp checks, and real tmpfs EBUSY quarantine recovery. No `FAIL` marker appeared. An additional batch invocation hit the outer tool timeout and is not counted.
+
+This is Linux x86_64 synthetic teardown evidence for one runtime. It does not upgrade production Sandbox acceptance, aggregate cgroup enforcement, syscall policy, LSM/kernel review, general secret handling, cleanup-manager certification, cross-platform support or Gate C authorization.
