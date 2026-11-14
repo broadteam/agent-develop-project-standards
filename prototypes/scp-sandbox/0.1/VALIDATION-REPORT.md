@@ -533,3 +533,23 @@ Exact current seccomp integration script Git Blob: `bdb4cf3b9f7cbc0a82a8e1ad8c56
 Environment: Linux x86_64 / kernel `6.18.57`, effective UID 0 in the disposable test container, GCC `14.2.0`, Python `3.13.5`. Three completed full exact-Blob `sh ./run.sh` executions returned exit code 0. Every run passed both fallback assertions, WNOWAIT PGID retention, the orphan-after-leader-exit test, all `/proc` parser/positive/race/fail-closed tests, exact-limit/overflow/timeout capture, seccomp/FD/stdio/RLIMIT checks and real tmpfs EBUSY quarantine recovery. No `FAIL` marker appeared in the three completed logs.
 
 These tests establish that the prototype attempts group-wide SIGKILL before reporting a `/proc`-inspection or TERM-wait verification failure. They do not prove termination if the kernel refuses signal delivery or if a task remains uninterruptible; those cases remain hard failures. This remains single-runtime synthetic Linux x86_64 evidence, not production sandbox certification.
+## 2026-11-15 exact-Blob replay: real descendant termination on `/proc` inspection failure
+
+The prior fallback regressions mocked `os.killpg()` and proved only that SIGKILL was requested. The harness now adds real process-group fixtures to verify the resulting process termination.
+
+Each fixture creates a leader in a fresh session/process group. The leader starts a same-PGID descendant which closes stdin/stdout/stderr, installs `SIGTERM` ignore, writes a readiness marker, then waits before attempting to write a delayed survivor marker. The leader waits for the readiness marker before exiting; the supervisor observes leader exit with `waitid(WNOWAIT)` so the original PGID remains pinned.
+
+Two distinct inspection failures are injected while `terminate_process_group_members()` runs:
+
+- Initial `/proc` scan fails with `PermissionError`; the supervisor must issue group-wide SIGKILL. The descendant's delayed survivor marker must remain absent (`PASS process-group-force-kill-terminates-real-descendant-initial-scan`).
+- Initial scan reports a live member, SIGTERM is sent, then the TERM grace-period scan fails with `PermissionError`; the supervisor must escalate to group-wide SIGKILL. The delayed survivor marker must remain absent (`PASS process-group-force-kill-terminates-real-descendant-term-wait-scan`).
+
+These are real child-process fixtures with a readiness handshake proving SIGTERM was already ignored before injection. They do not rely on a mock for signal delivery. The existing mock assertions remain as separate checks of signal ordering and error propagation.
+
+Exact current seccomp integration script Git Blob: `57784e61845b16e7f3145c182affdd93af55d9dc`. The other five `linux/run.sh` input Blobs remain unchanged: `run.sh` `83f55567bab49985083e6c5917467e89850de17e`; `probe.py.gz` `ae64fb2f651018e53705990c2f715ea25fa465b9` (decompressed source `88e08595b3f74fc7c5c59fb13c9473f94dbb5503`); `cleanup-failure-integration.sh` `bde76808b7dbf7af1dcf895fa207fe19e880d6e1`; `seccomp-exec.c` `d72380003e49e1850ce8c59990a92f18f6841ba0`; `seccomp-child-test.c` `8b947836d1048543bf756347e829ea98147983b4`.
+
+Environment: Linux x86_64 / kernel `6.18.57`, effective UID 0 in the disposable test container, GCC `14.2.0`, Python `3.13.5`. Three completed full `sh ./run.sh` executions against all six exact Git Blob inputs returned exit code 0. Each run passed both real descendant termination markers, both mock fallback markers, WNOWAIT PGID retention, orphan-after-leader-exit teardown, every `/proc` positive/race/fail-closed case, exact-limit/overflow/timeout capture, seccomp/FD/stdio/RLIMIT and real tmpfs EBUSY quarantine recovery. No `FAIL` marker appeared in the three completed logs.
+
+One earlier execution of an intermediate readiness-fixture revision failed because its generated Python `-c` source used invalid compound-statement syntax; it is excluded. The syntax was corrected, the child readiness handshake was verified, and the three counted runs used only the exact current Blob recorded above.
+
+This is stronger evidence that the prototype's SIGKILL fallback terminates real same-PGID descendants under the two tested `/proc` inspection-failure points on one Linux runtime. It still does not prove behavior when the kernel refuses SIGKILL, when tasks remain uninterruptible, or under hostile kernel/LSM conditions; those remain outside production certification.
