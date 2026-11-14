@@ -105,6 +105,48 @@ try {
 
   assertParity('valid graph');
 
+  const originalEvidenceUrl = 'https://github.com/acme/app/actions/runs/123';
+  const localEvidence = '.tmp/verification-report.txt';
+  const indexFile = '.spec/verification/INDEX.md';
+  const readIndex = () => fs.readFileSync(path.join(root, indexFile), 'utf8');
+  write(localEvidence, 'local verification report\n');
+  write(indexFile, readIndex().replaceAll(originalEvidenceUrl, localEvidence));
+  assertParity('existing local evidence file');
+
+  write(indexFile, readIndex().replaceAll(localEvidence, '.tmp/missing-report.txt'));
+  assertParity('missing local evidence file', ['证据位置不是有效 HTTP(S) URL 或项目内存在的普通文件']);
+  write(indexFile, readIndex().replaceAll('.tmp/missing-report.txt', localEvidence));
+  assertParity('restore local evidence file');
+
+  fs.writeFileSync(path.join(tmp, 'outside-report.txt'), 'outside project\n', 'utf8');
+  write(indexFile, readIndex().replaceAll(localEvidence, '../outside-report.txt'));
+  assertParity('evidence path traversal', ['证据位置不是有效 HTTP(S) URL 或项目内存在的普通文件']);
+  write(indexFile, readIndex().replaceAll('../outside-report.txt', 'javascript:alert(1)'));
+  assertParity('unsupported evidence URI scheme', ['证据位置不是有效 HTTP(S) URL 或项目内存在的普通文件']);
+  write(indexFile, readIndex().replaceAll('javascript:alert(1)', localEvidence));
+  assertParity('restore valid evidence pointer');
+
+  write(indexFile, readIndex().replace('| V001 | R001 | CI | pass |', '| V001 | R001 | CI | partial |'));
+  assertParity('summary/detail result mismatch', ['索引结果与详情不一致']);
+  write(indexFile, readIndex().replace('| V001 | R001 | CI | partial |', '| V001 | R001 | CI | pass |'));
+  assertParity('restore consistent summary');
+
+  const linkedEvidence = path.join(root, '.tmp', 'linked-report.txt');
+  let symlinkCreated = false;
+  try {
+    fs.symlinkSync(path.join(tmp, 'outside-report.txt'), linkedEvidence, 'file');
+    symlinkCreated = true;
+  } catch (error) {
+    if (!['EPERM', 'EACCES', 'ENOSYS'].includes(error.code)) throw error;
+  }
+  if (symlinkCreated) {
+    write(indexFile, readIndex().replaceAll(localEvidence, '.tmp/linked-report.txt'));
+    assertParity('symbolic-link evidence rejected', ['证据位置不是有效 HTTP(S) URL 或项目内存在的普通文件']);
+    fs.unlinkSync(linkedEvidence);
+    write(indexFile, readIndex().replaceAll('.tmp/linked-report.txt', localEvidence));
+    assertParity('restore evidence after symlink test');
+  }
+
   write('.spec/tasks/T1/card.md', fs.readFileSync(path.join(root, '.spec/tasks/T1/card.md'), 'utf8').replace('R001', 'R999'));
   assertParity('dangling task requirement', ['任务 T1 引用了不存在的需求 R999']);
   write('.spec/tasks/T1/card.md', fs.readFileSync(path.join(root, '.spec/tasks/T1/card.md'), 'utf8').replace('R999', 'R001'));

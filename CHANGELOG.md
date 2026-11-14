@@ -1,5 +1,8 @@
 ## Unreleased
 
+### Changed
+- Harden verification traceability: require evidence pointers to resolve to an existing in-project regular file or a valid HTTP(S) URL, reject path traversal and symlink escapes, and require V summary rows to match detailed evidence records field-for-field. Keep Node and Python gates in parity.
+
 ### Added
 - Add an end-to-end governance lifecycle fixture invoked by the existing migration regression test: initialize a disposable project, resolve task context, bind verification to a real fixture Git commit, reject partial evidence at closeout, check Node/Python gate parity and reconstruct cross-session context from repository-owned records. The existing CI workflow remains unchanged.
 
