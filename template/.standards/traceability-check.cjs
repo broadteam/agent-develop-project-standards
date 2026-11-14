@@ -77,7 +77,7 @@ function isValidEvidencePointer(root, pointer) {
     if (!['automated_test','manual_check','CI','production_observation'].includes(type)) errors.push('追踪关系：验证证据 ' + match[1] + ' 验证类型非法或缺失');
     if (!['pass','fail','partial'].includes(result)) errors.push('追踪关系：验证证据 ' + match[1] + ' 结果非法或缺失');
     if (!/^[a-f0-9]{40}$/i.test(commit)) errors.push('追踪关系：验证证据 ' + match[1] + ' 缺少完整 40 位 Commit SHA');
-    if (!evidence || /（|\\(|CI URL/.test(evidence)) errors.push('追踪关系：验证证据 ' + match[1] + ' 缺少具体证据位置');
+    if (!evidence || evidence.includes('（') || evidence.includes('(') || evidence.includes('CI URL')) errors.push('追踪关系：验证证据 ' + match[1] + ' 缺少具体证据位置');
     else if (!isValidEvidencePointer(root, evidence)) errors.push('追踪关系：验证证据 ' + match[1] + ' 的证据位置不是有效 HTTP(S) URL 或项目内存在的普通文件（禁止路径穿越与符号链接）');
     for (const id of covers) if (!requirements.has(id)) errors.push(`追踪关系：验证证据 ${match[1]} 覆盖了不存在的需求 ${id}`);
   }
