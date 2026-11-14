@@ -454,3 +454,15 @@ All six exact Git Blob identities were checked before the three latest complete 
 Environment: Linux x86_64 / kernel `6.18.57`, effective UID 0 in the disposable container, GCC `14.2.0`, Python `3.13.5`. Three completed `sh ./run.sh` executions returned exit code 0. Each log included the orphan-descendant PASS marker, exact-output-limit / sustained-overflow / silent-timeout PASS markers, close_range fail-closed and FD 9/100 assertions, stdio checks, RLIMIT readbacks, setsid/setpgid denials, and real tmpfs EBUSY quarantine recovery. No line beginning `FAIL` appeared in the three completed logs. One additional tool call timed out and is not included in the count.
 
 This is Linux x86_64 synthetic prototype evidence in one tested runtime. It does not certify production process supervision, aggregate cgroup CPU/memory/PID limits, a complete client-specific syscall allowlist, LSM/kernel-escape resistance, generalized secret scanning, or a general resource manager. Gate C remains closed.
+
+## 2026-11-14 fail-closed /proc inspection for process-group teardown
+
+Static review found that the PGID member scan skipped `PermissionError` and malformed `/proc/<pid>/stat` data together with normal process-disappearance races. That could incorrectly interpret an unreadable process record as an empty process group.
+
+The current script accepts an injectable `proc_root` for its inspector, tolerates only `FileNotFoundError` / `ProcessLookupError` caused by a process disappearing between enumeration and open, and raises a teardown error on permission denial, malformed stat record, incomplete fields or invalid PGID. A new synthetic failure test creates a fake proc tree, injects `PermissionError` when reading a PID stat file, and requires `RuntimeError` rather than a false empty-group result.
+
+Latest seccomp script Blob: `0ccc9c9f4582e907db95e1b9ad05f81a50cd77f2`. The full exact-Blob `linux/run.sh` entry was run three completed times after this change. Each run returned exit code 0 and included `PASS process-group-inspection-fails-closed-on-permission-error`, `PASS bounded-capture-kills-orphaned-descendant-after-leader-exit`, the exact-limit/overflow/timeout markers, close_range/FD/stdio/RLIMIT checks, seccomp denials and cleanup/quarantine markers. No line beginning `FAIL` appeared.
+
+The other five required source Blobs remain exact: run.sh `83f55567bab49985083e6c5917467e89850de17e`; probe.py.gz `ae64fb2f651018e53705990c2f715ea25fa465b9` (decompressed source `88e08595b3f74fc7c5c59fb13c9473f94dbb5503`); cleanup-failure-integration.sh `bde76808b7dbf7af1dcf895fa207fe19e880d6e1`; seccomp-exec.c `d72380003e49e1850ce8c59990a92f18f6841ba0`; seccomp-child-test.c `8b947836d1048543bf756347e829ea98147983b4`.
+
+Scope: Linux x86_64 synthetic process-group teardown evidence in one tested runtime. It does not replace cgroup process-tree accounting, a production supervisor, complete client-specific syscall allowlist or independent security review.

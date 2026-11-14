@@ -45,6 +45,7 @@ import signal
 import subprocess
 import sys
 import time
+from unittest.mock import patch
 
 class OutputLimitExceeded(RuntimeError):
     pass
@@ -52,10 +53,10 @@ class OutputLimitExceeded(RuntimeError):
 class CaptureDeadlineExceeded(TimeoutError):
     pass
 
-def process_group_has_live_members(pgid):
+def process_group_has_live_members(pgid, proc_root="/proc"):
     """Return whether /proc still contains a non-zombie member of this process group."""
     try:
-        entries = os.scandir("/proc")
+        entries = os.scandir(proc_root)
     except OSError as exc:
         raise RuntimeError("cannot inspect /proc to verify process-group teardown") from exc
     with entries:
@@ -63,20 +64,27 @@ def process_group_has_live_members(pgid):
             if not entry.name.isdigit():
                 continue
             try:
-                with open(os.path.join("/proc", entry.name, "stat"), "r", encoding="ascii") as stream:
+                with open(os.path.join(proc_root, entry.name, "stat"), "r", encoding="ascii") as stream:
                     stat_line = stream.read()
                 closing_paren = stat_line.rfind(")")
                 if closing_paren < 0:
-                    continue
+                    raise RuntimeError(f"malformed {proc_root}/{entry.name}/stat record")
                 fields = stat_line[closing_paren + 2:].split()
                 if len(fields) < 3:
-                    continue
+                    raise RuntimeError(f"incomplete {proc_root}/{entry.name}/stat record")
                 state = fields[0]
-                process_group = int(fields[2])
+                try:
+                    process_group = int(fields[2])
+                except ValueError as exc:
+                    raise RuntimeError(f"invalid process group in {proc_root}/{entry.name}/stat") from exc
                 if process_group == pgid and state not in ("Z", "X"):
                     return True
-            except (FileNotFoundError, ProcessLookupError, PermissionError, ValueError):
+            except (FileNotFoundError, ProcessLookupError):
+                # The process exited between scandir and opening its stat file.
                 continue
+            except PermissionError as exc:
+                # Never interpret an unreadable process record as an empty group.
+                raise RuntimeError(f"cannot inspect {proc_root}/{entry.name}/stat during teardown") from exc
     return False
 
 
@@ -233,6 +241,18 @@ def self_test_bounded_capture(tmp):
     if os.path.exists(marker):
         raise RuntimeError("orphaned descendant survived after the process-group leader exited")
     print("PASS bounded-capture-kills-orphaned-descendant-after-leader-exit")
+
+    fake_proc_root = os.path.join(tmp, "fake-proc-for-permission-test")
+    os.makedirs(os.path.join(fake_proc_root, "4242"), exist_ok=True)
+    try:
+        with patch("builtins.open", side_effect=PermissionError("synthetic unreadable proc entry")):
+            process_group_has_live_members(42, proc_root=fake_proc_root)
+    except RuntimeError as exc:
+        if "cannot inspect" not in str(exc):
+            raise
+        print("PASS process-group-inspection-fails-closed-on-permission-error")
+    else:
+        raise RuntimeError("process-group inspection incorrectly treated unreadable proc entry as empty")
 
 
 fd_source, rootfs, tmp = sys.argv[1:]

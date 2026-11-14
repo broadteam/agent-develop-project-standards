@@ -2025,3 +2025,11 @@ All six current source Blobs were verified before execution: run.sh `83f55567bab
 Three completed full `sh ./run.sh` runs on Linux x86_64 / kernel `6.18.57` returned exit code 0. Each included the orphaned-descendant-after-normal-exit PASS marker, exact-limit/overflow/timeout capture probes, close_range fail-closed, FD 9/100, stdio, RLIMIT, setsid/setpgid and real tmpfs EBUSY quarantine probes. No `FAIL` marker appeared. One additional tool invocation timed out and is not counted.
 
 This is synthetic Linux x86_64 prototype evidence only. Production acceptance still requires aggregate cgroup resources, a complete client-specific syscall allowlist, LSM/kernel-escape review, general secret handling and cleanup manager, platform scope decision and independent security review. Gate C remains closed.
+
+## 2026-11-14 fail-closed /proc inspection for process-group cleanup
+
+The PGID inspector previously skipped `PermissionError` and malformed `/proc/<pid>/stat` records. That could falsely report an empty process group when it could not inspect a process. It now ignores only `FileNotFoundError` / `ProcessLookupError` races; permission denial, malformed records, incomplete fields and invalid PGIDs raise hard teardown errors.
+
+Latest seccomp script Blob: `0ccc9c9f4582e907db95e1b9ad05f81a50cd77f2`. A synthetic fake-proc test injects `PermissionError` and requires fail-closed behavior. The current complete exact-Blob `linux/run.sh` entry was executed three completed times after this patch; each returned exit code 0 and passed the fail-closed proc marker, orphan-descendant cleanup, timeout/overflow, close_range, FD 9/100, stdio, RLIMIT, seccomp and real cleanup markers. No `FAIL` output appeared.
+
+The other five exact source Blobs remain unchanged from the immediately preceding 3/3 replay. This remains Linux x86_64 synthetic teardown evidence, not production supervisor certification.
