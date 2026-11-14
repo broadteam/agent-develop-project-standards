@@ -52,6 +52,62 @@ class OutputLimitExceeded(RuntimeError):
 class CaptureDeadlineExceeded(TimeoutError):
     pass
 
+def process_group_has_live_members(pgid):
+    """Return whether /proc still contains a non-zombie member of this process group."""
+    try:
+        entries = os.scandir("/proc")
+    except OSError as exc:
+        raise RuntimeError("cannot inspect /proc to verify process-group teardown") from exc
+    with entries:
+        for entry in entries:
+            if not entry.name.isdigit():
+                continue
+            try:
+                with open(os.path.join("/proc", entry.name, "stat"), "r", encoding="ascii") as stream:
+                    stat_line = stream.read()
+                closing_paren = stat_line.rfind(")")
+                if closing_paren < 0:
+                    continue
+                fields = stat_line[closing_paren + 2:].split()
+                if len(fields) < 3:
+                    continue
+                state = fields[0]
+                process_group = int(fields[2])
+                if process_group == pgid and state not in ("Z", "X"):
+                    return True
+            except (FileNotFoundError, ProcessLookupError, PermissionError, ValueError):
+                continue
+    return False
+
+
+def wait_for_process_group_exit(pgid, timeout_seconds):
+    deadline = time.monotonic() + timeout_seconds
+    while process_group_has_live_members(pgid):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return False
+        time.sleep(min(0.025, remaining))
+    return True
+
+
+def terminate_process_group_members(pgid):
+    """Reap the execution boundary even when its original leader already exited."""
+    if not process_group_has_live_members(pgid):
+        return
+    try:
+        os.killpg(pgid, signal.SIGTERM)
+    except ProcessLookupError:
+        return
+    if wait_for_process_group_exit(pgid, 1.0):
+        return
+    try:
+        os.killpg(pgid, signal.SIGKILL)
+    except ProcessLookupError:
+        return
+    if not wait_for_process_group_exit(pgid, 2.0):
+        raise RuntimeError("child process group did not terminate after SIGKILL")
+
+
 def terminate_process_group(proc):
     for stream in (proc.stdout, proc.stderr):
         if stream is not None:
@@ -59,22 +115,12 @@ def terminate_process_group(proc):
                 stream.close()
             except OSError:
                 pass
-    try:
-        os.killpg(proc.pid, signal.SIGTERM)
-    except ProcessLookupError:
-        pass
-    try:
-        proc.wait(timeout=1.0)
-    except subprocess.TimeoutExpired:
-        pass
-    try:
-        os.killpg(proc.pid, signal.SIGKILL)
-    except ProcessLookupError:
-        pass
+    terminate_process_group_members(proc.pid)
     try:
         proc.wait(timeout=2.0)
     except subprocess.TimeoutExpired as exc:
-        raise RuntimeError("child process group did not terminate after SIGKILL") from exc
+        raise RuntimeError("child process leader did not exit after group teardown") from exc
+
 
 def run_bounded(command, *, env, timeout_seconds, max_output_bytes, pass_fds=()):
     proc = subprocess.Popen(
@@ -120,6 +166,9 @@ def run_bounded(command, *, env, timeout_seconds, max_output_bytes, pass_fds=())
             return_code = proc.wait(timeout=max(0.01, remaining_time))
         except subprocess.TimeoutExpired as exc:
             raise CaptureDeadlineExceeded("seccomp integration process did not exit before its deadline") from exc
+        # The leader can exit while descendants have redirected/closed both output pipes.
+        # They must still be terminated before a successful return from the runner.
+        terminate_process_group_members(proc.pid)
         return return_code, bytes(captured["stdout"]), bytes(captured["stderr"])
     except (OutputLimitExceeded, CaptureDeadlineExceeded):
         selector.close()
@@ -133,7 +182,7 @@ def run_bounded(command, *, env, timeout_seconds, max_output_bytes, pass_fds=())
         if proc.poll() is None:
             terminate_process_group(proc)
 
-def self_test_bounded_capture():
+def self_test_bounded_capture(tmp):
     env = os.environ.copy()
     rc, stdout, stderr = run_bounded(
         [sys.executable, "-c", "import sys; sys.stdout.buffer.write(b'x' * 65536)"],
@@ -161,6 +210,31 @@ def self_test_bounded_capture():
     else:
         raise RuntimeError("bounded capture did not enforce the parent deadline")
 
+    marker = os.path.join(tmp, "orphaned-descendant-survivor-marker")
+    if os.path.exists(marker):
+        os.unlink(marker)
+    descendant_code = (
+        "import pathlib,signal,sys,time; "
+        "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+        "time.sleep(1.5); pathlib.Path(sys.argv[1]).write_text('survived')"
+    )
+    leader_code = (
+        "import subprocess,sys; "
+        "subprocess.Popen([sys.executable, '-c', " + repr(descendant_code) + ", " + repr(marker) + "], "
+        "stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)"
+    )
+    rc, stdout, stderr = run_bounded(
+        [sys.executable, "-c", leader_code],
+        env=env, timeout_seconds=5, max_output_bytes=65536,
+    )
+    if rc != 0 or stdout or stderr:
+        raise RuntimeError("normal-exit orphaned-descendant fixture failed")
+    time.sleep(1.7)
+    if os.path.exists(marker):
+        raise RuntimeError("orphaned descendant survived after the process-group leader exited")
+    print("PASS bounded-capture-kills-orphaned-descendant-after-leader-exit")
+
+
 fd_source, rootfs, tmp = sys.argv[1:]
 source_fd = os.open(fd_source, os.O_RDONLY)
 try:
@@ -178,7 +252,7 @@ command = [
 ]
 env = os.environ.copy()
 env["HOST_SECRET_CANARY"] = "must-not-enter-client"
-self_test_bounded_capture()
+self_test_bounded_capture(tmp)
 try:
     return_code, stdout, stderr = run_bounded(
         command, env=env, timeout_seconds=60, max_output_bytes=65536, pass_fds=(9, 100),
