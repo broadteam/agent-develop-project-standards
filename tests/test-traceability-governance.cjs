@@ -121,9 +121,9 @@ try {
   fs.writeFileSync(path.join(tmp, 'outside-report.txt'), 'outside project\n', 'utf8');
   write(indexFile, readIndex().replaceAll(localEvidence, '../outside-report.txt'));
   assertParity('evidence path traversal', ['证据位置不是有效 HTTP(S) URL 或项目内存在的普通文件']);
-  write(indexFile, readIndex().replaceAll('../outside-report.txt', 'javascript:alert(1)'));
+  write(indexFile, readIndex().replaceAll('../outside-report.txt', 'javascript:alert'));
   assertParity('unsupported evidence URI scheme', ['证据位置不是有效 HTTP(S) URL 或项目内存在的普通文件']);
-  write(indexFile, readIndex().replaceAll('javascript:alert(1)', localEvidence));
+  write(indexFile, readIndex().replaceAll('javascript:alert', localEvidence));
   assertParity('restore valid evidence pointer');
 
   write(indexFile, readIndex().replace('| V001 | R001 | CI | pass |', '| V001 | R001 | CI | partial |'));
