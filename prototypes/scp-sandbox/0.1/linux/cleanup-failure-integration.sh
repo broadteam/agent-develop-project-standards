@@ -46,7 +46,34 @@ def persist():
         os.fsync(directory_fd)
     finally:
         os.close(directory_fd)
+
+def acquire_resource():
+    """Synthetic owner admission path: only active records may be reused."""
+    loaded = json.loads(record_path.read_text(encoding="utf-8"))
+    if loaded.get("state") != "active":
+        current_state = loaded.get("state")
+        raise PermissionError("resource unavailable in state={!r}".format(current_state))
+    root = pathlib.Path(loaded["owned_root"])
+    if root != owned or not root.is_dir():
+        raise PermissionError("owned resource root is not reusable")
+    return root
+
+def assert_reuse_denied(expected_state):
+    try:
+        acquire_resource()
+    except PermissionError:
+        loaded = json.loads(record_path.read_text(encoding="utf-8"))
+        loaded_state = loaded.get("state")
+        if loaded_state != expected_state:
+            raise RuntimeError("expected state={!r}, got {!r}".format(expected_state, loaded_state))
+        print(f"QUARANTINE_REUSE_DENIED state={expected_state}=PASS")
+    else:
+        raise RuntimeError(f"resource was unexpectedly reusable in state={expected_state!r}")
+
 persist()
+if acquire_resource() != owned:
+    raise RuntimeError("active resource could not be acquired")
+print("ACTIVE_RESOURCE_ADMISSION=PASS")
 
 try:
     os.rmdir(work)
@@ -60,15 +87,13 @@ else:
 # Persist the no-reuse state before moving the owned tree (fail closed on interruption).
 record["state"] = "quarantining"
 persist()
+assert_reuse_denied("quarantining")
 os.rename(owned, quarantined)
 record["state"] = "quarantined"
 record["owned_root"] = str(quarantined)
 persist()
+assert_reuse_denied("quarantined")
 
-loaded = json.loads(record_path.read_text(encoding="utf-8"))
-if loaded["state"] not in {"quarantining", "quarantined"}:
-    raise RuntimeError("quarantined resource was not persisted as unavailable")
-print("QUARANTINE_REUSE_GUARD=PASS")
 if (quarantined / "work" / "mounted-canary").read_text(encoding="utf-8") != "real-filesystem-cleanup-failure\n":
     raise RuntimeError("mounted resource did not remain reachable at quarantined path")
 print("QUARANTINED_RESOURCE_PRESERVED=PASS")
@@ -79,8 +104,7 @@ os.rmdir(quarantined / "work")
 os.rmdir(quarantined)
 record["state"] = "cleaned"
 persist()
-if json.loads(record_path.read_text(encoding="utf-8"))["state"] != "cleaned":
-    raise RuntimeError("cleanup completion was not persisted")
+assert_reuse_denied("cleaned")
 record_path.unlink()
 os.rmdir(owned_parent)
 os.rmdir(quarantine_parent)
