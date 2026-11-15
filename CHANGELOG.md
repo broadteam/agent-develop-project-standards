@@ -1,5 +1,12 @@
 ## Unreleased
 
+### Changed
+- Clarify the two supported template-upgrade paths: `init --update` for untouched files and the auditable plan/review/manual-apply/record flow for reviewed migrations. Point users to the authoritative migration procedure and state explicitly that baseline registration does not apply template files.
+
+### Tests
+- Add documentation contract assertions so the deployment guide cannot silently collapse the quick-refresh and audited-upgrade procedures into one ambiguous path.
+
+
 ### Fixed
 - Constrain client-private memory mirror targets to existing or missing project-relative regular-file paths. Reject absolute/drive paths, traversal and symlink components in both Node and Python governance gates and before synchronization. Validate every configured target before writing any mirror so an invalid later entry cannot leave earlier mirrors updated. Keep identical diagnostics across implementations.
 

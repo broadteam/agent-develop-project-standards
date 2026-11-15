@@ -25,6 +25,13 @@ assert.match(readme, /SPEC-v2\.0\.md/);
 assert.match(readme, /MIGRATION-v2\.0\.md/);
 assert.match(changelog, /2\.0\.0-rc\.1/);
 assert.match(migration, /--dry-run/);
+const deploy = fs.readFileSync(path.join(root, 'DEPLOY.md'), 'utf8');
+assert.match(deploy, /快速安全刷新：`init\.cjs --update`/);
+assert.match(deploy, /审计式升级：计划 → 审批 → 手工应用 → 登记/);
+assert.match(deploy, /tools\/plan-template-upgrade\.cjs[\s\S]*tools\/validate-template-upgrade-review\.cjs[\s\S]*tools\/record-reviewed-template-upgrade\.cjs/);
+assert.match(deploy, /登记器只校验实际文件结果并更新 `\.agent-standards\.json`，不会应用/);
+assert.match(deploy, /只要还有延期路径，整体版本仍保持来源版本/);
+assert.match(deploy, /完整字段、恢复流程与归档要求见 \[MIGRATION-v2\.0\.md\]/);
 assert.match(spec, /横向机制：母模板与项目适配/);
 
 assert.match(spec, /横向机制：AI 治理工作闭环（不是新增方向）/);
