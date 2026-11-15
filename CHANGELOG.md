@@ -4,8 +4,11 @@
 - Add a disposable real-client smoke fixture generator based on the current initializer, with randomized root, nested and memory markers plus a cross-session checkpoint write/restore probe.
 - Document per-client execution, evidence requirements and explicit PASS/BLOCKED/NOT RUN boundaries; the guide does not claim that any client has already been launched.
 
+### Fixed
+- Resolve the fixture destination's existing parent directory before checking the repository boundary; reject pre-existing symlink/junction paths that lexically appear external but resolve into the repository. Require the parent directory to exist rather than recursively creating an unbounded parent path.
+
 ### Tests
-- Exercise fixture creation, generated-project governance validation, collision refusal and repository-boundary refusal through the existing client-adapter regression entry point; do not add or modify a CI workflow.
+- Exercise fixture creation, generated-project governance validation, collision refusal, missing-parent refusal, and pre-existing symlink/junction escapes back into the repository through the existing client-adapter regression entry point; do not add or modify a CI workflow.
 
 ### Changed
 - Refresh client compatibility guidance against current official documentation: distinguish OpenCode V2 loading, Claude Code AGENTS support and fallback behavior, Gemini context filename configuration, and separate WorkBuddy from CodeBuddy IDE.

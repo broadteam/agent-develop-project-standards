@@ -54,6 +54,30 @@ try {
   assert.notEqual(refusedRepositoryPath.status, 0, 'generator must refuse to create fixtures inside its own repository');
   assert.ok(!fs.existsSync(insideRepository), 'refused in-repository target must remain absent');
 
+  const missingParent = path.join(tmp, 'parent-must-not-be-created', 'fixture');
+  const refusedMissingParent = run(missingParent);
+  assert.notEqual(refusedMissingParent.status, 0, 'generator must require an existing parent directory');
+  assert.ok(!fs.existsSync(path.dirname(missingParent)), 'generator must not create parent directories');
+
+  // A lexical path outside the repository can still resolve inside it through
+  // a pre-existing directory symlink/junction. This must be rejected too.
+  const repositoryAlias = path.join(tmp, 'repository-link');
+  let symlinkAvailable = false;
+  try {
+    fs.symlinkSync(root, repositoryAlias, process.platform === 'win32' ? 'junction' : 'dir');
+    symlinkAvailable = true;
+  } catch (error) {
+    if (!['EPERM', 'EACCES', 'ENOSYS', 'ENOTSUP', 'EINVAL'].includes(error.code)) throw error;
+  }
+  if (symlinkAvailable) {
+    const symlinkTarget = path.join(repositoryAlias, '.client-smoke-test-symlink-boundary');
+    const refusedSymlinkPath = run(symlinkTarget);
+    assert.notEqual(refusedSymlinkPath.status, 0, 'generator must reject a target whose resolved parent is inside the repository');
+    const accidentallyCreated = path.join(root, path.basename(symlinkTarget));
+    assert.ok(!fs.existsSync(accidentallyCreated), 'symlinked repository target must remain absent');
+    fs.rmSync(repositoryAlias, { recursive: true, force: true });
+  }
+
   console.log('test-client-smoke-fixture: all cases passed');
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });

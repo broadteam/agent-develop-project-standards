@@ -25,8 +25,23 @@ if (!requested || requested === '--help' || requested === '-h' || process.argv.l
 }
 
 const target = path.resolve(process.cwd(), requested);
-if (inside(ROOT, target) || inside(target, ROOT)) {
-  fail('为避免误改仓库，目标目录不能位于本工具仓库内，也不能是包含本仓库的父目录。');
+let realRoot;
+let realParent;
+try {
+  realRoot = fs.realpathSync(ROOT);
+  realParent = fs.realpathSync(path.dirname(target));
+  if (!fs.statSync(realParent).isDirectory()) {
+    fail('目标父路径不是目录。');
+  }
+} catch (error) {
+  fail('目标父目录必须预先存在且可访问：' + error.message);
+}
+if (process.exitCode) process.exit(process.exitCode);
+
+const resolvedTarget = path.join(realParent, path.basename(target));
+const overlaps = (base, candidate) => inside(base, candidate) || inside(candidate, base);
+if (overlaps(realRoot, resolvedTarget)) {
+  fail('为避免误改仓库，目标目录经符号链接解析后仍不能位于本工具仓库内，也不能覆盖包含本仓库的父目录。');
 }
 try {
   fs.lstatSync(target);
@@ -45,7 +60,8 @@ const checkpointToken = crypto.randomBytes(8).toString('hex').toUpperCase();
 let created = false;
 
 try {
-  fs.mkdirSync(path.dirname(target), { recursive: true });
+  // The parent is resolved and required to exist before this point. Do not create
+  // parent paths recursively: that would enlarge the script's write surface.
   fs.mkdirSync(target);
   created = true;
   // Create the nested directory before initialization so it enters the disposable
