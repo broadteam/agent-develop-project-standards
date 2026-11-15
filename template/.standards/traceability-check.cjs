@@ -1,11 +1,58 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 
 function validateTraceability(root, options = {}) {
   const taskTracking = options.taskTracking !== false;
   const roadmap = options.roadmap !== false;
   const errors = [];
+
+function isValidEvidencePointer(root, pointer) {
+  const value = String(pointer || '').trim();
+  if (/^https?:\/\//i.test(value)) {
+    try {
+      const url = new URL(value);
+      return ['http:', 'https:'].includes(url.protocol)
+        && Boolean(url.hostname) && !url.username && !url.password;
+    } catch { return false; }
+  }
+  if (/^[a-z][a-z0-9+.-]*:/i.test(value)) return false;
+  const relative = value.replace(/#L\d+(?:-L\d+)?$/i, '').replace(/\\/g, '/');
+  if (!relative || relative.startsWith('/') || relative.startsWith('//')) return false;
+  const parts = relative.split('/').filter(part => part && part !== '.');
+  if (!parts.length || parts.includes('..')) return false;
+  try {
+    let current = fs.realpathSync(root);
+    for (let i = 0; i < parts.length; i++) {
+      current = path.join(current, parts[i]);
+      const info = fs.lstatSync(current);
+      if (info.isSymbolicLink()) return false;
+      if (i < parts.length - 1 && !info.isDirectory()) return false;
+      if (i === parts.length - 1 && !info.isFile()) return false;
+    }
+    return true;
+  } catch { return false; }
+}
+function existingCommitObjects(root, commits) {
+  const unique = [...new Set(commits.filter(sha => /^[a-f0-9]{40}$/i.test(sha)).map(sha => sha.toLowerCase()))];
+  if (!unique.length) return new Set();
+  const result = spawnSync('git', ['-C', root, 'cat-file', '--batch-check'], {
+    input: unique.join('\n') + '\n',
+    encoding: 'utf8',
+    timeout: 5000,
+    maxBuffer: 1024 * 1024,
+    windowsHide: true
+  });
+  if (result.error || result.status !== 0) return new Set();
+  const valid = new Set();
+  const lines = result.stdout.split(/\r?\n/);
+  unique.forEach((sha, index) => {
+    const match = (lines[index] || '').match(/^([a-f0-9]{40}) commit \d+$/i);
+    if (match && match[1].toLowerCase() === sha) valid.add(sha);
+  });
+  return valid;
+}
   const read = (rel) => { const file = path.join(root, rel); return fs.existsSync(file) ? fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n') : ''; };
   const rows = (text) => text.split('\n').filter(line => /^\|\s*[A-Z][A-Z0-9]*\d+\s*\|/.test(line)).map(line => line.split('|').slice(1, -1).map(x => x.trim()));
   const isPlaceholder = (values) => values.some(value => /（|\(\s*(?:可观察|用户需要|可重复|命令|报告|CI URL|简短)/.test(value));
@@ -41,19 +88,45 @@ function validateTraceability(root, options = {}) {
     const block = verText.slice(start, next < 0 ? undefined : next);
     const field = (name) => (block.match(new RegExp('^- '+name+'：(.+)$','m')) || [,''])[1].trim();
     const covers = field('覆盖需求').match(/R\d+/g) || [];
+    const type = field('验证类型');
     const result = field('结果');
     const commit = field('Commit');
     const evidence = field('证据');
     if (evidenceRecords.has(match[1])) errors.push(`追踪关系：验证证据 ID ${match[1]} 重复`);
-    evidenceRecords.set(match[1], { covers, result, commit, evidence, block });
-    if (!['pass','fail','partial'].includes(result)) errors.push(`追踪关系：验证证据 ${match[1]} 结果非法或缺失`);
-    if (!/^[a-f0-9]{40}$/i.test(commit)) errors.push(`追踪关系：验证证据 ${match[1]} 缺少完整 40 位 Commit SHA`);
-    if (!evidence || /（|\(|CI URL/.test(evidence)) errors.push(`追踪关系：验证证据 ${match[1]} 缺少具体证据位置`);
+    evidenceRecords.set(match[1], { covers, type, result, commit, evidence, block });
+    if (!['automated_test','manual_check','CI','production_observation'].includes(type)) errors.push('追踪关系：验证证据 ' + match[1] + ' 验证类型非法或缺失');
+    if (!['pass','fail','partial'].includes(result)) errors.push('追踪关系：验证证据 ' + match[1] + ' 结果非法或缺失');
+    if (!/^[a-f0-9]{40}$/i.test(commit)) errors.push('追踪关系：验证证据 ' + match[1] + ' 缺少完整 40 位 Commit SHA');
+    if (!evidence || evidence.includes('（') || evidence.includes('(') || evidence.includes('CI URL')) errors.push('追踪关系：验证证据 ' + match[1] + ' 缺少具体证据位置');
+    else if (!isValidEvidencePointer(root, evidence)) errors.push('追踪关系：验证证据 ' + match[1] + ' 的证据位置不是有效 HTTP(S) URL 或项目内存在的普通文件（禁止路径穿越与符号链接）');
     for (const id of covers) if (!requirements.has(id)) errors.push(`追踪关系：验证证据 ${match[1]} 覆盖了不存在的需求 ${id}`);
   }
+  const commitObjects = existingCommitObjects(root, [...evidenceRecords.values()].map(record => record.commit));
+  for (const [id, record] of evidenceRecords) {
+    if (/^[a-f0-9]{40}$/i.test(record.commit) && !commitObjects.has(record.commit.toLowerCase())) {
+      errors.push(`追踪关系：验证证据 ${id} 的 Commit SHA 不是当前 Git 仓库中可读取的 commit 对象（请确认该提交已存在于本地对象库）`);
+    }
+  }
+  const evidenceSummaries = new Map();
   for (const r of rows(verText)) {
     if (!/^V\d+$/.test(r[0]) || isPlaceholder(r)) continue;
-    if (!evidenceRecords.has(r[0])) errors.push(`追踪关系：索引中的验证证据 ${r[0]} 缺少详情记录`);
+    if (evidenceSummaries.has(r[0])) errors.push('追踪关系：索引中的验证证据 ' + r[0] + ' 重复登记');
+    evidenceSummaries.set(r[0], r);
+    const detail = evidenceRecords.get(r[0]);
+    if (!detail) {
+      errors.push('追踪关系：索引中的验证证据 ' + r[0] + ' 缺少详情记录');
+      continue;
+    }
+    const summaryCovers = (r[1] || '').match(/R\d+/g) || [];
+    if ([...summaryCovers].sort().join(',') !== [...detail.covers].sort().join(',')) {
+      errors.push('追踪关系：验证证据 ' + r[0] + ' 的索引覆盖需求与详情不一致');
+    }
+    if ((r[2] || '') !== detail.type) errors.push('追踪关系：验证证据 ' + r[0] + ' 的索引验证类型与详情不一致');
+    if ((r[3] || '') !== detail.result) errors.push('追踪关系：验证证据 ' + r[0] + ' 的索引结果与详情不一致');
+    if ((r[4] || '') !== detail.evidence) errors.push('追踪关系：验证证据 ' + r[0] + ' 的索引证据位置与详情不一致');
+  }
+  for (const id of evidenceRecords.keys()) {
+    if (!evidenceSummaries.has(id)) errors.push('追踪关系：验证证据详情 ' + id + ' 未登记到索引');
   }
   const taskIds = taskTracking ? rows(taskIndex).filter(r => /^T\d+$/.test(r[0])).map(r => r[0]) : [];
   const taskRefs = new Map();
@@ -89,7 +162,7 @@ function validateTraceability(root, options = {}) {
     }
     if (req.status==='verified') {
       const declared = req.evidence.match(/V\d+/g) || [];
-      const valid=[...evidenceRecords.values()].some(v=>v.result==='pass'&&v.covers.includes(id)&&/^[a-f0-9]{40}$/i.test(v.commit)&&v.evidence&&!/（|\(|CI URL/.test(v.evidence));
+      const valid=[...evidenceRecords.values()].some(v=>v.result==='pass'&&v.covers.includes(id)&&/^[a-f0-9]{40}$/i.test(v.commit)&&commitObjects.has(v.commit.toLowerCase())&&v.evidence&&!/（|\(|CI URL/.test(v.evidence));
       if (!declared.length || declared.some(v => !evidenceRecords.has(v) || evidenceRecords.get(v).result !== 'pass' || !evidenceRecords.get(v).covers.includes(id))) errors.push(`追踪关系：需求 ${id} 的验证指针无效或未覆盖该需求`);
       if (!valid) errors.push(`追踪关系：需求 ${id} 标记 verified，但没有有效 pass 证据`);
     }

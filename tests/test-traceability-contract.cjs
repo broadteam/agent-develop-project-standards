@@ -26,6 +26,8 @@ assert.match(requirements, /不得为每张任务卡机械创建需求/);
 assert.match(requirements, /deferred \/ withdrawn 必须有对应用户确认的 C 记录/);
 assert.match(verification, /V001/);
 assert.match(verification, /完整 SHA/);
+assert.match(verification, /本地 Git 对象库/);
+assert.match(verification, /不会自动联网 fetch/);
 assert.match(verification, /CI run URL/);
 assert.match(verification, /partial 不足以将需求标记为 verified/);
 assert.match(verification, /一个 V 记录可以证明多个 R/);

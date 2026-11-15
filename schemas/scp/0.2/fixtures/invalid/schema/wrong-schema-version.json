@@ -1,0 +1,49 @@
+{
+  "protocol": "scp",
+  "schema_version": "0.1.0",
+  "packet_id": "invalid-wrong-schema-version",
+  "packet_kind": "checkpoint",
+  "generated_at": "2026-11-12T00:00:00Z",
+  "project": {
+    "repository": "broadteam/agent-develop-project-standards",
+    "root": "."
+  },
+  "session": {
+    "actor": "agent-a",
+    "client": "example-client"
+  },
+  "intent": {
+    "baseline_ref": ".spec/intent/BASELINE.md",
+    "accepted_change_refs": [],
+    "pending_refs": []
+  },
+  "work": {
+    "topic": "Resume a small task from authoritative project sources"
+  },
+  "code": {
+    "branch": "design/session-continuity-protocol",
+    "head_sha": null,
+    "worktree_state": "unknown",
+    "uncommitted_paths": [],
+    "observed_at": "2026-11-12T00:00:00Z"
+  },
+  "checkpoint": {
+    "work_state": "in_progress",
+    "verification_state": "not_run",
+    "review_state": "not_reviewed",
+    "decisions": [],
+    "next_action": "Read project rules and continue the current task"
+  },
+  "evidence_refs": [],
+  "provenance": {
+    "generated_by": "manual-design-example",
+    "source_revisions": [
+      {
+        "source_ref": "SESSION-CONTINUITY-PROTOCOL-DESIGN.md",
+        "revision": "D1-draft",
+        "freshness": "current",
+        "observed_at": "2026-11-12T00:00:00Z"
+      }
+    ]
+  }
+}

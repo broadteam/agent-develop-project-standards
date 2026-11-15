@@ -1,0 +1,89 @@
+{
+  "contract": "scp-fixture-context",
+  "context_version": "0.1.0",
+  "fixture_id": "credentialed-project-repository",
+  "target": {
+    "packet": {
+      "path": "schemas/scp/0.2/fixtures/invalid/semantic/credentialed-project-repository.json",
+      "blob_sha": "017e84a13f24d3a4a16d85f6b2f757083f63aaba"
+    },
+    "packet_schema": {
+      "path": "schemas/scp/0.2/continuity-packet.schema.json",
+      "blob_sha": "a2f2097a17c08bf0a2ae733ab43a8f1919b48813"
+    },
+    "repository_revision": "78d4431d8b0ee348b5c19b28524d5d28f387f7cc"
+  },
+  "environment": {
+    "profiles": [
+      "packet_only"
+    ],
+    "clock": "2026-11-12T00:00:00Z",
+    "capability_profile": {
+      "profile_id": "packet-only",
+      "profile_version": "0.1.0"
+    }
+  },
+  "setup": {
+    "driver": {
+      "driver_id": "packet.locator.inspection",
+      "driver_contract_version": "0.1.0",
+      "driver_bundle_sha256": "sha-256:161a7df5bbc28e9cf61bca0080d9a433b8ac247df8058898bee21b16c1be3222"
+    },
+    "isolation": {
+      "root_scope": "harness_disposable",
+      "network_access": "disabled",
+      "credential_mode": "synthetic_only"
+    }
+  },
+  "stimulus": {
+    "events": [
+      {
+        "sequence": 1,
+        "event": "observation_completed",
+        "phase": "final",
+        "snapshot_id": "packet-scan-credential-001"
+      }
+    ]
+  },
+  "companion_observations": [],
+  "expected": {
+    "packet_schema_validation": "valid",
+    "protocol_compatibility": "compatible",
+    "claims": [
+      {
+        "claim_ref": "project.repository",
+        "freshness": "unknown",
+        "applicability": "applicable",
+        "identity_state": "unknown",
+        "reason_codes": [
+          "scp.fixture.identity.credentialed_locator"
+        ]
+      }
+    ],
+    "recovery": [
+      {
+        "operation_scope": "read_local_project_rules",
+        "recovery_mode": "restricted",
+        "permitted_actions": [
+          "read_project_rules"
+        ],
+        "prohibited_actions": [
+          "log_credential_material"
+        ]
+      },
+      {
+        "operation_scope": "publish_using_project_repository_locator",
+        "recovery_mode": "blocked",
+        "permitted_actions": [
+          "read_project_rules"
+        ],
+        "prohibited_actions": [
+          "push",
+          "publish",
+          "persist_credentialed_locator"
+        ]
+      }
+    ]
+  },
+  "notes": "Design-only vector. The target Packet intentionally contains a credential-bearing project.repository locator. Diagnostics must never echo or persist the secret-like value. Driver bundle is a declarative contract only."
+}

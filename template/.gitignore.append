@@ -1,9 +1,9 @@
 # 临时产物：唯一去处 .tmp/
 .tmp/
 
-# 编辑侧工具的项目数据目录（不入库；项目状态以 .memory/ 为准）
-# 判断标准只有一条：纯工具数据/缓存才忽略。像 .cursor/rules/、.claude/commands/
-# 这种团队共享配置要入库，不要加进来。你的客户端有私有目录，按这条标准判断后自己加。
+# 旧版编辑侧工具本地数据（仅兼容历史目录；项目状态以 .memory/ 为准）
+# WorkBuddy / CodeBuddy 的 .codebuddy/ 包含团队共享 Rules、Agents、Skills、Commands
+# 和 CODEBUDDY.md，应按项目需要入库；不要整体忽略。共享配置如 .cursor/rules/、.claude/commands/ 同理。
 .workbuddy-ai/
 
 # 构建产物：按项目选定的固定目录忽略，不使用通配符。

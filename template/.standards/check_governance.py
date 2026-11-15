@@ -6,6 +6,7 @@ import os
 import re
 import sys
 import json
+import stat
 from pathlib import Path
 from profile_validator import parse_profile, resolve_capabilities
 from traceability_check import validate_traceability
@@ -372,6 +373,44 @@ if capability_enabled("task_tracking") and index_path.exists() and board_path.ex
     if f"<!-- SOURCE-SHA256: {digest} -->" not in board_text or not body_ok:
         errors.append(".spec/tasks/BOARD.md 已过期或被手工修改，请运行 node .standards/generate-board.cjs")
 
+def resolve_safe_mirror_file(rel: object) -> Path | None:
+    display = rel if isinstance(rel, str) else str(rel)
+    def invalid(reason: str) -> None:
+        raise ValueError(f"记忆镜像路径非法：{display}（{reason}）")
+    if not isinstance(rel, str) or not rel.strip():
+        invalid("必须是非空的项目相对路径")
+    if "\x00" in rel:
+        invalid("路径包含 NUL 字符")
+    if "\\" in rel:
+        invalid("不允许反斜杠或平台相关路径分隔符")
+    if rel.startswith("/") or re.match(r"^[a-z]:", rel, re.I):
+        invalid("不允许绝对路径或 Windows 盘符路径")
+    parts = rel.split("/")
+    if any(not part or part in {".", ".."} for part in parts):
+        invalid("不允许空路径段、. 或 .. 路径段")
+    if any(":" in part for part in parts):
+        invalid("路径段包含平台不兼容的冒号")
+    try:
+        current = ROOT.resolve(strict=True)
+        for index, part in enumerate(parts):
+            current = current / part
+            try:
+                info = current.lstat()
+            except FileNotFoundError:
+                return None
+            except OSError as exc:
+                invalid("无法安全检查路径：" + str(exc))
+            if stat.S_ISLNK(info.st_mode):
+                invalid("禁止经过符号链接")
+            if index < len(parts) - 1 and not stat.S_ISDIR(info.st_mode):
+                invalid("父路径组件不是目录")
+            if index == len(parts) - 1 and not stat.S_ISREG(info.st_mode):
+                invalid("目标必须是普通文件")
+        return current
+    except OSError as exc:
+        invalid("无法安全检查路径：" + str(exc))
+
+
 # 7. Client-private memory mirrors must carry the current breakpoint. No rule can force a
 # client to read .memory/, so the state is copied to where it does look; this checks it is not stale.
 memory_mirrors = gov.get("memory", {}).get("mirrors", [])
@@ -386,8 +425,12 @@ if memory_mirrors:
             following = re.search(r"^##\s", rest[1:], re.M)
             section = (rest if not following else rest[: following.start() + 1]).strip()
         for mirror_rel in memory_mirrors:
-            mirror_file = ROOT / mirror_rel
-            if not mirror_file.exists():
+            try:
+                mirror_file = resolve_safe_mirror_file(mirror_rel)
+            except ValueError as exc:
+                errors.append(str(exc))
+                continue
+            if mirror_file is None:
                 continue
             mirror_text = mirror_file.read_text(encoding="utf-8").replace("\r\n", "\n")
             if section and section not in mirror_text:

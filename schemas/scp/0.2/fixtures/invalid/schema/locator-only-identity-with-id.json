@@ -1,0 +1,61 @@
+{
+  "protocol": "scp",
+  "schema_version": "0.2.0",
+  "packet_id": "invalid-locator-only-with-id",
+  "packet_kind": "checkpoint",
+  "generated_at": "2026-11-12T00:00:00Z",
+  "project": {
+    "repository": "broadteam/agent-develop-project-standards",
+    "root": ".",
+    "repository_identity": {
+      "observed_at": "2026-11-12T02:00:00Z",
+      "checkout": {
+        "namespace": "https://github.com",
+        "id": "should-not-exist",
+        "locator": "https://github.com/example/repo",
+        "basis": "normalized_locator_only"
+      },
+      "source_refs": [
+        ".standards/repository-identity.json"
+      ]
+    }
+  },
+  "session": {
+    "actor": "agent-a",
+    "client": "example-client"
+  },
+  "intent": {
+    "baseline_ref": ".spec/intent/BASELINE.md",
+    "accepted_change_refs": [],
+    "pending_refs": []
+  },
+  "work": {
+    "topic": "Resume a small task from authoritative project sources"
+  },
+  "code": {
+    "branch": "design/session-continuity-protocol",
+    "head_sha": null,
+    "worktree_state": "unknown",
+    "uncommitted_paths": [],
+    "observed_at": "2026-11-12T00:00:00Z"
+  },
+  "checkpoint": {
+    "work_state": "in_progress",
+    "verification_state": "not_run",
+    "review_state": "not_reviewed",
+    "decisions": [],
+    "next_action": "Read project rules and continue the current task"
+  },
+  "evidence_refs": [],
+  "provenance": {
+    "generated_by": "manual-design-example",
+    "source_revisions": [
+      {
+        "source_ref": "SESSION-CONTINUITY-PROTOCOL-DESIGN.md",
+        "revision": "D1-draft",
+        "freshness": "current",
+        "observed_at": "2026-11-12T00:00:00Z"
+      }
+    ]
+  }
+}

@@ -1,6 +1,56 @@
 ## Unreleased
 
 ### Added
+- Add a disposable real-client smoke fixture generator based on the current initializer, with randomized root, nested and memory markers plus a cross-session checkpoint write/restore probe.
+- Document per-client execution, evidence requirements and explicit PASS/BLOCKED/NOT RUN boundaries; the guide does not claim that any client has already been launched.
+
+### Fixed
+- Resolve the fixture destination's existing parent directory before checking the repository boundary; reject pre-existing symlink/junction paths that lexically appear external but resolve into the repository. Require the parent directory to exist rather than recursively creating an unbounded parent path.
+
+### Tests
+- Exercise fixture creation, generated-project governance validation, collision refusal, missing-parent refusal, and pre-existing symlink/junction escapes back into the repository through the existing client-adapter regression entry point; do not add or modify a CI workflow.
+
+### Changed
+- Refresh client compatibility guidance against current official documentation: distinguish OpenCode V2 loading, Claude Code AGENTS support and fallback behavior, Gemini context filename configuration, and separate WorkBuddy from CodeBuddy IDE.
+- Clarify that `.codebuddy/` contains version-controlled shared project configuration and must not be ignored wholesale; retain `.workbuddy-ai/` only as a legacy local-data ignore entry.
+
+### Tests
+- Expand adapter contracts to assert current vendor-specific loading boundaries, documentation review date, and that shared `.codebuddy/` project configuration is not ignored.
+
+
+### Changed
+- Clarify the two supported template-upgrade paths: `init --update` for untouched files and the auditable plan/review/manual-apply/record flow for reviewed migrations. Point users to the authoritative migration procedure and state explicitly that baseline registration does not apply template files.
+
+### Tests
+- Add documentation contract assertions so the deployment guide cannot silently collapse the quick-refresh and audited-upgrade procedures into one ambiguous path.
+
+
+### Fixed
+- Constrain client-private memory mirror targets to existing or missing project-relative regular-file paths. Reject absolute/drive paths, traversal and symlink components in both Node and Python governance gates and before synchronization. Validate every configured target before writing any mirror so an invalid later entry cannot leave earlier mirrors updated. Keep identical diagnostics across implementations.
+
+### Fixed
+- Create an exclusive project-level transaction marker before the first initialization write. An abrupt process exit therefore leaves a detectable lock even when the interrupted file was newly created and has no backup. The next initialization fails closed on the marker or any backup/temp/rollback artifact; it preserves the recovery material for human inspection instead of guessing which version to restore or deleting project data. Normal caught failures clear the marker only after successful rollback.
+
+### Fixed
+- Require each V-record Commit SHA to resolve to an actual `commit` object in the project's local Git object database. Node and Python checkers use bounded offline `git cat-file` checks; missing objects, non-commit objects and unavailable Git metadata fail closed. The checker never fetches from a remote, so shallow clones must explicitly obtain the referenced object or keep the evidence unverified.
+
+### Changed
+- Harden verification traceability: require evidence pointers to resolve to an existing in-project regular file or a valid HTTP(S) URL, reject path traversal and symlink escapes, and require V summary rows to match detailed evidence records field-for-field. Keep Node and Python gates in parity.
+
+### Added
+- Add an end-to-end governance lifecycle fixture invoked by the existing migration regression test: initialize a disposable project, resolve task context, bind verification to a real fixture Git commit, reject partial evidence at closeout, check Node/Python gate parity and reconstruct cross-session context from repository-owned records. The existing CI workflow remains unchanged.
+
+### Added
+- Add an end-to-end governance lifecycle fixture: initialize a disposable project, resolve task context, bind verification to a real fixture Git commit, reject partial evidence at closeout, check Node/Python gate parity and reconstruct cross-session context from repository-owned records.
+
+### Changed
+- Define one repository-based AI governance work loop linking intent intake, task/risk classification, context loading, scoped execution, commit-bound verification, authoritative-state reconciliation and minimal handoff. Clarify the boundary between script/CI enforcement, AI semantic work and user decisions; preserve lightweight-task exemptions.
+
+### Changed
+- Clarify the mainline scope as repository-based AI governance: AI advances work and maintains authoritative records, scripts/CI enforce mechanically testable rules, and users retain intent decisions and high-risk authorization. The Linux Sandbox remains optional execution-isolation research, not a core 2.0 deliverable or release gate.
+- Strengthen the optional multi-agent protocol with Coordinator/Worker responsibilities, isolated worktrees, explicit base revisions and write sets, single-writer governance state, structured handoff, post-integration verification and sequential fallback on conflicts.
+
+### Added
 - Add task-level intent alignment review: tracked work records its baseline/accepted-change anchors before implementation and compares actual diffs, commits and verification evidence before closeout. Unresolved drift cannot be marked done.
 - Add separate Node/Python `intent-alignment-check` modules, invoked by the existing traceability gates; enforce task kickoff/closeout anchors, accepted change references, task evidence coverage/commit matching, and completed-milestone closure gates. Legacy tasks/milestones without explicit opt-in remain compatible.
 - Define a per-turn intent review protocol that distinguishes continuation, clarification, bounded interruption, explicit intent change and unresolved conflict; preserve the original task resume point across interruptions.

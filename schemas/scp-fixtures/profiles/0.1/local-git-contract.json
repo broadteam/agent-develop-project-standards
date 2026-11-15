@@ -1,0 +1,20 @@
+{
+  "contract": "scp-fixture-capability-profile",
+  "profile_id": "local-git-contract",
+  "profile_version": "0.1.0",
+  "profile_kind": "portable_contract",
+  "supported_profiles": [
+    "local_git",
+    "local_git_submodule",
+    "fault_injection"
+  ],
+  "capabilities": [
+    "create_disposable_repository",
+    "read_git_head",
+    "read_git_index",
+    "read_porcelain_v2_status",
+    "inject_disposable_worktree_events"
+  ],
+  "network_access": "local_stub_only",
+  "credential_mode": "synthetic_only"
+}

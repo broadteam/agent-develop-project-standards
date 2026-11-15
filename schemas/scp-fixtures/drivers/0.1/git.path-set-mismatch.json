@@ -1,0 +1,16 @@
+{
+  "bundle_contract": "scp-fixture-driver-bundle",
+  "driver_id": "git.path-set.mismatch",
+  "driver_contract_version": "0.1.0",
+  "bundle_version": "0.1.0",
+  "implementation_status": "contract_only",
+  "allowed_profiles": [
+    "local_git"
+  ],
+  "input_kinds": [
+    "packet_artifact",
+    "git_snapshot"
+  ],
+  "mutation_scope": "disposable_fixture_only",
+  "description": "Declarative driver contract for comparing a Packet fingerprint path set with an isolated Git status snapshot; no executable runner is included."
+}

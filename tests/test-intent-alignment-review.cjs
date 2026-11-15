@@ -10,7 +10,7 @@ const { validateTraceability } = require('../template/.standards/traceability-ch
 
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'intent-alignment-review-'));
 const root = path.join(temp, 'project');
-const commit = 'c'.repeat(40);
+let commit, secondCommit;
 
 function write(rel, content) {
   const file = path.join(root, rel);
@@ -110,6 +110,23 @@ function base(status = 'in_progress') {
 }
 
 try {
+  fs.mkdirSync(root, { recursive: true });
+  const git = (args) => {
+    const result = spawnSync('git', ['-C', root, ...args], { encoding: 'utf8' });
+    if (result.error) throw result.error;
+    assert.equal(result.status, 0, 'fixture git command failed: ' + args.join(' ') + '\n' + result.stdout + result.stderr);
+    return result.stdout.trim();
+  };
+  git(['init', '-q']);
+  write('.fixture-commit.txt', 'first delivery commit\n');
+  git(['add', '--', '.fixture-commit.txt']);
+  git(['-c', 'user.name=Standards Fixture', '-c', 'user.email=standards-fixture@example.invalid', 'commit', '-m', 'test: first delivery commit']);
+  commit = git(['rev-parse', 'HEAD']);
+  write('.fixture-commit.txt', 'second delivery commit\n');
+  git(['add', '--', '.fixture-commit.txt']);
+  git(['-c', 'user.name=Standards Fixture', '-c', 'user.email=standards-fixture@example.invalid', 'commit', '-m', 'test: second delivery commit']);
+  secondCommit = git(['rev-parse', 'HEAD']);
+
   base();
   assertParity('valid kickoff alignment');
 
@@ -394,7 +411,7 @@ try {
 
   // A milestone may contain multiple delivery commits; V evidence can bind to any declared commit.
   completedMilestone();
-  const secondCommit = 'd'.repeat(40);
+  // secondCommit is a real second commit in the disposable fixture repository.
   write('.spec/verification/INDEX.md', read('.spec/verification/INDEX.md').replace(commit, secondCommit));
   write('.spec/tasks/T1/card.md', read('.spec/tasks/T1/card.md').replace('- 实现依据：' + commit, '- 实现依据：' + secondCommit));
   write('.spec/roadmap/M1/milestone.md', read('.spec/roadmap/M1/milestone.md').replace('commit ' + commit, 'commits ' + commit + ' and ' + secondCommit));

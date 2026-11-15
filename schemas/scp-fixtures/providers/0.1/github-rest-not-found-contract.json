@@ -1,0 +1,20 @@
+{
+  "contract": "scp-fixture-provider-authority",
+  "contract_id": "github-rest-fixture-not-found-semantics",
+  "contract_revision": "1",
+  "provider_namespace": "fixture://provider/github.com",
+  "scope": "isolated-provider-stub-only",
+  "authentication_required": true,
+  "authoritative_not_found": {
+    "allowed_only_when_authenticated": true,
+    "resource_and_revision_must_match_exactly": true,
+    "visibility_masking": false,
+    "meaning": "The exact synthetic resource identifier is absent at the requested fixture revision for the accepted synthetic principal."
+  },
+  "prohibited_inferences": [
+    "Do not infer authoritative absence from HTTP status alone.",
+    "Do not infer absence from unauthenticated or visibility-ambiguous responses.",
+    "Do not apply this fixture contract to the real GitHub API."
+  ],
+  "test_only": true
+}

@@ -2,8 +2,70 @@
 """Traceability integrity checks shared by the Node and Python governance gates."""
 from __future__ import annotations
 import re
+import stat
+import subprocess
 from pathlib import Path
+from urllib.parse import urlsplit
 from intent_alignment_check import validate_intent_alignment
+
+
+def _valid_evidence_pointer(root: Path, pointer: str) -> bool:
+    value = (pointer or "").strip()
+    if re.match(r"^https?://", value, re.I):
+        try:
+            parsed = urlsplit(value)
+            return parsed.scheme.lower() in {"http", "https"} and bool(parsed.hostname) and not parsed.username and not parsed.password
+        except ValueError:
+            return False
+    if re.match(r"^[a-z][a-z0-9+.-]*:", value, re.I):
+        return False
+    relative = re.sub(r"#L\d+(?:-L\d+)?$", "", value, flags=re.I).replace("\\", "/")
+    if not relative or relative.startswith("/") or relative.startswith("//"):
+        return False
+    parts = [part for part in relative.split("/") if part and part != "."]
+    if not parts or ".." in parts:
+        return False
+    try:
+        current = root.resolve(strict=True)
+        for index, part in enumerate(parts):
+            current = current / part
+            info = current.lstat()
+            if stat.S_ISLNK(info.st_mode):
+                return False
+            if index < len(parts) - 1 and not stat.S_ISDIR(info.st_mode):
+                return False
+            if index == len(parts) - 1 and not stat.S_ISREG(info.st_mode):
+                return False
+        return True
+    except (OSError, ValueError):
+        return False
+
+
+def _existing_commit_objects(root: Path, commits: list[str]) -> set[str]:
+    unique = list(dict.fromkeys(sha.lower() for sha in commits if re.fullmatch(r"[a-f0-9]{40}", sha, re.I)))
+    if not unique:
+        return set()
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "cat-file", "--batch-check"],
+            input="\n".join(unique) + "\n",
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return set()
+    if result.returncode != 0:
+        return set()
+    valid: set[str] = set()
+    for sha, line in zip(unique, result.stdout.splitlines()):
+        match = re.fullmatch(r"([a-f0-9]{40}) commit \d+", line, re.I)
+        if match and match.group(1).lower() == sha:
+            valid.add(sha)
+    return valid
+
 
 def validate_traceability(root: Path, *, task_tracking: bool = True, roadmap: bool = True) -> list[str]:
     errors: list[str] = []
@@ -61,22 +123,51 @@ def validate_traceability(root: Path, *, task_tracking: bool = True, roadmap: bo
         def field(name: str) -> str:
             found = re.search(r"^- " + re.escape(name) + r"：(.+)$", block, re.M)
             return found.group(1).strip() if found else ""
-        covers, result, commit, evidence = re.findall(r"R\d+", field("覆盖需求")), field("结果"), field("Commit"), field("证据")
+        covers, evidence_type = re.findall(r"R\d+", field("覆盖需求")), field("验证类型")
+        result, commit, evidence = field("结果"), field("Commit"), field("证据")
         if match.group(1) in evidence_records:
             errors.append(f"追踪关系：验证证据 ID {match.group(1)} 重复")
-        evidence_records[match.group(1)] = {"covers": covers, "result": result, "commit": commit, "evidence": evidence}
+        evidence_records[match.group(1)] = {"covers": covers, "type": evidence_type, "result": result, "commit": commit, "evidence": evidence}
+        if evidence_type not in {"automated_test", "manual_check", "CI", "production_observation"}:
+            errors.append(f"追踪关系：验证证据 {match.group(1)} 验证类型非法或缺失")
         if result not in {"pass","fail","partial"}:
             errors.append(f"追踪关系：验证证据 {match.group(1)} 结果非法或缺失")
         if not re.fullmatch(r"[a-f0-9]{40}", commit, re.I):
             errors.append(f"追踪关系：验证证据 {match.group(1)} 缺少完整 40 位 Commit SHA")
         if not evidence or re.search(r"（|\(|CI URL", evidence):
             errors.append(f"追踪关系：验证证据 {match.group(1)} 缺少具体证据位置")
+        elif not _valid_evidence_pointer(root, evidence):
+            errors.append(f"追踪关系：验证证据 {match.group(1)} 的证据位置不是有效 HTTP(S) URL 或项目内存在的普通文件（禁止路径穿越与符号链接）")
         for req_id in covers:
             if req_id not in requirements:
                 errors.append(f"追踪关系：验证证据 {match.group(1)} 覆盖了不存在的需求 {req_id}")
+    commit_objects = _existing_commit_objects(root, [record["commit"] for record in evidence_records.values()])
+    for evidence_id, record in evidence_records.items():
+        if re.fullmatch(r"[a-f0-9]{40}", record["commit"], re.I) and record["commit"].lower() not in commit_objects:
+            errors.append(f"追踪关系：验证证据 {evidence_id} 的 Commit SHA 不是当前 Git 仓库中可读取的 commit 对象（请确认该提交已存在于本地对象库）")
+    evidence_summaries: dict[str, list[str]] = {}
     for row in rows(ver_text):
-        if re.fullmatch(r"V\d+", row[0]) and not placeholder(row) and row[0] not in evidence_records:
+        if not re.fullmatch(r"V\d+", row[0]) or placeholder(row):
+            continue
+        if row[0] in evidence_summaries:
+            errors.append(f"追踪关系：索引中的验证证据 {row[0]} 重复登记")
+        evidence_summaries[row[0]] = row
+        detail = evidence_records.get(row[0])
+        if not detail:
             errors.append(f"追踪关系：索引中的验证证据 {row[0]} 缺少详情记录")
+            continue
+        summary_covers = re.findall(r"R\d+", row[1] if len(row) > 1 else "")
+        if sorted(summary_covers) != sorted(detail["covers"]):
+            errors.append(f"追踪关系：验证证据 {row[0]} 的索引覆盖需求与详情不一致")
+        if (row[2] if len(row) > 2 else "") != detail["type"]:
+            errors.append(f"追踪关系：验证证据 {row[0]} 的索引验证类型与详情不一致")
+        if (row[3] if len(row) > 3 else "") != detail["result"]:
+            errors.append(f"追踪关系：验证证据 {row[0]} 的索引结果与详情不一致")
+        if (row[4] if len(row) > 4 else "") != detail["evidence"]:
+            errors.append(f"追踪关系：验证证据 {row[0]} 的索引证据位置与详情不一致")
+    for evidence_id in evidence_records:
+        if evidence_id not in evidence_summaries:
+            errors.append(f"追踪关系：验证证据详情 {evidence_id} 未登记到索引")
 
     task_refs: dict[str, dict] = {}
     for row in (rows(task_index) if task_tracking else []):
@@ -129,7 +220,7 @@ def validate_traceability(root: Path, *, task_tracking: bool = True, roadmap: bo
             declared = re.findall(r"V\d+", req.get("evidence", ""))
             if not declared or any(item not in evidence_records or evidence_records[item]["result"] != "pass" or req_id not in evidence_records[item]["covers"] for item in declared):
                 errors.append(f"追踪关系：需求 {req_id} 的验证指针无效或未覆盖该需求")
-            valid = any(v["result"] == "pass" and req_id in v["covers"] and re.fullmatch(r"[a-f0-9]{40}", v["commit"], re.I) and v["evidence"] and not re.search(r"（|\(|CI URL", v["evidence"]) for v in evidence_records.values())
+            valid = any(v["result"] == "pass" and req_id in v["covers"] and re.fullmatch(r"[a-f0-9]{40}", v["commit"], re.I) and v["commit"].lower() in commit_objects and v["evidence"] and not re.search(r"（|\(|CI URL", v["evidence"]) for v in evidence_records.values())
             if not valid:
                 errors.append(f"追踪关系：需求 {req_id} 标记 verified，但没有有效 pass 证据")
     for goal in goals:

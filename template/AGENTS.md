@@ -88,9 +88,11 @@
 <!--cap:multi_agent-->
 ### 多 Agent 协作（仅启用时）
 
-- 协作前声明工作区/分支、负责范围和写入文件集；共享文件避免并行写。
-- 需求/验证索引与 MEMORY 采用单写者；启用 `task_tracking` 时任务索引/卡片、启用 `roadmap` 时里程碑索引、启用 `adr` 时 ADR 也采用单写者。冲突时排队交接，禁止最后写入覆盖。
-- 写入前刷新最新 Commit 和文件；基线变化先重审。交接说明 Commit、未提交工作和验证状态；未验证不得标记 done。
+- **Coordinator/Worker**：一个 Coordinator 负责意图理解、分派、共享状态与最终整合；Worker 只执行分配的子任务。目标/范围/优先级变化仅用户确认后生效。
+- **隔离并行**：仅并行独立且写入路径不重叠的工作；每个 Worker 用独立 Git worktree/分支，否则串行。分派须注明任务 ID（启用 `task_tracking` 时）、Base SHA、允许路径、验收与验证命令。
+- **单写者**：Coordinator 独占维护 intent/requirements/verification/MEMORY；启用 `task_tracking`、`roadmap`、`adr` 时，对应任务、里程碑和 ADR 状态也由 Coordinator 单写。Worker 不改共享状态、不标记整体任务 done。
+- **交接/整合**：Worker 返回 Base SHA、分支、变更路径、Commit/补丁、测试结果/未验证项/阻塞。Coordinator 核对基线与 diff，整合后按最终 Commit 重新运行治理和相关测试，再更新证据/状态；过期基线、冲突或分歧串行处理。
+- 不经授权不强推、合并、发布、部署或触碰生产数据。
 <!--/cap-->
 
 **收口要求**：

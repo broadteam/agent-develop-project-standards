@@ -23,12 +23,14 @@ const runPython = (dir) => {
   if (result.error) result = spawnSync('python', [path.join(dir, '.standards/check_governance.py')], { cwd: dir, encoding: 'utf8', env });
   return result;
 };
-const setMirror = (dir) => {
+const setMirrors = (dir, paths) => {
   const govPath = path.join(dir, 'gov.toml');
   const text = fs.readFileSync(govPath, 'utf8');
-  assert.match(text, /^mirrors = \[\]\r?$/m, 'gov.toml 应默认不配置镜像目标（不猜客户端）');
-  fs.writeFileSync(govPath, text.replace(/^mirrors = \[\]\r?$/m, `mirrors = ["${MIRROR}"]`));
+  const pattern = /^mirrors = \[.*\]\r?$/m;
+  assert.match(text, pattern, 'gov.toml 应提供 mirrors 配置行');
+  fs.writeFileSync(govPath, text.replace(pattern, `mirrors = [${paths.map((item) => JSON.stringify(item)).join(', ')}]`));
 };
+const setMirror = (dir) => setMirrors(dir, [MIRROR]);
 
 try {
   const project = path.join(tmp, 'mirror-app');
@@ -79,6 +81,69 @@ try {
   assert.equal(runNode(project, 'sync-memory.cjs', '--check').status, 0);
   assert.equal(runNode(project, 'check-governance.cjs').status, 0, '同步后治理检查应通过');
 
+  // All configured paths must be validated before any target is modified. Traversal,
+  // absolute paths, Windows drive paths and symlink targets are rejected fail-closed.
+  const outside = path.join(tmp, 'outside-memory.md');
+  fs.writeFileSync(outside, 'outside must remain untouched\n');
+  const authorityPathForSafety = path.join(project, '.memory/MEMORY.md');
+  fs.writeFileSync(authorityPathForSafety, fs.readFileSync(authorityPathForSafety, 'utf8').replace('断点已被改写', '断点二次改写'));
+  const safeBefore = fs.readFileSync(path.join(project, MIRROR), 'utf8');
+  setMirrors(project, [MIRROR, '../outside-memory.md']);
+  const traversalSync = runNode(project, 'sync-memory.cjs');
+  assert.equal(traversalSync.status, 1);
+  assert.match(traversalSync.stderr, /记忆镜像路径非法：\.\.\/outside-memory\.md/);
+  assert.equal(fs.readFileSync(path.join(project, MIRROR), 'utf8'), safeBefore,
+    'an invalid later target must prevent earlier mirror writes');
+  assert.equal(fs.readFileSync(outside, 'utf8'), 'outside must remain untouched\n');
+
+  const traversalNode = runNode(project, 'check-governance.cjs');
+  const traversalPython = runPython(project);
+  assert.equal(traversalNode.status, 1);
+  assert.match(traversalNode.stdout, /记忆镜像路径非法：\.\.\/outside-memory\.md/);
+  if (!traversalPython.error) {
+    assert.equal(traversalPython.status, 1);
+    assert.equal(traversalPython.stdout, traversalNode.stdout, 'invalid mirror path diagnostics must match');
+  }
+
+  setMirrors(project, ['/tmp/outside-memory.md']);
+  assert.equal(runNode(project, 'sync-memory.cjs').status, 1, 'absolute paths must be rejected');
+  setMirrors(project, ['C:/outside/MEMORY.md']);
+  assert.equal(runNode(project, 'sync-memory.cjs').status, 1, 'Windows drive paths must be rejected');
+
+  const backslashPath = '.workbuddy-ai' + String.fromCharCode(92) + 'memory' + String.fromCharCode(92) + 'bad.md';
+  setMirrors(project, [backslashPath]);
+  const backslashSync = runNode(project, 'sync-memory.cjs');
+  assert.equal(backslashSync.status, 1, 'backslash paths must be rejected');
+  assert.match(backslashSync.stderr, /不允许反斜杠/);
+  const backslashNode = runNode(project, 'check-governance.cjs');
+  const backslashPython = runPython(project);
+  assert.equal(backslashNode.status, 1);
+  assert.match(backslashNode.stdout, /不允许反斜杠/);
+  if (!backslashPython.error) assert.equal(backslashPython.stdout, backslashNode.stdout);
+
+  const escape = path.join(project, '.workbuddy-ai/memory/ESCAPE.md');
+  let symlinkCreated = false;
+  try { fs.symlinkSync(outside, escape, 'file'); symlinkCreated = true; }
+  catch (error) {
+    if (process.platform !== 'win32' || !['EPERM', 'EACCES', 'UNKNOWN'].includes(error.code)) throw error;
+  }
+  if (symlinkCreated) {
+    setMirrors(project, [MIRROR, '.workbuddy-ai/memory/ESCAPE.md']);
+    const beforeSymlinkBlocked = fs.readFileSync(path.join(project, MIRROR), 'utf8');
+    const symlinkSync = runNode(project, 'sync-memory.cjs');
+    assert.equal(symlinkSync.status, 1);
+    assert.match(symlinkSync.stderr, /禁止经过符号链接/);
+    assert.equal(fs.readFileSync(path.join(project, MIRROR), 'utf8'), beforeSymlinkBlocked);
+    assert.equal(fs.readFileSync(outside, 'utf8'), 'outside must remain untouched\n');
+    const symlinkNode = runNode(project, 'check-governance.cjs');
+    const symlinkPython = runPython(project);
+    assert.equal(symlinkNode.status, 1);
+    assert.match(symlinkNode.stdout, /禁止经过符号链接/);
+    if (!symlinkPython.error) assert.equal(symlinkPython.stdout, symlinkNode.stdout);
+    fs.unlinkSync(escape);
+  }
+
+  setMirror(project);
   // A declared target that does not exist is skipped, not an error: not every machine has it.
   fs.rmSync(path.join(project, '.workbuddy-ai'), { recursive: true, force: true });
   assert.equal(runNode(project, 'sync-memory.cjs', '--check').status, 0, '目标不存在时应跳过');

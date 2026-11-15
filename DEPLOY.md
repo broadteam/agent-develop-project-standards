@@ -155,51 +155,67 @@ git clean -fd                     # 删除新增的未跟踪文件
 
 | 字段 | 含义 |
 |---|---|
-| `installed_with_version` | 项目当前使用的规范版本 |
-| `managed_files.<路径>.template_version` | 这个文件来自哪个版本 |
-| `managed_files.<路径>.installed_sha256` | 安装时这份文件的哈希（用来判断你后来有没有改过） |
+| `installed_with_version` | 项目当前整体采用的规范版本；只有所有受管路径都收口后才推进 |
+| `managed_files.<路径>.template_version` | 单个受管文件来自哪个模板版本 |
+| `managed_files.<路径>.installed_sha256` | 最近一次登记的项目文件哈希，用于识别后续本地修改 |
 | `derived_paths` | 由脚本生成、不归模板管的文件（如 `BOARD.md`） |
 
-一条命令看差异：
+先查看差异：
 
 ```bash
-node D:/develop/project-standards/tools/check-template-drift.cjs --root <目标目录>
+node <规范仓库>/tools/check-template-drift.cjs --root <目标项目>
 ```
 
-它会分清：**上游更新**（模板变了，你没动）、**本地定制**（你改了，模板没变）、**双向冲突**（都变了）、**文件缺失**、**旧项目基线未知**。
+它会区分上游更新、本地定制、双向冲突、文件缺失、上游移除和旧项目基线未知。**不要先用 `--force`，也不要手工改 `.agent-standards.json`。**
 
-### 一句话升级
+### 两种升级方式
 
-```
-把 <目标目录> 的规范升到最新：先跑 drift 看差异，再用 --update 只更新我没改过的文件，
-我改过的列出来给我看，别覆盖。
-```
+#### A. 快速安全刷新：`init.cjs --update`
+
+适用于：只想刷新模板中**项目文件仍与上次安装哈希完全一致**的部分，不需要逐路径审批记录。
 
 ```bash
-node D:/develop/project-standards/tools/check-template-drift.cjs --root <目标目录>   # 1. 看差异
-node D:/develop/project-standards/init.cjs <目标目录> --update                       # 2. 刷新未改动的文件
-node <目标目录>/.standards/check-governance.cjs                                        # 3. 验收
+node <规范仓库>/init.cjs <目标项目> --update
+node <目标项目>/.standards/check-governance.cjs
 ```
 
-`--update` 的规则只有一条：**只覆盖内容与上次安装完全一致的文件**。你改过的一个都不动，只在报告里列出来。所以它是安全的——最坏情况是什么都没更新，而不是把你的改动冲掉。
+`--update` 只替换未被项目修改过的受管文件；本地改动、未知归属文件和冲突文件会保留并报告。只要仍有受管文件留在旧模板版本，`installed_with_version` 就不会前移。它不会生成 plan/review，也不会自动解决本地定制或双向冲突。
+
+#### B. 审计式升级：计划 → 审批 → 手工应用 → 登记
+
+适用于：跨版本正式升级、涉及本地定制/双向冲突/上游删除，或需要逐路径保存审核责任与结果证据的情况。这是有审计要求时的标准流程：
+
+1. 在独立分支或 worktree 中操作，记录项目当前 commit、未提交改动，并在项目目录外创建可验证的完整备份。
+2. 生成只读升级计划。将 JSON 输出保存为 `upgrade-plan.json`：
+
+   ```bash
+   node <规范仓库>/tools/plan-template-upgrade.cjs --root <目标项目> --standards-root <规范仓库> --json
+   ```
+
+   有待人工审查或阻断项时，命令会以非零状态结束；这不代表已经执行或修改了项目。必须检查 JSON 中的 `global_blockers` 和逐路径 `actions`，不能把退出码当作审批结论。
+3. 为每个待审路径填写 `reviewer`、`reviewed_at`、`decision`、`reason` 和实际结果 `result_sha256`；普通文件还要填写 `result_mode`。双向冲突必须恢复共同基线并记录 `baseline_ref`、`merge_result_ref`。将审查结果保存为 `upgrade-review.json` 后运行：
+
+   ```bash
+   node <规范仓库>/tools/validate-template-upgrade-review.cjs --plan upgrade-plan.json --review upgrade-review.json --json
+   ```
+
+4. 只在备份副本/独立工作树中手工应用已批准的文件变更。不要把计划建议当作自动执行授权；任何文件或模板源变化后，都应重新生成计划并重新审查。
+5. 应用并验证后，先预览基线登记：
+
+   ```bash
+   node <规范仓库>/tools/record-reviewed-template-upgrade.cjs --root <目标项目> --standards-root <规范仓库> --plan upgrade-plan.json --review upgrade-review.json --dry-run
+   ```
+
+   复核输出和备份后，才将同一命令的 `--dry-run` 替换为 `--confirm-reviewed`。**登记器只校验实际文件结果并更新 `.agent-standards.json`，不会应用、覆盖、删除或合并模板文件。**
+6. 重新运行漂移检查、治理检查和项目自己的 lint、类型检查、测试与构建。未实际执行的项目验证必须记为 `unverified`。
+
+明确延期的路径使用 `defer` 决策；登记器会确认它仍保持计划生成时的状态。只要还有延期路径，整体版本仍保持来源版本，之后必须重新生成计划处理剩余路径。
+
+完整字段、恢复流程与归档要求见 [MIGRATION-v2.0.md](MIGRATION-v2.0.md) 和 [UPGRADE-RECORD-TEMPLATE.md](UPGRADE-RECORD-TEMPLATE.md)。
 
 ### 为什么不用 `--force`
 
-`--force` 会把**所有**模板文件重写，包括你定制过的 `AGENTS.md`。它是「重新渲染模板」的开关，不是升级手段。用它升级等于把项目自己的规则抹掉。
-
-### 升级后版本号会自动更新吗
-
-会，但有前提：只有**所有受管文件都到了当前版本**，`installed_with_version` 才会推进。只要还有文件停在旧版本（比如你改过、`--update` 跳过了它），版本标记就保持原样，并明确告警——不会出现「标记说升级了、文件还是旧的」这种情况。
-
-### 冲突了怎么办
-
-`--update` 跳过你改过的文件，说明这些需要人工合并。此时：
-
-1. 从升级前的 Git 提交（或备份）里取出旧版模板文件作为共同基线
-2. 三方对比：基线 / 你的版本 / 新模板
-3. 合并后把结果写回，并按 `UPGRADE-RECORD-TEMPLATE.md` 留记录
-
-没有共同基线时不要声称"合并完成"——清单里只存哈希，不存旧文件正文。
+`--force` 会把所有模板文件重写，包括项目定制的 `AGENTS.md`。它是「重新渲染模板」开关，不是升级机制；用它升级可能直接覆盖项目规则。升级时使用上面的安全刷新或审计式流程。
 
 ## 8. 谁在治理：人还是 AI
 

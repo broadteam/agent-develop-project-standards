@@ -1,0 +1,16 @@
+{
+  "contract": "scp-fixture-capability-profile",
+  "profile_id": "packet-only",
+  "profile_version": "0.1.0",
+  "profile_kind": "portable_contract",
+  "supported_profiles": [
+    "packet_only"
+  ],
+  "capabilities": [
+    "read_packet_bytes",
+    "validate_packet_schema",
+    "inspect_packet_fields"
+  ],
+  "network_access": "disabled",
+  "credential_mode": "synthetic_only"
+}

@@ -49,14 +49,15 @@ node init.cjs /path/to/your-project --strict-scan
 
 | 客户端 | 入口 | 注意事项 |
 |---|---|---|
-| Codex | `AGENTS.md` | 支持从仓库根目录到当前目录的层级规则。 |
-| Claude Code | `CLAUDE.md` → `@AGENTS.md` | 支持 Markdown 导入与层级记忆文件。 |
-| Gemini CLI | `GEMINI.md` → `@./AGENTS.md` | 支持 `@file` 导入和层级上下文文件。 |
-| Cursor | 根目录及子目录 `AGENTS.md` | 父目录与更具体目录的规则会组合；需要按 glob、手动或智能触发的规则时再评估 `.cursor/rules/*.mdc`。不生成已弃用的 `.cursorrules`。 |
+| Codex | `AGENTS.md` | 根到当前目录逐层加载；同目录 `AGENTS.override.md` 替代普通 `AGENTS.md`。 |
+| Claude Code | `CLAUDE.md` → `@AGENTS.md` | 保留导入指针兼容不同版本；v2.1.277+ 也支持直接读取 AGENTS，但默认加载有 CLAUDE 文件时仍优先走 CLAUDE。 |
+| Gemini CLI | `GEMINI.md` → `@./AGENTS.md` | 默认使用 GEMINI.md；配置 `context.fileName` 后可同时发现 AGENTS.md。 |
+| Cursor | 根目录及子目录 `AGENTS.md` | 支持嵌套 AGENTS；按需使用 `.cursor/rules/*.mdc` 做 glob 或手动规则，不生成已弃用的 `.cursorrules`。 |
+| OpenCode V2 | `AGENTS.md` | 只认 AGENTS；多层文件合并，嵌套文件在探索对应目录时加载；不使用 CLAUDE.md 回退。 |
+| WorkBuddy | `.codebuddy/`，兼容 `AGENTS.md` | 项目级规则、Agent、Skill、Command 与 CODEBUDDY.md 可提交共享；精确加载优先级需实测。 |
+| CodeBuddy IDE | `CODEBUDDY.md`；条件回退 `AGENTS.md` | 仅当根目录没有 CODEBUDDY.md 时才自动加载根 AGENTS.md。 |
 
-客户端兼容性不是“规则文件存在就算通过”。仓库通过 `tests/test-client-adapters.cjs` 检查指针目标、导入语法和弃用入口；客户端原生加载能力以官方文档为准。客户端配置不得复制或分叉项目规则正文。
-
-官方文档：[Codex AGENTS.md](https://developers.openai.com/cookbook/examples/gpt-5/codex_prompting_guide) · [Claude Code memory](https://docs.anthropic.com/en/docs/claude-code/memory) · [Gemini CLI GEMINI.md](https://geminicli.com/docs/cli/gemini-md/) · [Cursor Rules](https://docs.cursor.com/context/rules-for-ai)
+客户端兼容性不是“规则文件存在就算通过”。仓库通过 `tests/test-client-adapters.cjs` 检查模板指针、加载边界文档和初始化结果；这不等于真实客户端 CLI / IDE 已运行。客户端配置不得复制或分叉项目规则正文。完整矩阵与官方依据见 [CLIENTS.md](CLIENTS.md)。 真实启动验证使用 [CLIENT-SMOKE-TEST.md](CLIENT-SMOKE-TEST.md) 中的一次性夹具；契约测试通过不代表客户端已实测。
 
 ### 项目能力画像
 

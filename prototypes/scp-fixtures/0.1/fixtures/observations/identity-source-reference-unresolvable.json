@@ -1,0 +1,32 @@
+{
+  "contract": "scp-synthetic-observation-package",
+  "fixture_id": "identity-source-reference-unresolvable",
+  "source": "independent-test-vector",
+  "executed_event_sequences": [
+    1
+  ],
+  "records": [
+    {
+      "kind": "provider_lookup",
+      "provider_namespace": "fixture://provider/github.com",
+      "resource_id": "deleted-999",
+      "requested_revision": "fixture-revision-01",
+      "principal_id": "fixture-principal-01",
+      "authentication_state": "accepted",
+      "response_class": "authoritative_not_found",
+      "provider_contract_revision": "github-rest-fixture-contract/1",
+      "not_found_authority": true,
+      "not_found_authority_evidence": {
+        "path": "schemas/scp-fixtures/providers/0.1/github-rest-not-found-contract.json",
+        "blob_sha": "6573628ce89d1e9f0e43ad2ecc341dc99b29e887"
+      }
+    }
+  ],
+  "capability_observation": {
+    "source": "synthetic_profile_fixture",
+    "available_capabilities": [
+      "resolve_synthetic_provider_identity",
+      "inject_provider_response_classes"
+    ]
+  }
+}

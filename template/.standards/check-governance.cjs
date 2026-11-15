@@ -189,6 +189,33 @@ if(capabilityEnabled('task_tracking')&&fs.existsSync(taskIndex)&&fs.existsSync(b
   if(!sourceOk||!bodyOk)errors.push('.spec/tasks/BOARD.md 已过期或被手工修改，请运行 node .standards/generate-board.cjs');
 }
 
+function resolveSafeMirrorFile(rel) {
+  const display = typeof rel === 'string' ? rel : String(rel);
+  const invalid = (reason) => { throw new Error(`记忆镜像路径非法：${display}（${reason}）`); };
+  if (typeof rel !== 'string' || !rel.trim()) invalid('必须是非空的项目相对路径');
+  if (rel.includes('\0')) invalid('路径包含 NUL 字符');
+  if (rel.includes('\\')) invalid('不允许反斜杠或平台相关路径分隔符');
+  if (rel.startsWith('/') || /^[a-z]:/i.test(rel)) invalid('不允许绝对路径或 Windows 盘符路径');
+  const parts = rel.split('/');
+  if (parts.some((part) => !part || part === '.' || part === '..')) invalid('不允许空路径段、. 或 .. 路径段');
+  if (parts.some((part) => part.includes(':'))) invalid('路径段包含平台不兼容的冒号');
+  const projectRoot = fs.realpathSync(ROOT);
+  let current = projectRoot;
+  for (let index = 0; index < parts.length; index += 1) {
+    current = path.join(current, parts[index]);
+    let info;
+    try { info = fs.lstatSync(current); }
+    catch (error) {
+      if (error.code === 'ENOENT') return { path: current, exists: false };
+      invalid('无法安全检查路径：' + error.message);
+    }
+    if (info.isSymbolicLink()) invalid('禁止经过符号链接');
+    if (index < parts.length - 1 && !info.isDirectory()) invalid('父路径组件不是目录');
+    if (index === parts.length - 1 && !info.isFile()) invalid('目标必须是普通文件');
+  }
+  return { path: current, exists: true };
+}
+
 // 7. Client-private memory mirrors must carry the current breakpoint. No rule can force a
 // client to read .memory/, so the state is copied to where it does look; this checks it is not stale.
 const memoryMirrors=gov.memory?.mirrors??[];
@@ -200,9 +227,11 @@ if(memoryMirrors.length){
     let section='';
     if(start>=0){const rest=text.slice(start);const next=rest.slice(1).search(/^##\s/m);section=(next<0?rest:rest.slice(0,next+1)).trim();}
     for(const rel of memoryMirrors){
-      const mirrorFile=path.join(ROOT,rel);
-      if(!fs.existsSync(mirrorFile))continue;
-      if(section&&!fs.readFileSync(mirrorFile,'utf8').replace(/\r\n/g,'\n').includes(section))errors.push(`客户端私有记忆断点未同步：${rel}（运行 node .standards/sync-memory.cjs）`);
+      let target;
+      try { target = resolveSafeMirrorFile(rel); }
+      catch(error) { errors.push(error.message); continue; }
+      if(!target.exists)continue;
+      if(section&&!fs.readFileSync(target.path,'utf8').replace(/\r\n/g,'\n').includes(section))errors.push(`客户端私有记忆断点未同步：${rel}（运行 node .standards/sync-memory.cjs）`);
     }
   }
 }

@@ -80,6 +80,12 @@ try {
 
   const governance = spawnSync(process.execPath, [path.join(existing, '.standards', 'check-governance.cjs')], { cwd: existing, encoding: 'utf8' });
   assert.equal(governance.status, 0, governance.stdout + governance.stderr);
+  // Exercise the integrated governance loop on a separate disposable initialized project.
+  // This is nested under the already-registered migration fixture, so the CI workflow itself
+  // remains unchanged while the lifecycle scenario runs on every existing matrix job.
+  const lifecycle = spawnSync(process.execPath, [path.join(__dirname, 'test-governance-lifecycle.cjs')], { cwd: root, encoding: 'utf8', env: { ...process.env, PYTHONUTF8: '1' } });
+  assert.equal(lifecycle.status, 0, '端到端治理闭环夹具失败：\n' + lifecycle.stdout + lifecycle.stderr);
+
   console.log('test-migration-v2: all cases passed');
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });

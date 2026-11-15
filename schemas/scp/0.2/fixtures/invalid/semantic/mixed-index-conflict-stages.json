@@ -1,0 +1,194 @@
+{
+  "protocol": "scp",
+  "schema_version": "0.2.0",
+  "packet_id": "semantic-mixed-index-conflict-stages",
+  "packet_kind": "handoff",
+  "generated_at": "2026-11-12T00:00:00Z",
+  "project": {
+    "repository": "https://github.com/example/project-fork",
+    "root": ".",
+    "project_id": "https://registry.example/projects/project-x",
+    "repository_identity": {
+      "observed_at": "2026-11-12T02:00:00Z",
+      "checkout": {
+        "namespace": "https://github.com",
+        "id": "checkout-123",
+        "locator": "https://github.com/example/project-fork",
+        "basis": "provider_native_id"
+      },
+      "canonical": {
+        "namespace": "https://github.com",
+        "id": "canonical-456",
+        "locator": "https://github.com/org/project",
+        "basis": "provider_native_id"
+      },
+      "remote_mappings": [
+        {
+          "remote_name": "origin",
+          "fetch_state": "resolved",
+          "fetch_target": {
+            "namespace": "https://github.com",
+            "id": "checkout-123",
+            "locator": "https://github.com/example/project-fork",
+            "basis": "provider_native_id"
+          },
+          "push_state": "resolved",
+          "push_targets": [
+            {
+              "namespace": "https://github.com",
+              "id": "checkout-123",
+              "locator": "https://github.com/example/project-fork",
+              "basis": "provider_native_id"
+            }
+          ],
+          "relation_to_canonical": "fork_of_canonical"
+        },
+        {
+          "remote_name": "upstream",
+          "fetch_state": "resolved",
+          "fetch_target": {
+            "namespace": "https://github.com",
+            "id": "canonical-456",
+            "locator": "https://github.com/org/project",
+            "basis": "provider_native_id"
+          },
+          "push_state": "resolved",
+          "push_targets": [
+            {
+              "namespace": "https://github.com",
+              "id": "canonical-456",
+              "locator": "https://github.com/org/project",
+              "basis": "provider_native_id"
+            }
+          ],
+          "relation_to_canonical": "canonical"
+        }
+      ],
+      "source_refs": [
+        "fixture://provider/github.com/repos/checkout-123",
+        "fixture://provider/github.com/repos/canonical-456"
+      ]
+    }
+  },
+  "session": {
+    "actor": "agent-a",
+    "client": "example-client"
+  },
+  "intent": {
+    "baseline_ref": ".spec/intent/BASELINE.md",
+    "accepted_change_refs": [],
+    "pending_refs": []
+  },
+  "work": {
+    "topic": "Define the first machine-readable SCP packet contract"
+  },
+  "code": {
+    "branch": "feature/scp-schema",
+    "head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "worktree_state": "observed_dirty",
+    "uncommitted_paths": [
+      "notes/next.md",
+      "src/agent.ts"
+    ],
+    "observed_at": "2026-11-12T02:00:00Z",
+    "branch_tracking": {
+      "observed_at": "2026-11-12T02:00:00Z",
+      "branch_state": "attached",
+      "upstream": {
+        "state": "configured",
+        "remote_name": "upstream",
+        "merge_ref": "refs/heads/develop"
+      },
+      "push": {
+        "state": "resolved",
+        "remote_name": "origin",
+        "resolution_basis": "branch_push_remote"
+      }
+    },
+    "worktree_fingerprint": {
+      "format": "scp-worktree-fingerprint/1",
+      "scope": "git-status-paths",
+      "digest_algorithm": "sha-256",
+      "path_encoding": "utf-8",
+      "started_at": "2026-11-12T01:59:58Z",
+      "completed_at": "2026-11-12T02:00:00Z",
+      "coverage": "complete",
+      "observation": "per_path_stable",
+      "entries": [
+        {
+          "path": "notes/next.md",
+          "index_entries": [],
+          "worktree": {
+            "state": "present",
+            "kind": "regular_file",
+            "mode": "100644",
+            "digest": "sha-256:3333333333333333333333333333333333333333333333333333333333333333"
+          }
+        },
+        {
+          "path": "src/agent.ts",
+          "index_entries": [
+            {
+              "stage": 0,
+              "mode": "100644",
+              "digest": "sha-256:1111111111111111111111111111111111111111111111111111111111111111"
+            },
+            {
+              "stage": 2,
+              "mode": "100644",
+              "digest": "sha-256:6666666666666666666666666666666666666666666666666666666666666666"
+            }
+          ],
+          "worktree": {
+            "state": "present",
+            "kind": "regular_file",
+            "mode": "100644",
+            "digest": "sha-256:2222222222222222222222222222222222222222222222222222222222222222"
+          }
+        }
+      ]
+    }
+  },
+  "checkpoint": {
+    "work_state": "in_progress",
+    "verification_state": "not_run",
+    "review_state": "not_reviewed",
+    "decisions": [],
+    "next_action": "Review the D1 schema and compatibility policy"
+  },
+  "evidence_refs": [],
+  "handoff": {
+    "from": "agent-a",
+    "to": "next-agent",
+    "completed": [
+      "D0 product decisions recorded"
+    ],
+    "in_progress": [
+      "Implement the SCP 0.2.0 schema draft"
+    ],
+    "blocked": [],
+    "next_action": "Review the schema and fixture contract before validator implementation",
+    "forbidden_actions": [
+      "Do not add validator or mandatory gates before schema review"
+    ]
+  },
+  "coordination": {
+    "owner": "agent-a",
+    "write_scope": [
+      "schemas/scp/0.1/",
+      "SESSION-CONTINUITY-PROTOCOL-DESIGN.md"
+    ],
+    "isolation": "branch_worktree"
+  },
+  "provenance": {
+    "generated_by": "manual-design-example",
+    "source_revisions": [
+      {
+        "source_ref": "SESSION-CONTINUITY-PROTOCOL-DESIGN.md",
+        "revision": "9e6d1acef0e7f1b49e1e527056fd5e76cc1ce504",
+        "freshness": "current",
+        "observed_at": "2026-11-12T02:00:00Z"
+      }
+    ]
+  }
+}

@@ -67,7 +67,7 @@ assert.match(readme, /`stack_rules=on` 必须同时满足 `profile\.status = "co
 const adaptation = fs.readFileSync(path.join(root, 'PROJECT-ADAPTATION-v2.0.md'), 'utf8');
 assert.match(adaptation, /注册表中的 `validation` 是人\/Agent 可读的验收要求，不会仅因写入 JSON 就自动执行/);
 assert.match(adaptation, /`module_boundaries` 只提供基础架构约束与可填写的模块依赖矩阵/);
-assert.match(adaptation, /`multi_agent` 是共享状态单写者、写入前刷新与交接的 Agent 行为协议，不是分布式锁/);
+assert.match(adaptation, /`multi_agent` 的操作契约定义在模板 `AGENTS.md` §0\.5：一个 Coordinator 维护共享状态/);
 assert.match(adaptation, /命令是否实际执行、结果是否绑定提交，仍由项目 Hook\/CI 与验证证据流程负责/);
 assert.match(spec, /`stack_rules` 为 `on` 时，画像必须为 `confirmed`/);
 assert.match(fs.readFileSync(path.join(root, 'PROJECT-ADAPTATION-v2.0.md'), 'utf8'), /`stack_rules=on` 还要求 `profile\.status=confirmed`/);
@@ -260,7 +260,15 @@ try {
   assert.match(taskOnlyArchitecture, /外层通过显式接口依赖内层/, 'module_boundaries=off must not disable core one-way dependency rules');
   assert.doesNotMatch(taskOnlyArchitecture, /模块依赖矩阵/, 'module_boundaries=off must remove its optional matrix instructions');
   assert.doesNotMatch(taskOnlyAgents, /里程碑状态以 `\.spec\/roadmap\/INDEX\.md` 为准/, 'roadmap=off must not retain an unconditional authority pointer');
-  assert.match(taskOnlyAgents, /启用 `adr` 时 ADR 也采用单写者/, 'multi_agent rules must not assume ADR is enabled');
+  assert.match(taskOnlyAgents, /启用 `task_tracking`、`roadmap`、`adr` 时/, 'multi_agent rules must conditionally govern optional shared state');
+  assert.match(taskOnlyAgents, /Coordinator/, 'multi_agent=on must define a single coordinating Agent');
+  assert.match(taskOnlyAgents, /Worker/, 'multi_agent=on must define scoped execution Agents');
+  assert.match(taskOnlyAgents, /独立 Git worktree\/分支/, 'parallel workers must use isolated worktrees or branches');
+  assert.match(taskOnlyAgents, /Base SHA/, 'work assignments must pin their starting revision');
+  assert.match(taskOnlyAgents, /允许路径/, 'work assignments must define an explicit write set');
+  assert.match(taskOnlyAgents, /Worker 返回 Base SHA/, 'worker handoff must return a structured execution report');
+  assert.match(taskOnlyAgents, /整合后按最终 Commit 重新运行/, 'integration must rerun verification on the integrated revision');
+  assert.match(taskOnlyAgents, /过期基线、冲突或分歧串行处理/, 'unsafe parallel work must degrade to sequential execution');
   const taskOnlyConstitution = fs.readFileSync(path.join(taskOnlyProject, '.spec/00-constitution.md'), 'utf8');
   assert.match(taskOnlyConstitution, /启用 `task_tracking` 时，任务状态以/, 'constitution must mark task state as optional');
   assert.match(taskOnlyConstitution, /启用 `adr` 时，架构决策以/, 'constitution must mark ADR as optional');

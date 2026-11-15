@@ -1,0 +1,575 @@
+# Linux Sandbox Prototype Validation Report
+
+**Date:** 2026-11-13  
+**Prototype:** SCP Linux x86_64 namespace/chroot probe 0.1  
+**Result:** Gate A and Gate B core probes passed; not a production sandbox certification.
+
+## Execution environment
+
+- OS: Linux x86_64
+- Kernel: 6.18.57
+- Runtime: isolated Kata/container execution environment with effective UID 0
+- Python: system Python 3 (standard library only)
+- Required host utilities: GCC, `unshare`, `mount`, `chroot`, `setpriv`, `prlimit`, `ldd`, BusyBox
+- Source size: 20,304 bytes before gzip; 6,563 bytes compressed
+- Compressed Git Blob SHA: `ae64fb2f651018e53705990c2f715ea25fa465b9`
+- Decompressed source Git Blob SHA: `88e08595b3f74fc7c5c59fb13c9473f94dbb5503`
+
+## Namespace capability discovery
+
+Ordinary mount/network/PID namespace creation was denied by the outer runtime. Creating the user namespace first and then creating mount, network and PID namespaces succeeded. Mount propagation was made private. Mounting procfs from the nested namespace was not permitted, so the disposable chroot deliberately does not expose `/proc` or `/sys`.
+
+The probe does not turn these environmental constraints into implicit success. It verifies the combined namespace operation and fails if a required capability is unavailable.
+
+## Repeated execution results
+
+The complete probe was run three times in the same isolated execution environment. All three runs completed with the same successful result. The final run reported:
+
+| Check | Result |
+|---|---|
+| User + mount + network + PID namespaces | PASS |
+| UID/GID drop to 65534 | PASS |
+| `no_new_privs` and capability drop | PASS |
+| Read-only rootfs | PASS |
+| Host canary and symlink escape denial | PASS |
+| `/proc` and `/sys` hidden | PASS |
+| Dedicated writable scratch | PASS |
+| Host loopback network isolation | PASS |
+| PID namespace descendant teardown | PASS |
+| Host secret environment not inherited | PASS |
+| Hostile synthetic shim access-denial probes | PASS |
+| Synthetic marker redaction before persistence | PASS (exact marker only) |
+| Output capture limit | PASS (4096 bytes; overflow not persisted) |
+| Ownership check and quarantine | PASS (cleanup-failure injection) |
+| Normal cleanup | PASS (owned resources removed) |
+
+The synthetic shim attempted to read the expected-value/Oracle path, Context path, host canary, host proc-root path and container-runtime socket; write outside its scratch root; reach the host loopback listener; and inspect an environment variable that existed only in the host parent. Each attempt was denied or absent, and the shim completed with the expected denial markers.
+
+The output-flood probe produced more than the 4096-byte allowance. The capture routine retained at most 4096 bytes, terminated the namespace owner, and did not persist the raw overflow output. The core probe's cleanup fault case was injected into the ownership/quarantine state transition. A separate real-filesystem regression is now run by the main launcher and is recorded below; it forces EBUSY using a mounted tmpfs root and exercises a persisted quarantine lifecycle.
+
+Final command output ended with:
+
+```text
+RESULT=GATE_A_AND_B_CORE_PROBES_PASS; NOT A PRODUCTION SANDBOX CERTIFICATION
+```
+
+## Controls demonstrated
+
+1. The client process executes under an unprivileged inner UID/GID 65534.
+2. Supplementary groups are empty; capability bounding, inheritable and ambient sets are empty; `no_new_privs=1`.
+3. The minimal rootfs is remounted read-only. A dedicated scratch mount is the only writable location supplied to the shim.
+4. Host paths are not mounted into the chroot. A deliberately hostile symlink cannot traverse outside the root.
+5. The namespace has no route to the host loopback listener. No host network endpoint was exposed to the shim.
+6. The environment is rebuilt from an allow-list; the synthetic host-only secret variable is absent inside.
+7. The PID namespace owner controls the child lifecycle; terminating the owner tears down the descendant namespace.
+8. Output is bounded and the one synthetic marker is replaced in memory before the evidence file is written.
+9. Cleanup requires an owner record and canonical path containment. The injected failure path quarantines resources and blocks reuse.
+
+## Explicit non-claims
+
+This is a narrow prototype, not a production security boundary certification. It does **not** prove:
+
+- resistance to kernel vulnerabilities or namespace/chroot escape exploits;
+- a complete syscall allowlist, Landlock, LSM/AppArmor/SELinux or cgroup-enforced resource accounting;
+- a complete general secret-scanning/redaction policy;
+- behavior on Windows, macOS or other Linux kernels/container runtimes;
+- arbitrary network policy or approved egress to a real service;
+- actual Agent client behavior, Provider authority or real Git/filesystem observations;
+- general-purpose cleanup failure handling in a production resource manager (the supplemental regression covers a real mounted-tmpfs EBUSY path and a small persisted owner-record/quarantine lifecycle only);
+- production-grade evidence retention, immutable Run Manifest storage or CI enforcement.
+
+The current implementation also requires an environment capable of creating the explicit UID/GID maps; a typical locked-down container may reject this. The launcher reports failure rather than falling back to a weaker test.
+
+## CI and repository boundary
+
+The probe was run directly in the isolated execution environment. The repository's existing `.github/workflows/standards-ci.yml` does not run this prototype. No workflow, CI gate, schema, Runner, Registry, Writer, Store or production Agent integration was added.
+
+Gate C (real Agent invocation) remains closed. Before it can be considered, the backend needs a separate platform security review, additional adversarial probes (including syscall and resource enforcement), and explicit authorization for the specific client and credential/network scope.
+
+
+## Follow-up security primitive discovery
+
+A separate seccomp-BPF smoke test was compiled with GCC and executed successfully. It set `no_new_privs`, installed a classic BPF filter using `PR_SET_SECCOMP`, denied the harmless `getppid` syscall with `EPERM`, and printed `SECCOMP_FILTER=PASS`. This proves only that this process/kernel accepted that small filter. The filter is **not installed by the current namespace/chroot sandbox probe** and is not evidence of syscall restriction in the Gate A/B run.
+
+The cgroup v2 hierarchy exposed controllers cpuset cpu io memory hugetlb pids, but /sys/fs/cgroup is mounted read-only and the process cannot create a child cgroup or write cgroup.subtree_control. The current probe therefore relies on per-process prlimit bounds; it does not claim cgroup-enforced aggregate resource limits.
+
+A direct C probe of landlock_create_ruleset (x86_64 syscall 444 with LANDLOCK_CREATE_RULESET_VERSION) returned ENOSYS under a 3-second timeout. Landlock is therefore **unavailable in this tested kernel/runtime**, rather than merely unverified; no Landlock policy is installed or claimed.
+
+These findings refine, but do not change, the core Gate A/B result above: the namespace/chroot and synthetic-shim checks pass, while seccomp remains an unintegrated primitive, cgroup delegation is unavailable in this runtime, and Landlock remains unverified.
+
+
+## Seccomp launch-chain integration follow-up
+
+The main Linux run.sh will run run-seccomp-integration.sh after the namespace/chroot core probe. That harness compiles seccomp-exec.c and seccomp-child-test.c with GCC -Wall -Wextra -Werror, then launches the client test inside user/mount/network/PID namespaces, a read-only chroot, a writable scratch mount and UID/GID 65534. The wrapper sets no_new_privs, installs an x86_64 architecture-checked classic BPF denylist (including x32 ABI rejection), then execs the synthetic client.
+
+The client verifies that mount, umount2, ptrace, unshare, BPF, userfaultfd and a test-only getppid sentinel return EPERM, while getpid, fixture reads and scratch writes remain usable. A write to the read-only rootfs is denied with EROFS. The client then forks and execs a child, which repeats the same checks to prove filter inheritance. The integration command passed locally with GCC -Wall -Wextra -Werror.
+
+This is a denylist with default ALLOW, not a comprehensive production Agent syscall allowlist. It is a launch-chain integration harness, not kernel-escape certification; cgroup, Landlock and LSM limitations remain.
+
+
+## 2026-11-14 exact remote launch-chain correction and verification
+
+The first seccomp integration commit exposed two packaging defects during execution of the exact remote files: the temporary path was created as a file rather than a directory, and the compact C launcher triggered GCC's -Wmisleading-indentation under the required -Werror build. These defects were fixed in the follow-up commit; the shell launcher now uses mktemp -d and the C entry points use explicit statement blocks.
+
+The corrected remote source files were then fetched, checked against their Git Blob SHA values, and executed in the isolated Linux environment:
+- seccomp-exec.c Blob SHA: f32ba52465d7576149ec247b260ae8629efa4708
+- seccomp-child-test.c Blob SHA: fb1a201235d856208c67fe5e3e390957e4d13c33
+- run-seccomp-integration.sh Blob SHA: 0eb9698e781653660060d5fbce2916a78b0de71a
+
+Result: GCC -Wall -Wextra -Werror compiled both programs; the integration run passed. The parent and fork+exec child both observed EPERM for the test sentinel, mount, umount2, ptrace, unshare, BPF and userfaultfd. Both could still call getpid, read the read-only synthetic fixture, were denied writes to the read-only rootfs with EROFS, and could write to the dedicated scratch mount. The final marker was SECCOMP_FORK_EXEC_INHERITANCE=PASS.
+
+This is still a denylist with default ALLOW, not a full Agent syscall allowlist. The filter is a defense-in-depth layer in the tested launch chain, not a production security certification.
+
+
+## 2026-11-14 clone-family namespace bypass regression
+
+The seccomp launcher now checks the legacy clone flags argument and returns EPERM whenever a supported CLONE_NEW* namespace flag is present. clone3 is denied with ENOSYS because classic seccomp BPF cannot dereference the userspace clone_args pointer; ENOSYS permits libc to fall back to legacy clone, whose flags are checked. The synthetic client test verifies clone(CLONE_NEWUSER) -> EPERM, clone3(NULL, 0) -> ENOSYS, and confirms that ordinary fork+exec still succeeds. Both the parent and its fork+exec child repeat these checks.
+
+Final source Blob SHAs for the expanded regression set:
+- seccomp-exec.c: aed40a67bda0231c6e567a06c286378e4eb023b4
+- seccomp-child-test.c: 87825be539a33647939eb46f4aa725b563dc28ce
+- run-seccomp-integration.sh: 0eb9698e781653660060d5fbce2916a78b0de71a
+
+The integration harness was rerun after the clone/clone3 checks were added. GCC -Wall -Wextra -Werror succeeded; both parent and child reported DENIED for the test sentinel, mount, umount2, ptrace, unshare, clone namespace flags, clone3 fallback, BPF and userfaultfd; both reported ALLOWED for getpid, fixture read and scratch write; both reported DENIED for writes to the read-only root. The final line was SECCOMP_FORK_EXEC_INHERITANCE=PASS.
+
+The profile remains an x86_64 denylist with default ALLOW. It is not a complete syscall allowlist and does not constitute production sandbox certification.
+
+
+## Final seccomp launcher blob verification
+
+The final seccomp launcher source, including legacy clone namespace-flag inspection and clone3 ENOSYS fallback behavior, is Git Blob aed40a67bda0231c6e567a06c286378e4eb023b4. This exact source was compiled locally with GCC -Wall -Wextra -Werror and exercised by the namespace/chroot integration harness. The synthetic client and its fork+exec child both reported clone(CLONE_NEWUSER) denied with EPERM and clone3 denied with ENOSYS, while ordinary fork/exec, fixture reads and scratch writes remained successful. The accompanying test source is Blob 87825be539a33647939eb46f4aa725b563dc28ce and the integration launcher is Blob 0eb9698e781653660060d5fbce2916a78b0de71a.
+
+
+## 2026-11-14 modern mount API and process-handle regression coverage
+
+A further seccomp review identified newer interfaces that could bypass a policy limited to legacy `mount(2)` and `unshare(2)`. The denylist and synthetic regression client now also cover:
+- mount API: `open_tree`, `move_mount`, `fsopen`, `fsconfig`, `fsmount`, `fspick`, and `mount_setattr`;
+- process/handle APIs: `pidfd_getfd`, `pidfd_send_signal`, `process_madvise`, and `kcmp`.
+
+The exact latest local source files were executed through the namespace/mount/network/PID/chroot/UID/seccomp integration harness. GCC `-Wall -Wextra -Werror` compilation succeeded. Both the original client and its fork+exec child observed EPERM for open_tree, move_mount, fsopen, fsmount, mount_setattr, pidfd_getfd and process_madvise, along with the earlier blocked syscalls. Ordinary getpid, read-only Fixture reads and dedicated Scratch writes remained available; writes to the read-only root returned EROFS; fork+exec filter inheritance passed.
+
+Source Blob identities for the exact tested local bytes:
+- `seccomp-exec.c`: `6ab19f64773794f36eb402853c76ff591b4c4f28`
+- `seccomp-child-test.c`: `fd114870ac09fd63bb6538f1a10ccee8a467556c`
+
+This remains a denylist with default ALLOW, not a complete syscall allowlist or production Agent policy. The tests cover the listed interfaces on this Linux x86_64 kernel only; they do not establish equivalent behavior on other architectures or kernels.
+
+
+## 2026-11-14 pidfd signal and kcmp enforcement regression tests
+
+The seccomp denylist already included `pidfd_send_signal` and `kcmp`; the synthetic client regression suite now explicitly exercises both. It expects `pidfd_send_signal` to return EPERM and uses a self-to-self `kcmp(KCMP_FILES)` probe to require EPERM rather than a normal comparison result. The exact updated test file was run in the same namespace/chroot/UID/seccomp harness as the launcher. Both the parent and fork+exec child denied the test sentinel, legacy/new mount APIs, pidfd_getfd, pidfd_send_signal, kcmp, process_madvise, namespace creation paths, BPF and userfaultfd. Both continued to read the fixture, write dedicated scratch and receive EROFS for rootfs writes. Fork+exec filter inheritance passed.
+
+Exact test source Git Blob SHA: `88804bb1e67f1ef03f41233c3dfc7bf822295a2f`.
+
+
+## 2026-11-14 inherited working-directory escape regression
+
+The seccomp integration runner now deliberately changes its host-side working directory to the disposable temporary directory before invoking chroot. A world-readable synthetic canary is placed in that host directory. The client attempts to open the canary by relative path (`host-cwd-canary`). If the chroot launcher were to preserve the caller's old working directory, the file would be readable and the test would fail. The required result is ENOENT. Both the initial client and its fork+exec child report `DENIED inherited-host-cwd`.
+
+The canary is mode 0444 so an unexpected access cannot be hidden by ordinary permission denial. This specifically verifies that the chroot invocation moves the process working directory into the new root before the unprivileged client starts; it supplements the absolute host-path and symlink checks.
+
+Exact local-execution Git Blob SHAs:
+- seccomp-child-test.c: `eccaa7a590b7683001148a50d0fce7767327340d`
+- run-seccomp-integration.sh: `f683504f88d38e515dee58be62716d513aa03a94`
+
+The exact updated files were run through the full seccomp integration harness. Both parent and child passed the syscall-denial matrix, cwd canary, readonly fixture read, root-write denial, scratch write and fork+exec inheritance check.
+
+
+## 2026-11-14 Landlock and cgroup definitive capability check
+
+The earlier Landlock timeout note is superseded by a direct C syscall probe. Calling landlock_create_ruleset(NULL, 0, LANDLOCK_CREATE_RULESET_VERSION) using x86_64 syscall 444 returned ENOSYS (bounded by a 3-second timeout). The tested kernel/runtime does not expose the Landlock syscall; no Landlock policy is present.
+
+The cgroup v2 mount exposes cpuset cpu io memory hugetlb pids in cgroup.controllers, but /sys/fs/cgroup is mounted read-only, cgroup.subtree_control is empty, and creating a child cgroup fails. The current runtime cannot delegate cgroup resource control. Per-process prlimit remains in place, but is not aggregate CPU/memory/PID accounting.
+
+
+## 2026-11-14 bounded tmpfs scratch integration
+
+The seccomp launch-chain integration no longer bind-mounts a host writable scratch directory into the chroot. It now mounts a dedicated 32 MiB tmpfs at /work inside the private mount namespace with nosuid,nodev,noexec. The synthetic client checks the filesystem type (TMPFS_MAGIC), verifies the NOEXEC/NOSUID/NODEV flags and the configured size ceiling, then creates a scratch marker. Both the original process and its fork+exec child pass. The readonly rootfs still rejects writes with EROFS.
+
+Exact local-execution source Git Blob SHAs:
+- seccomp-child-test.c: 21667e37e1c2d75ce9448194df06c504cdb33a5b
+- run-seccomp-integration.sh: 83f0dd5c1c1019fc2f638e7f7057d5621027d95e
+
+This confines client scratch writes to a bounded ephemeral filesystem inside the mount namespace rather than a host bind mount. It does not provide aggregate CPU/memory/PID accounting; cgroup delegation remains unavailable and per-process prlimit remains the only resource limit outside the tmpfs byte ceiling.
+
+
+## 2026-11-14 inherited descriptor closure and inode-bounded scratch (initial implementation; superseded)
+
+The initial seccomp launcher closed file descriptors 3 and above before execing the synthetic client. It used close_range where available and fell back to an RLIMIT_NOFILE-bounded close loop. That fallback was later found incomplete when a descriptor above the current soft limit had been opened before the limit was lowered; it was removed in the subsequent fail-closed hardening recorded at the end of this report. The regression runner deliberately opens a host-only canary as FD 9 before entering the user/mount/network/PID namespace chain. The client must observe EBADF for FD 9; both the initial process and fork+exec child pass this assertion.
+
+The scratch tmpfs now has both a 32 MiB byte ceiling and an explicit 4096-inode ceiling, in addition to nosuid,nodev,noexec. The client checks TMPFS_MAGIC, mount flags, f_blocks/f_frsize capacity, f_files inode count, and actual write behavior. Both parent and fork+exec child pass.
+
+Exact local-execution source Git Blob SHAs:
+- seccomp-exec.c: b36b72376cec0b8fc1b2b9b32519b6f077798b1a
+- seccomp-child-test.c: 2871732dd3e946b9bdaac71d2a3dfd7f421b1029
+- run-seccomp-integration.sh: 0b762b0daf763d3a3ef7f5a358060c17b8efa5c6
+
+These checks reduce inherited-descriptor and scratch-exhaustion exposure. They do not establish cgroup CPU/memory/PID aggregation, Landlock availability, complete syscall mediation, or production Agent safety.
+
+
+## 2026-11-14 runtime identity and capability assertions
+
+The seccomp client test now reads back its actual execution identity rather than relying only on launch arguments. In both the initial client and its fork+exec child it verifies:
+- real/effective UID and GID are all 65534;
+- supplementary group count is zero;
+- PR_GET_NO_NEW_PRIVS returns 1;
+- PR_GET_SECCOMP reports SECCOMP_MODE_FILTER;
+- capget effective, permitted and inheritable capability sets are empty;
+- PR_CAPBSET_READ returns zero for every capability through CAP_LAST_CAP.
+
+The exact updated client was run in the full namespace/chroot/seccomp integration harness. Both parent and child passed all identity/capability assertions and the existing syscall denial, inherited FD/cwd canary, readonly rootfs, bounded tmpfs and allowed scratch I/O checks.
+
+Exact test Git Blob SHA: c77f27b9062a8522f35a54c099dfb341a247a34c.
+
+
+## 2026-11-14 exact-blob seccomp integration re-run
+
+The current PR #11 Head at the time of this re-run was `6e9458f9cda1e6b09a2b519857ae866ce47e47b6`. The following three source files were retrieved from that exact commit, reconstructed in a disposable local test directory, and checked with `git hash-object`; each local Git Blob SHA matched the remote file Blob SHA:
+
+- `seccomp-exec.c`: `b36b72376cec0b8fc1b2b9b32519b6f077798b1a`
+- `seccomp-child-test.c`: `c77f27b9062a8522f35a54c099dfb341a247a34c`
+- `run-seccomp-integration.sh`: `0b762b0daf763d3a3ef7f5a358060c17b8efa5c6`
+
+Execution environment: Linux x86_64, kernel 6.18.57, GCC 14.2.0, effective UID 0, Python 3.13.5 available. The integration harness was executed twice with the exact matching source bytes. Both runs compiled with `gcc -Wall -Wextra -Werror` and passed.
+
+Both the initial synthetic client and its fork+exec child verified UID/GID 65534, zero supplementary groups, `no_new_privs=1`, active seccomp filter mode, empty capability sets and an empty capability bounding set. Both denied the test sentinel, legacy and modern mount APIs, ptrace, pidfd/process-handle calls, kcmp, process_madvise, namespace transitions, clone namespace flags, clone3 (ENOSYS fallback), BPF and userfaultfd. Both retained the expected `getpid`, fixture-read and bounded-tmpfs scratch-write behavior; rejected writes to the read-only rootfs; observed EBADF for inherited host FD 9; and observed ENOENT for the inherited-host-cwd canary. The run ended with `SECCOMP_FORK_EXEC_INHERITANCE=PASS`.
+
+This re-run executes the standalone seccomp integration harness, not the full `linux/run.sh` entry point or the separate Python namespace/chroot probe. The existing PR Standards CI is a separate signal and does not execute this harness. The policy remains an x86_64 denylist with default ALLOW; it is not a production syscall allowlist or Agent sandbox certification.
+
+
+## 2026-11-14 complete seccomp denylist regression coverage and production-mode check
+
+PR #11 Head before this code update: `4ef2854cdb9499e41a62c60222e3344c434ae569`. The updated files were locally executed twice; the resulting source Blob identities are:
+
+- `seccomp-exec.c`: `eb5e61964858111c5a3e51f2b2c7a6670a431d19`
+- `seccomp-child-test.c`: `39f3c8ac94631e0931db8bb82c1d63e31d693891`
+- `run-seccomp-integration.sh`: `c1189d6bb93957e31a9023bc4a3033f0894d3fa4`
+
+The test harness now compiles both a test-only pair and a production pair. In test mode, denied syscalls return EACCES (instead of EPERM) so a matching result distinguishes a seccomp rule hit from ordinary permission checks performed by the kernel or LSM. The production build keeps EPERM and leaves the test-only getppid sentinel allowed. This test-mode errno override changes only the denial result used for measurement; the syscall match set is shared with the production build.
+
+The synthetic client now has 42 generic denial assertions plus dedicated kcmp, clone namespace-flag, clone3 fallback and x32 ABI probes. The x32 test runs in a forked child and requires SIGSYS. The production build separately confirms getppid is allowed while denied operations return EPERM. Both build variants run the runtime-identity, capability, inherited-FD/cwd, read-only-root, tmpfs quota, fixture/scratch I/O and fork+exec inheritance checks in parent and child.
+
+Environment: Linux x86_64, kernel 6.18.57, GCC 14.2.0, effective UID 0. Both complete integration-harness runs passed with `-Wall -Wextra -Werror`. This remains synthetic Linux x86_64 validation only; it does not create a production syscall allowlist or authorize real Agent execution.
+
+
+## 2026-11-14 real filesystem cleanup-failure and quarantine regression
+
+A supplementary integration test was added as `linux/cleanup-failure-integration.sh` and is invoked by the main `linux/run.sh` entry point after the seccomp integration harness.
+
+The script ran three times on Linux x86_64 / kernel 6.18.57 inside the same isolated Kata/container environment. Each run created a private user + mount namespace and mounted a disposable tmpfs below an owned resource root. An actual `os.rmdir(mountpoint)` call returned kernel `EBUSY`; any other errno would fail the test.
+
+All three runs produced the same results:
+
+```text
+REAL_CLEANUP_FAILURE=PASS errno=EBUSY
+QUARANTINE_REUSE_GUARD=PASS
+QUARANTINED_RESOURCE_PRESERVED=PASS
+QUARANTINE_RECOVERY_AND_CLEANUP=PASS
+```
+
+Before renaming the owned resource tree, the helper atomically persists the `quarantining` state. It then moves the tree to a distinct quarantine path, persists `quarantined`, reads the owner record back and verifies reuse is rejected while the mounted canary remains accessible only through the quarantine path. Explicit `umount` and owned-path removal are required before the state becomes `cleaned`.
+
+Exact cleanup harness Git Blob SHA: `97aaea4f700ff15e91ab127774b21b5dce76521d`.
+
+Scope: this demonstrates a genuine filesystem cleanup failure and a focused persisted quarantine/non-reuse/recovery flow. The core Python probe's own cleanup-failure state-machine branch remains deterministic fault injection; the supplemental harness is not a full integration of every production resource-owner path and does not cover every possible filesystem failure mode.
+
+
+The cleanup helper's owner-record update now flushes and fsyncs the temporary file before atomic replacement, then fsyncs the containing directory. This orders the persisted `quarantining` state before the quarantine rename and persists the follow-up state transitions. The behavior is exercised on the temporary filesystem in the integration test; it is not a durability certification for arbitrary filesystems or storage hardware.
+
+The latest local re-run used source copies reconstructed from the GitHub-returned file contents. The seccomp test/production harness passed twice, with the six RLIMIT ceilings read back in both parent and fork+exec child; the real tmpfs EBUSY/quarantine test passed three times. However, the local copies were not proven byte-identical to the remote Git Blob values. Treat these results as local behavior validation, not exact-Blob replay evidence.
+
+
+## 2026-11-14 exact-blob seccomp and cleanup replay
+
+At PR Head `e069e4cbec2ef079081a1926278f10718d11b857`, all four helper inputs used for the latest replay were verified locally with `git hash-object` and matched their committed GitHub Blob SHAs:
+
+- `seccomp-exec.c`: `eb5e61964858111c5a3e51f2b2c7a6670a431d19` — exact match.
+- `seccomp-child-test.c`: `c9dcf4768f0704efa99466437d02acf598a1f2ae` — exact match.
+- `run-seccomp-integration.sh`: `4975a6883fa628c1fe5e5c92a49458a2da96f8fa` — exact match.
+- `cleanup-failure-integration.sh`: `8e21f56b26ad2620556f8c1406ba44d9f150b30f` — exact match.
+
+The exact-Blob seccomp harness was run twice with GCC `-Wall -Wextra -Werror`. Both test-mode and production-mode variants passed, including the declared syscall-denial probes, clone/clone3 namespace bypass cases, x32 ABI SIGSYS, fixture/scratch access, read-only-root denial, inherited FD/cwd canaries, bounded tmpfs, production getppid allowance and fork+exec filter inheritance. The six soft/hard RLIMIT ceilings (CORE 0, CPU 10s, FSIZE 1 MiB, NOFILE 64, NPROC 64, AS 256 MiB) were read back successfully in both parent and fork+exec child. Resource-limit probe output formatting was corrected to emit normal line breaks before this replay.
+
+The exact-Blob cleanup helper was run three times. Every run returned the real kernel EBUSY for the mounted tmpfs removal, persisted quarantine state, blocked reuse, preserved the quarantined mount and completed explicit unmount/recovery:
+```text
+REAL_CLEANUP_FAILURE=PASS errno=EBUSY
+QUARANTINE_REUSE_GUARD=PASS
+QUARANTINED_RESOURCE_PRESERVED=PASS
+QUARANTINE_RECOVERY_AND_CLEANUP=PASS
+```
+
+The compressed Python core probe was not re-run in this pass because the local temporary gzip copy failed `gzip -t`; prior three-run core-probe evidence remains separate. Therefore this is exact-Blob replay of the seccomp and cleanup helpers, **not** a full `run.sh` end-to-end replay. The committed gzip blob remains `ae64fb2f651018e53705990c2f715ea25fa465b9`.
+
+
+## 2026-11-14 exact-Blob core-probe replay (superseding interim failure note)
+
+The earlier temporary-copy attempt failed `gzip -t`, so the compressed probe was not executed in that pass. This was a local transfer-artifact problem, not a defect in the committed gzip blob. The exact current PR file was subsequently fetched through the GitHub Contents API and revalidated before execution.
+
+- PR Head at replay: `c715a1bd48771d7fbab88036e662ef6da6ba7070`.
+- Compressed file: `prototypes/scp-sandbox/0.1/linux/probe.py.gz`.
+- Compressed Git Blob SHA-1: `ae64fb2f651018e53705990c2f715ea25fa465b9` (exact match).
+- `gzip -t`: PASS.
+- Decompressed source Git Blob SHA-1: `88e08595b3f74fc7c5c59fb13c9473f94dbb5503` (exact match).
+- Environment: Linux x86_64, kernel `6.18.57`, isolated container runtime, effective UID 0.
+- Execution: decompressed the exact verified gzip bytes and ran the source under `timeout --signal=TERM --kill-after=5s 90s python3`.
+
+Result: `RESULT=GATE_A_AND_B_CORE_PROBES_PASS; NOT A PRODUCTION SANDBOX CERTIFICATION`.
+
+The exact committed core probe passed its user/mount/network/PID namespace setup, UID/GID drop to 65534, no_new_privs and capability drop, read-only rootfs, host path and symlink containment, hidden proc/sys, dedicated scratch write, host loopback isolation, PID descendant teardown, host environment non-inheritance, synthetic shim access-denial probes, 4096-byte output cap with exact synthetic-marker redaction, cleanup ownership/quarantine and normal cleanup.
+
+This closes the previously outstanding exact-Blob **core-probe** replay. It does not claim that the complete `linux/run.sh` wrapper was executed end-to-end in one invocation: the exact-Blob seccomp integration and cleanup-failure helpers were exercised separately in their previously documented runs. Existing Standards CI is also separate and does not run these SCP-specific probes.
+
+
+## 2026-11-14 explicit quarantine admission check (exact-Blob rerun)
+
+The earlier cleanup helper emitted a reuse-guard PASS after inspecting only the persisted state value; it did not attempt the harness admission path. That assertion was too weak. The helper was corrected so its test-only `acquire_resource()` path admits a resource only when the persisted record is `active` and still names the original owned root. The test now attempts acquisition and requires denial in each non-active state:
+
+- `quarantining`: rejected before the owned tree is renamed;
+- `quarantined`: rejected after the quarantine path and state are persisted;
+- `cleaned`: rejected after explicit unmount and owned-path removal, until the owner record is removed.
+
+The `active` state is separately required to admit the original owned resource. The exact committed helper Blob is `bde76808b7dbf7af1dcf895fa207fe19e880d6e1`; the local `git hash-object` result matched it before execution. Three consecutive executions on Linux x86_64 / kernel 6.18.57 passed. Every run observed the real mounted-tmpfs `EBUSY`, rejected the three non-active admission attempts, preserved the quarantined mount, and completed explicit unmount/recovery.
+
+Scope: this is an explicit state-based admission check implemented inside the synthetic test helper. It still does not test a production resource manager, symlink/race/partial-creation handling, or crash recovery across process restart. Production cleanup-manager acceptance remains closed.
+
+
+## 2026-11-14 close_range regression and standard-I/O harness execution (pre-bounded-capture revision)
+
+This section supersedes the prior execution-pending note. The first attempt to run the helper through the documented POSIX sh entry exposed a test-harness portability defect: the exec 100<file construct was parsed as an attempted command by the container's /bin/sh (dash). The helper was corrected to open and duplicate FD 9 and FD 100 through Python, then pass only those descriptors to the namespace chain. The launcher and its fail-closed close_range behavior were not weakened.
+
+The client test also verifies the standard-I/O boundary in the synthetic runner harness:
+- stdin is explicitly /dev/null (character device major 1, minor 3);
+- stdout and stderr are supervisor-created pipes;
+- the client checks all three descriptors in both the initial process and fork+exec child, in test and production seccomp variants;
+- the harness revision tested in this replay used the pre-bounded-capture parent collector. Its prior after-collection 64 KiB check was not a memory bound. The current streaming correction is recorded in the separate section below.
+
+Exact source identities at the replay:
+- seccomp-exec.c: c59d673e0094d6e604649d9ddca85624f812f620 (unchanged exact remote Blob).
+- seccomp-child-test.c: 14d4f6b32c23de5f39889a2da5a2967b51102d95.
+- run-seccomp-integration.sh: 14c7bb8504b2da6ed637501bf6f8a29085d6be5f.
+- cleanup-failure-integration.sh: bde76808b7dbf7af1dcf895fa207fe19e880d6e1 (unchanged).
+
+Environment: Linux x86_64, kernel 6.18.57, effective UID 0, GCC 14.2.0, Python 3.13.5. At that replay, the helper Blob `14c7bb8504b2da6ed637501bf6f8a29085d6be5f` was invoked explicitly with sh, compiled with -Wall -Wextra -Werror, and passed three consecutive runs. This execution predates the bounded-output-capture update documented below.
+
+Each run verified:
+- forced close_range unavailability returns launcher exit 69 and does not create the client marker;
+- FD 9 and FD 100 are EBADF in the test and production clients, including fork+exec children, after the process limit is reduced to 64;
+- the six soft/hard RLIMIT ceilings, UID/GID 65534, empty supplementary groups/capabilities, no_new_privs, seccomp state, syscall-deny probes, namespace-clone checks, x32 rejection, read-only root, bounded tmpfs and fork+exec filter inheritance;
+- controlled standard I/O in four client contexts per run (test/production x initial process/fork+exec).
+
+This remains a synthetic Linux x86_64 launch-chain test, not a production Runner. It does not establish a production stdin policy, online output back-pressure, aggregate resource control, complete syscall allowlist, LSM policy, general secret scanning, or cross-platform support.
+
+The compressed core probe and real-filesystem cleanup helper retain their separately recorded exact-Blob evidence. The complete linux/run.sh combined invocation has not been run in one invocation in this pass. Existing Standards CI does not execute this Sandbox harness. The bounded-capture self-test is local helper evidence, not a rerun of the integrated seccomp harness.
+
+## 2026-11-14 bounded output-capture correction (interim status; superseded by complete replay)
+
+The bounded-capture implementation was first added in script Blob `cfd709e8a668c578228bc34946c099730584dc3f`. It replaced `Popen.communicate()` with selector-driven incremental reads and a 64 KiB combined retention limit. The initial wrapper still invoked GNU `timeout` as an intermediate process, and its flood fixture was double-escaped; the follow-up below removes both weaknesses.
+
+The script now runs three helper self-tests before invoking the namespace chain: exact 65,536-byte output is accepted; a continuous writer is terminated on overflow; a silent process is terminated on the parent deadline. A separate local harness using the same selector/process-group strategy passed these three cases (3/3). At that interim point the bounded-capture helper had only been tested separately. The later exact-Blob replay below executes the latest integrated script and the complete `linux/run.sh` entry point three times.
+
+The three POSIX-sh runs recorded here were for the earlier script Blob `14c7bb8504b2da6ed637501bf6f8a29085d6be5f`. They are historical evidence only. The later three exact-Blob full-entry runs recorded below cover the current bounded-capture parent, direct process-group timeout ownership, `setsid` / `setpgid` denials, FD 9/100, standard I/O, and both test/production seccomp launch chains.
+
+At that interim point the complete `linux/run.sh` invocation remained unexecuted because exact source transfer was blocked. This limitation was subsequently resolved by reconstructing every required file from the connector output and verifying all six Git Blob SHA-1 identities before execution; see the final replay section below.
+
+## 2026-11-14 direct process-group ownership and flood-fixture correction
+
+The current `run-seccomp-integration.sh` removes the nested GNU `timeout` process. Python launches `unshare` directly with `start_new_session=True`; the `Popen` child is therefore the process-group leader. The same parent owns the 60-second deadline and terminates that process group on output overflow or timeout using SIGTERM followed by SIGKILL escalation.
+
+The continuous-output self-test had a double-escaped newline in its `python -c` source, so it could fail with a syntax error instead of exercising a sustained writer. The test source now contains a single escaped newline, which becomes a real line break in the child Python source. The bounded-capture algorithm was independently exercised locally: exact 65,536-byte output accepted; a continuous writer rejected at the cap with process-group termination; silent child terminated at the deadline (3/3).
+
+The process-group and corrected flood-fixture changes were subsequently exercised through the exact current seccomp script and the complete `linux/run.sh` entry point in the three full replays recorded below. The prior Blob `14c7bb...` replay remains historical and is not used as evidence for the latest implementation.
+
+## 2026-11-14 process-group escape denial (integrated execution passed)
+
+The seccomp denylist now explicitly denies `setsid` and `setpgid`, and the synthetic client probes both denials in test mode (EACCES) and production mode (EPERM). The reason is operational: the updated parent launches `unshare` directly in a dedicated session and relies on process-group TERM/KILL to enforce bounded cleanup. A client must not be allowed to move itself into a new session or process group to escape that teardown boundary.
+
+The exact current `seccomp-exec.c` and `seccomp-child-test.c` Blobs were compiled together in test and production variants by the exact latest seccomp integration harness. `setsid` and `setpgid` were denied in both variants, and the corresponding client probes passed in the initial and fork+exec child processes. This is still a denylist defense-in-depth profile, not a complete syscall allowlist.
+
+## 2026-11-14 standalone process-group syscall filter smoke test
+
+A standalone C smoke program (not a reconstructed copy of the repository's seccomp wrapper) installed a minimal classic-BPF filter under `PR_SET_NO_NEW_PRIVS` and `PR_SET_SECCOMP`, denying `setsid` and `setpgid`.
+
+Environment: Linux x86_64, kernel `6.18.57`, GCC `14.2.0`, `-Wall -Wextra -Werror -O2`.
+
+- Production-mode filter: both syscalls returned `EPERM` in the parent and a fork child.
+- Test-mode filter: both syscalls returned `EACCES` in the parent and a fork child.
+- Both builds compiled and passed all assertions.
+
+This is a kernel primitive smoke test only. It verifies that the two requested seccomp return actions and fork inheritance work in this runtime; it does not prove that the exact current `seccomp-exec.c` and `seccomp-child-test.c` blobs compile together, nor that the newest namespace integration passes. The integrated current source remains pending exact-Blob execution.
+
+## 2026-11-14 exact-source transfer attempt for combined linux/run.sh
+
+The execution container cannot reach GitHub by DNS or direct HTTPS connection (direct IP attempts to both `raw.githubusercontent.com` and `github.com` were refused). The GitHub connector returned the expected source metadata, and the following local reconstructed copies were checked using the Git Blob SHA-1 algorithm:
+
+- `linux/run.sh`: local Blob `83f55567bab49985083e6c5917467e89850de17e` — exact match.
+- `linux/cleanup-failure-integration.sh`: local Blob `bde76808b7dbf7af1dcf895fa207fe19e880d6e1` — exact match.
+- `linux/run-seccomp-integration.sh`: expected Blob `bcab9a1c8826f5a98cc2caf7a831044413d65da4`; a manually reconstructed 9,298-byte copy hashed to `0d4259f5d542f550cdbd1676030898853ac9ceb7` — mismatch. That file was not executed.
+- The compressed core probe `probe.py.gz` was not reconstructed into the current combined-run directory. Its earlier independently recorded exact-Blob replay remains separate evidence.
+
+Because one required integration input failed exact identity verification, the combined `linux/run.sh` entry point was not run. No locally reconstructed source with an unmatching Git Blob was executed. The current seccomp integration, including new `setsid` / `setpgid` denials, remains execution pending.
+
+## 2026-11-14 exact-Blob full linux/run.sh replay (supersedes prior pending notes)
+
+All six required inputs were reconstructed in an isolated temporary directory and verified using the Git Blob SHA-1 algorithm before execution:
+
+- `linux/run.sh`: `83f55567bab49985083e6c5917467e89850de17e` — exact match.
+- `linux/probe.py.gz`: `ae64fb2f651018e53705990c2f715ea25fa465b9` — exact match; `gzip -t` passed; decompressed source Blob `88e08595b3f74fc7c5c59fb13c9473f94dbb5503` — exact match.
+- `linux/run-seccomp-integration.sh`: `bcab9a1c8826f5a98cc2caf7a831044413d65da4` — exact match.
+- `linux/cleanup-failure-integration.sh`: `bde76808b7dbf7af1dcf895fa207fe19e880d6e1` — exact match.
+- `linux/seccomp-exec.c`: `d72380003e49e1850ce8c59990a92f18f6841ba0` — exact match.
+- `linux/seccomp-child-test.c`: `8b947836d1048543bf756347e829ea98147983b4` — exact match.
+
+Environment: Linux x86_64, kernel `6.18.57`, effective UID 0, GCC `14.2.0`, Python `3.13.5`. Command: `timeout --signal=TERM --kill-after=5s 180s sh ./run.sh` from the exact `linux/` directory. The complete entry point ran three consecutive times; all three returned exit code 0. No line beginning with `FAIL` appeared in stdout or stderr.
+
+Each complete run exercised:
+
+- Gate A core probes: user/mount/network/PID namespaces, UID/GID drop, no_new_privs/capability drop, read-only rootfs, host path/symlink/cwd containment, hidden proc/sys, dedicated writable scratch, host-loopback isolation, descendant teardown and non-inherited host environment.
+- Gate B synthetic-shim probes: host canary denial, synthetic output redaction, and 4,096-byte core output cap. The redactor still recognizes only its exact synthetic marker.
+- Seccomp test and production builds compiled with `-Wall -Wextra -Werror`. The forced-unavailable `close_range` variant returned 69 and did not run its client marker; the expected diagnostic `Function not implemented` was emitted once per run.
+- FD 9 and FD 100 were unavailable (`EBADF`) in both test and production clients, including fork+exec children, after `RLIMIT_NOFILE` was lowered to 64.
+- Standard I/O contract passed in all client contexts: stdin `/dev/null`, stdout/stderr pipes.
+- Six soft/hard RLIMIT ceilings were read back in parent and fork+exec child: CORE 0, CPU 10s, FSIZE 1 MiB, NOFILE 64, NPROC 64 per UID, AS 256 MiB.
+- Listed syscall deny probes passed, including `setsid` and `setpgid`; clone/clone3 namespace paths, x32 SIGSYS, mount/process-handle/kernel-control denials, read-only root and bounded 32 MiB / 4096-inode tmpfs checks passed.
+- Bounded capture self-tests passed within each complete run: exact 65,536-byte output accepted; continuous writer rejected at the cap with process-group termination; silent process terminated at the 60-second parent deadline. `unshare` ran directly in the parent-owned process group; SIGTERM then SIGKILL escalation controlled teardown.
+- Real-filesystem cleanup regression returned kernel `EBUSY` for the mounted tmpfs root, persisted `quarantining` / `quarantined`, rejected reuse in `quarantining`, `quarantined` and `cleaned`, preserved the quarantined mount, and completed explicit unmount/recovery.
+
+Interpretation: this closes the outstanding **combined Linux x86_64 synthetic prototype entry-point execution** gap for the exact listed Blobs on this one runtime. It does not certify production isolation, aggregate process-tree CPU/memory/PID limits, a complete syscall allowlist, LSM/kernel-escape resistance, generalized secret scanning, a production resource manager, or Windows/macOS equivalence. Existing Standards CI remains a separate workflow and is not the source of these Sandbox results. Gate C remains closed.
+
+## 2026-11-14 latest process-group teardown replay (orphaned descendants after normal leader exit)
+
+The capture wrapper had one further teardown edge case: after the process-group leader exited normally, a same-PGID descendant could remain if it had already redirected/closed stdout and stderr. Pipe EOF by itself was not proof that the process group was empty.
+
+The latest `run-seccomp-integration.sh` Blob `a6536e3fd10d8aa9ef043ac350a3f6e544127178` fixes this. After normal leader exit, the parent scans `/proc/*/stat` for live non-zombie members of its owned PGID and terminates any remaining members with SIGTERM followed by SIGKILL. The overflow/timeout cleanup uses the same group-member check.
+
+A new self-test starts a descendant which redirects all standard streams to `/dev/null`, ignores SIGTERM and would write a delayed marker. The leader exits normally. The parent must kill the descendant before returning, and the marker must remain absent. The test emits `PASS bounded-capture-kills-orphaned-descendant-after-leader-exit`.
+
+All six exact Git Blob identities were checked before the three latest complete entry runs:
+- `run.sh`: `83f55567bab49985083e6c5917467e89850de17e`.
+- `probe.py.gz`: `ae64fb2f651018e53705990c2f715ea25fa465b9` (decompressed source: `88e08595b3f74fc7c5c59fb13c9473f94dbb5503`).
+- `run-seccomp-integration.sh`: `a6536e3fd10d8aa9ef043ac350a3f6e544127178`.
+- `cleanup-failure-integration.sh`: `bde76808b7dbf7af1dcf895fa207fe19e880d6e1`.
+- `seccomp-exec.c`: `d72380003e49e1850ce8c59990a92f18f6841ba0`.
+- `seccomp-child-test.c`: `8b947836d1048543bf756347e829ea98147983b4`.
+
+Environment: Linux x86_64 / kernel `6.18.57`, effective UID 0 in the disposable container, GCC `14.2.0`, Python `3.13.5`. Three completed `sh ./run.sh` executions returned exit code 0. Each log included the orphan-descendant PASS marker, exact-output-limit / sustained-overflow / silent-timeout PASS markers, close_range fail-closed and FD 9/100 assertions, stdio checks, RLIMIT readbacks, setsid/setpgid denials, and real tmpfs EBUSY quarantine recovery. No line beginning `FAIL` appeared in the three completed logs. One additional tool call timed out and is not included in the count.
+
+This is Linux x86_64 synthetic prototype evidence in one tested runtime. It does not certify production process supervision, aggregate cgroup CPU/memory/PID limits, a complete client-specific syscall allowlist, LSM/kernel-escape resistance, generalized secret scanning, or a general resource manager. Gate C remains closed.
+
+## 2026-11-14 fail-closed /proc inspection for process-group teardown
+
+Static review found that the PGID member scan skipped `PermissionError` and malformed `/proc/<pid>/stat` data together with normal process-disappearance races. That could incorrectly interpret an unreadable process record as an empty process group.
+
+The current script accepts an injectable `proc_root` for its inspector, tolerates only `FileNotFoundError` / `ProcessLookupError` caused by a process disappearing between enumeration and open, and raises a teardown error on permission denial, malformed stat record, incomplete fields or invalid PGID. A new synthetic failure test creates a fake proc tree, injects `PermissionError` when reading a PID stat file, and requires `RuntimeError` rather than a false empty-group result.
+
+Latest seccomp script Blob: `0ccc9c9f4582e907db95e1b9ad05f81a50cd77f2`. The full exact-Blob `linux/run.sh` entry was run three completed times after this change. Each run returned exit code 0 and included `PASS process-group-inspection-fails-closed-on-permission-error`, `PASS bounded-capture-kills-orphaned-descendant-after-leader-exit`, the exact-limit/overflow/timeout markers, close_range/FD/stdio/RLIMIT checks, seccomp denials and cleanup/quarantine markers. No line beginning `FAIL` appeared.
+
+The other five required source Blobs remain exact: run.sh `83f55567bab49985083e6c5917467e89850de17e`; probe.py.gz `ae64fb2f651018e53705990c2f715ea25fa465b9` (decompressed source `88e08595b3f74fc7c5c59fb13c9473f94dbb5503`); cleanup-failure-integration.sh `bde76808b7dbf7af1dcf895fa207fe19e880d6e1`; seccomp-exec.c `d72380003e49e1850ce8c59990a92f18f6841ba0`; seccomp-child-test.c `8b947836d1048543bf756347e829ea98147983b4`.
+
+Scope: Linux x86_64 synthetic process-group teardown evidence in one tested runtime. It does not replace cgroup process-tree accounting, a production supervisor, complete client-specific syscall allowlist or independent security review.
+
+## 2026-11-14 four-case fail-closed `/proc` regression matrix
+
+The PGID inspector has four direct synthetic negative cases in addition to the real descendant teardown path: permission denied reading `/proc/<pid>/stat`, malformed record without the closing command delimiter, incomplete stat fields, and a non-numeric process-group ID. In every case the inspector must raise a hard teardown error. Only a PID that disappears between `scandir` and opening its stat file is treated as a benign race.
+
+Latest `run-seccomp-integration.sh` Git Blob: `091c9a64c5573d4158c2fe92b73b921bc5eb362e`. The exact current `linux/run.sh` full entry was executed three completed times after this change. Every run exited 0 and included all four `PASS process-group-inspection-fails-closed-*` markers, the orphan-descendant-after-normal-exit marker, exact-limit/overflow/timeout markers, close_range/FD/stdio/RLIMIT checks, seccomp denials and cleanup/quarantine markers. No `FAIL` output appeared.
+
+The other five source Blobs remain unchanged: run.sh `83f55567bab49985083e6c5917467e89850de17e`; probe.py.gz `ae64fb2f651018e53705990c2f715ea25fa465b9` (decompressed source `88e08595b3f74fc7c5c59fb13c9473f94dbb5503`); cleanup-failure-integration.sh `bde76808b7dbf7af1dcf895fa207fe19e880d6e1`; seccomp-exec.c `d72380003e49e1850ce8c59990a92f18f6841ba0`; seccomp-child-test.c `8b947836d1048543bf756347e829ea98147983b4`.
+
+This is still Linux x86_64 synthetic teardown evidence for one runtime, not production process supervision, aggregate cgroup resource enforcement or a general sandbox security certification.
+## 2026-11-14 exact-Blob replay: process-group parser semantics and PID-disappearance races
+
+The process-group inspector regression suite now covers both parser outcomes and the distinct failure/race boundaries:
+
+- A live process-group member is detected, including a `/proc/<pid>/stat` command name containing an embedded `)`; parsing uses the final closing delimiter.
+- A record for another PGID is excluded, and a same-PGID zombie is not treated as a live descendant.
+- `FileNotFoundError` and `ProcessLookupError` between `scandir()` and opening `stat` are treated as benign PID-disappearance races.
+- Permission denial while enumerating the `/proc` root fails closed, separately from permission denial while opening an individual `/proc/<pid>/stat`.
+- The existing malformed-record, incomplete-field and invalid-PGID cases still fail closed.
+
+The exact current seccomp integration script Blob is `96a2d046fffc4fe6ab8e793c16f5dfedd7846f64`. The other five `linux/run.sh` inputs remained unchanged and were checked against their current Git Blobs before execution:
+
+- `run.sh`: `83f55567bab49985083e6c5917467e89850de17e`.
+- `probe.py.gz`: `ae64fb2f651018e53705990c2f715ea25fa465b9` (decompressed source: `88e08595b3f74fc7c5c59fb13c9473f94dbb5503`).
+- `cleanup-failure-integration.sh`: `bde76808b7dbf7af1dcf895fa207fe19e880d6e1`.
+- `seccomp-exec.c`: `d72380003e49e1850ce8c59990a92f18f6841ba0`.
+- `seccomp-child-test.c`: `8b947836d1048543bf756347e829ea98147983b4`.
+
+Environment: Linux x86_64 / kernel `6.18.57`, effective UID 0 in the disposable test container, GCC `14.2.0`, Python `3.13.5`. Three completed executions of the exact current `sh ./run.sh` entry returned exit code 0. Every run included the new parser, race and scan-permission PASS markers, all four stat-file fail-closed markers, normal-exit orphan teardown, exact-limit/overflow/timeout output checks, close_range/FD/stdio/RLIMIT/seccomp checks, and real tmpfs EBUSY quarantine recovery. No `FAIL` marker appeared. An additional batch invocation hit the outer tool timeout and is not counted.
+
+This is Linux x86_64 synthetic teardown evidence for one runtime. It does not upgrade production Sandbox acceptance, aggregate cgroup enforcement, syscall policy, LSM/kernel review, general secret handling, cleanup-manager certification, cross-platform support or Gate C authorization.
+## 2026-11-14 exact-Blob replay: preserve PGID identity until descendant teardown
+
+A final process-group review found a PID/PGID-reuse window in the parent sequence: calling `Popen.wait()` reaps the original leader before scanning for residual descendants. Once reaped, its numeric PID/PGID may eventually be reused, so a subsequent `killpg()` must not rely on that unpinned number.
+
+The parent now waits for leader exit with `os.waitid(P_PID, pid, WEXITED | WNOHANG | WNOWAIT)`. This observes the leader's exit without reaping it; the zombie leader continues to pin the original PID/PGID while `/proc` is scanned and any residual members are terminated. Only after group teardown does `Popen.wait()` reap the leader. A dedicated self-test calls `waitid(WNOWAIT)` twice and confirms the same exited child remains waitable until `wait()` performs the reap.
+
+Exact current seccomp integration script Git Blob: `bf458152c0adfeb2fd829556996fdc01ba36fb41`. The other five current entry inputs remained unchanged: `run.sh` `83f55567bab49985083e6c5917467e89850de17e`; `probe.py.gz` `ae64fb2f651018e53705990c2f715ea25fa465b9` (decompressed source `88e08595b3f74fc7c5c59fb13c9473f94dbb5503`); `cleanup-failure-integration.sh` `bde76808b7dbf7af1dcf895fa207fe19e880d6e1`; `seccomp-exec.c` `d72380003e49e1850ce8c59990a92f18f6841ba0`; `seccomp-child-test.c` `8b947836d1048543bf756347e829ea98147983b4`.
+
+Environment: Linux x86_64 / kernel `6.18.57`, effective UID 0 in the disposable test container, GCC `14.2.0`, Python `3.13.5`. Three completed full `sh ./run.sh` executions against the exact six current Blob inputs returned exit code 0. Each run passed the new `PASS process-group-leader-pid-retained-until-teardown` assertion, all live/mismatched/zombie and PID-race `/proc` cases, all fail-closed `/proc` cases, the orphan-after-leader-exit test, exact-limit/overflow/timeout capture tests, seccomp/FD/stdio/RLIMIT checks and real tmpfs EBUSY quarantine recovery. No `FAIL` marker appeared. One batched invocation was interrupted by the outer tool timeout and is not counted; the third counted run completed separately.
+
+This narrows the process-group identifier reuse window in the synthetic supervisor. It remains single-runtime Linux x86_64 evidence and is not a production supervisor or sandbox certification.
+## 2026-11-14 exact-Blob replay: force-kill fallback when process-group inspection fails
+
+Review of the fail-closed `/proc` path found that propagating an inspection error alone did not prove the owned process group had been stopped. The parent could reach its finalizer and reap the leader while descendants remained. `terminate_process_group_members()` now catches any inspection exception, sends `SIGKILL` to the supervisor-owned process group before propagating a teardown error, and still refuses to report cleanup as successful when it cannot verify the group state. If `killpg(SIGKILL)` itself fails with an OS error, the harness raises a distinct hard failure.
+
+A direct regression injects a process-group inspection failure, asserts that `killpg(pgid, SIGKILL)` is called exactly once, and asserts that a teardown error is still propagated. The marker is `PASS process-group-inspection-failure-forces-kill-before-failing`.
+
+Exact current seccomp integration script Git Blob: `41993d9179498f31137a309d5542b983fbad543b`. The other five `linux/run.sh` input blobs remain exact: `run.sh` `83f55567bab49985083e6c5917467e89850de17e`; `probe.py.gz` `ae64fb2f651018e53705990c2f715ea25fa465b9` (decompressed source `88e08595b3f74fc7c5c59fb13c9473f94dbb5503`); `cleanup-failure-integration.sh` `bde76808b7dbf7af1dcf895fa207fe19e880d6e1`; `seccomp-exec.c` `d72380003e49e1850ce8c59990a92f18f6841ba0`; `seccomp-child-test.c` `8b947836d1048543bf756347e829ea98147983b4`.
+
+Environment: Linux x86_64 / kernel `6.18.57`, effective UID 0 in the disposable test container, GCC `14.2.0`, Python `3.13.5`. Three completed full exact-Blob `sh ./run.sh` executions returned exit code 0. Each passed `PASS process-group-inspection-failure-forces-kill-before-failing`, `PASS process-group-leader-pid-retained-until-teardown`, the orphan-after-leader-exit test, every `/proc` positive/race/fail-closed case, exact-limit/overflow/timeout output tests, seccomp/FD/stdio/RLIMIT checks and real tmpfs EBUSY quarantine recovery. No `FAIL` marker appeared in the three completed logs.
+
+The failure-injection test proves the fallback signal is attempted before the error is returned; it does not prove successful cleanup when the kernel itself refuses `SIGKILL` or prove a production supervisor. Such a signal-delivery failure remains a hard failure, not a PASS. This is still single-runtime synthetic Linux x86_64 evidence.
+## 2026-11-14 exact-Blob replay: SIGKILL fallback across the full teardown path
+
+Review of the first force-kill fallback found that it covered an initial `/proc` inspection exception but not an exception raised during the TERM grace-period polling loop. The teardown function now wraps the initial scan, SIGTERM delivery, group-exit polling and normal SIGKILL escalation in one failure boundary. Any inspection or teardown exception triggers a final SIGKILL attempt before a hard error is propagated. A missing group (`ProcessLookupError`) is treated as already gone; any other SIGKILL delivery error is reported distinctly. Failure to verify teardown is never converted into success.
+
+Two synthetic regressions cover the distinct failure points:
+
+- Initial scan raises `PermissionError`: assert exactly one `killpg(pgid, SIGKILL)` attempt, followed by a propagated teardown error (`PASS process-group-inspection-failure-forces-kill-before-failing`).
+- Initial scan reports a live member, SIGTERM is sent, and the TERM grace-period scan raises `PermissionError`: assert SIGTERM followed by SIGKILL, then a propagated teardown error (`PASS process-group-teardown-wait-scan-failure-forces-kill`).
+
+Exact current seccomp integration script Git Blob: `bdb4cf3b9f7cbc0a82a8e1ad8c564cadc2ea18bc`. The other five `linux/run.sh` inputs remain unchanged and exact: `run.sh` `83f55567bab49985083e6c5917467e89850de17e`; `probe.py.gz` `ae64fb2f651018e53705990c2f715ea25fa465b9` (decompressed source `88e08595b3f74fc7c5c59fb13c9473f94dbb5503`); `cleanup-failure-integration.sh` `bde76808b7dbf7af1dcf895fa207fe19e880d6e1`; `seccomp-exec.c` `d72380003e49e1850ce8c59990a92f18f6841ba0`; `seccomp-child-test.c` `8b947836d1048543bf756347e829ea98147983b4`.
+
+Environment: Linux x86_64 / kernel `6.18.57`, effective UID 0 in the disposable test container, GCC `14.2.0`, Python `3.13.5`. Three completed full exact-Blob `sh ./run.sh` executions returned exit code 0. Every run passed both fallback assertions, WNOWAIT PGID retention, the orphan-after-leader-exit test, all `/proc` parser/positive/race/fail-closed tests, exact-limit/overflow/timeout capture, seccomp/FD/stdio/RLIMIT checks and real tmpfs EBUSY quarantine recovery. No `FAIL` marker appeared in the three completed logs.
+
+These tests establish that the prototype attempts group-wide SIGKILL before reporting a `/proc`-inspection or TERM-wait verification failure. They do not prove termination if the kernel refuses signal delivery or if a task remains uninterruptible; those cases remain hard failures. This remains single-runtime synthetic Linux x86_64 evidence, not production sandbox certification.
+## 2026-11-15 exact-Blob replay: real descendant termination on `/proc` inspection failure
+
+The prior fallback regressions mocked `os.killpg()` and proved only that SIGKILL was requested. The harness now adds real process-group fixtures to verify the resulting process termination.
+
+Each fixture creates a leader in a fresh session/process group. The leader starts a same-PGID descendant which closes stdin/stdout/stderr, installs `SIGTERM` ignore, writes a readiness marker, then waits before attempting to write a delayed survivor marker. The leader waits for the readiness marker before exiting; the supervisor observes leader exit with `waitid(WNOWAIT)` so the original PGID remains pinned.
+
+Two distinct inspection failures are injected while `terminate_process_group_members()` runs:
+
+- Initial `/proc` scan fails with `PermissionError`; the supervisor must issue group-wide SIGKILL. The descendant's delayed survivor marker must remain absent (`PASS process-group-force-kill-terminates-real-descendant-initial-scan`).
+- Initial scan reports a live member, SIGTERM is sent, then the TERM grace-period scan fails with `PermissionError`; the supervisor must escalate to group-wide SIGKILL. The delayed survivor marker must remain absent (`PASS process-group-force-kill-terminates-real-descendant-term-wait-scan`).
+
+These are real child-process fixtures with a readiness handshake proving SIGTERM was already ignored before injection. They do not rely on a mock for signal delivery. The existing mock assertions remain as separate checks of signal ordering and error propagation.
+
+Exact current seccomp integration script Git Blob: `57784e61845b16e7f3145c182affdd93af55d9dc`. The other five `linux/run.sh` input Blobs remain unchanged: `run.sh` `83f55567bab49985083e6c5917467e89850de17e`; `probe.py.gz` `ae64fb2f651018e53705990c2f715ea25fa465b9` (decompressed source `88e08595b3f74fc7c5c59fb13c9473f94dbb5503`); `cleanup-failure-integration.sh` `bde76808b7dbf7af1dcf895fa207fe19e880d6e1`; `seccomp-exec.c` `d72380003e49e1850ce8c59990a92f18f6841ba0`; `seccomp-child-test.c` `8b947836d1048543bf756347e829ea98147983b4`.
+
+Environment: Linux x86_64 / kernel `6.18.57`, effective UID 0 in the disposable test container, GCC `14.2.0`, Python `3.13.5`. Three completed full `sh ./run.sh` executions against all six exact Git Blob inputs returned exit code 0. Each run passed both real descendant termination markers, both mock fallback markers, WNOWAIT PGID retention, orphan-after-leader-exit teardown, every `/proc` positive/race/fail-closed case, exact-limit/overflow/timeout capture, seccomp/FD/stdio/RLIMIT and real tmpfs EBUSY quarantine recovery. No `FAIL` marker appeared in the three completed logs.
+
+One earlier execution of an intermediate readiness-fixture revision failed because its generated Python `-c` source used invalid compound-statement syntax; it is excluded. The syntax was corrected, the child readiness handshake was verified, and the three counted runs used only the exact current Blob recorded above.
+
+This is stronger evidence that the prototype's SIGKILL fallback terminates real same-PGID descendants under the two tested `/proc` inspection-failure points on one Linux runtime. It still does not prove behavior when the kernel refuses SIGKILL, when tasks remain uninterruptible, or under hostile kernel/LSM conditions; those remain outside production certification.
+
+## 2026-11-15 Linux host preflight contract and executable probe
+
+A standalone host preflight was added at `prototypes/scp-sandbox/0.1/linux/host-preflight.py.gz`. The script is invoked by streaming the gzip source to Python; it is intentionally not wired into `run.sh`, so prototype regression execution remains separate from production host admission.
+
+Exact source identity:
+- Compressed source SHA-256: `a55e3bf55285f1b90ac169750283c8d6333fbd20623d8a6f3a51d6c76bf35f8d`.
+- Decompressed Python source SHA-256: `da7f92e3be976f6e3a1a5caa27d9907d47b9a11d9b91a7637572be1b3830a6e1`.
+- The Git Blob SHA is recorded in the commit and PR description after publication.
+
+Validation performed on Linux x86_64 / kernel `6.18.57`, Python `3.13.5`, effective UID 0:
+- Built-in parser and fail-closed gate tests: 6/6 PASS.
+- Live prototype preflight: exit 0; platform, root, required utility inventory, `/proc` inspection, user/mount/network/PID namespaces, UID/GID maps, private mount propagation, tmpfs mount/unmount and seccomp BPF filter installation all PASS.
+- The namespace probe observed only loopback and no non-loopback default route in the disposable network namespace.
+- Live production preflight: BLOCKED; cgroup v2 is mounted read-only and no `cpu`/`memory`/`pids` controllers are delegated in `cgroup.subtree_control`. Strict production mode returned exit 3.
+- Landlock availability probe returned `ENOSYS`; LSM policy audit, host socket/egress policy, a complete client syscall allowlist and general secret handling remain NOT VERIFIED.
+
+The optional `--cgroup-root` path performs a bounded active test only when explicitly supplied: create an empty child under an already delegated cgroup v2 directory, write/read back `cpu.max`, `memory.max` and `pids.max`, then remove that child. It does not move processes or modify parent controller delegation. This option was not run in the tested runtime because the discovered cgroup mount is read-only.
+
+This closes only the host capability discovery/documentation gap. The current environment is suitable for the existing synthetic prototype checks but is **not** production-host ready. No LSM policy, host firewall, host socket, Agent, Provider or credential configuration was changed. Gate C remains CLOSED.

@@ -4,5 +4,5 @@ node_modules/
 __pycache__/
 *.py[cod]
 
-# 编辑侧工具的项目数据，不入库（模板对目标项目也是这个口径）
+# 旧版编辑侧工具本地数据；不要把共享项目配置 .codebuddy/ 加入忽略
 .workbuddy-ai/

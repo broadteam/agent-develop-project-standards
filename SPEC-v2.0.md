@@ -28,6 +28,28 @@
 
 详细字段、能力语义、加载协议和验收条件见 PROJECT-ADAPTATION-v2.0.md。
 
+## 横向机制：AI 治理工作闭环（不是新增方向）
+
+七大方向共同服务于一个运行闭环：**理解用户意图 → 选择治理强度 → 加载必要上下文 → 在授权范围内执行 → 验证实际结果 → 回写权威状态 → 保存最小恢复断点**。这是现有能力的组合方式，不新增独立服务、数据库或第八个治理方向。
+
+| 阶段 | AI 应做什么 | 权威来源 / 约束 | 谁负责把关 |
+|---|---|---|---|
+| 1. 意图识别 | 判断本轮是继续、澄清、临时插单、明确变更还是冲突待裁定；分清用户决定与 Agent 建议 | 原始目标读 `.spec/intent/BASELINE.md`；后续变化追加 `CHANGES.md`。Agent 建议保持 pending，不覆盖基线 | 用户确认目标、范围、优先级和验收变化 |
+| 2. 任务分级 | 判断轻量任务、跟踪任务或高风险操作；按影响和不确定性决定是否建卡 | 项目画像与能力注册表；需要时运行 Task Context Resolver。轻量、局部、验收明确的任务不强制建卡 | Agent 按规则分级；用户当次指令定义具体工作范围 |
+| 3. 上下文与分工 | 只读取本任务相关规范、需求和证据；单 Agent 直接执行，多 Agent 项目由 Coordinator 分配独立 Worker | `AGENTS.md` 为唯一入口；各域使用既有索引。启用 `multi_agent` 时按 Coordinator/Worker 协议，分配绑定 Base SHA、写入路径和验收 | Coordinator 管理共享状态；Worker 不得扩大范围或修改共享事实源 |
+| 4. 受控执行 | 按任务范围修改代码和配置，遇到范围外依赖或授权边界时暂停相关操作 | 架构、约定、技术栈规则及宪法；任务卡 scope 仅在 `task_tracking` 启用时生效 | 不可逆、外部可见、生产或影响用户数据的操作仍须用户明确授权 |
+| 5. 验证交付 | 实际运行适用的测试、lint、构建或人工检查；审查 diff 与验收判据 | `.spec/verification/INDEX.md` 记录重要证据并绑定完整 Commit SHA；未执行/未覆盖必须标记 `unverified` | 脚本/CI 检查结构与可机器判定条件；AI 审查语义；Coordinator 对整合后的最终版本重验 |
+| 6. 状态回写 | 只更新本次变化对应的权威记录，不复制第二套状态摘要 | 意图→CHANGES；需求→requirements；验证→verification；任务/里程碑/ADR 仅在相应能力启用时更新各自来源 | 单写者原则；任务 done、需求 verified、里程碑完成和目标完成互不替代 |
+| 7. 恢复与交接 | 保存下一位 Agent 接手必需的最小断点、Revision、未完成项和下一步 | `.memory/MEMORY.md` §0 只存恢复指针；详细过程留在已启用的任务日志或现有记录入口；客户端私有记忆只是缓存 | Coordinator 或当前主执行 Agent 确认交接完整性；未验证项不得写成完成 |
+
+### 自动化与人工裁定边界
+
+- **脚本/CI 自动把关**：文件与目录约束、配置合法性、索引/ID/引用一致性、状态枚举、哈希新鲜度、Node/Python parity、已配置测试命令及证据指针。没有对应实现的规则不能仅因写入文档就称为自动门禁。
+- **AI 负责语义工作**：理解用户意图、比较实际 diff 与目标/验收、识别范围漂移、选择必要上下文、执行允许范围内的任务、解释验证覆盖与不足。
+- **用户保留最终权力**：确认目标/优先级/验收变化、长期例外，以及任何高风险、不可逆或外部可见操作。AI 不得把沉默、推断或自身建议升级成授权。
+- **冲突处理采用局部暂停**：只暂停存在冲突的决策；其余不冲突的工作可继续。待用户裁定后更新对应权威记录，不重写原始基线。
+- **闭环不是固定仪式**：轻量任务可跳过任务卡、路线图和正式 V 记录；当范围扩展、跨模块/会话、高影响或不确定性上升时，再升级为跟踪任务并加载相应治理能力。
+
 ## 1. 七大建设方向
 
 ### 1.1 规范体系与目录架构
@@ -59,42 +81,41 @@
 **目标**：不同客户端进入同一套项目规则，不因客户端不同而形成多份规范。
 
 - `AGENTS.md` 是唯一规范正文。
-- 客户端入口文件只做指针，不写第二套规则。
-- 已知入口：Codex/通用 Agent 使用 `AGENTS.md`；Claude Code 使用 `CLAUDE.md` 指向 `AGENTS.md`；Gemini CLI 使用 `GEMINI.md` 指向 `AGENTS.md`；支持原生 `AGENTS.md` 的客户端直接读取。
-- Cursor 等客户端若支持原生 AGENTS 规则，优先使用原生入口；不生成已弃用的旧格式文件。
-- 客户端专属工具配置（权限、MCP、命令、Hooks）属于适配层，不得承载项目事实或复制规范正文。
-- 若客户端不支持 AGENTS.md，适配器只能引用或导入规范正文，不得独立维护另一套版本。
+- 仅在客户端需要时生成短入口指针；不复制第二套规则正文。
+- 入口与加载语义按客户端和版本记录；同样识别 `AGENTS.md` 不代表作用域、发现时机或冲突优先级一致。
+- 客户端专属工具配置（权限、MCP、命令、Hooks、Rules）属于适配层，不得承载第二份项目事实源。
+- 对无法可靠加载 `AGENTS.md` 的客户端，适配器只能引用/导入规范正文；若产品没有受支持的引用能力，必须保留人工合并边界，不得假装短指针会被展开。
 
 **验收**：
-- 每个适配入口均是短指针并指向存在文件。
-- 自动测试验证指针目标、重复正文和缺失入口。
-- 客户端专属配置与项目规范正文分离；未验证的客户端兼容性标记为待验证，不宣称全面支持。
-
+- 每个模板入口均是短指针并指向存在文件。
+- 自动测试验证模板入口、指针目标、重复正文、忽略规则和客户端加载边界文档。
+- 只有真实客户端在固定版本和临时项目中运行验证后，才可标记为客户端集成支持；契约测试与文档核对不得替代 CLI/IDE 证据。
 
 #### 客户端加载语义与已知限制
 
-适配器只解决“如何进入唯一规则正文”，不保证不同客户端的上下文窗口、规则优先级或工具权限完全相同。当前模板采用以下最小兼容策略：
-
 | 客户端 | 项目入口 | 加载方式与边界 |
 |---|---|---|
-| Codex | 根目录 `AGENTS.md` | 从仓库根到当前工作目录按层级加载；更深目录的指令后加载，拥有更具体的语义。同目录存在 `AGENTS.override.md` 时使用覆盖文件而不是普通 `AGENTS.md`；模板不预生成嵌套或覆盖规则。 [官方说明](https://developers.openai.com/cookbook/examples/gpt-5/codex_prompting_guide) |
-| Claude Code | `CLAUDE.md` | 使用 `@AGENTS.md` 导入唯一正文；导入可递归（最多四跳），并从当前目录向上查找 `CLAUDE.md`，子目录规则在访问相关目录时按需加载。 [官方说明](https://code.claude.com/docs/en/memory) |
-| Gemini CLI | `GEMINI.md` | 使用 `@./AGENTS.md` 导入唯一正文；默认文件名为 `GEMINI.md`，支持配置多个上下文文件名，并从全局、项目祖先及子目录发现上下文。 [官方说明](https://geminicli.com/docs/cli/gemini-md/) |
-| Cursor | 根目录及子目录 `AGENTS.md` | 原生支持简单 Markdown 规则；父目录与更具体目录的规则会组合，后者优先。需要 glob、手动或智能触发时可另行评估 `.cursor/rules/*.mdc`，不得复制完整通用规则。 [官方说明](https://cursor.com/docs/rules) |
+| Codex | 根目录 `AGENTS.md` | 从仓库根到当前工作目录逐层加载；每层同目录的 `AGENTS.override.md` 替代 `AGENTS.md`，不会把两者同时追加；本模板只生成根级普通入口。 [官方说明](https://learn.chatgpt.com/docs/agent-configuration/agents-md) |
+| Claude Code | `CLAUDE.md` → `@AGENTS.md` | 导入深度最多四跳。Claude Code v2.1.277+ 支持直接读取 `AGENTS.md`，但默认若工作目录或其上方存在 `CLAUDE.md` / `CLAUDE.local.md`，则按 Claude 入口加载；模板保留导入指针以兼容旧版本和仅支持 CLAUDE 的会话。 [官方说明](https://code.claude.com/docs/zh-CN/memory) |
+| Gemini CLI | `GEMINI.md` → `@./AGENTS.md` | 默认使用 `GEMINI.md`；可通过 `context.fileName` 配置一个或多个发现文件名，例如 `AGENTS.md` 与 `GEMINI.md`。导入指针不要求用户修改全局设置。 [官方说明](https://geminicli.com/docs/cli/gemini-md/) |
+| Cursor | 根目录及子目录 `AGENTS.md` | 原生支持根与嵌套 AGENTS；嵌套文件应用于 Agent 在对应目录或其子目录工作时，父级与更具体目录规则组合，后者优先。更精细的 glob/手动规则可用 `.cursor/rules/*.mdc`，不得复制通用规则正文。 [官方说明](https://cursor.com/docs/rules) |
+| OpenCode V2 | `AGENTS.md` | 加载全局及 workspace 路径内的 AGENTS；嵌套文件在探索/读取相应目录时发现。多文件合并且不自动裁决冲突；配置中的 `instructions` 在 AGENTS 文件后追加。V2 仅识别 `AGENTS.md`，不回退到 `CLAUDE.md`。 [官方说明](https://opencode.ai/docs/instructions) |
+| WorkBuddy | `.codebuddy/`，并声明兼容 `AGENTS.md` | 项目配置可包含共享 Rules、Agents、Skills、Commands 与 `CODEBUDDY.md`；官方文档声明兼容 AGENTS，但未完整说明多入口同时存在时的精确加载次序。 [官方说明](https://www.codebuddy.cn/docs/workbuddy/From-Beginner-to-Expert-Guide/Function-Description/Project) |
+| CodeBuddy IDE | 根目录 `CODEBUDDY.md`；条件回退为 `AGENTS.md` | 默认读取根 `CODEBUDDY.md`；仅当该文件不存在时才自动加载根 `AGENTS.md`。结构化项目规则位于 `.codebuddy/rules/`。 [官方说明](https://cloud.tencent.com/document/product/1831/137442) |
 
 实现约束：
 
-- 初始化器只生成根级 `AGENTS.md`、`CLAUDE.md`、`GEMINI.md`；不生成 `.cursorrules`。
+- 初始化器只生成根级 `AGENTS.md`、`CLAUDE.md`、`GEMINI.md`；不生成客户端自有的 `CODEBUDDY.md`、`.codebuddy/` 或 `.cursorrules`。
 - `CLAUDE.md` 与 `GEMINI.md` 必须保持为可自动验证的短导入指针。
-- Cursor 已支持嵌套 `AGENTS.md`，但模板不默认生成局部规则；只有局部规则有独立、稳定的职责时才添加，并保持与根规则不重复。
-- Codex 的 `AGENTS.override.md` 是同目录 `AGENTS.md` 的替代入口，不是追加层；项目如需使用它，必须在变更说明中交代被替代的规则和适用目录。
-- 客户端用户级规则、个人记忆和本地配置不由本模板管理；项目事实仍以仓库中的权威文件为准。
-- 对同一项目事实，仓库中的权威文件优先于客户端私有规则、个人记忆和本地配置；后者不得被写成项目状态或架构决策的唯一来源。客户端的全局、项目和局部规则如何合并，必须以该客户端实际加载结果为准，不能用本模板推断。
-- 局部项目规则只能补充该目录的稳定职责或限制；与根级规则、任务范围或宪法红线冲突时，按 `AGENTS.md` §0.3 裁决。Codex 的同目录 override 例外：它替代而非补充普通 `AGENTS.md`，必须人工审查其是否仍保留必要红线。
-- 客户端升级可能改变加载行为；支持矩阵应以官方文档和本仓库适配器回归测试为依据，未验证行为标记为待验证。
+- Cursor 支持嵌套 `AGENTS.md`，但模板不默认生成局部规则；只有局部规则有独立、稳定的职责时才添加。
+- Gemini 如需在嵌套目录发现 `AGENTS.md`，维护者应显式配置 `context.fileName`；模板不擅自修改用户级 settings。
+- CodeBuddy IDE 根目录已存在 `CODEBUDDY.md` 时，不得假定它也会加载 `AGENTS.md`；由维护者决定如何合并已有规范。
+- WorkBuddy / CodeBuddy 的 `.codebuddy/` 是共享项目配置，不得像本地缓存一样整体忽略；模板保留的 `.workbuddy-ai/` 忽略项仅兼容旧本地工具数据。
+- Codex 的 `AGENTS.override.md` 是同目录 `AGENTS.md` 的替代入口，即替代而非补充普通 `AGENTS.md`，不是追加层；项目如需使用它，必须人工审查必要红线是否仍在。
+- 对同一项目事实，仓库中的权威文件优先于客户端私有规则和个人记忆；但客户端内部全局/项目/局部规则冲突必须以客户端实际加载结果为准，不能由本模板推断。
+- 客户端升级可能改变加载行为；未由当前官方说明覆盖或未真实验证的行为标记为待验证。
 
-官方依据（核对日期：2026-11-08）：上表链接。客户端文档会随版本变化；本仓库的自动化测试只验证模板入口、导入指针和初始化结果，不启动各客户端 CLI，也不声称已完成真实客户端端到端集成验证。若要升级“文档核对”到“客户端集成支持”，必须另增可重复的 CLI fixture 验证，并记录客户端版本。
-
+官方依据核对日期：2026-11-15。自动化测试只验证本仓库模板契约和初始化 fixture，不启动各客户端 CLI/IDE；目前尚无客户端被标记为真实运行集成通过。
 ### 1.3 记忆与上下文管理
 
 **目标**：跨会话可恢复，控制上下文成本，不让记忆变成第二套文档仓库。
@@ -241,17 +262,24 @@
 - [x] Node/Python 行为一致，异常输入测试通过。→ `test-parity`；rc.15 起在真实 Windows 检出上逐字节一致，不再只在 CI 成立。
 - [x] 至少覆盖单栈、多栈、已有项目、空项目、Windows 路径和 POSIX 路径的模拟夹具。→ 单栈与多栈见 `test-init`；已有项目与空项目首次安装见 `test-migration-v2`；Windows 路径由本机实跑覆盖；POSIX 路径由 CI 的 ubuntu job 覆盖。
 - [x] 迁移文档经过从 1.2.x 到 2.0.0 的演练（只用临时 fixture，不接入真实业务项目）。→ `test-migration-v2`。
+- [x] 仓库内治理闭环在初始化后的临时项目中端到端运行，包含 partial 证据阻断、pass 证据收口、Node/Python parity 与跨会话恢复。→ `test-governance-lifecycle`（由现有 `test-migration-v2` 套件调用）；不宣称真实 Agent CLI 或业务项目集成。
+- [x] 仓库内治理闭环在初始化后的临时项目中端到端运行，包含 partial 证据阻断、pass 证据收口、Node/Python parity 与跨会话恢复。→ `test-governance-lifecycle`；不宣称真实 Agent CLI 或业务项目集成。
 - [x] 所有文档内链接和模板引用有效。→ `test-doc-links`，除 inline 链接外还解析 README 目录树与引用式链接定义。
 - [x] CI 全绿；未覆盖项明确列出。→ 8 任务矩阵（Ubuntu / Windows × Node 22/24 × Python 3.11/3.13）在 PR #2 的提交上全绿；未覆盖项见 §5「已知限制」。每次推送后按**该 commit 的 checks** 复核，不引用历史结论（见 `.memory/PITFALLS.md` P14）。
 - [x] 没有将模拟测试描述为真实项目试点。→ 全仓文档统一口径：只做临时 fixture 演练，未接入任何真实业务项目。
 
 ## 4. 明确不做
 
+本方案的主线是**基于项目仓库的 AI 自动治理**：统一规则入口、权威事实源、按需上下文、任务/需求连续性、Agent 协作边界、可执行检查和可追溯验证。AI 负责按协议理解、推进、记录和收口；脚本/CI 负责机器可判定的约束；用户保留目标/优先级裁定及高风险操作授权。自动治理不等于无人审批，也不要求另建一套云端 Agent 平台。
+
+- 当前 PR 中的 SCP Linux Sandbox 属于隔离执行研究，不是七大方向的核心交付，不是 2.0 发布前提；本主线保留现有实验记录，但暂停继续扩展 Sandbox、Runner、内核防护与生产 Agent 执行能力，除非用户另行明确要求。
 - 不以真实 SaaS 项目作为 2.0 验收前提。
 - 不为每个 Agent 客户端维护一套完整规则。
 - 不把所有任务都强制纳入任务卡。
 - 不引入复杂插件系统、远程服务或数据库来管理规范状态。
 - 不为“看起来全面”而新增没有独立职责的文件。
+- 不引入独立调度服务、治理数据库或生产 Agent 执行平台来替代仓库内权威状态和现有轻量检查器。
+- 新增能力必须对应一个已识别的治理失败模式，并同时给出最小机制、可验证验收和明确的非目标；不得把可选实验扩成主线阻断项。
 - 不把未验证的客户端能力、技术栈行为写成已支持。
 
 ## 5. 状态与决策
@@ -263,11 +291,11 @@
 | 方向 | 状态 | 机器验证 | 已知限制 |
 |---|---|---|---|
 | 1. 规范体系与目录架构 | done | `test-v2-spec`（权威文件地图、预算、记忆路径）、`test-doc-links`（本地链接 + 引用式链接定义 + README 目录树解析）、`test-init`（占位符契约：模板里每个 `{{KEY}}` 都必须是 init 认识的键） | 锚点（`#标题`）未校验，因为当前仓库未使用；技术栈层只覆盖 `presets/stacks/` 的 7 个预设 |
-| 2. Agent 多客户端兼容 | done | `test-client-adapters`（模板契约 + 初始化 fixture）：指针存在且目标存在、无重复正文、Codex override 与 Claude 导入深度语义 | 不启动真实客户端 CLI，只验证入口与导入契约；支持矩阵依据的官方文档核对日期为 2026-11-08，客户端升级后需重核 |
+| 2. Agent 多客户端兼容 | done | `test-client-adapters`（模板契约 + 初始化 fixture）：指针存在且目标存在、无重复正文、Codex override、Claude 导入深度及各客户端加载边界文档契约 | 不启动真实客户端 CLI/IDE；官方依据于 2026-11-15 重核，运行时加载、不同客户端间真实状态恢复仍未验证 |
 | 3. 记忆与上下文管理 | done | `test-v2-spec`（记忆更新触发条件、模板路径存在、不重复记录任务流水）、`test-task-context-resolver`（按任务事实解析应读规范） | 跨客户端的实际上下文恢复效果未独立验证 |
 | 4. 任务、看板与路线图管理 | done | `test-parity`（状态合法、ID 唯一、BOARD 源哈希与生成哈希、归档索引双向一致、路径穿越、CRLF 看板）、`generate-board` | 真实项目规模（>200 张卡）下的索引维护体验未评估 |
 | 5. 工程治理与初始化机制 | done | `test-init`（dry-run 零写入、参数拒绝、Hook 保护、符号链接 fail-closed、故障注入回滚、占位符契约）、`test-migration-v2`（空项目首次安装、已有多栈项目、重复初始化、自定义文件保留） | 进程被强杀或断电不在事务保证内；POSIX 文件模式仅在 CI 覆盖 |
-| 6. 自动化验证与质量门禁 | done | 14 个测试全部接入 CI 矩阵（Ubuntu + Windows × Node 22/24 × Python 3.11/3.13）；`test-parity` 断言 Node/Python 逐字节一致与退出码一致；检查器缺运行时失败关闭 | 真实 CLI 集成未覆盖；CI 结论必须绑定 commit SHA，不能跨会话转述 |
+| 6. 自动化验证与质量门禁 | done | `test-governance-lifecycle.cjs`（通过已纳入 CI 的 `test-migration-v2.cjs` 调用）：空项目初始化 → 意图/需求 → Task Context Resolver → 真实 fixture Git Commit → partial 证据阻断 → pass 证据收口 → Node/Python parity → 跨会话恢复 | 真实 Agent CLI 与真实业务项目仍未接入；端到端夹具验证仓库治理链路，不代表跨客户端真实协作效果 |
 | 7. 长期演进与版本管理 | partial | `check-template-drift`（只读漂移）、`adopt-template-baseline`（显式采纳旧基线）、`plan-template-upgrade`（plan_schema 2 + source inventory）、`validate-template-upgrade-review`（review_schema 2）、`record-reviewed-template-upgrade`（登记 + defer 分批），对应 `test-template-*` 四组 | 自动升级应用器、自动回滚器、真实跨版本项目迁移均未实现，按 §4 不作为发布阻断，但任何文档都不得声称已支持自动迁移 |
 
 ### 7 的补充说明

@@ -1,0 +1,72 @@
+{
+  "protocol": "scp",
+  "schema_version": "0.1.0",
+  "packet_id": "handoff-2026-11-12-agent-a",
+  "packet_kind": "handoff",
+  "generated_at": "2026-11-12T00:00:00Z",
+  "project": {
+    "repository": "broadteam/agent-develop-project-standards",
+    "root": "."
+  },
+  "session": {
+    "actor": "agent-a",
+    "client": "example-client"
+  },
+  "intent": {
+    "baseline_ref": ".spec/intent/BASELINE.md",
+    "accepted_change_refs": [],
+    "pending_refs": []
+  },
+  "work": {
+    "topic": "Define the first machine-readable SCP packet contract"
+  },
+  "code": {
+    "branch": "design/session-continuity-protocol",
+    "head_sha": null,
+    "worktree_state": "unknown",
+    "uncommitted_paths": [],
+    "observed_at": "2026-11-12T00:00:00Z"
+  },
+  "checkpoint": {
+    "work_state": "in_progress",
+    "verification_state": "not_run",
+    "review_state": "not_reviewed",
+    "decisions": [],
+    "next_action": "Review the D1 schema and compatibility policy"
+  },
+  "evidence_refs": [],
+  "handoff": {
+    "from": "agent-a",
+    "to": "next-agent",
+    "completed": [
+      "D0 product decisions recorded"
+    ],
+    "in_progress": [
+      "D1 schema design"
+    ],
+    "blocked": [],
+    "next_action": "Review schema field semantics and versioning rules",
+    "forbidden_actions": [
+      "Do not add validator or mandatory gates before schema review"
+    ]
+  },
+  "coordination": {
+    "owner": "agent-a",
+    "write_scope": [
+      "schemas/scp/0.1/",
+      "SESSION-CONTINUITY-PROTOCOL-DESIGN.md"
+    ],
+    "isolation": "branch_worktree"
+  },
+  "provenance": {
+    "generated_by": "manual-design-example",
+    "source_revisions": [
+      {
+        "source_ref": "SESSION-CONTINUITY-PROTOCOL-DESIGN.md",
+        "revision": "D1-draft",
+        "freshness": "current",
+        "observed_at": "2026-11-12T00:00:00Z"
+      }
+    ]
+  }
+}

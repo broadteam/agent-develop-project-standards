@@ -9,7 +9,7 @@ const { validateTraceability } = require('../template/.standards/traceability-ch
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'traceability-governance-'));
 const root = path.join(tmp, 'project');
-const sha = 'a'.repeat(40);
+let sha;
 function write(rel, content) {
   const file = path.join(root, rel);
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -40,6 +40,18 @@ function assertParity(label, expected = [], options = {}) {
   return nodeErrors;
 }
 try {
+  fs.mkdirSync(root, { recursive: true });
+  let git = spawnSync('git', ['-C', root, 'init', '-q'], { encoding: 'utf8' });
+  assert.equal(git.status, 0, 'fixture git init failed: ' + git.stderr);
+  write('.fixture-commit.txt', 'traceability fixture commit\n');
+  git = spawnSync('git', ['-C', root, 'add', '--', '.fixture-commit.txt'], { encoding: 'utf8' });
+  assert.equal(git.status, 0, 'fixture git add failed: ' + git.stderr);
+  git = spawnSync('git', ['-C', root, '-c', 'user.name=Standards Fixture', '-c', 'user.email=standards-fixture@example.invalid', 'commit', '-m', 'test: create traceability fixture commit'], { encoding: 'utf8' });
+  assert.equal(git.status, 0, 'fixture git commit failed: ' + git.stdout + git.stderr);
+  git = spawnSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8' });
+  assert.equal(git.status, 0, 'fixture git rev-parse failed: ' + git.stderr);
+  sha = git.stdout.trim();
+
   write('.spec/intent/BASELINE.md', `# Baseline
 
 | ID | 目标结果 | 优先级 | 来源/确认状态 | 可验证成功判据 |
@@ -105,6 +117,48 @@ try {
 
   assertParity('valid graph');
 
+  const originalEvidenceUrl = 'https://github.com/acme/app/actions/runs/123';
+  const localEvidence = '.tmp/verification-report.txt';
+  const indexFile = '.spec/verification/INDEX.md';
+  const readIndex = () => fs.readFileSync(path.join(root, indexFile), 'utf8');
+  write(localEvidence, 'local verification report\n');
+  write(indexFile, readIndex().replaceAll(originalEvidenceUrl, localEvidence));
+  assertParity('existing local evidence file');
+
+  write(indexFile, readIndex().replaceAll(localEvidence, '.tmp/missing-report.txt'));
+  assertParity('missing local evidence file', ['证据位置不是有效 HTTP(S) URL 或项目内存在的普通文件']);
+  write(indexFile, readIndex().replaceAll('.tmp/missing-report.txt', localEvidence));
+  assertParity('restore local evidence file');
+
+  fs.writeFileSync(path.join(tmp, 'outside-report.txt'), 'outside project\n', 'utf8');
+  write(indexFile, readIndex().replaceAll(localEvidence, '../outside-report.txt'));
+  assertParity('evidence path traversal', ['证据位置不是有效 HTTP(S) URL 或项目内存在的普通文件']);
+  write(indexFile, readIndex().replaceAll('../outside-report.txt', 'javascript:alert'));
+  assertParity('unsupported evidence URI scheme', ['证据位置不是有效 HTTP(S) URL 或项目内存在的普通文件']);
+  write(indexFile, readIndex().replaceAll('javascript:alert', localEvidence));
+  assertParity('restore valid evidence pointer');
+
+  write(indexFile, readIndex().replace('| V001 | R001 | CI | pass |', '| V001 | R001 | CI | partial |'));
+  assertParity('summary/detail result mismatch', ['索引结果与详情不一致']);
+  write(indexFile, readIndex().replace('| V001 | R001 | CI | partial |', '| V001 | R001 | CI | pass |'));
+  assertParity('restore consistent summary');
+
+  const linkedEvidence = path.join(root, '.tmp', 'linked-report.txt');
+  let symlinkCreated = false;
+  try {
+    fs.symlinkSync(path.join(tmp, 'outside-report.txt'), linkedEvidence, 'file');
+    symlinkCreated = true;
+  } catch (error) {
+    if (!['EPERM', 'EACCES', 'ENOSYS'].includes(error.code)) throw error;
+  }
+  if (symlinkCreated) {
+    write(indexFile, readIndex().replaceAll(localEvidence, '.tmp/linked-report.txt'));
+    assertParity('symbolic-link evidence rejected', ['证据位置不是有效 HTTP(S) URL 或项目内存在的普通文件']);
+    fs.unlinkSync(linkedEvidence);
+    write(indexFile, readIndex().replaceAll('.tmp/linked-report.txt', localEvidence));
+    assertParity('restore evidence after symlink test');
+  }
+
   write('.spec/tasks/T1/card.md', fs.readFileSync(path.join(root, '.spec/tasks/T1/card.md'), 'utf8').replace('R001', 'R999'));
   assertParity('dangling task requirement', ['任务 T1 引用了不存在的需求 R999']);
   write('.spec/tasks/T1/card.md', fs.readFileSync(path.join(root, '.spec/tasks/T1/card.md'), 'utf8').replace('R999', 'R001'));
@@ -117,12 +171,30 @@ try {
   assertParity('invalid evidence commit', ['验证证据 V001 缺少完整 40 位 Commit SHA', '需求 R001 标记 verified，但没有有效 pass 证据']);
   write('.spec/verification/INDEX.md', fs.readFileSync(path.join(root, '.spec/verification/INDEX.md'), 'utf8').replace('Commit：short-sha', 'Commit：' + sha));
 
-  write('.spec/verification/INDEX.md', fs.readFileSync(path.join(root, '.spec/verification/INDEX.md'), 'utf8').replace('结果：pass', '结果：partial'));
+  const missingSha = '0'.repeat(40);
+  write('.spec/verification/INDEX.md', fs.readFileSync(path.join(root, '.spec/verification/INDEX.md'), 'utf8').replace('Commit：' + sha, 'Commit：' + missingSha));
+  assertParity('well-formed but missing commit object', ['Commit SHA 不是当前 Git 仓库中可读取的 commit 对象']);
+  write('.spec/verification/INDEX.md', fs.readFileSync(path.join(root, '.spec/verification/INDEX.md'), 'utf8').replace('Commit：' + missingSha, 'Commit：' + sha));
+
+  const blob = spawnSync('git', ['-C', root, 'hash-object', '-w', '--stdin'], { input: 'this is a blob, not a commit\n', encoding: 'utf8' });
+  assert.equal(blob.status, 0, 'fixture blob creation failed: ' + blob.stderr);
+  const blobSha = blob.stdout.trim();
+  write('.spec/verification/INDEX.md', fs.readFileSync(path.join(root, '.spec/verification/INDEX.md'), 'utf8').replace('Commit：' + sha, 'Commit：' + blobSha));
+  assertParity('blob object cannot masquerade as commit', ['Commit SHA 不是当前 Git 仓库中可读取的 commit 对象']);
+  write('.spec/verification/INDEX.md', fs.readFileSync(path.join(root, '.spec/verification/INDEX.md'), 'utf8').replace('Commit：' + blobSha, 'Commit：' + sha));
+
+  const gitDir = path.join(root, '.git');
+  const detachedGitDir = path.join(root, '.git.disabled');
+  fs.renameSync(gitDir, detachedGitDir);
+  assertParity('missing local Git metadata', ['Commit SHA 不是当前 Git 仓库中可读取的 commit 对象']);
+  fs.renameSync(detachedGitDir, gitDir);
+
+  write('.spec/verification/INDEX.md', fs.readFileSync(path.join(root, '.spec/verification/INDEX.md'), 'utf8').replace('结果：pass', '结果：partial').replace('| V001 | R001 | CI | pass |', '| V001 | R001 | CI | partial |'));
   assertParity('partial cannot verify', ['需求 R001 的验证指针无效或未覆盖该需求', '需求 R001 标记 verified，但没有有效 pass 证据']);
-  write('.spec/verification/INDEX.md', fs.readFileSync(path.join(root, '.spec/verification/INDEX.md'), 'utf8').replace('结果：partial', '结果：pass'));
+  write('.spec/verification/INDEX.md', fs.readFileSync(path.join(root, '.spec/verification/INDEX.md'), 'utf8').replace('结果：partial', '结果：pass').replace('| V001 | R001 | CI | partial |', '| V001 | R001 | CI | pass |'));
 
   write('.spec/requirements/INDEX.md', fs.readFileSync(path.join(root, '.spec/requirements/INDEX.md'), 'utf8').replace('verified | user_explicit', 'accepted | user_explicit'));
-  write('.spec/verification/INDEX.md', fs.readFileSync(path.join(root, '.spec/verification/INDEX.md'), 'utf8').replace('结果：pass', '结果：partial'));
+  write('.spec/verification/INDEX.md', fs.readFileSync(path.join(root, '.spec/verification/INDEX.md'), 'utf8').replace('结果：pass', '结果：partial').replace('| V001 | R001 | CI | pass |', '| V001 | R001 | CI | partial |'));
   write('.spec/tasks/T1/card.md', fs.readFileSync(path.join(root, '.spec/tasks/T1/card.md'), 'utf8').replace('R001', '—'));
   assertParity('accepted requirement needs work item or evidence', ['活跃需求 R001 没有任务或通过的验证证据']);
   assertParity('task-tracking-off does not require template task cards', [], { taskTracking: false, roadmap: false });
