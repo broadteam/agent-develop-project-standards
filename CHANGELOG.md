@@ -1,7 +1,7 @@
 ## Unreleased
 
 ### Fixed
-- Make initialization fail closed before any write when prior transaction backup/temp/rollback artifacts are found anywhere under the target project (excluding .git and node_modules). It no longer proceeds and only warns after modifying files; it preserves the artifacts for explicit human inspection and recovery rather than guessing which backup to restore or deleting potential user data.
+- Create an exclusive project-level transaction marker before the first initialization write. An abrupt process exit therefore leaves a detectable lock even when the interrupted file was newly created and has no backup. The next initialization fails closed on the marker or any backup/temp/rollback artifact; it preserves the recovery material for human inspection instead of guessing which version to restore or deleting project data. Normal caught failures clear the marker only after successful rollback.
 
 ### Fixed
 - Require each V-record Commit SHA to resolve to an actual `commit` object in the project's local Git object database. Node and Python checkers use bounded offline `git cat-file` checks; missing objects, non-commit objects and unavailable Git metadata fail closed. The checker never fetches from a remote, so shallow clones must explicitly obtain the referenced object or keep the evidence unverified.

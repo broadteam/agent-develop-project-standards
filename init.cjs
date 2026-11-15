@@ -145,7 +145,7 @@ const TEMPLATE_FILES = ['AGENTS.md', 'ROUTER.md', 'CLAUDE.md', 'GEMINI.md', 'gov
 const ALWAYS_SKIP = new Set(['.git', 'node_modules']);
 // Transaction artifacts mean a previous or concurrent initializer may not have finished.
 // Never continue over them: a backup may contain the only remaining copy of project-owned data.
-const isInternalArtifact = (name) => /\.agent-standards-(?:backup|tmp|rollback)-/.test(name);
+const isInternalArtifact = (name) => /\.agent-standards-(?:backup|tmp|rollback)-|^\.agent-standards-transaction\.lock$/.test(name);
 function findStaleArtifacts(dir, rel = '', found = []) {
   const entries = fs.readdirSync(dir, { withFileTypes: true });
   for (const entry of entries) {
@@ -351,7 +351,36 @@ function trackPreservedPath(targetPath) {
   if (!managedFiles[targetPath]) preservedPaths.add(targetPath);
 }
 const transaction = { files: [], directories: [], committed: false };
+const transactionMarker = path.join(TARGET, '.agent-standards-transaction.lock');
+let transactionMarkerCreated = false;
 let transactionSequence = 0;
+
+function beginTransaction() {
+  let fd;
+  try {
+    fd = fs.openSync(transactionMarker, 'wx', 0o600);
+    transactionMarkerCreated = true;
+    fs.writeFileSync(fd, JSON.stringify({
+      format_version: 1,
+      pid: process.pid,
+      started_at: new Date().toISOString(),
+      template_version: TEMPLATE_VERSION,
+    }) + '\n', 'utf8');
+    fs.fsyncSync(fd);
+  } catch (error) {
+    if (error.code === 'EEXIST') {
+      throw new Error('另一个初始化进程已开始执行，或存在未恢复的事务锁；为避免并发写入，拒绝继续。');
+    }
+    throw error;
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+  }
+}
+function clearTransactionMarker() {
+  if (!transactionMarkerCreated) return;
+  fs.unlinkSync(transactionMarker);
+  transactionMarkerCreated = false;
+}
 
 function snapshotManagedFile(file) {
   let stat;
@@ -399,11 +428,16 @@ function writeTransactional(file, content, encoding = 'utf8') {
     transaction.files.push({ file, before, backup });
     // Deterministic failure injection is available only to the repository's own
     // tests; normal project initialization cannot activate this path.
-    if (process.env.NODE_ENV === 'test' && process.env.AGENT_STANDARDS_TEST_FAIL_AFTER_PATH) {
-      const rel = path.relative(TARGET, file).split(path.sep).join('/');
-      if (rel === process.env.AGENT_STANDARDS_TEST_FAIL_AFTER_PATH) {
-        throw new Error('测试故障注入：' + rel);
-      }
+    const rel = path.relative(TARGET, file).split(path.sep).join('/');
+    if (process.env.NODE_ENV === 'test' && process.env.AGENT_STANDARDS_TEST_EXIT_AFTER_PATH
+      && rel === process.env.AGENT_STANDARDS_TEST_EXIT_AFTER_PATH) {
+      // Simulate abrupt process termination: deliberately bypass catch/rollback to
+      // prove the persistent transaction marker blocks unsafe follow-up initialization.
+      process.exit(86);
+    }
+    if (process.env.NODE_ENV === 'test' && process.env.AGENT_STANDARDS_TEST_FAIL_AFTER_PATH
+      && rel === process.env.AGENT_STANDARDS_TEST_FAIL_AFTER_PATH) {
+      throw new Error('测试故障注入：' + rel);
     }
   } catch (error) {
     try { if (fs.existsSync(temp)) fs.unlinkSync(temp); } catch {}
@@ -585,7 +619,8 @@ function walk(dir, rel = '') {
   }
 }
 try {
-walk(TEMPLATE);
+  if (!DRY) beginTransaction();
+  walk(TEMPLATE);
 
 // Add only the detected language profiles. They are on-demand references, not always-loaded rules.
 const presetMap = [...new Set(STACKS.map((stack) => stack === 'electron' || stack === 'node-web' ? 'node' : stack))];
@@ -826,6 +861,7 @@ if (!DRY) {
 }
 const ownBackups = new Set(transaction.files.map((entry) => entry.backup).filter(Boolean)
   .map((file) => path.relative(TARGET, file).split(path.sep).join('/')));
+if (transactionMarkerCreated) ownBackups.add(path.relative(TARGET, transactionMarker).split(path.sep).join('/'));
 const staleArtifacts = findStaleArtifacts(TARGET)
   .filter((rel) => !ownBackups.has(rel))
   .sort();
@@ -853,11 +889,22 @@ if (!DRY) {
 }
 } catch (error) {
   const rollbackFailures = DRY ? [] : rollbackTransaction();
+  if (!DRY && transactionMarkerCreated && rollbackFailures.length === 0) {
+    try { clearTransactionMarker(); }
+    catch (markerError) { rollbackFailures.push('事务标记清理失败：' + markerError.message); }
+  }
   console.error('[init] 初始化失败' + (DRY ? '' : '，已尝试回滚本次写入') + '：' + error.message);
   for (const failure of rollbackFailures) console.error('[init] 回滚失败：' + failure);
+  if (transactionMarkerCreated) console.error('[init] 事务锁已保留：请人工检查现场并恢复后再清理锁文件，避免下次初始化覆盖未恢复内容。');
   process.exit(1);
 }
-if (!DRY) commitTransaction();
+if (!DRY) {
+  commitTransaction();
+  try { clearTransactionMarker(); }
+  catch (error) {
+    report.warnings.push('初始化已完成，但无法清理事务锁：' + error.message + '。后续初始化会被安全门禁阻止，请检查并清理锁文件。');
+  }
+}
 
 console.log(`\n铺设规范 → ${TARGET}\n`);
 console.log(`  主技术栈  ${STACK}（${profile.label}）`);

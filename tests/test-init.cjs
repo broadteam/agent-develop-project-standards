@@ -214,7 +214,31 @@ try {
   assert.match(malformedBoardRun.stderr, /BOARD 预检失败/);
   assert.deepEqual(fs.readdirSync(malformedBoardProject), ['.spec'], 'BOARD preflight must fail before installing unrelated templates');
 
-  // If a later installation step fails, overwritten files and new artifacts must roll back.
+  // Abrupt termination must leave a durable lock marker so the next init cannot mistake
+  // a partially installed tree for a clean project. This exits without running rollback.
+  const interruptedProject = path.join(tmp, 'interrupted-project');
+  fs.mkdirSync(interruptedProject);
+  const interruptedOriginal = '# Original rules before crash\\n';
+  fs.writeFileSync(path.join(interruptedProject, 'AGENTS.md'), interruptedOriginal);
+  const interruptedRun = spawnSync(process.execPath, [path.join(root, 'init.cjs'), interruptedProject, '--force'], {
+    encoding: 'utf8',
+    env: { ...process.env, NODE_ENV: 'test', AGENT_STANDARDS_TEST_EXIT_AFTER_PATH: 'AGENTS.md' },
+  });
+  assert.equal(interruptedRun.status, 86, interruptedRun.stdout + interruptedRun.stderr);
+  const transactionLock = path.join(interruptedProject, '.agent-standards-transaction.lock');
+  assert.ok(fs.existsSync(transactionLock), 'abruptly terminated transaction must retain its marker');
+  const preservedBackupName = fs.readdirSync(interruptedProject).find(name => name.includes('.agent-standards-backup-'));
+  assert.ok(preservedBackupName, 'abrupt exit should retain the pre-existing file backup');
+  assert.equal(fs.readFileSync(path.join(interruptedProject, preservedBackupName), 'utf8'), interruptedOriginal,
+    'the retained backup must preserve the original project-owned content');
+  const interruptedSnapshot = JSON.stringify(snapshotTree(interruptedProject));
+  const blockedInterruptedRetry = spawnSync(process.execPath, [path.join(root, 'init.cjs'), interruptedProject, '--force'], { encoding: 'utf8' });
+  assert.equal(blockedInterruptedRetry.status, 1, blockedInterruptedRetry.stdout + blockedInterruptedRetry.stderr);
+  assert.match(blockedInterruptedRetry.stderr, /拒绝继续初始化/);
+  assert.deepEqual(JSON.stringify(snapshotTree(interruptedProject)), interruptedSnapshot,
+    'retry after abrupt termination must not mutate the partial tree or its backup');
+
+  // If a later installation step fails normally, overwritten files and new artifacts must roll back.
   const rollbackProject = path.join(tmp, 'rollback-project');
   fs.mkdirSync(rollbackProject);
   const originalAgents = '# Project-owned rules\nKeep this exact content.\n';
