@@ -98,7 +98,7 @@
 | Codex | 根目录 `AGENTS.md` | 从仓库根到当前工作目录逐层加载；每层同目录的 `AGENTS.override.md` 替代 `AGENTS.md`，不会把两者同时追加；本模板只生成根级普通入口。 [官方说明](https://learn.chatgpt.com/docs/agent-configuration/agents-md) |
 | Claude Code | `CLAUDE.md` → `@AGENTS.md` | 导入深度最多四跳。Claude Code v2.1.277+ 支持直接读取 `AGENTS.md`，但默认若工作目录或其上方存在 `CLAUDE.md` / `CLAUDE.local.md`，则按 Claude 入口加载；模板保留导入指针以兼容旧版本和仅支持 CLAUDE 的会话。 [官方说明](https://code.claude.com/docs/zh-CN/memory) |
 | Gemini CLI | `GEMINI.md` → `@./AGENTS.md` | 默认使用 `GEMINI.md`；可通过 `context.fileName` 配置一个或多个发现文件名，例如 `AGENTS.md` 与 `GEMINI.md`。导入指针不要求用户修改全局设置。 [官方说明](https://geminicli.com/docs/cli/gemini-md/) |
-| Cursor | 根目录及子目录 `AGENTS.md` | 原生支持根与嵌套 AGENTS；嵌套文件应用于 Agent 在对应目录或其子目录工作时，父级与更具体目录规则组合，更具体者优先。更精细的 glob/手动规则可用 `.cursor/rules/*.mdc`，不得复制通用规则正文。 [官方说明](https://cursor.com/docs/rules) |
+| Cursor | 根目录及子目录 `AGENTS.md` | 原生支持根与嵌套 AGENTS；嵌套文件应用于 Agent 在对应目录或其子目录工作时，父级与更具体目录规则组合，后者优先。更精细的 glob/手动规则可用 `.cursor/rules/*.mdc`，不得复制通用规则正文。 [官方说明](https://cursor.com/docs/rules) |
 | OpenCode V2 | `AGENTS.md` | 加载全局及 workspace 路径内的 AGENTS；嵌套文件在探索/读取相应目录时发现。多文件合并且不自动裁决冲突；配置中的 `instructions` 在 AGENTS 文件后追加。V2 仅识别 `AGENTS.md`，不回退到 `CLAUDE.md`。 [官方说明](https://opencode.ai/docs/instructions) |
 | WorkBuddy | `.codebuddy/`，并声明兼容 `AGENTS.md` | 项目配置可包含共享 Rules、Agents、Skills、Commands 与 `CODEBUDDY.md`；官方文档声明兼容 AGENTS，但未完整说明多入口同时存在时的精确加载次序。 [官方说明](https://www.codebuddy.cn/docs/workbuddy/From-Beginner-to-Expert-Guide/Function-Description/Project) |
 | CodeBuddy IDE | 根目录 `CODEBUDDY.md`；条件回退为 `AGENTS.md` | 默认读取根 `CODEBUDDY.md`；仅当该文件不存在时才自动加载根 `AGENTS.md`。结构化项目规则位于 `.codebuddy/rules/`。 [官方说明](https://cloud.tencent.com/document/product/1831/137442) |

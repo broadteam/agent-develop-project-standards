@@ -56,7 +56,7 @@
 | 收口 | 意图、需求、验证写回各自 core 权威文件；仅在启用 `task_tracking` / `roadmap` / `adr` 时，任务、里程碑、架构决策分别写回对应权威文件；MEMORY 只更新断点/稳定事实；私有记忆可留缓存 |
 | 冲突 | 仓库内对应领域的权威文件优先于客户端私有记忆；可复现的故障教训才记入 PITFALLS |
 
-**哪些私有目录该忽略**：只忽略纯工具数据/缓存。`.cursor/rules/`、`.claude/commands/` 这类团队共享配置要入库。`.workbuddy-ai/` 属于前者，模板已默认忽略；其他客户端按同一标准判断后，自己加到 `.gitignore` 的托管区块**外面**——区块内是模板生成的，会被覆盖。
+**哪些客户端目录该忽略**：只忽略纯工具数据/缓存。`.cursor/rules/`、`.claude/commands/` 和 WorkBuddy / CodeBuddy 的 `.codebuddy/` 都承载团队共享配置，应按项目需要入库，不能把 `.codebuddy/` 整体忽略。`.workbuddy-ai/` 是模板为兼容历史本地工具数据保留的忽略项；现行 WorkBuddy 项目配置以 `.codebuddy/` 为准。其他客户端目录按相同标准判断后，加到 `.gitignore` 托管区块**外面**——区块内是模板生成的，会被覆盖。
 
 ### 机制：单向镜像，不靠自觉
 
