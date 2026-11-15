@@ -84,7 +84,9 @@ try {
   // All configured paths must be validated before any target is modified. Traversal,
   // absolute paths, Windows drive paths and symlink targets are rejected fail-closed.
   const outside = path.join(tmp, 'outside-memory.md');
-  fs.writeFileSync(outside, 'outside must remain untouched\\n');
+  fs.writeFileSync(outside, 'outside must remain untouched\n');
+  const authorityPathForSafety = path.join(project, '.memory/MEMORY.md');
+  fs.writeFileSync(authorityPathForSafety, fs.readFileSync(authorityPathForSafety, 'utf8').replace('断点已被改写', '断点二次改写'));
   const safeBefore = fs.readFileSync(path.join(project, MIRROR), 'utf8');
   setMirrors(project, [MIRROR, '../outside-memory.md']);
   const traversalSync = runNode(project, 'sync-memory.cjs');
@@ -92,7 +94,7 @@ try {
   assert.match(traversalSync.stderr, /记忆镜像路径非法：\.\.\/outside-memory\.md/);
   assert.equal(fs.readFileSync(path.join(project, MIRROR), 'utf8'), safeBefore,
     'an invalid later target must prevent earlier mirror writes');
-  assert.equal(fs.readFileSync(outside, 'utf8'), 'outside must remain untouched\\n');
+  assert.equal(fs.readFileSync(outside, 'utf8'), 'outside must remain untouched\n');
 
   const traversalNode = runNode(project, 'check-governance.cjs');
   const traversalPython = runPython(project);
@@ -121,7 +123,7 @@ try {
     assert.equal(symlinkSync.status, 1);
     assert.match(symlinkSync.stderr, /禁止经过符号链接/);
     assert.equal(fs.readFileSync(path.join(project, MIRROR), 'utf8'), beforeSymlinkBlocked);
-    assert.equal(fs.readFileSync(outside, 'utf8'), 'outside must remain untouched\\n');
+    assert.equal(fs.readFileSync(outside, 'utf8'), 'outside must remain untouched\n');
     const symlinkNode = runNode(project, 'check-governance.cjs');
     const symlinkPython = runPython(project);
     assert.equal(symlinkNode.status, 1);

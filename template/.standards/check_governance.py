@@ -379,7 +379,7 @@ def resolve_safe_mirror_file(rel: object) -> Path | None:
         raise ValueError(f"记忆镜像路径非法：{display}（{reason}）")
     if not isinstance(rel, str) or not rel.strip():
         invalid("必须是非空的项目相对路径")
-    if "\\x00" in rel:
+    if "\x00" in rel:
         invalid("路径包含 NUL 字符")
     if "\\\\" in rel:
         invalid("不允许反斜杠或平台相关路径分隔符")
