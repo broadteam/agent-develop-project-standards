@@ -143,9 +143,31 @@ const COMMANDS = cmdLines.length ? cmdLines.join('\n') : profile.cmds.join('\n')
 const TEMPLATE_DIRS = ['.memory', '.spec', '.tmp', '.githooks', '.standards', 'policy'];
 const TEMPLATE_FILES = ['AGENTS.md', 'ROUTER.md', 'CLAUDE.md', 'GEMINI.md', 'gov.toml', 'project-profile.toml', '.gitattributes', '.gitignore', '.agent-standards.json'];
 const ALWAYS_SKIP = new Set(['.git', 'node_modules']);
-// A --force run that is interrupted can leave its own transaction files behind. If the next
-// run whitelisted them, the governance gate would treat that junk as legitimate forever.
+// Transaction artifacts mean a previous or concurrent initializer may not have finished.
+// Never continue over them: a backup may contain the only remaining copy of project-owned data.
 const isInternalArtifact = (name) => /\.agent-standards-(?:backup|tmp|rollback)-/.test(name);
+function findStaleArtifacts(dir, rel = '', found = []) {
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (entry.name === '.git' || entry.name === 'node_modules') continue;
+    const relPath = rel ? `${rel}/${entry.name}` : entry.name;
+    if (isInternalArtifact(entry.name)) { found.push(relPath); continue; }
+    if (entry.isDirectory()) findStaleArtifacts(path.join(dir, entry.name), relPath, found);
+  }
+  return found;
+}
+let priorArtifacts;
+try { priorArtifacts = findStaleArtifacts(TARGET).sort(); }
+catch (error) {
+  console.error('[init] 无法完整扫描目标目录，初始化未执行：' + error.message);
+  process.exit(1);
+}
+if (priorArtifacts.length) {
+  const shown = priorArtifacts.slice(0, 5).join('、');
+  console.error(`[init] 检测到 ${priorArtifacts.length} 个上次初始化遗留或仍在使用的事务文件（${shown}${priorArtifacts.length > 5 ? ' 等' : ''}），为避免覆盖尚未恢复的项目内容，拒绝继续初始化。`);
+  console.error('[init] 本次未写入任何文件。请先确认没有其他初始化进程运行，再逐项检查备份、临时和回滚文件；必要时从备份恢复原内容。初始化器不会自动删除或恢复这些文件。处理完毕后重试。');
+  process.exit(1);
+}
 const entries = fs.readdirSync(TARGET, { withFileTypes: true });
 const existingDirs = entries.filter(e => e.isDirectory() && !ALWAYS_SKIP.has(e.name) && !isInternalArtifact(e.name)).map(e => e.name);
 const existingFiles = entries.filter((e) => (e.isFile() || e.isSymbolicLink()) && !isInternalArtifact(e.name)).map(e => e.name);
@@ -801,20 +823,6 @@ if (!DRY) {
   if (staleAfter.length) {
     report.warnings.push(`有 ${staleAfter.length} 个受管文件仍是旧版本内容（已存在，未更新），整体版本标记保持 ${previousManifest?.installed_with_version ?? '未登记'}。要刷新请用 --update（只更新未被改动过的文件），或按 DEPLOY.md 的升级流程人工处理。`);
   }
-}
-// Leftovers from an earlier interrupted run can sit anywhere in the tree, not just the root.
-// They are deliberately not whitelisted, so the governance gate reports them as unregistered files — which suggests
-// whitelisting them. Say what they actually are before the user "fixes" it the wrong way.
-function findStaleArtifacts(dir, rel = '', found = []) {
-  let entries;
-  try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return found; }
-  for (const entry of entries) {
-    if (entry.name === '.git' || entry.name === 'node_modules') continue;
-    const relPath = rel ? `${rel}/${entry.name}` : entry.name;
-    if (isInternalArtifact(entry.name)) { found.push(relPath); continue; }
-    if (entry.isDirectory()) findStaleArtifacts(path.join(dir, entry.name), relPath, found);
-  }
-  return found;
 }
 const ownBackups = new Set(transaction.files.map((entry) => entry.backup).filter(Boolean)
   .map((file) => path.relative(TARGET, file).split(path.sep).join('/')));

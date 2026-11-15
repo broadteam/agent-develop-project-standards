@@ -57,10 +57,8 @@ try {
   const originalHook = '#!/bin/sh\necho project-hook\n';
   fs.writeFileSync(path.join(project, '.githooks/pre-commit'), originalHook);
   fs.writeFileSync(path.join(project, '.gitignore'), '.tmp/\n');
-  // An interrupted --force run leaves transaction files in the project root. Whitelisting them
-  // would make the governance gate treat that junk as legitimate forever.
   const staleArtifact = '.AGENTS.md.agent-standards-backup-9999-1';
-  fs.writeFileSync(path.join(project, staleArtifact), 'stale');
+  const nestedStaleArtifact = '.spec/.INDEX.md.agent-standards-tmp-9999-2';
   const beforePreview = JSON.stringify(snapshotTree(project));
   const preview = spawnSync(process.execPath, [path.join(root, 'init.cjs'), project, '--force', '--dry-run'], { encoding: 'utf8' });
   assert.equal(preview.status, 0, preview.stdout + preview.stderr);
@@ -82,18 +80,28 @@ try {
   assert.match(ignore, /agent-project-standards \(managed\)/);
   const gov = fs.readFileSync(path.join(project, 'gov.toml'), 'utf8');
   assert.doesNotMatch(gov, /agent-standards-backup/, '安装残留的事务文件不得进入根目录白名单');
-  // Not whitelisted means it surfaces as a violation instead of being silently legitimized.
+  // Simulate crash leftovers at the root and in a nested managed directory.
+  fs.writeFileSync(path.join(project, staleArtifact), 'old AGENTS backup');
+  fs.writeFileSync(path.join(project, nestedStaleArtifact), 'partial transaction temp');
   const staleCheck = spawnSync(process.execPath, [path.join(project, '.standards/check-governance.cjs')], { encoding: 'utf8' });
-  assert.equal(staleCheck.status, 1, '残留事务文件必须被判为未登记文件');
-  assert.match(staleCheck.stdout, /根目录出现未登记文件/);
-  // The governance message suggests whitelisting, which is exactly wrong for these files;
-  // init must name them for what they are.
-  const staleRun = spawnSync(process.execPath, [path.join(root, 'init.cjs'), project, '--force'], { encoding: 'utf8' });
-  assert.equal(staleRun.status, 0, staleRun.stdout + staleRun.stderr);
-  // Warnings are written to stderr, like the rest of the report's diagnostics.
-  assert.match(staleRun.stdout + staleRun.stderr, /上次安装残留的事务文件/);
-  assert.match(staleRun.stdout + staleRun.stderr, /不要加进 gov\.toml/);
+  assert.equal(staleCheck.status, 1, '残留事务文件必须被治理检查发现');
+  assert.match(staleCheck.stdout, /根目录出现未登记文件|根目录出现未登记目录/);
+  const beforeBlockedRecovery = JSON.stringify(snapshotTree(project));
+  const blockedRecovery = spawnSync(process.execPath, [path.join(root, 'init.cjs'), project, '--force'], { encoding: 'utf8' });
+  assert.equal(blockedRecovery.status, 1, blockedRecovery.stdout + blockedRecovery.stderr);
+  assert.match(blockedRecovery.stderr, /拒绝继续初始化/);
+  assert.match(blockedRecovery.stderr, /不会自动删除或恢复这些文件/);
+  assert.match(blockedRecovery.stderr, /\.spec\/.INDEX\.md\.agent-standards-tmp-9999-2/);
+  assert.deepEqual(JSON.stringify(snapshotTree(project)), beforeBlockedRecovery,
+    '发现上次事务残留时必须在任何写入前退出，完整保留现场');
+
+  // Once the maintainer has inspected and removed both disposable fixture artifacts,
+  // rerunning init converges safely.
   fs.rmSync(path.join(project, staleArtifact));
+  fs.rmSync(path.join(project, nestedStaleArtifact));
+  const recoveredRun = spawnSync(process.execPath, [path.join(root, 'init.cjs'), project, '--force'], { encoding: 'utf8' });
+  assert.equal(recoveredRun.status, 0, recoveredRun.stdout + recoveredRun.stderr);
+  assert.doesNotMatch(recoveredRun.stdout + recoveredRun.stderr, /上次安装残留的事务文件/);
   const profile = fs.readFileSync(path.join(project, 'project-profile.toml'), 'utf8');
   assert.match(profile, /status = "needs_review"/);
   assert.match(profile, /detected = \["php", "node"\]/);
