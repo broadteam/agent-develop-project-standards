@@ -1,6 +1,9 @@
 ## Unreleased
 
 ### Fixed
+- Constrain client-private memory mirror targets to existing or missing project-relative regular-file paths. Reject absolute/drive paths, traversal and symlink components in both Node and Python governance gates and before synchronization. Validate every configured target before writing any mirror so an invalid later entry cannot leave earlier mirrors updated. Keep identical diagnostics across implementations.
+
+### Fixed
 - Create an exclusive project-level transaction marker before the first initialization write. An abrupt process exit therefore leaves a detectable lock even when the interrupted file was newly created and has no backup. The next initialization fails closed on the marker or any backup/temp/rollback artifact; it preserves the recovery material for human inspection instead of guessing which version to restore or deleting project data. Normal caught failures clear the marker only after successful rollback.
 
 ### Fixed

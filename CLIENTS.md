@@ -63,7 +63,7 @@ node .standards/sync-memory.cjs          # 把 .memory/MEMORY.md 的 §0 镜像�
 node .standards/sync-memory.cjs --check  # 校验是否过期（治理检查用的是同一个判断）
 ```
 
-在 `gov.toml` 声明目标，没声明就不镜像（不猜）：
+在 `gov.toml` 声明目标，没声明就不镜像（不猜）。目标路径必须位于项目内，不能经过符号链接：
 
 ```toml
 [memory]
@@ -75,6 +75,7 @@ mirrors = [".workbuddy-ai/memory/MEMORY.md"]
 | **单向** | `.memory/` → 私有文件。反向不做：私有文件的格式每家不同，反向解析一定会错 |
 | **只占一个带标记的区块** | `<!-- >>> agent-standards memory mirror -->` 之间由脚本维护，区块外你自己写的内容一个字不动 |
 | **可检测** | §0 变了但没同步，`check-governance` 直接报错，Node 与 Python 输出逐字节一致 |
+| **路径受限** | 目标必须是项目内相对普通文件路径；拒绝绝对路径、`..` 和任何符号链接；全部目标预检通过后才写入 |
 | **不猜路径** | `mirrors` 默认空。你不声明，它就不动任何私有目录 |
 
 **为什么不做双向同步**：双向要理解每家的数据格式，格式一变就静默错位。单向镜像最坏情况是"副本旧了"，而旧副本会被检查当场抓出来。
