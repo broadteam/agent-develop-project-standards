@@ -1,6 +1,7 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 
 function validateTraceability(root, options = {}) {
   const taskTracking = options.taskTracking !== false;
@@ -32,6 +33,25 @@ function isValidEvidencePointer(root, pointer) {
     }
     return true;
   } catch { return false; }
+}
+function existingCommitObjects(root, commits) {
+  const unique = [...new Set(commits.filter(sha => /^[a-f0-9]{40}$/i.test(sha)).map(sha => sha.toLowerCase()))];
+  if (!unique.length) return new Set();
+  const result = spawnSync('git', ['-C', root, 'cat-file', '--batch-check'], {
+    input: unique.join('\n') + '\n',
+    encoding: 'utf8',
+    timeout: 5000,
+    maxBuffer: 1024 * 1024,
+    windowsHide: true
+  });
+  if (result.error || result.status !== 0) return new Set();
+  const valid = new Set();
+  const lines = result.stdout.split(/\r?\n/);
+  unique.forEach((sha, index) => {
+    const match = (lines[index] || '').match(/^([a-f0-9]{40}) commit \d+$/i);
+    if (match && match[1].toLowerCase() === sha) valid.add(sha);
+  });
+  return valid;
 }
   const read = (rel) => { const file = path.join(root, rel); return fs.existsSync(file) ? fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n') : ''; };
   const rows = (text) => text.split('\n').filter(line => /^\|\s*[A-Z][A-Z0-9]*\d+\s*\|/.test(line)).map(line => line.split('|').slice(1, -1).map(x => x.trim()));
@@ -80,6 +100,12 @@ function isValidEvidencePointer(root, pointer) {
     if (!evidence || evidence.includes('（') || evidence.includes('(') || evidence.includes('CI URL')) errors.push('追踪关系：验证证据 ' + match[1] + ' 缺少具体证据位置');
     else if (!isValidEvidencePointer(root, evidence)) errors.push('追踪关系：验证证据 ' + match[1] + ' 的证据位置不是有效 HTTP(S) URL 或项目内存在的普通文件（禁止路径穿越与符号链接）');
     for (const id of covers) if (!requirements.has(id)) errors.push(`追踪关系：验证证据 ${match[1]} 覆盖了不存在的需求 ${id}`);
+  }
+  const commitObjects = existingCommitObjects(root, [...evidenceRecords.values()].map(record => record.commit));
+  for (const [id, record] of evidenceRecords) {
+    if (/^[a-f0-9]{40}$/i.test(record.commit) && !commitObjects.has(record.commit.toLowerCase())) {
+      errors.push(`追踪关系：验证证据 ${id} 的 Commit SHA 不是当前 Git 仓库中可读取的 commit 对象（请确认该提交已存在于本地对象库）`);
+    }
   }
   const evidenceSummaries = new Map();
   for (const r of rows(verText)) {
@@ -136,7 +162,7 @@ function isValidEvidencePointer(root, pointer) {
     }
     if (req.status==='verified') {
       const declared = req.evidence.match(/V\d+/g) || [];
-      const valid=[...evidenceRecords.values()].some(v=>v.result==='pass'&&v.covers.includes(id)&&/^[a-f0-9]{40}$/i.test(v.commit)&&v.evidence&&!/（|\(|CI URL/.test(v.evidence));
+      const valid=[...evidenceRecords.values()].some(v=>v.result==='pass'&&v.covers.includes(id)&&/^[a-f0-9]{40}$/i.test(v.commit)&&commitObjects.has(v.commit.toLowerCase())&&v.evidence&&!/（|\(|CI URL/.test(v.evidence));
       if (!declared.length || declared.some(v => !evidenceRecords.has(v) || evidenceRecords.get(v).result !== 'pass' || !evidenceRecords.get(v).covers.includes(id))) errors.push(`追踪关系：需求 ${id} 的验证指针无效或未覆盖该需求`);
       if (!valid) errors.push(`追踪关系：需求 ${id} 标记 verified，但没有有效 pass 证据`);
     }

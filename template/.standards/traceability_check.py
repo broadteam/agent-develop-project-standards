@@ -3,6 +3,7 @@
 from __future__ import annotations
 import re
 import stat
+import subprocess
 from pathlib import Path
 from urllib.parse import urlsplit
 from intent_alignment_check import validate_intent_alignment
@@ -38,6 +39,32 @@ def _valid_evidence_pointer(root: Path, pointer: str) -> bool:
         return True
     except (OSError, ValueError):
         return False
+
+
+def _existing_commit_objects(root: Path, commits: list[str]) -> set[str]:
+    unique = list(dict.fromkeys(sha.lower() for sha in commits if re.fullmatch(r"[a-f0-9]{40}", sha, re.I)))
+    if not unique:
+        return set()
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "cat-file", "--batch-check"],
+            input="\n".join(unique) + "\n",
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return set()
+    if result.returncode != 0:
+        return set()
+    valid: set[str] = set()
+    for sha, line in zip(unique, result.stdout.splitlines()):
+        match = re.fullmatch(r"([a-f0-9]{40}) commit \d+", line, re.I)
+        if match and match.group(1).lower() == sha:
+            valid.add(sha)
+    return valid
 
 
 def validate_traceability(root: Path, *, task_tracking: bool = True, roadmap: bool = True) -> list[str]:
@@ -114,6 +141,10 @@ def validate_traceability(root: Path, *, task_tracking: bool = True, roadmap: bo
         for req_id in covers:
             if req_id not in requirements:
                 errors.append(f"追踪关系：验证证据 {match.group(1)} 覆盖了不存在的需求 {req_id}")
+    commit_objects = _existing_commit_objects(root, [record["commit"] for record in evidence_records.values()])
+    for evidence_id, record in evidence_records.items():
+        if re.fullmatch(r"[a-f0-9]{40}", record["commit"], re.I) and record["commit"].lower() not in commit_objects:
+            errors.append(f"追踪关系：验证证据 {evidence_id} 的 Commit SHA 不是当前 Git 仓库中可读取的 commit 对象（请确认该提交已存在于本地对象库）")
     evidence_summaries: dict[str, list[str]] = {}
     for row in rows(ver_text):
         if not re.fullmatch(r"V\d+", row[0]) or placeholder(row):
@@ -189,7 +220,7 @@ def validate_traceability(root: Path, *, task_tracking: bool = True, roadmap: bo
             declared = re.findall(r"V\d+", req.get("evidence", ""))
             if not declared or any(item not in evidence_records or evidence_records[item]["result"] != "pass" or req_id not in evidence_records[item]["covers"] for item in declared):
                 errors.append(f"追踪关系：需求 {req_id} 的验证指针无效或未覆盖该需求")
-            valid = any(v["result"] == "pass" and req_id in v["covers"] and re.fullmatch(r"[a-f0-9]{40}", v["commit"], re.I) and v["evidence"] and not re.search(r"（|\(|CI URL", v["evidence"]) for v in evidence_records.values())
+            valid = any(v["result"] == "pass" and req_id in v["covers"] and re.fullmatch(r"[a-f0-9]{40}", v["commit"], re.I) and v["commit"].lower() in commit_objects and v["evidence"] and not re.search(r"（|\(|CI URL", v["evidence"]) for v in evidence_records.values())
             if not valid:
                 errors.append(f"追踪关系：需求 {req_id} 标记 verified，但没有有效 pass 证据")
     for goal in goals:

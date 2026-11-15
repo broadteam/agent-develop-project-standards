@@ -9,7 +9,7 @@ const { validateTraceability } = require('../template/.standards/traceability-ch
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'traceability-governance-'));
 const root = path.join(tmp, 'project');
-const sha = 'a'.repeat(40);
+let sha;
 function write(rel, content) {
   const file = path.join(root, rel);
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -40,6 +40,18 @@ function assertParity(label, expected = [], options = {}) {
   return nodeErrors;
 }
 try {
+  fs.mkdirSync(root, { recursive: true });
+  let git = spawnSync('git', ['-C', root, 'init', '-q'], { encoding: 'utf8' });
+  assert.equal(git.status, 0, 'fixture git init failed: ' + git.stderr);
+  write('.fixture-commit.txt', 'traceability fixture commit\n');
+  git = spawnSync('git', ['-C', root, 'add', '--', '.fixture-commit.txt'], { encoding: 'utf8' });
+  assert.equal(git.status, 0, 'fixture git add failed: ' + git.stderr);
+  git = spawnSync('git', ['-C', root, '-c', 'user.name=Standards Fixture', '-c', 'user.email=standards-fixture@example.invalid', 'commit', '-m', 'test: create traceability fixture commit'], { encoding: 'utf8' });
+  assert.equal(git.status, 0, 'fixture git commit failed: ' + git.stdout + git.stderr);
+  git = spawnSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8' });
+  assert.equal(git.status, 0, 'fixture git rev-parse failed: ' + git.stderr);
+  sha = git.stdout.trim();
+
   write('.spec/intent/BASELINE.md', `# Baseline
 
 | ID | 目标结果 | 优先级 | 来源/确认状态 | 可验证成功判据 |
@@ -158,6 +170,24 @@ try {
   write('.spec/verification/INDEX.md', fs.readFileSync(path.join(root, '.spec/verification/INDEX.md'), 'utf8').replace('Commit：' + sha, 'Commit：short-sha'));
   assertParity('invalid evidence commit', ['验证证据 V001 缺少完整 40 位 Commit SHA', '需求 R001 标记 verified，但没有有效 pass 证据']);
   write('.spec/verification/INDEX.md', fs.readFileSync(path.join(root, '.spec/verification/INDEX.md'), 'utf8').replace('Commit：short-sha', 'Commit：' + sha));
+
+  const missingSha = '0'.repeat(40);
+  write('.spec/verification/INDEX.md', fs.readFileSync(path.join(root, '.spec/verification/INDEX.md'), 'utf8').replace('Commit：' + sha, 'Commit：' + missingSha));
+  assertParity('well-formed but missing commit object', ['Commit SHA 不是当前 Git 仓库中可读取的 commit 对象']);
+  write('.spec/verification/INDEX.md', fs.readFileSync(path.join(root, '.spec/verification/INDEX.md'), 'utf8').replace('Commit：' + missingSha, 'Commit：' + sha));
+
+  const blob = spawnSync('git', ['-C', root, 'hash-object', '-w', '--stdin'], { input: 'this is a blob, not a commit\n', encoding: 'utf8' });
+  assert.equal(blob.status, 0, 'fixture blob creation failed: ' + blob.stderr);
+  const blobSha = blob.stdout.trim();
+  write('.spec/verification/INDEX.md', fs.readFileSync(path.join(root, '.spec/verification/INDEX.md'), 'utf8').replace('Commit：' + sha, 'Commit：' + blobSha));
+  assertParity('blob object cannot masquerade as commit', ['Commit SHA 不是当前 Git 仓库中可读取的 commit 对象']);
+  write('.spec/verification/INDEX.md', fs.readFileSync(path.join(root, '.spec/verification/INDEX.md'), 'utf8').replace('Commit：' + blobSha, 'Commit：' + sha));
+
+  const gitDir = path.join(root, '.git');
+  const detachedGitDir = path.join(root, '.git.disabled');
+  fs.renameSync(gitDir, detachedGitDir);
+  assertParity('missing local Git metadata', ['Commit SHA 不是当前 Git 仓库中可读取的 commit 对象']);
+  fs.renameSync(detachedGitDir, gitDir);
 
   write('.spec/verification/INDEX.md', fs.readFileSync(path.join(root, '.spec/verification/INDEX.md'), 'utf8').replace('结果：pass', '结果：partial').replace('| V001 | R001 | CI | pass |', '| V001 | R001 | CI | partial |'));
   assertParity('partial cannot verify', ['需求 R001 的验证指针无效或未覆盖该需求', '需求 R001 标记 verified，但没有有效 pass 证据']);

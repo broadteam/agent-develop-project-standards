@@ -1,5 +1,8 @@
 ## Unreleased
 
+### Fixed
+- Require each V-record Commit SHA to resolve to an actual `commit` object in the project's local Git object database. Node and Python checkers use bounded offline `git cat-file` checks; missing objects, non-commit objects and unavailable Git metadata fail closed. The checker never fetches from a remote, so shallow clones must explicitly obtain the referenced object or keep the evidence unverified.
+
 ### Changed
 - Harden verification traceability: require evidence pointers to resolve to an existing in-project regular file or a valid HTTP(S) URL, reject path traversal and symlink escapes, and require V summary rows to match detailed evidence records field-for-field. Keep Node and Python gates in parity.
 

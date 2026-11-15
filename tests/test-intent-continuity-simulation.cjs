@@ -10,7 +10,7 @@ const { validateTraceability } = require('../template/.standards/traceability-ch
 
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'intent-continuity-simulation-'));
 const root = path.join(temp, 'project');
-const commitSha = 'b'.repeat(40);
+let commitSha;
 const ciUrl = 'https://github.com/example/project/actions/runs/42';
 
 function write(rel, content) {
@@ -63,6 +63,18 @@ ${body}
 `;
 
 try {
+  fs.mkdirSync(root, { recursive: true });
+  let git = spawnSync('git', ['-C', root, 'init', '-q'], { encoding: 'utf8' });
+  assert.equal(git.status, 0, 'fixture git init failed: ' + git.stderr);
+  write('.fixture-commit.txt', 'intent continuity fixture\n');
+  git = spawnSync('git', ['-C', root, 'add', '--', '.fixture-commit.txt'], { encoding: 'utf8' });
+  assert.equal(git.status, 0, 'fixture git add failed: ' + git.stderr);
+  git = spawnSync('git', ['-C', root, '-c', 'user.name=Standards Fixture', '-c', 'user.email=standards-fixture@example.invalid', 'commit', '-m', 'test: create intent continuity commit'], { encoding: 'utf8' });
+  assert.equal(git.status, 0, 'fixture git commit failed: ' + git.stdout + git.stderr);
+  git = spawnSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8' });
+  assert.equal(git.status, 0, 'fixture git rev-parse failed: ' + git.stderr);
+  commitSha = git.stdout.trim();
+
   write('.spec/intent/BASELINE.md', `# Intent Baseline
 
 | ID | 目标结果 | 优先级 | 来源/确认状态 | 可验证成功判据 |
