@@ -381,7 +381,7 @@ def resolve_safe_mirror_file(rel: object) -> Path | None:
         invalid("必须是非空的项目相对路径")
     if "\x00" in rel:
         invalid("路径包含 NUL 字符")
-    if "\\\\" in rel:
+    if "\\" in rel:
         invalid("不允许反斜杠或平台相关路径分隔符")
     if rel.startswith("/") or re.match(r"^[a-z]:", rel, re.I):
         invalid("不允许绝对路径或 Windows 盘符路径")

@@ -110,6 +110,17 @@ try {
   setMirrors(project, ['C:/outside/MEMORY.md']);
   assert.equal(runNode(project, 'sync-memory.cjs').status, 1, 'Windows drive paths must be rejected');
 
+  const backslashPath = '.workbuddy-ai' + String.fromCharCode(92) + 'memory' + String.fromCharCode(92) + 'bad.md';
+  setMirrors(project, [backslashPath]);
+  const backslashSync = runNode(project, 'sync-memory.cjs');
+  assert.equal(backslashSync.status, 1, 'backslash paths must be rejected');
+  assert.match(backslashSync.stderr, /不允许反斜杠/);
+  const backslashNode = runNode(project, 'check-governance.cjs');
+  const backslashPython = runPython(project);
+  assert.equal(backslashNode.status, 1);
+  assert.match(backslashNode.stdout, /不允许反斜杠/);
+  if (!backslashPython.error) assert.equal(backslashPython.stdout, backslashNode.stdout);
+
   const escape = path.join(project, '.workbuddy-ai/memory/ESCAPE.md');
   let symlinkCreated = false;
   try { fs.symlinkSync(outside, escape, 'file'); symlinkCreated = true; }
