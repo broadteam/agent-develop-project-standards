@@ -56,6 +56,9 @@ assert.doesNotMatch(ignoreAppend, /^\.codebuddy\/$/m, 'shared WorkBuddy/CodeBudd
 assert.match(ignoreAppend, /\.codebuddy\/.*共享/);
 assert.match(readme, /OpenCode V2/);
 assert.match(readme, /CodeBuddy IDE/);
+assert.ok(exists('CLIENT-SMOKE-TEST.md'), 'real client smoke-test runbook must exist');
+assert.match(clients, /CLIENT-SMOKE-TEST\.md/);
+assert.ok(exists('tools/client-smoke/create-fixture.cjs'), 'disposable client smoke fixture generator must exist');
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-client-adapters-'));
 try {
@@ -73,5 +76,8 @@ try {
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
 }
+
+const smokeFixture = spawnSync(process.execPath, [path.join(__dirname, 'test-client-smoke-fixture.cjs')], { encoding: 'utf8', env: process.env });
+assert.equal(smokeFixture.status, 0, 'real-client smoke fixture contract failed:\n' + smokeFixture.stdout + smokeFixture.stderr);
 
 console.log('test-client-adapters: all cases passed');

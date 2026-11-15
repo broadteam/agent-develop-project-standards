@@ -1,5 +1,12 @@
 ## Unreleased
 
+### Added
+- Add a disposable real-client smoke fixture generator based on the current initializer, with randomized root, nested and memory markers plus a cross-session checkpoint write/restore probe.
+- Document per-client execution, evidence requirements and explicit PASS/BLOCKED/NOT RUN boundaries; the guide does not claim that any client has already been launched.
+
+### Tests
+- Exercise fixture creation, generated-project governance validation, collision refusal and repository-boundary refusal through the existing client-adapter regression entry point; do not add or modify a CI workflow.
+
 ### Changed
 - Refresh client compatibility guidance against current official documentation: distinguish OpenCode V2 loading, Claude Code AGENTS support and fallback behavior, Gemini context filename configuration, and separate WorkBuddy from CodeBuddy IDE.
 - Clarify that `.codebuddy/` contains version-controlled shared project configuration and must not be ignored wholesale; retain `.workbuddy-ai/` only as a legacy local-data ignore entry.

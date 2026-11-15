@@ -57,7 +57,7 @@ node init.cjs /path/to/your-project --strict-scan
 | WorkBuddy | `.codebuddy/`，兼容 `AGENTS.md` | 项目级规则、Agent、Skill、Command 与 CODEBUDDY.md 可提交共享；精确加载优先级需实测。 |
 | CodeBuddy IDE | `CODEBUDDY.md`；条件回退 `AGENTS.md` | 仅当根目录没有 CODEBUDDY.md 时才自动加载根 AGENTS.md。 |
 
-客户端兼容性不是“规则文件存在就算通过”。仓库通过 `tests/test-client-adapters.cjs` 检查模板指针、加载边界文档和初始化结果；这不等于真实客户端 CLI / IDE 已运行。客户端配置不得复制或分叉项目规则正文。完整矩阵与官方依据见 [CLIENTS.md](CLIENTS.md)。
+客户端兼容性不是“规则文件存在就算通过”。仓库通过 `tests/test-client-adapters.cjs` 检查模板指针、加载边界文档和初始化结果；这不等于真实客户端 CLI / IDE 已运行。客户端配置不得复制或分叉项目规则正文。完整矩阵与官方依据见 [CLIENTS.md](CLIENTS.md)。 真实启动验证使用 [CLIENT-SMOKE-TEST.md](CLIENT-SMOKE-TEST.md) 中的一次性夹具；契约测试通过不代表客户端已实测。
 
 ### 项目能力画像
 
