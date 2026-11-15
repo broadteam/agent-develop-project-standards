@@ -18,6 +18,8 @@ const gemini = read('template/GEMINI.md').trim();
 const init = read('init.cjs');
 const spec = read('SPEC-v2.0.md');
 const readme = read('README.md');
+const clients = read('CLIENTS.md');
+const ignoreAppend = read('template/.gitignore.append');
 
 assert.ok(exists('template/AGENTS.md'), 'canonical AGENTS.md must exist');
 assert.equal(claude, '@AGENTS.md', 'Claude entry must import the canonical rules');
@@ -40,6 +42,20 @@ assert.ok(spec.includes('替代而非补充普通 `AGENTS.md`'), 'Codex override
 assert.ok(spec.includes('Gemini CLI') && spec.includes('@./AGENTS.md'));
 assert.ok(spec.includes('Claude Code') && spec.includes('@AGENTS.md'));
 assert.ok(spec.includes('Codex') && spec.includes('仓库根到当前工作目录'));
+assert.match(spec, /Claude Code v2\.1\.277\+/);
+assert.match(spec, /Gemini CLI[\s\S]*?context\.fileName/);
+assert.match(spec, /OpenCode V2[\s\S]*?不回退到 `CLAUDE\.md`/);
+assert.match(spec, /WorkBuddy[\s\S]*?\.codebuddy\//);
+assert.match(spec, /CodeBuddy IDE[\s\S]*?仅当该文件不存在时才自动加载根 `AGENTS\.md`/);
+assert.match(clients, /官方文档核对日期：2026-11-15/);
+assert.match(clients, /CodeBuddy IDE[\s\S]*?仅当根目录没有 `CODEBUDDY\.md` 时/);
+assert.match(clients, /OpenCode V2[\s\S]*?不把 `CLAUDE\.md` 作为回退入口/);
+assert.match(clients, /WorkBuddy[\s\S]*?\.codebuddy\//);
+assert.doesNotMatch(clients, /OpenCode.*同级只取第一个匹配/);
+assert.doesNotMatch(ignoreAppend, /^\.codebuddy\/$/m, 'shared WorkBuddy/CodeBuddy project config must not be ignored');
+assert.match(ignoreAppend, /\.codebuddy\/.*共享/);
+assert.match(readme, /OpenCode V2/);
+assert.match(readme, /CodeBuddy IDE/);
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-client-adapters-'));
 try {

@@ -81,42 +81,41 @@
 **目标**：不同客户端进入同一套项目规则，不因客户端不同而形成多份规范。
 
 - `AGENTS.md` 是唯一规范正文。
-- 客户端入口文件只做指针，不写第二套规则。
-- 已知入口：Codex/通用 Agent 使用 `AGENTS.md`；Claude Code 使用 `CLAUDE.md` 指向 `AGENTS.md`；Gemini CLI 使用 `GEMINI.md` 指向 `AGENTS.md`；支持原生 `AGENTS.md` 的客户端直接读取。
-- Cursor 等客户端若支持原生 AGENTS 规则，优先使用原生入口；不生成已弃用的旧格式文件。
-- 客户端专属工具配置（权限、MCP、命令、Hooks）属于适配层，不得承载项目事实或复制规范正文。
-- 若客户端不支持 AGENTS.md，适配器只能引用或导入规范正文，不得独立维护另一套版本。
+- 仅在客户端需要时生成短入口指针；不复制第二套规则正文。
+- 入口与加载语义按客户端和版本记录；同样识别 `AGENTS.md` 不代表作用域、发现时机或冲突优先级一致。
+- 客户端专属工具配置（权限、MCP、命令、Hooks、Rules）属于适配层，不得承载第二份项目事实源。
+- 对无法可靠加载 `AGENTS.md` 的客户端，适配器只能引用/导入规范正文；若产品没有受支持的引用能力，必须保留人工合并边界，不得假装短指针会被展开。
 
 **验收**：
-- 每个适配入口均是短指针并指向存在文件。
-- 自动测试验证指针目标、重复正文和缺失入口。
-- 客户端专属配置与项目规范正文分离；未验证的客户端兼容性标记为待验证，不宣称全面支持。
-
+- 每个模板入口均是短指针并指向存在文件。
+- 自动测试验证模板入口、指针目标、重复正文、忽略规则和客户端加载边界文档。
+- 只有真实客户端在固定版本和临时项目中运行验证后，才可标记为客户端集成支持；契约测试与文档核对不得替代 CLI/IDE 证据。
 
 #### 客户端加载语义与已知限制
 
-适配器只解决“如何进入唯一规则正文”，不保证不同客户端的上下文窗口、规则优先级或工具权限完全相同。当前模板采用以下最小兼容策略：
-
 | 客户端 | 项目入口 | 加载方式与边界 |
 |---|---|---|
-| Codex | 根目录 `AGENTS.md` | 从仓库根到当前工作目录按层级加载；更深目录的指令后加载，拥有更具体的语义。同目录存在 `AGENTS.override.md` 时使用覆盖文件而不是普通 `AGENTS.md`；模板不预生成嵌套或覆盖规则。 [官方说明](https://developers.openai.com/cookbook/examples/gpt-5/codex_prompting_guide) |
-| Claude Code | `CLAUDE.md` | 使用 `@AGENTS.md` 导入唯一正文；导入可递归（最多四跳），并从当前目录向上查找 `CLAUDE.md`，子目录规则在访问相关目录时按需加载。 [官方说明](https://code.claude.com/docs/en/memory) |
-| Gemini CLI | `GEMINI.md` | 使用 `@./AGENTS.md` 导入唯一正文；默认文件名为 `GEMINI.md`，支持配置多个上下文文件名，并从全局、项目祖先及子目录发现上下文。 [官方说明](https://geminicli.com/docs/cli/gemini-md/) |
-| Cursor | 根目录及子目录 `AGENTS.md` | 原生支持简单 Markdown 规则；父目录与更具体目录的规则会组合，后者优先。需要 glob、手动或智能触发时可另行评估 `.cursor/rules/*.mdc`，不得复制完整通用规则。 [官方说明](https://cursor.com/docs/rules) |
+| Codex | 根目录 `AGENTS.md` | 从仓库根到当前工作目录逐层加载；每层同目录的 `AGENTS.override.md` 替代 `AGENTS.md`，不会把两者同时追加；本模板只生成根级普通入口。 [官方说明](https://learn.chatgpt.com/docs/agent-configuration/agents-md) |
+| Claude Code | `CLAUDE.md` → `@AGENTS.md` | 导入深度最多四跳。Claude Code v2.1.277+ 支持直接读取 `AGENTS.md`，但默认若工作目录或其上方存在 `CLAUDE.md` / `CLAUDE.local.md`，则按 Claude 入口加载；模板保留导入指针以兼容旧版本和仅支持 CLAUDE 的会话。 [官方说明](https://code.claude.com/docs/zh-CN/memory) |
+| Gemini CLI | `GEMINI.md` → `@./AGENTS.md` | 默认使用 `GEMINI.md`；可通过 `context.fileName` 配置一个或多个发现文件名，例如 `AGENTS.md` 与 `GEMINI.md`。导入指针不要求用户修改全局设置。 [官方说明](https://geminicli.com/docs/cli/gemini-md/) |
+| Cursor | 根目录及子目录 `AGENTS.md` | 原生支持根与嵌套 AGENTS；嵌套文件应用于 Agent 在对应目录或其子目录工作时，父级与更具体的规则组合。更精细的 glob/手动规则可用 `.cursor/rules/*.mdc`，不得复制通用规则正文。 [官方说明](https://cursor.com/docs/rules) |
+| OpenCode V2 | `AGENTS.md` | 加载全局及 workspace 路径内的 AGENTS；嵌套文件在探索/读取相应目录时发现。多文件合并且不自动裁决冲突；配置中的 `instructions` 在 AGENTS 文件后追加。V2 仅识别 `AGENTS.md`，不回退到 `CLAUDE.md`。 [官方说明](https://opencode.ai/docs/instructions) |
+| WorkBuddy | `.codebuddy/`，并声明兼容 `AGENTS.md` | 项目配置可包含共享 Rules、Agents、Skills、Commands 与 `CODEBUDDY.md`；官方文档声明兼容 AGENTS，但未完整说明多入口同时存在时的精确加载次序。 [官方说明](https://www.codebuddy.cn/docs/workbuddy/From-Beginner-to-Expert-Guide/Function-Description/Project) |
+| CodeBuddy IDE | 根目录 `CODEBUDDY.md`；条件回退为 `AGENTS.md` | 默认读取根 `CODEBUDDY.md`；仅当该文件不存在时才自动加载根 `AGENTS.md`。结构化项目规则位于 `.codebuddy/rules/`。 [官方说明](https://cloud.tencent.com/document/product/1831/137442) |
 
 实现约束：
 
-- 初始化器只生成根级 `AGENTS.md`、`CLAUDE.md`、`GEMINI.md`；不生成 `.cursorrules`。
+- 初始化器只生成根级 `AGENTS.md`、`CLAUDE.md`、`GEMINI.md`；不生成客户端自有的 `CODEBUDDY.md`、`.codebuddy/` 或 `.cursorrules`。
 - `CLAUDE.md` 与 `GEMINI.md` 必须保持为可自动验证的短导入指针。
-- Cursor 已支持嵌套 `AGENTS.md`，但模板不默认生成局部规则；只有局部规则有独立、稳定的职责时才添加，并保持与根规则不重复。
-- Codex 的 `AGENTS.override.md` 是同目录 `AGENTS.md` 的替代入口，不是追加层；项目如需使用它，必须在变更说明中交代被替代的规则和适用目录。
-- 客户端用户级规则、个人记忆和本地配置不由本模板管理；项目事实仍以仓库中的权威文件为准。
-- 对同一项目事实，仓库中的权威文件优先于客户端私有规则、个人记忆和本地配置；后者不得被写成项目状态或架构决策的唯一来源。客户端的全局、项目和局部规则如何合并，必须以该客户端实际加载结果为准，不能用本模板推断。
-- 局部项目规则只能补充该目录的稳定职责或限制；与根级规则、任务范围或宪法红线冲突时，按 `AGENTS.md` §0.3 裁决。Codex 的同目录 override 例外：它替代而非补充普通 `AGENTS.md`，必须人工审查其是否仍保留必要红线。
-- 客户端升级可能改变加载行为；支持矩阵应以官方文档和本仓库适配器回归测试为依据，未验证行为标记为待验证。
+- Cursor 支持嵌套 `AGENTS.md`，但模板不默认生成局部规则；只有局部规则有独立、稳定的职责时才添加。
+- Gemini 如需在嵌套目录发现 `AGENTS.md`，维护者应显式配置 `context.fileName`；模板不擅自修改用户级 settings。
+- CodeBuddy IDE 根目录已存在 `CODEBUDDY.md` 时，不得假定它也会加载 `AGENTS.md`；由维护者决定如何合并已有规范。
+- WorkBuddy / CodeBuddy 的 `.codebuddy/` 是共享项目配置，不得像本地缓存一样整体忽略；模板保留的 `.workbuddy-ai/` 忽略项仅兼容旧本地工具数据。
+- Codex 的 `AGENTS.override.md` 是同目录 `AGENTS.md` 的替代入口，不是追加层；项目如需使用它，必须人工审查必要红线是否仍在。
+- 对同一项目事实，仓库中的权威文件优先于客户端私有规则和个人记忆；但客户端内部全局/项目/局部规则冲突必须以实际加载结果为准，不能由本模板推断。
+- 客户端升级可能改变加载行为；未由当前官方说明覆盖或未真实验证的行为标记为待验证。
 
-官方依据（核对日期：2026-11-08）：上表链接。客户端文档会随版本变化；本仓库的自动化测试只验证模板入口、导入指针和初始化结果，不启动各客户端 CLI，也不声称已完成真实客户端端到端集成验证。若要升级“文档核对”到“客户端集成支持”，必须另增可重复的 CLI fixture 验证，并记录客户端版本。
-
+官方依据核对日期：2026-11-15。自动化测试只验证本仓库模板契约和初始化 fixture，不启动各客户端 CLI/IDE；目前尚无客户端被标记为真实运行集成通过。
 ### 1.3 记忆与上下文管理
 
 **目标**：跨会话可恢复，控制上下文成本，不让记忆变成第二套文档仓库。
@@ -292,7 +291,7 @@
 | 方向 | 状态 | 机器验证 | 已知限制 |
 |---|---|---|---|
 | 1. 规范体系与目录架构 | done | `test-v2-spec`（权威文件地图、预算、记忆路径）、`test-doc-links`（本地链接 + 引用式链接定义 + README 目录树解析）、`test-init`（占位符契约：模板里每个 `{{KEY}}` 都必须是 init 认识的键） | 锚点（`#标题`）未校验，因为当前仓库未使用；技术栈层只覆盖 `presets/stacks/` 的 7 个预设 |
-| 2. Agent 多客户端兼容 | done | `test-client-adapters`（模板契约 + 初始化 fixture）：指针存在且目标存在、无重复正文、Codex override 与 Claude 导入深度语义 | 不启动真实客户端 CLI，只验证入口与导入契约；支持矩阵依据的官方文档核对日期为 2026-11-08，客户端升级后需重核 |
+| 2. Agent 多客户端兼容 | done | `test-client-adapters`（模板契约 + 初始化 fixture）：指针存在且目标存在、无重复正文、Codex override、Claude 导入深度及各客户端加载边界文档契约 | 不启动真实客户端 CLI/IDE；官方依据于 2026-11-15 重核，运行时加载、不同客户端间真实状态恢复仍未验证 |
 | 3. 记忆与上下文管理 | done | `test-v2-spec`（记忆更新触发条件、模板路径存在、不重复记录任务流水）、`test-task-context-resolver`（按任务事实解析应读规范） | 跨客户端的实际上下文恢复效果未独立验证 |
 | 4. 任务、看板与路线图管理 | done | `test-parity`（状态合法、ID 唯一、BOARD 源哈希与生成哈希、归档索引双向一致、路径穿越、CRLF 看板）、`generate-board` | 真实项目规模（>200 张卡）下的索引维护体验未评估 |
 | 5. 工程治理与初始化机制 | done | `test-init`（dry-run 零写入、参数拒绝、Hook 保护、符号链接 fail-closed、故障注入回滚、占位符契约）、`test-migration-v2`（空项目首次安装、已有多栈项目、重复初始化、自定义文件保留） | 进程被强杀或断电不在事务保证内；POSIX 文件模式仅在 CI 覆盖 |

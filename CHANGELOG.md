@@ -1,6 +1,14 @@
 ## Unreleased
 
 ### Changed
+- Refresh client compatibility guidance against current official documentation: distinguish OpenCode V2 loading, Claude Code AGENTS support and fallback behavior, Gemini context filename configuration, and separate WorkBuddy from CodeBuddy IDE.
+- Clarify that `.codebuddy/` contains version-controlled shared project configuration and must not be ignored wholesale; retain `.workbuddy-ai/` only as a legacy local-data ignore entry.
+
+### Tests
+- Expand adapter contracts to assert current vendor-specific loading boundaries, documentation review date, and that shared `.codebuddy/` project configuration is not ignored.
+
+
+### Changed
 - Clarify the two supported template-upgrade paths: `init --update` for untouched files and the auditable plan/review/manual-apply/record flow for reviewed migrations. Point users to the authoritative migration procedure and state explicitly that baseline registration does not apply template files.
 
 ### Tests
